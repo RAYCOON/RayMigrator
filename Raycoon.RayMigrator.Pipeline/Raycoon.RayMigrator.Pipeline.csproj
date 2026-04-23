@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>default</LangVersion>
+        <TargetFrameworks>net10.0;net9.0;net8.0</TargetFrameworks>
+        <PackageId>Raycoon.RayMigrator.Pipeline</PackageId>
+        <Description>Unified Direct mode execution pipeline for RayMigrator CLI applications</Description>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="..\NUGET_README.md" Pack="true" PackagePath="README.md" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Raycoon.RayMigrator.Core\Raycoon.RayMigrator.Core.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Database\Raycoon.RayMigrator.Database.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Database.Common\Raycoon.RayMigrator.Database.Common.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Infrastructure\Raycoon.RayMigrator.Infrastructure.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Services\Raycoon.RayMigrator.Services.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Services.Abstractions\Raycoon.RayMigrator.Services.Abstractions.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Shared\Raycoon.RayMigrator.Shared.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.Configuration" />
+        <PackageReference Include="Microsoft.Extensions.Configuration.FileExtensions" />
+        <PackageReference Include="Microsoft.Extensions.Configuration.Json" />
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+        <PackageReference Include="Microsoft.Extensions.Hosting" />
+        <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+        <PackageReference Include="Serilog.Extensions.Hosting" />
+        <PackageReference Include="Serilog.Settings.Configuration" />
+    </ItemGroup>
+
+</Project>

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" msdata:Ordinal="0" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+
+  <data name="DatabaseType_Required" xml:space="preserve"><value>DatabaseType is required.</value></data>
+  <data name="DatabaseType_Invalid" xml:space="preserve"><value>Invalid DatabaseType. Valid values: SqlServer, PostgreSQL, MariaDb, MySql, Sqlite.</value></data>
+  <data name="Alias_Required" xml:space="preserve"><value>Alias is required.</value></data>
+  <data name="Alias_InvalidChars" xml:space="preserve"><value>Only letters, numbers and underscores (max 50 chars) allowed.</value></data>
+  <data name="Alias_Duplicate" xml:space="preserve"><value>Duplicate alias.</value></data>
+  <data name="ConnectionString_Required" xml:space="preserve"><value>ConnectionString is required.</value></data>
+  <data name="ConnectionString_Invalid" xml:space="preserve"><value>Invalid connection string syntax.</value></data>
+  <data name="SchemaName_Required" xml:space="preserve"><value>SchemaName is required for this database type.</value></data>
+  <data name="SchemaName_SqliteWarning" xml:space="preserve"><value>Sqlite does not support schemas. SchemaName will be ignored.</value></data>
+  <data name="Value_MustBePositive" xml:space="preserve"><value>Value must be greater than or equal to 0.</value></data>
+  <data name="Products_Required" xml:space="preserve"><value>At least one Product is required.</value></data>
+  <data name="TargetGroups_Required" xml:space="preserve"><value>At least one TargetGroup is required.</value></data>
+  <data name="Targets_Required" xml:space="preserve"><value>At least one Target is required.</value></data>
+  <data name="CliTool_ExecutablePath_Required" xml:space="preserve"><value>ExecutablePath is required.</value></data>
+  <data name="CliTool_ArgumentTemplate_Required" xml:space="preserve"><value>ArgumentTemplate is required.</value></data>
+  <data name="CliTool_InputMode_Invalid" xml:space="preserve"><value>Invalid InputMode. Valid values: File, Stdin.</value></data>
+  <data name="CliTool_Timeout_Invalid" xml:space="preserve"><value>Timeout must be greater than 0.</value></data>
+  <data name="UseCliToolAlias_NotFound" xml:space="preserve"><value>UseCliToolAlias references a non-existent CLI tool.</value></data>
+  <data name="UseCliToolAlias_NoTools" xml:space="preserve"><value>UseCliToolAlias references exist but no CLI tools are defined.</value></data>
+  <data name="TargetMigrationOrder_Irrelevant" xml:space="preserve"><value>TargetMigrationOrder is irrelevant when the TargetGroup has only one Target.</value></data>
+</root>

@@ -1,0 +1,165 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <RootNamespace>Raycoon.RayMigrator</RootNamespace>
+        <Company>RAYCOON.com GmbH</Company>
+        <Product>RayMigrator Pro Database Migration Framework</Product>
+        <Copyright>Copyright (c) 2023-$([System.DateTime]::Now.Year) $(Company)</Copyright>
+        <Version>$(RayMigratorVersion)</Version>
+        <VersionInfoString>$(Version) ($([System.DateTime]::Now.ToString("yyyy-MM-dd"))) $(BuildStage)</VersionInfoString>
+        <FileVersion>$(RayMigratorVersion)</FileVersion>
+        <AssemblyVersion>$(RayMigratorVersion)</AssemblyVersion>
+        <Description>Pro Database Migration Framework</Description>
+        <Authors>Daniel Pavic</Authors>
+        <AssemblyName>RayMigrator</AssemblyName>
+        <LangVersion>default</LangVersion>
+        <TargetFrameworks>net10.0;net9.0;net8.0</TargetFrameworks>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <!-- Editions für verschiedene Environments -->
+    <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+        <DefineConstants>DEBUG;TRACE;DEVELOPMENT_EDITION</DefineConstants>
+        <Edition>Development Edition</Edition>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Release' And '$(BuildStage)' == 'Docker'">
+        <DefineConstants>TRACE;PARTNER_EDITION</DefineConstants>
+        <Edition>Partner Edition</Edition>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Release' And '$(BuildStage)' == 'Production'">
+        <DefineConstants>TRACE;PRODUCTION_EDITION</DefineConstants>
+        <Edition>Professional Edition</Edition>
+    </PropertyGroup>
+<!--    
+    <PropertyGroup>
+        <UseRidGraph>true</UseRidGraph>
+    </PropertyGroup>
+-->    
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.Configuration" />
+        <PackageReference Include="Microsoft.Extensions.Configuration.FileExtensions" />
+        <PackageReference Include="Microsoft.Extensions.Configuration.Json" />
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+        <PackageReference Include="Microsoft.Extensions.Hosting" />
+        <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+        <PackageReference Include="Serilog" />
+        <PackageReference Include="Serilog.Enrichers.Environment" />
+        <PackageReference Include="Serilog.Enrichers.Thread" />
+        <PackageReference Include="Serilog.Extensions.Hosting" />
+        <PackageReference Include="Serilog.Settings.Configuration" />
+        <PackageReference Include="Serilog.Sinks.Console" />
+        <PackageReference Include="Serilog.Sinks.File" />
+        <PackageReference Include="Raycoon.Serilog.Sinks.SQLite" />
+        <PackageReference Include="System.CommandLine" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Update="*.json">
+            <DependentUpon>appsettings.json</DependentUpon>
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+            <CopyToPublishDirectory>Never</CopyToPublishDirectory>
+        </None>
+        <Content Remove="DataAccessLayers\**" />
+        <None Remove="DataAccessLayers\**" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Raycoon.RayMigrator.Pipeline\Raycoon.RayMigrator.Pipeline.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Core\Raycoon.RayMigrator.Core.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Database.Common\Raycoon.RayMigrator.Database.Common.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Database\Raycoon.RayMigrator.Database.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Database.SqlServer\Raycoon.RayMigrator.Database.SqlServer.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Database.PostgreSQL\Raycoon.RayMigrator.Database.PostgreSQL.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Database.MariaDb\Raycoon.RayMigrator.Database.MariaDb.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Database.MySql\Raycoon.RayMigrator.Database.MySql.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Database.Sqlite\Raycoon.RayMigrator.Database.Sqlite.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Infrastructure\Raycoon.RayMigrator.Infrastructure.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Shared\Raycoon.RayMigrator.Shared.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Services\Raycoon.RayMigrator.Services.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Services.Abstractions\Raycoon.RayMigrator.Services.Abstractions.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Remove="DataAccessLayers\**" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <EmbeddedResource Remove="DataAccessLayers\**" />
+    </ItemGroup>
+
+    <!-- Copy DAL assemblies into DataAccessLayers/{Type}/ for plugin discovery by DalFactory -->
+    <Target Name="CopyDalAssembliesToDataAccessLayers" AfterTargets="Build">
+        <Copy SourceFiles="$(OutputPath)Raycoon.RayMigrator.Database.SqlServer.dll"
+              DestinationFolder="$(OutputPath)DataAccessLayers/SqlServer/"
+              SkipUnchangedFiles="true"
+              Condition="Exists('$(OutputPath)Raycoon.RayMigrator.Database.SqlServer.dll')" />
+        <Copy SourceFiles="$(OutputPath)Raycoon.RayMigrator.Database.PostgreSQL.dll"
+              DestinationFolder="$(OutputPath)DataAccessLayers/PostgreSQL/"
+              SkipUnchangedFiles="true"
+              Condition="Exists('$(OutputPath)Raycoon.RayMigrator.Database.PostgreSQL.dll')" />
+        <Copy SourceFiles="$(OutputPath)Raycoon.RayMigrator.Database.MariaDb.dll"
+              DestinationFolder="$(OutputPath)DataAccessLayers/MariaDb/"
+              SkipUnchangedFiles="true"
+              Condition="Exists('$(OutputPath)Raycoon.RayMigrator.Database.MariaDb.dll')" />
+        <Copy SourceFiles="$(OutputPath)Raycoon.RayMigrator.Database.MySql.dll"
+              DestinationFolder="$(OutputPath)DataAccessLayers/MySql/"
+              SkipUnchangedFiles="true"
+              Condition="Exists('$(OutputPath)Raycoon.RayMigrator.Database.MySql.dll')" />
+        <Copy SourceFiles="$(OutputPath)Raycoon.RayMigrator.Database.Sqlite.dll"
+              DestinationFolder="$(OutputPath)DataAccessLayers/Sqlite/"
+              SkipUnchangedFiles="true"
+              Condition="Exists('$(OutputPath)Raycoon.RayMigrator.Database.Sqlite.dll')" />
+    </Target>
+
+    <!-- Copy DAL SQL templates into DataAccessLayers/{Type}/ in publish output for user customization -->
+    <Target Name="CopyDalTemplatesToDataAccessLayersPublish" AfterTargets="Publish">
+        <ItemGroup>
+            <_SqlServerTemplates Include="$(MSBuildThisFileDirectory)..\Raycoon.RayMigrator.Database.SqlServer\Templates\**\*.sql" />
+            <_PostgreSQLTemplates Include="$(MSBuildThisFileDirectory)..\Raycoon.RayMigrator.Database.PostgreSQL\Templates\**\*.sql" />
+            <_MariaDbTemplates Include="$(MSBuildThisFileDirectory)..\Raycoon.RayMigrator.Database.MariaDb\Templates\**\*.sql" />
+            <_MySqlTemplates Include="$(MSBuildThisFileDirectory)..\Raycoon.RayMigrator.Database.MySql\Templates\**\*.sql" />
+            <_SqliteTemplates Include="$(MSBuildThisFileDirectory)..\Raycoon.RayMigrator.Database.Sqlite\Templates\**\*.sql" />
+        </ItemGroup>
+        <Copy SourceFiles="@(_SqlServerTemplates)"
+              DestinationFolder="$(PublishDir)DataAccessLayers/SqlServer/%(RecursiveDir)"
+              SkipUnchangedFiles="true" />
+        <Copy SourceFiles="@(_PostgreSQLTemplates)"
+              DestinationFolder="$(PublishDir)DataAccessLayers/PostgreSQL/%(RecursiveDir)"
+              SkipUnchangedFiles="true" />
+        <Copy SourceFiles="@(_MariaDbTemplates)"
+              DestinationFolder="$(PublishDir)DataAccessLayers/MariaDb/%(RecursiveDir)"
+              SkipUnchangedFiles="true" />
+        <Copy SourceFiles="@(_MySqlTemplates)"
+              DestinationFolder="$(PublishDir)DataAccessLayers/MySql/%(RecursiveDir)"
+              SkipUnchangedFiles="true" />
+        <Copy SourceFiles="@(_SqliteTemplates)"
+              DestinationFolder="$(PublishDir)DataAccessLayers/Sqlite/%(RecursiveDir)"
+              SkipUnchangedFiles="true" />
+    </Target>
+
+    <!-- Copy Examples/ to output for user reference -->
+    <Target Name="CopyExamplesToOutput" AfterTargets="Build">
+        <ItemGroup>
+            <_ExampleFiles Include="$(MSBuildThisFileDirectory)..\Examples\**\*" />
+        </ItemGroup>
+        <Copy SourceFiles="@(_ExampleFiles)"
+              DestinationFolder="$(OutputPath)Examples/%(RecursiveDir)"
+              SkipUnchangedFiles="true" />
+    </Target>
+
+    <Target Name="CopyExamplesToPublishOutput" AfterTargets="Publish">
+        <ItemGroup>
+            <_ExampleFilesPublish Include="$(MSBuildThisFileDirectory)..\Examples\**\*" />
+        </ItemGroup>
+        <Copy SourceFiles="@(_ExampleFilesPublish)"
+              DestinationFolder="$(PublishDir)Examples/%(RecursiveDir)"
+              SkipUnchangedFiles="true" />
+    </Target>
+
+</Project>

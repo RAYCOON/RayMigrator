@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" msdata:Ordinal="0" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+
+  <data name="Welcome_Title" xml:space="preserve"><value>Welcome</value></data>
+  <data name="Welcome_Description" xml:space="preserve"><value>Welcome to the RayMigrator Configuration Wizard. This wizard guides you through creating a complete RayMigrator configuration file step by step.</value></data>
+
+  <data name="Root_Title" xml:space="preserve"><value>RayMigrator Configuration</value></data>
+  <data name="Root_Description" xml:space="preserve"><value>This is the root of your RayMigrator configuration. The configuration is organized into sections: Repository, DatabaseLogging, ProductDefaults, Products, Serilog, and CliTools.</value></data>
+
+  <data name="Repository_Title" xml:space="preserve"><value>Repository</value></data>
+  <data name="Repository_Description" xml:space="preserve"><value>The Repository stores migration tracking data (which migrations have been applied, their status, and hashes). Configure the database engine, connection string, schema, and timeout settings.</value></data>
+
+  <data name="DatabaseLogging_Title" xml:space="preserve"><value>Database Logging</value></data>
+  <data name="DatabaseLogging_Description" xml:space="preserve"><value>Optional feature that writes log entries to a database table in addition to Serilog console/file logging. Useful for centralized log analysis and auditing migration runs across environments.</value></data>
+
+  <data name="ProductDefaults_Title" xml:space="preserve"><value>Product Defaults</value></data>
+  <data name="ProductDefaults_Description" xml:space="preserve"><value>Default values inherited by all Products. Individual products can override any of these values. Includes error actions, file extensions, encoding, and nested TargetGroup/Target defaults.</value></data>
+
+  <data name="Product_Title" xml:space="preserve"><value>Product</value></data>
+  <data name="Product_Description" xml:space="preserve"><value>A Product is a deployable unit that contains migration files. Each product has its own directory of migration files organized by release. Products can override ProductDefaults values.</value></data>
+
+  <data name="TargetGroup_Title" xml:space="preserve"><value>Target Group</value></data>
+  <data name="TargetGroup_Description" xml:space="preserve"><value>A Target Group contains one or more Targets that share the same DatabaseType. Migration files are applied to all targets in the group. Configure the database engine, migration order, and hash validation.</value></data>
+
+  <data name="Target_Title" xml:space="preserve"><value>Target</value></data>
+  <data name="Target_Description" xml:space="preserve"><value>A Target is a single database instance where migrations are applied. Configure the connection string and optionally override timeout, retry, and CLI tool settings.</value></data>
+
+  <data name="Serilog_Title" xml:space="preserve"><value>Serilog</value></data>
+  <data name="Serilog_Description" xml:space="preserve"><value>Logging configuration using the Serilog framework. Configure the minimum log level, per-namespace overrides, and output sinks (Console, File, etc.).</value></data>
+
+  <data name="CliTools_Title" xml:space="preserve"><value>CLI Tools</value></data>
+  <data name="CliTools_Description" xml:space="preserve"><value>External command-line tools (e.g., sqlcmd, psql, mariadb, mysql, sqlite3) that can be used instead of RayMigrator's built-in database drivers for executing migration SQL.</value></data>
+
+  <data name="Products_Title" xml:space="preserve"><value>Products</value></data>
+  <data name="Products_Description" xml:space="preserve"><value>Container for all configured products. A Product is a deployable unit with its own migration files and target databases.</value></data>
+
+  <data name="TargetGroups_Title" xml:space="preserve"><value>Target Groups</value></data>
+  <data name="TargetGroups_Description" xml:space="preserve"><value>Container for target groups within a product. Each target group shares a DatabaseType and contains one or more target databases.</value></data>
+
+  <data name="Targets_Title" xml:space="preserve"><value>Targets</value></data>
+  <data name="Targets_Description" xml:space="preserve"><value>Container for targets within a target group. Each target is a single database instance where migrations are applied.</value></data>
+</root>

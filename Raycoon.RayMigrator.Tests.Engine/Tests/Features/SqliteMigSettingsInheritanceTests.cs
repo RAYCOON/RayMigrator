@@ -1,0 +1,316 @@
+// Copyright (c) 2026 RAYCOON.com GmbH
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License v3.
+//
+// See the LICENSE file for details.
+
+using System.Text.Json;
+using Raycoon.RayMigrator.Core.Configuration.Enums;
+using Raycoon.RayMigrator.Tests.Engine.Fixtures;
+using Raycoon.RayMigrator.Tests.Engine.Infrastructure;
+
+namespace Raycoon.RayMigrator.Tests.Engine.Tests.Features;
+
+[Collection("Sqlite")]
+[Trait("Engine", "Sqlite")]
+[Trait("Category", "Features")]
+public class SqliteMigSettingsInheritanceTests : SqliteTestBase
+{
+    public SqliteMigSettingsInheritanceTests(SqliteFixture fixture) : base(fixture) { }
+
+    [Fact]
+    public async Task RootLevel_ShouldBeInheritedByAllFiles()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        await using var ctx = await CreateScenario()
+            .SetMigSettings("migsettings.txt", new Dictionary<string, string>
+            {
+                ["MigrationErrorAction"] = "Ignore"
+            })
+            .BuildAsync();
+        await ctx.MigrateUpAsync("Release_1.0");
+        ctx.AssertSuccess(true);
+        string? configJson = ctx.GetMigrationConfigJson("01_CreateTableA.sql");
+        configJson.Should().NotBeNullOrEmpty("FileUpConfigJson should be stored for the migration");
+        var config = JsonDocument.Parse(configJson!);
+        config.RootElement.GetProperty("MigrationErrorAction").GetString().Should().Be("Ignore",
+            "MigrationErrorAction=Ignore from root migsettings.txt should be inherited");
+    }
+
+    [Fact]
+    public async Task EnvironmentSpecific_ShouldOverrideBase()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        await using var ctx = await CreateScenario()
+            .SetMigSettings("migsettings.txt", new Dictionary<string, string>
+            {
+                ["MigrationErrorAction"] = "Terminate"
+            })
+            .SetMigSettings("migsettings.Docker.txt", new Dictionary<string, string>
+            {
+                ["MigrationErrorAction"] = "Ignore"
+            })
+            .BuildAsync();
+        await ctx.MigrateUpAsync("Release_1.0");
+        ctx.AssertSuccess(true);
+        string? configJson = ctx.GetMigrationConfigJson("01_CreateTableA.sql");
+        configJson.Should().NotBeNullOrEmpty();
+        var config = JsonDocument.Parse(configJson!);
+        config.RootElement.GetProperty("MigrationErrorAction").GetString().Should().Be("Ignore",
+            "MigrationErrorAction=Ignore from migsettings.Docker.txt should override base Terminate");
+    }
+
+    [Fact]
+    public async Task TomlMetadata_ShouldOverrideMigSettings()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        await using var ctx = await CreateScenario()
+            .SetMigSettings("migsettings.txt", new Dictionary<string, string>
+            {
+                ["MigrationErrorAction"] = "Ignore"
+            })
+            .SetFileToml("Release_1.0", "01_CreateTableA.sql",
+                "MigrationErrorAction", "\"Terminate\"")
+            .BuildAsync();
+        await ctx.MigrateUpAsync("Release_1.0");
+        ctx.AssertSuccess(true);
+        string? configJson = ctx.GetMigrationConfigJson("01_CreateTableA.sql");
+        configJson.Should().NotBeNullOrEmpty();
+        var config = JsonDocument.Parse(configJson!);
+        config.RootElement.GetProperty("MigrationErrorAction").GetString().Should().Be("Terminate",
+            "MigrationErrorAction=Terminate from file TOML should override migsettings Ignore");
+    }
+
+    [Fact]
+    public async Task ReleaseLevel_ShouldOverrideRoot()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        await using var ctx = await CreateScenario()
+            .SetMigSettings("migsettings.txt", new Dictionary<string, string>
+            {
+                ["MigrationErrorAction"] = "Terminate"
+            })
+            .SetMigSettings("Release_2.0/migsettings.txt", new Dictionary<string, string>
+            {
+                ["MigrationErrorAction"] = "Ignore"
+            })
+            .BuildAsync();
+        await ctx.MigrateUpAsync("Release_2.0");
+        ctx.AssertSuccess(true);
+        string? r1Json = ctx.GetMigrationConfigJson("01_CreateTableA.sql");
+        r1Json.Should().NotBeNullOrEmpty();
+        var r1Config = JsonDocument.Parse(r1Json!);
+        r1Config.RootElement.GetProperty("MigrationErrorAction").GetString().Should().Be("Terminate",
+            "R1 file should get root-level MigrationErrorAction=Terminate");
+        string? r2Json = ctx.GetMigrationConfigJson("01_CreateTableC.sql");
+        r2Json.Should().NotBeNullOrEmpty();
+        var r2Config = JsonDocument.Parse(r2Json!);
+        r2Config.RootElement.GetProperty("MigrationErrorAction").GetString().Should().Be("Ignore",
+            "R2 file should get release-level MigrationErrorAction=Ignore override");
+    }
+
+    [Fact]
+    public async Task TargetGroupLevel_ShouldOverrideRelease()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        await using var ctx = await CreateScenario()
+            .SetMigSettings("Release_1.0/migsettings.txt", new Dictionary<string, string>
+            {
+                ["MigrationErrorAction"] = "Terminate"
+            })
+            .SetMigSettings("Release_1.0/Backend/migsettings.txt", new Dictionary<string, string>
+            {
+                ["MigrationErrorAction"] = "Ignore"
+            })
+            .BuildAsync();
+        await ctx.MigrateUpAsync("Release_1.0");
+        ctx.AssertSuccess(true);
+        string? configJson = ctx.GetMigrationConfigJson("01_CreateTableA.sql");
+        configJson.Should().NotBeNullOrEmpty();
+        var config = JsonDocument.Parse(configJson!);
+        config.RootElement.GetProperty("MigrationErrorAction").GetString().Should().Be("Ignore",
+            "TargetGroup-level migsettings should override release-level");
+    }
+
+    [Fact]
+    public async Task ThreeLevelCascade_ShouldResolveCorrectly()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        await using var ctx = await CreateScenario()
+            .SetMigSettings("migsettings.txt", new Dictionary<string, string>
+            {
+                ["MigrationErrorAction"] = "Terminate",
+                ["RequireRollbackFile"] = "false"
+            })
+            .SetMigSettings("migsettings.Docker.txt", new Dictionary<string, string>
+            {
+                ["MigrationErrorAction"] = "Ignore"
+            })
+            .SetMigSettings("Release_2.0/migsettings.txt", new Dictionary<string, string>
+            {
+                ["MigrationErrorAction"] = "Rollback"
+            })
+            .BuildAsync();
+        await ctx.MigrateUpAsync("Release_2.0");
+        ctx.AssertSuccess(true);
+        string? r1Json = ctx.GetMigrationConfigJson("01_CreateTableA.sql");
+        r1Json.Should().NotBeNullOrEmpty();
+        var r1Config = JsonDocument.Parse(r1Json!);
+        r1Config.RootElement.GetProperty("MigrationErrorAction").GetString().Should().Be("Ignore",
+            "R1 file should get Docker-level override Ignore");
+        r1Config.RootElement.GetProperty("RequireRollbackFile").GetBoolean().Should().BeFalse(
+            "RequireRollbackFile=false from root should cascade to R1");
+        string? r2Json = ctx.GetMigrationConfigJson("01_CreateTableC.sql");
+        r2Json.Should().NotBeNullOrEmpty();
+        var r2Config = JsonDocument.Parse(r2Json!);
+        r2Config.RootElement.GetProperty("MigrationErrorAction").GetString().Should().Be("Rollback",
+            "R2 file should get release-level MigrationErrorAction=Rollback");
+    }
+
+    [Fact]
+    public async Task DescriptionFromToml_ShouldBeStoredInConfigJson()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        await using var ctx = await CreateScenario().BuildAsync();
+        await ctx.MigrateUpAsync("Release_1.0");
+        ctx.AssertSuccess(true);
+        string? configJson = ctx.GetMigrationConfigJson("01_CreateTableA.sql");
+        configJson.Should().NotBeNullOrEmpty();
+        var config = JsonDocument.Parse(configJson!);
+        config.RootElement.GetProperty("Description").GetString().Should().Be("Create table tablea",
+            "Description from file TOML should be stored in FileUpConfigJson");
+    }
+
+    [Fact]
+    public async Task TomlUseTransaction_ShouldNotBeOverriddenByMigSettings()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        await using var ctx = await CreateScenario()
+            .SetMigSettings("migsettings.txt", new Dictionary<string, string>
+            {
+                ["UseTransaction"] = "false"
+            })
+            .BuildAsync();
+        await ctx.MigrateUpAsync("Release_1.0");
+        ctx.AssertSuccess(true);
+        string? configJson = ctx.GetMigrationConfigJson("03_SeedDataA.sql");
+        configJson.Should().NotBeNullOrEmpty();
+        var config = JsonDocument.Parse(configJson!);
+        config.RootElement.GetProperty("UseTransaction").GetBoolean().Should().BeTrue(
+            "UseTransaction=true from file TOML should not be overridden by migsettings.txt UseTransaction=false");
+    }
+
+    [Fact]
+    public async Task TomlRunAlways_ShouldNotBeOverriddenByMigSettings()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        await using var ctx = await CreateScenario()
+            .SetMigSettings("migsettings.txt", new Dictionary<string, string>
+            {
+                ["RunAlways"] = "true"
+            })
+            .BuildAsync();
+        await ctx.MigrateUpAsync("Release_1.0");
+        ctx.AssertSuccess(true);
+        string? configJson = ctx.GetMigrationConfigJson("01_CreateTableA.sql");
+        configJson.Should().NotBeNullOrEmpty();
+        var config = JsonDocument.Parse(configJson!);
+        config.RootElement.GetProperty("RunAlways").GetBoolean().Should().BeFalse(
+            "RunAlways=false from file TOML should not be overridden by migsettings.txt RunAlways=true");
+    }
+
+    [Fact]
+    public async Task TomlEnvironments_ShouldNotBeOverriddenByMigSettings()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        await using var ctx = await CreateScenario()
+            .SetMigSettings("migsettings.txt", new Dictionary<string, string>
+            {
+                ["Environments"] = "[\"Production\"]"
+            })
+            .BuildAsync();
+        await ctx.MigrateUpAsync("Release_1.0");
+        ctx.AssertSuccess(true);
+        string? configJson = ctx.GetMigrationConfigJson("01_CreateTableA.sql");
+        configJson.Should().NotBeNullOrEmpty("File with Environments=[\"*\"] should not be filtered out");
+        var config = JsonDocument.Parse(configJson!);
+        var environments = config.RootElement.GetProperty("Environments");
+        environments.ValueKind.Should().Be(JsonValueKind.Array);
+        var envList = environments.EnumerateArray().Select(e => e.GetString()).ToList();
+        envList.Should().Contain("*",
+            "Environments=[\"*\"] from file TOML should be preserved, not overridden by migsettings");
+    }
+
+    [Fact]
+    public async Task RequireRollbackFileFalse_ShouldBeInherited()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        await using var ctx = await CreateScenario()
+            .WithRequireRollbackFile(false)
+            .SetMigSettings("migsettings.txt", new Dictionary<string, string>
+            {
+                ["RequireRollbackFile"] = "false"
+            })
+            .BuildAsync();
+        await ctx.MigrateUpAsync("Release_1.0");
+        ctx.AssertSuccess(true);
+        string? configJson = ctx.GetMigrationConfigJson("01_CreateTableA.sql");
+        configJson.Should().NotBeNullOrEmpty();
+        var config = JsonDocument.Parse(configJson!);
+        config.RootElement.GetProperty("RequireRollbackFile").GetBoolean().Should().BeFalse(
+            "RequireRollbackFile=false from migsettings should be inherited");
+    }
+
+    [Fact]
+    public async Task MigSettings_ShouldNotBleedAcrossReleases()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        await using var ctx = await CreateScenario()
+            .SetMigSettings("Release_1.0/Backend/migsettings.txt", new Dictionary<string, string>
+            {
+                ["MigrationErrorAction"] = "Ignore"
+            })
+            .BuildAsync();
+        await ctx.MigrateUpAsync("Release_2.0");
+        ctx.AssertSuccess(true);
+        string? r1Json = ctx.GetMigrationConfigJson("01_CreateTableA.sql");
+        r1Json.Should().NotBeNullOrEmpty();
+        var r1Config = JsonDocument.Parse(r1Json!);
+        r1Config.RootElement.GetProperty("MigrationErrorAction").GetString().Should().Be("Ignore",
+            "R1 file should have MigrationErrorAction=Ignore from its Backend migsettings");
+        string? r2Json = ctx.GetMigrationConfigJson("01_CreateTableC.sql");
+        r2Json.Should().NotBeNullOrEmpty();
+        var r2Config = JsonDocument.Parse(r2Json!);
+        var r2ErrorAction = r2Config.RootElement.GetProperty("MigrationErrorAction");
+        r2ErrorAction.ValueKind.Should().Be(JsonValueKind.Null,
+            "R2 file should not inherit MigrationErrorAction from R1's Backend migsettings");
+    }
+
+    [Fact]
+    public async Task RunAlwaysFromMigSettings_ShouldCauseReExecution()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        await using var ctx = await CreateScenario()
+            .SetMigSettings("Release_1.0/Backend/migsettings.txt", new Dictionary<string, string>
+            {
+                ["RunAlways"] = "true"
+            })
+            .SetFileToml("Release_1.0", "03_SeedDataA.sql", "RunAlways", "# removed")
+            .BuildAsync();
+        string seedPath = Path.Combine(ctx.WorkDirectory, "Release_1.0", "Backend", "03_SeedDataA.sql");
+        string content = File.ReadAllText(seedPath);
+        content = content.Replace("RunAlways = # removed\n", "").Replace("RunAlways = # removed\r\n", "");
+        File.WriteAllText(seedPath, content);
+        await ctx.MigrateUpAsync();
+        ctx.AssertSuccess(true);
+        ctx.AssertRunCount(1);
+        ctx.AssertRowCount("tablea", 3);
+        await ctx.RebuildForAsync(MigrationCommand.MigrateUp, MigrationRunMode.Migrate);
+        var result2 = await ctx.MigrateUpAsync(allowOutOfOrder: true);
+        result2.Success.Should().BeTrue($"Second MigrateUp failed: {result2.ErrorMessage}");
+        result2.SuccessfulMigrations.Should().BeGreaterThanOrEqualTo(1,
+            "RunAlways=true from migsettings should cause at least one re-execution");
+        ctx.AssertRowCount("tablea", 6);
+    }
+}

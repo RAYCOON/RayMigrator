@@ -1,0 +1,10 @@
+-- TODO: Implement for your database engine
+-- Purpose: Copies migration records to the history table as an audit snapshot
+-- Does NOT delete from MigrationRecord table.
+-- See the corresponding template in Database.SqlServer or Database.PostgreSQL for reference.
+--
+-- Parameters used in this template:
+-- {CFG:SchemaName} - The repository schema name
+-- {CFG:TableBaseName} - The table name prefix
+-- @ProductId - The Product ID to archive
+-- @Environment - The environment filter (e.g., 'Docker', 'Production')

@@ -1,0 +1,53 @@
+@*
+Copyright (c) 2026 RAYCOON.com GmbH
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License v3.
+
+See the LICENSE file for details.
+*@
+
+@page "/"
+@implements IDisposable
+
+@* Single-page host for all wizard phases (Start → Hub → GuidedConfig → Overview). *@
+
+<ProgressIndicator CurrentPhase="@Wizard.CurrentPhase" />
+
+@switch (Wizard.CurrentPhase)
+{
+    case WizardPhase.Start:
+        <WelcomeMask OnCreateNewClicked="OnCreateNew"
+                     OnGoToOverviewClicked="GoToHubFromImport"
+                     OnWalkThroughClicked="GoToHubFromImport" />
+        break;
+
+    case WizardPhase.Hub:
+        <HubPage />
+        break;
+
+    case WizardPhase.GuidedConfig:
+        <WizardHost />
+        break;
+
+    case WizardPhase.Overview:
+        <OverviewHost />
+        break;
+}
+
+@code {
+    [Inject] private WizardStateService Wizard { get; set; } = default!;
+
+    protected override void OnInitialized()
+    {
+        Wizard.StateChanged += StateHasChanged;
+    }
+
+    private void OnCreateNew() => Wizard.StartNewConfiguration();
+    private void GoToHubFromImport() => Wizard.GoToHub();
+
+    public void Dispose()
+    {
+        Wizard.StateChanged -= StateHasChanged;
+    }
+}

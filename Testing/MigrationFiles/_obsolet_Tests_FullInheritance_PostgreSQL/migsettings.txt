@@ -1,0 +1,3 @@
+[RayMigrator]
+RequireRollbackFile = false
+MigrationErrorAction = "Ignore"

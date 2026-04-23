@@ -1,0 +1,244 @@
+@*
+Copyright (c) 2026 RAYCOON.com GmbH
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License v3.
+
+See the LICENSE file for details.
+*@
+
+@implements IDisposable
+@* Phase 2: Guided configuration with stepper. Steps ordered by dependency. *@
+
+<MudContainer MaxWidth="MaxWidth.Large">
+    @* Context header showing selected product + environment *@
+    @if (!string.IsNullOrEmpty(Wizard.SelectedProductAlias) && !string.IsNullOrEmpty(Wizard.SelectedEnvironmentName))
+    {
+        <MudAlert Severity="Severity.Info" Variant="Variant.Filled" Dense="true" Class="mb-4"
+                  Icon="@Icons.Material.Filled.Settings">
+            @string.Format(L.Get("Hub.ContextHeader"), Wizard.SelectedProductAlias, Wizard.SelectedEnvironmentName)
+        </MudAlert>
+    }
+
+    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+        <div>
+            <MudText Typo="Typo.h5">@L.Get("Phase2.Title")</MudText>
+            <MudText Typo="Typo.body2">@L.Get("Phase2.Subtitle")</MudText>
+        </div>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+            <MudSwitch T="bool" Value="@Wizard.IsExpertMode"
+                       ValueChanged="OnExpertModeChanged"
+                       Disabled="@IsOnCliToolsStep"
+                       Label="@L.Get("Mode.ExpertMode")"
+                       Color="Color.Secondary" />
+            <MudButton Variant="Variant.Outlined"
+                       StartIcon="@Icons.Material.Filled.ArrowBack"
+                       OnClick="GoToHub">
+                @L.Get("Hub.BackToHub")
+            </MudButton>
+        </MudStack>
+    </MudStack>
+
+    @* Step number display: replace checkmark icon with step number for completed steps.
+       Active step label is bold. *@
+    <style>
+        .wizard-stepper .mud-stepper-nav { counter-reset: step-counter; }
+        .wizard-stepper button.mud-step { counter-increment: step-counter; }
+        .wizard-stepper button.mud-step.mud-step-completed .mud-step-label-icon svg { display: none !important; }
+        .wizard-stepper button.mud-step.mud-step-completed .mud-step-label-icon::after {
+            content: counter(step-counter);
+            font-size: 0.75rem;
+            font-weight: 400;
+            line-height: 1.66;
+            letter-spacing: 0.03333em;
+        }
+        .wizard-stepper button.mud-step.mud-step-active .mud-step-label-content {
+            font-weight: 700;
+        }
+        .wizard-stepper .mud-stepper-actions { padding-top: 32px !important; }
+    </style>
+
+    <div class="wizard-stepper">
+    <MudStepper @ref="_stepper" @key="@StepperKey"
+                NonLinear="true"
+                ActiveIndex="@ActiveDisplayIndex"
+                ActiveIndexChanged="OnStepChanged"
+                CompletedStepColor="Color.Success"
+                CurrentStepColor="Color.Warning">
+        <ActionContent Context="stepper">
+            <MudStack Row="true" Justify="Justify.SpaceBetween" Style="width: 100%;">
+                <div>
+                    @if (stepper.PreviousStepEnabled)
+                    {
+                        <MudButton OnClick="@stepper.PreviousStepAsync"
+                                   Variant="Variant.Filled" Color="Color.Default"
+                                   StartIcon="@Icons.Material.Filled.NavigateBefore">
+                            @L.Get("Common.Back")
+                        </MudButton>
+                    }
+                </div>
+                <div>
+                    @if (IsLastStep)
+                    {
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                   EndIcon="@Icons.Material.Filled.CheckCircle"
+                                   OnClick="CompleteAndReturnToHub">
+                            @L.Get("Hub.CompleteAndReturn")
+                        </MudButton>
+                    }
+                    else
+                    {
+                        <MudButton OnClick="@stepper.NextStepAsync"
+                                   Variant="Variant.Filled" Color="Color.Primary"
+                                   EndIcon="@Icons.Material.Filled.NavigateNext">
+                            @L.Get("Common.Next")
+                        </MudButton>
+                    }
+                </div>
+            </MudStack>
+        </ActionContent>
+        <ChildContent>
+            @* Step 1: Repository *@
+            <MudStep Title="@L.Get("Section.Repository")"
+                     Completed="@IsStepVisited(WizardStepId.Repository)">
+                <ChildContent>
+                    <RepositorySection Model="@CombinationModel" OnChanged="OnModelChanged"
+                                       IsExpertMode="@Wizard.IsExpertMode" />
+                </ChildContent>
+            </MudStep>
+
+            @* Step 2: Database Logging *@
+            <MudStep Title="@L.Get("Section.DatabaseLogging")"
+                     Completed="@IsStepVisited(WizardStepId.DatabaseLogging)">
+                <ChildContent>
+                    <DatabaseLoggingSection Model="@CombinationModel" OnChanged="OnModelChanged"
+                                            IsExpertMode="@Wizard.IsExpertMode" />
+                </ChildContent>
+            </MudStep>
+
+            @* Step 3: CLI Tools — Expert only (hidden in Easy mode unless tools already exist) *@
+            @if (IsCliToolsStepVisible)
+            {
+                <MudStep Title="@L.Get("Section.CliTools")"
+                         Completed="@IsStepVisited(WizardStepId.CliTools)">
+                    <ChildContent>
+                        <CliToolsSection Model="@CombinationModel" OnChanged="OnModelChanged" />
+                    </ChildContent>
+                </MudStep>
+            }
+
+            @* Step 4: Product Defaults *@
+            <MudStep Title="@L.Get("Section.ProductDefaults")"
+                     Completed="@IsStepVisited(WizardStepId.ProductDefaults)">
+                <ChildContent>
+                    <ProductDefaultsSection Model="@CombinationModel" OnChanged="OnModelChanged"
+                                            IsExpertMode="@Wizard.IsExpertMode" />
+                </ChildContent>
+            </MudStep>
+
+            @* Step 5: Product Settings *@
+            <MudStep Title="@L.Get("Section.ProductSettings")"
+                     Completed="@IsStepVisited(WizardStepId.ProductSettings)">
+                <ChildContent>
+                    <ProductSettingsSection Model="@CombinationModel" OnChanged="OnModelChanged"
+                                            IsExpertMode="@Wizard.IsExpertMode" />
+                </ChildContent>
+            </MudStep>
+
+            @* Step 6: Serilog *@
+            <MudStep Title="@L.Get("Section.Serilog")"
+                     Completed="@IsStepVisited(WizardStepId.Serilog)">
+                <ChildContent>
+                    <SerilogSection Model="@CombinationModel" OnChanged="OnModelChanged"
+                                    IsExpertMode="@Wizard.IsExpertMode" />
+                </ChildContent>
+            </MudStep>
+        </ChildContent>
+    </MudStepper>
+    </div>
+</MudContainer>
+
+@code {
+    [Inject] private WizardStateService Wizard { get; set; } = default!;
+    [Inject] private LocalizationService L { get; set; } = default!;
+
+    private MudStepper? _stepper;
+    private bool _disposing;
+    private bool _ignoreStepChanged;
+
+    private ConfigurationModel CombinationModel =>
+        Wizard.GetSelectedCombinationModel() ?? Wizard.BaseModel;
+
+    // ── Display index ↔ WizardStepId conversion ────────────────────
+
+    private int ActiveDisplayIndex => StepIdToDisplayIndex(Wizard.CurrentStepId);
+
+    private int StepIdToDisplayIndex(WizardStepId stepId)
+    {
+        int id = (int)stepId;
+        if (!IsCliToolsStepVisible)
+        {
+            if (stepId == WizardStepId.CliTools) return 0;
+            return id > (int)WizardStepId.CliTools ? id - 1 : id;
+        }
+        return id;
+    }
+
+    private WizardStepId DisplayIndexToStepId(int displayIndex)
+    {
+        if (!IsCliToolsStepVisible && displayIndex >= (int)WizardStepId.CliTools)
+            return (WizardStepId)(displayIndex + 1);
+        return (WizardStepId)displayIndex;
+    }
+
+    // ── Step state ─────────────────────────────────────────────────
+
+    private bool IsCliToolsStepVisible => Wizard.IsExpertMode || CombinationModel.CliTools.Count > 0;
+    private bool IsOnCliToolsStep => Wizard.CurrentStepId == WizardStepId.CliTools;
+    private bool IsLastStep => Wizard.CurrentStepId == WizardStepId.Serilog;
+    private string StepperKey => $"stepper-{IsCliToolsStepVisible}";
+
+    /// <summary>Green indicator: step was visited AND is not the currently active step.</summary>
+    private bool IsStepVisited(WizardStepId stepId) =>
+        Wizard.GetVisitedSteps().Contains(stepId) && Wizard.CurrentStepId != stepId;
+
+    // ── Event handlers ─────────────────────────────────────────────
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        _ignoreStepChanged = false;
+    }
+
+    private void OnStepChanged(int newDisplayIndex)
+    {
+        if (_disposing || _ignoreStepChanged) return;
+        var stepId = DisplayIndexToStepId(newDisplayIndex);
+        Wizard.CurrentStepId = stepId;
+        Wizard.GetVisitedSteps().Add(stepId);
+    }
+
+    private void OnModelChanged() => StateHasChanged();
+
+    private void OnExpertModeChanged(bool value)
+    {
+        bool wasCliVisible = IsCliToolsStepVisible;
+        Wizard.IsExpertMode = value;
+
+        // Only adjustment: if on CLI Tools step and it becomes hidden, jump to ProductDefaults
+        if (Wizard.CurrentStepId == WizardStepId.CliTools && !IsCliToolsStepVisible)
+            Wizard.CurrentStepId = WizardStepId.ProductDefaults;
+
+        // Guard against spurious ActiveIndexChanged during stepper @key rebuild
+        if (IsCliToolsStepVisible != wasCliVisible)
+            _ignoreStepChanged = true;
+
+        StateHasChanged();
+    }
+
+    // ── Navigation ─────────────────────────────────────────────────
+
+    private void GoToHub() => Wizard.GoToHub();
+    private void CompleteAndReturnToHub() => Wizard.CompleteDetailedConfiguration();
+
+    public void Dispose() => _disposing = true;
+}

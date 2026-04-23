@@ -1,0 +1,37 @@
+@*
+Copyright (c) 2026 RAYCOON.com GmbH
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License v3.
+
+See the LICENSE file for details.
+*@
+
+@* Shows the current phase indicator (Hub / Configuration / Overview). *@
+
+<div class="phase-indicator">
+    <div class="phase-dot @GetDotClass(WizardPhase.Hub)"></div>
+    <MudText Typo="Typo.caption">@L.Get("Phase.Hub")</MudText>
+    <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Size="Size.Small" />
+    <div class="phase-dot @GetDotClass(WizardPhase.GuidedConfig)"></div>
+    <MudText Typo="Typo.caption">@L.Get("Phase.Configuration")</MudText>
+    <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Size="Size.Small" />
+    <div class="phase-dot @GetDotClass(WizardPhase.Overview)"></div>
+    <MudText Typo="Typo.caption">@L.Get("Phase.Overview")</MudText>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public WizardPhase CurrentPhase { get; set; }
+
+    [Inject] private LocalizationService L { get; set; } = default!;
+
+    private string GetDotClass(WizardPhase phase)
+    {
+        if (phase == CurrentPhase)
+            return "active";
+        if (phase < CurrentPhase)
+            return "completed";
+        return "";
+    }
+}

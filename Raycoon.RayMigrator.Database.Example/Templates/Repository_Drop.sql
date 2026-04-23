@@ -1,0 +1,8 @@
+-- TODO: Implement for your database engine
+-- Purpose: Drops all repository tables and the schema
+-- See the corresponding template in Database.SqlServer or Database.PostgreSQL for reference.
+--
+-- Parameters used in this template:
+-- {CFG:SchemaName} - The repository schema name
+-- {CFG:TableBaseName} - The table name prefix
+-- @ParameterName - SQL parameters (see reference implementations)

@@ -1,0 +1,6 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Publish All (linux-arm64)" type="CompoundRunConfigurationType">
+    <toRun name="Publish RayMigrator (linux-arm64)" type="DotNetFolderPublish" />
+    <toRun name="Publish ConfigWizard (linux-arm64)" type="DotNetFolderPublish" />
+  </configuration>
+</component>

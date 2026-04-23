@@ -1,0 +1,28 @@
+PRINT '';
+PRINT '### EXECUTE: 22_create_db_BackendDB.sql ###';
+GO
+
+USE [master]
+GO
+
+PRINT 'Drop existing database ...'
+IF EXISTS (SELECT TOP(1) 1 FROM master.dbo.sysdatabases WHERE ([name] = 'BackendDB'))
+BEGIN
+    PRINT 'Drop DB [BackendDB]..'
+    ALTER DATABASE [BackendDB] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+    DROP DATABASE [BackendDB];
+END;
+GO
+
+PRINT 'Create database [BackendDB] ...';
+CREATE DATABASE [BackendDB] COLLATE Latin1_General_CI_AS;
+GO
+
+ALTER DATABASE [BackendDB] SET COMPATIBILITY_LEVEL = 160
+GO
+ALTER DATABASE [BackendDB] SET MULTI_USER
+GO
+ALTER DATABASE [BackendDB] SET READ_COMMITTED_SNAPSHOT OFF
+GO
+ALTER DATABASE [BackendDB] SET RECOVERY SIMPLE
+GO

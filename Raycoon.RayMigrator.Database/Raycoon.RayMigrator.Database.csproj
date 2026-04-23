@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>default</LangVersion>
+        <TargetFrameworks>net10.0;net9.0;net8.0</TargetFrameworks>
+        <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+        <Version>$(RayMigratorVersion)</Version>
+        <Title>Raycoon RayMigrator Database Access Layer</Title>
+        <RepositoryUrl>https://github.com/RAYCOON/RayMigrator-DAL</RepositoryUrl>
+        <PackageId>Raycoon.RayMigrator.Database</PackageId>
+        <Description>DAL factory and plugin discovery for RayMigrator</Description>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="..\NUGET_README.md" Pack="true" PackagePath="README.md" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Raycoon.RayMigrator.Tests.Unit" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Microsoft.Extensions.DependencyModel" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Raycoon.RayMigrator.Shared\Raycoon.RayMigrator.Shared.csproj" />
+      <ProjectReference Include="..\Raycoon.RayMigrator.Database.Common\Raycoon.RayMigrator.Database.Common.csproj" />
+    </ItemGroup>
+
+</Project>

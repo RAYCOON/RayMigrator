@@ -1,0 +1,32 @@
+@*
+Copyright (c) 2026 RAYCOON.com GmbH
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License v3.
+
+See the LICENSE file for details.
+*@
+
+@* Reusable database type dropdown. *@
+
+<MudSelect T="string" Value="@Value" ValueChanged="ValueChanged"
+           Label="@L.Get("Common.DatabaseType")"
+           Variant="Variant.Outlined"
+           AnchorOrigin="Origin.BottomLeft"
+           TransformOrigin="Origin.TopLeft">
+    <MudSelectItem T="string" Value="@("SqlServer")">SQL Server</MudSelectItem>
+    <MudSelectItem T="string" Value="@("PostgreSQL")">PostgreSQL</MudSelectItem>
+    <MudSelectItem T="string" Value="@("MariaDb")">MariaDB</MudSelectItem>
+    <MudSelectItem T="string" Value="@("MySql")">MySQL</MudSelectItem>
+    <MudSelectItem T="string" Value="@("Sqlite")">SQLite</MudSelectItem>
+</MudSelect>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Value { get; set; } = "SqlServer";
+
+    [Parameter]
+    public EventCallback<string> ValueChanged { get; set; }
+
+    [Inject] private LocalizationService L { get; set; } = default!;
+}

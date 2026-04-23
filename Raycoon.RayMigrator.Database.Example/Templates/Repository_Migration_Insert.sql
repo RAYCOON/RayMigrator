@@ -1,0 +1,12 @@
+-- TODO: Implement for your database engine
+-- Purpose: Inserts a new migration record or resets an existing archived record
+-- See the corresponding template in Database.SqlServer or Database.PostgreSQL for reference.
+--
+-- Parameters used in this template:
+-- {CFG:SchemaName} - The repository schema name
+-- {CFG:TableBaseName} - The table name prefix
+-- @ExistingMigrationId - 0 = INSERT new record, >0 = UPDATE existing record with this ID
+-- @ParameterName - SQL parameters (see reference implementations)
+--
+-- When @ExistingMigrationId > 0: UPDATE the existing record, resetting all fields
+-- When @ExistingMigrationId = 0: INSERT a new record (original behaviour)

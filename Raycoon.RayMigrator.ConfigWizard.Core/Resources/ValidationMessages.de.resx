@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" msdata:Ordinal="0" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+
+  <data name="DatabaseType_Required" xml:space="preserve"><value>Datenbanktyp ist erforderlich.</value></data>
+  <data name="DatabaseType_Invalid" xml:space="preserve"><value>Ungueltiger Datenbanktyp. Gueltige Werte: SqlServer, PostgreSQL, MariaDb, MySql, Sqlite.</value></data>
+  <data name="Alias_Required" xml:space="preserve"><value>Alias ist erforderlich.</value></data>
+  <data name="Alias_InvalidChars" xml:space="preserve"><value>Nur Buchstaben, Zahlen und Unterstriche (max. 50 Zeichen) erlaubt.</value></data>
+  <data name="Alias_Duplicate" xml:space="preserve"><value>Doppelter Alias.</value></data>
+  <data name="ConnectionString_Required" xml:space="preserve"><value>Verbindungszeichenfolge ist erforderlich.</value></data>
+  <data name="ConnectionString_Invalid" xml:space="preserve"><value>Ungueltige Verbindungszeichenfolgen-Syntax.</value></data>
+  <data name="SchemaName_Required" xml:space="preserve"><value>Schemaname ist fuer diesen Datenbanktyp erforderlich.</value></data>
+  <data name="SchemaName_SqliteWarning" xml:space="preserve"><value>Sqlite unterstuetzt keine Schemas. Schemaname wird ignoriert.</value></data>
+  <data name="Value_MustBePositive" xml:space="preserve"><value>Wert muss groesser oder gleich 0 sein.</value></data>
+  <data name="Products_Required" xml:space="preserve"><value>Mindestens ein Produkt ist erforderlich.</value></data>
+  <data name="TargetGroups_Required" xml:space="preserve"><value>Mindestens eine TargetGroup ist erforderlich.</value></data>
+  <data name="Targets_Required" xml:space="preserve"><value>Mindestens ein Target ist erforderlich.</value></data>
+  <data name="CliTool_ExecutablePath_Required" xml:space="preserve"><value>Ausfuehrungspfad ist erforderlich.</value></data>
+  <data name="CliTool_ArgumentTemplate_Required" xml:space="preserve"><value>Argumentvorlage ist erforderlich.</value></data>
+  <data name="CliTool_InputMode_Invalid" xml:space="preserve"><value>Ungueltiger Eingabemodus. Gueltige Werte: File, Stdin.</value></data>
+  <data name="CliTool_Timeout_Invalid" xml:space="preserve"><value>Timeout muss groesser als 0 sein.</value></data>
+  <data name="UseCliToolAlias_NotFound" xml:space="preserve"><value>UseCliToolAlias referenziert ein nicht vorhandenes CLI-Werkzeug.</value></data>
+  <data name="UseCliToolAlias_NoTools" xml:space="preserve"><value>UseCliToolAlias-Referenzen existieren, aber es sind keine CLI-Werkzeuge definiert.</value></data>
+  <data name="TargetMigrationOrder_Irrelevant" xml:space="preserve"><value>TargetMigrationOrder ist irrelevant, wenn die TargetGroup nur ein Target hat.</value></data>
+</root>

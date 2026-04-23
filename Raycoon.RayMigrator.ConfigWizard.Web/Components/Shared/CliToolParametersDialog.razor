@@ -1,0 +1,97 @@
+@*
+Copyright (c) 2026 RAYCOON.com GmbH
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License v3.
+
+See the LICENSE file for details.
+*@
+
+@* Dialog for editing CLI tool parameters (key-value inputs for ArgumentTemplate placeholders). *@
+
+@using Raycoon.RayMigrator.ConfigWizard.Web.Services
+
+<MudDialog>
+    <TitleContent>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.Settings" Color="Color.Primary" />
+            <MudText Typo="Typo.h6">@L.Get("CliParams.DialogTitle")</MudText>
+        </MudStack>
+    </TitleContent>
+    <DialogContent>
+        <MudStack Spacing="3">
+            @if (!string.IsNullOrWhiteSpace(ArgumentTemplate))
+            {
+                <MudAlert Severity="Severity.Info" Dense="true">
+                    <MudText Typo="Typo.body2">
+                        @L.Get("CliParams.TemplateReference"): <code>@ArgumentTemplate</code>
+                    </MudText>
+                </MudAlert>
+            }
+
+            @if (ParameterKeys.Count == 0)
+            {
+                <MudAlert Severity="Severity.Warning" Dense="true">
+                    @L.Get("CliParams.NoParametersFound")
+                </MudAlert>
+            }
+            else
+            {
+                @foreach (var key in ParameterKeys)
+                {
+                    <MudTextField T="string"
+                                  Value="@GetValue(key)"
+                                  ValueChanged="v => SetValue(key, v)"
+                                  Label="@key"
+                                  Variant="Variant.Outlined"
+                                  Required="true"
+                                  RequiredError="@L.Get("CliParams.Required")"
+                                  Immediate="true" />
+                }
+            }
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Variant="Variant.Text">
+            @L.Get("Common.Cancel")
+        </MudButton>
+        <MudButton OnClick="Save" Variant="Variant.Filled" Color="Color.Primary"
+                   Disabled="@(!AllFieldsFilled)">
+            @L.Get("Common.Save")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter, EditorRequired] public List<string> ParameterKeys { get; set; } = new();
+    [Parameter] public Dictionary<string, string>? ExistingValues { get; set; }
+    [Parameter] public string? ArgumentTemplate { get; set; }
+
+    [Inject] private LocalizationService L { get; set; } = default!;
+
+    private readonly Dictionary<string, string> _values = new();
+
+    protected override void OnInitialized()
+    {
+        foreach (var key in ParameterKeys)
+        {
+            _values[key] = ExistingValues != null && ExistingValues.TryGetValue(key, out var val)
+                ? val
+                : "";
+        }
+    }
+
+    private string GetValue(string key) => _values.TryGetValue(key, out var v) ? v : "";
+
+    private void SetValue(string key, string value) => _values[key] = value;
+
+    private bool AllFieldsFilled =>
+        ParameterKeys.Count > 0 &&
+        ParameterKeys.All(k => _values.TryGetValue(k, out var v) && !string.IsNullOrWhiteSpace(v));
+
+    private void Save() => MudDialog.Close(DialogResult.Ok(new Dictionary<string, string>(_values)));
+
+    private void Cancel() => MudDialog.Cancel();
+}

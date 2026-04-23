@@ -1,0 +1,355 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" msdata:Ordinal="0" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+
+  <!-- Repository -->
+  <data name="Repository_DatabaseType_Title" xml:space="preserve"><value>Repository - DatabaseType</value></data>
+  <data name="Repository_DatabaseType_Description" xml:space="preserve"><value>The database engine used for the migration repository. Options: SqlServer, PostgreSQL, MariaDb, MySql, Sqlite.</value></data>
+  <data name="Repository_DatabaseType_ValidValues" xml:space="preserve"><value>SqlServer | PostgreSQL | MariaDb | MySql | Sqlite</value></data>
+  <data name="Repository_DatabaseType_DefaultValue" xml:space="preserve"><value>SqlServer</value></data>
+  <data name="Repository_ConnectionString_Title" xml:space="preserve"><value>Repository - ConnectionString</value></data>
+  <data name="Repository_ConnectionString_Description" xml:space="preserve"><value>Connection string to the repository database. Use {ENV:VAR_NAME} placeholders for sensitive values like passwords.</value></data>
+  <data name="Repository_ConnectionString_Examples" xml:space="preserve"><value>Server=myserver;Database=RayMigratorRepo;User Id=sa;Password={ENV:REPO_PASSWORD};
+For Sqlite: Data Source=./raymigrator.db</value></data>
+  <data name="Repository_SchemaName_Title" xml:space="preserve"><value>Repository - SchemaName</value></data>
+  <data name="Repository_SchemaName_Description" xml:space="preserve"><value>Database schema where repository tables are created. The schema will be created automatically if it does not exist. Not applicable for Sqlite.</value></data>
+  <data name="Repository_SchemaName_DefaultValue" xml:space="preserve"><value>ray</value></data>
+  <data name="Repository_SchemaName_InheritanceNote" xml:space="preserve"><value>Not applicable for Sqlite. For SQL Server and PostgreSQL the schema is created automatically if it does not exist.</value></data>
+  <data name="Repository_TableBaseName_Title" xml:space="preserve"><value>Repository - TableBaseName</value></data>
+  <data name="Repository_TableBaseName_Description" xml:space="preserve"><value>Prefix for all repository table names. Helps with sorting and displaying database objects when the migration repository resides in the same schema as your application tables. For example, a prefix like 'RM_' groups all RayMigrator tables together in database management tools.</value></data>
+  <data name="Repository_TableBaseName_DefaultValue" xml:space="preserve"><value></value></data>
+  <data name="Repository_TableBaseName_Examples" xml:space="preserve"><value>If set to 'App1_', tables will be named App1_MigrationRun, App1_Migration, etc.
+Useful when sharing a schema between multiple RayMigrator instances.</value></data>
+  <data name="Repository_Timeout_Title" xml:space="preserve"><value>Repository - Timeout</value></data>
+  <data name="Repository_Timeout_Description" xml:space="preserve"><value>Database command timeout in seconds for repository operations. Default: 60.</value></data>
+  <data name="Repository_Timeout_DefaultValue" xml:space="preserve"><value>60</value></data>
+  <data name="Repository_MaxRetries_Title" xml:space="preserve"><value>Repository - Max Retries</value></data>
+  <data name="Repository_MaxRetries_Description" xml:space="preserve"><value>Maximum retry attempts for transient errors during repository operations. Default: 100.</value></data>
+  <data name="Repository_MaxRetries_DefaultValue" xml:space="preserve"><value>100</value></data>
+  <data name="Repository_MaxRetries_InheritanceNote" xml:space="preserve"><value>High default (100) because the repository must be available before migrations can start. The wait between retries is controlled by the Wait Time setting.</value></data>
+  <data name="Repository_Wait_Title" xml:space="preserve"><value>Repository - Wait</value></data>
+  <data name="Repository_Wait_Description" xml:space="preserve"><value>Wait time in milliseconds before retrying a failed repository operation. Default: 250.</value></data>
+  <data name="Repository_Wait_DefaultValue" xml:space="preserve"><value>250</value></data>
+
+  <!-- DatabaseLogging -->
+  <data name="DatabaseLogging_Enable_Title" xml:space="preserve"><value>Database Logging - Enable</value></data>
+  <data name="DatabaseLogging_Enable_Description" xml:space="preserve"><value>Enables or disables database logging. When enabled, RayMigrator writes log entries to a database table.</value></data>
+  <data name="DatabaseLogging_Enable_DefaultValue" xml:space="preserve"><value>true (recommended)</value></data>
+  <data name="DatabaseLogging_DatabaseType_Title" xml:space="preserve"><value>Database Logging - DatabaseType</value></data>
+  <data name="DatabaseLogging_DatabaseType_Description" xml:space="preserve"><value>The database engine used for the log table. Can be different from the repository database.</value></data>
+  <data name="DatabaseLogging_DatabaseType_ValidValues" xml:space="preserve"><value>SqlServer | PostgreSQL | MariaDb | MySql | Sqlite</value></data>
+  <data name="DatabaseLogging_DatabaseType_DefaultValue" xml:space="preserve"><value>Same as Repository</value></data>
+  <data name="DatabaseLogging_DatabaseType_InheritanceNote" xml:space="preserve"><value>Can use a different database engine and server than the Repository. Often points to the same database for simplicity.</value></data>
+  <data name="DatabaseLogging_ConnectionString_Title" xml:space="preserve"><value>Database Logging - ConnectionString</value></data>
+  <data name="DatabaseLogging_ConnectionString_Description" xml:space="preserve"><value>Connection string to the logging database. Can be the same as the repository database.</value></data>
+  <data name="DatabaseLogging_ConnectionString_Examples" xml:space="preserve"><value>Can be the same as the Repository connection string.
+Server=myserver;Database=RayMigratorRepo;User Id=logger;Password={ENV:LOG_PASSWORD};</value></data>
+  <data name="DatabaseLogging_SchemaName_Title" xml:space="preserve"><value>Database Logging - SchemaName</value></data>
+  <data name="DatabaseLogging_SchemaName_Description" xml:space="preserve"><value>Database schema where the log table is created. Not applicable for Sqlite.</value></data>
+  <data name="DatabaseLogging_SchemaName_DefaultValue" xml:space="preserve"><value>ray</value></data>
+  <data name="DatabaseLogging_MinimumLevel_Title" xml:space="preserve"><value>Database Logging - MinimumLevel</value></data>
+  <data name="DatabaseLogging_MinimumLevel_Description" xml:space="preserve"><value>Minimum log level to write to the database. Options: Trace, Debug, Information, Warning, Error, Critical, None.</value></data>
+  <data name="DatabaseLogging_MinimumLevel_ValidValues" xml:space="preserve"><value>Trace | Debug | Information | Warning | Error | Critical | None</value></data>
+  <data name="DatabaseLogging_MinimumLevel_DefaultValue" xml:space="preserve"><value>Information</value></data>
+  <data name="DatabaseLogging_MinimumLevel_Examples" xml:space="preserve"><value>Trace: All log events including SQL statements
+Debug: Detailed diagnostic information
+Information: General operational events (recommended)
+Warning: Unexpected but non-critical events
+Error: Errors that prevent a single migration from completing
+Critical: Errors that stop the entire migration run
+None: Disables database logging</value></data>
+  <data name="DatabaseLogging_Timeout_Title" xml:space="preserve"><value>Database Logging - Timeout</value></data>
+  <data name="DatabaseLogging_Timeout_Description" xml:space="preserve"><value>Database command timeout in seconds for log writes. Default: 20.</value></data>
+  <data name="DatabaseLogging_Timeout_DefaultValue" xml:space="preserve"><value>20</value></data>
+
+  <!-- ProductDefaults -->
+  <data name="ProductDefaults_MigrationErrorAction_Title" xml:space="preserve"><value>Product Defaults - MigrationErrorAction</value></data>
+  <data name="ProductDefaults_MigrationErrorAction_Description" xml:space="preserve"><value>What happens when a migration script fails. Options: Terminate, Rollback, RollbackErrorOnly, RollbackRelease, Ignore. Default: Terminate.</value></data>
+  <data name="ProductDefaults_MigrationErrorAction_ValidValues" xml:space="preserve"><value>Terminate | Rollback | RollbackErrorOnly | RollbackRelease | Ignore</value></data>
+  <data name="ProductDefaults_MigrationErrorAction_DefaultValue" xml:space="preserve"><value>Terminate</value></data>
+  <data name="ProductDefaults_MigrationErrorAction_Examples" xml:space="preserve"><value>Terminate: Stop the entire migration run immediately. No rollback is attempted.
+Rollback: Roll back ALL successfully migrated files in the current run, then stop.
+RollbackErrorOnly: Roll back only the failed migration file, then stop.
+RollbackRelease: Roll back all migrations within the failed release only, then stop.
+Ignore: Log the error and continue with the next migration file.</value></data>
+  <data name="ProductDefaults_MigrationErrorAction_InheritanceNote" xml:space="preserve"><value>This is the global default. Can be overridden per Product. The effective value flows down to all TargetGroups and Targets within the Product.</value></data>
+  <data name="ProductDefaults_RollbackErrorAction_Title" xml:space="preserve"><value>Product Defaults - RollbackErrorAction</value></data>
+  <data name="ProductDefaults_RollbackErrorAction_Description" xml:space="preserve"><value>What happens when a rollback script fails. Options: Terminate, Ignore. Default: Terminate.</value></data>
+  <data name="ProductDefaults_RollbackErrorAction_ValidValues" xml:space="preserve"><value>Terminate | Ignore</value></data>
+  <data name="ProductDefaults_RollbackErrorAction_DefaultValue" xml:space="preserve"><value>Terminate</value></data>
+  <data name="ProductDefaults_RollbackErrorAction_Examples" xml:space="preserve"><value>Terminate: If a rollback script fails, stop the entire run immediately.
+Ignore: Log the rollback error and continue rolling back remaining files.</value></data>
+  <data name="ProductDefaults_RollbackErrorAction_InheritanceNote" xml:space="preserve"><value>This is the global default. Can be overridden per Product.</value></data>
+  <data name="ProductDefaults_MigrationFilesExtension_Title" xml:space="preserve"><value>Product Defaults - MigrationFilesExtension</value></data>
+  <data name="ProductDefaults_MigrationFilesExtension_Description" xml:space="preserve"><value>File extension for migration scripts. Default: sql.</value></data>
+  <data name="ProductDefaults_MigrationFilesExtension_DefaultValue" xml:space="preserve"><value>sql</value></data>
+  <data name="ProductDefaults_MigrationFilesExtension_ValidValues" xml:space="preserve"><value>Any file extension without dot (e.g., sql, ddl, migration)</value></data>
+  <data name="ProductDefaults_MigrationFilesExtension_Examples" xml:space="preserve"><value>sql (default for all database types)</value></data>
+  <data name="ProductDefaults_RollbackFilesPreExtension_Title" xml:space="preserve"><value>Product Defaults - RollbackFilesPreExtension</value></data>
+  <data name="ProductDefaults_RollbackFilesPreExtension_Description" xml:space="preserve"><value>Pre-extension for rollback script files. Example: 001_CreateUsers.rollback.sql. Default: rollback.</value></data>
+  <data name="ProductDefaults_RollbackFilesPreExtension_DefaultValue" xml:space="preserve"><value>rollback</value></data>
+  <data name="ProductDefaults_RollbackFilesPreExtension_Examples" xml:space="preserve"><value>With default 'rollback' and extension 'sql':
+Migration: 001_CreateUsers.sql
+Rollback:  001_CreateUsers.rollback.sql</value></data>
+  <data name="ProductDefaults_MigrationFilesEncoding_Title" xml:space="preserve"><value>Product Defaults - MigrationFilesEncoding</value></data>
+  <data name="ProductDefaults_MigrationFilesEncoding_Description" xml:space="preserve"><value>Character encoding for reading migration files. Default: UTF-8.</value></data>
+  <data name="ProductDefaults_MigrationFilesEncoding_DefaultValue" xml:space="preserve"><value>UTF-8</value></data>
+  <data name="ProductDefaults_MigrationFilesEncoding_ValidValues" xml:space="preserve"><value>UTF-8 | UTF-8-BOM | ASCII | UTF-16 | UTF-32</value></data>
+  <data name="ProductDefaults_RequireRollbackFile_Title" xml:space="preserve"><value>Product Defaults - RequireRollbackFile</value></data>
+  <data name="ProductDefaults_RequireRollbackFile_Description" xml:space="preserve"><value>Whether every migration file must have a corresponding rollback file. Default: true.</value></data>
+  <data name="ProductDefaults_RequireRollbackFile_DefaultValue" xml:space="preserve"><value>true</value></data>
+  <data name="ProductDefaults_RequireRollbackFile_InheritanceNote" xml:space="preserve"><value>When true, every migration file must have a corresponding rollback file or the validation will fail. Can be overridden per Product.</value></data>
+  <data name="ProductDefaults_StopRollbackOnMissingRollbackFile_Title" xml:space="preserve"><value>Product Defaults - StopRollbackOnMissingRollbackFile</value></data>
+  <data name="ProductDefaults_StopRollbackOnMissingRollbackFile_Description" xml:space="preserve"><value>When true, a rollback operation stops if a rollback file is missing for a migration. When false, the migration is skipped and rollback continues. Default: true.</value></data>
+  <data name="ProductDefaults_StopRollbackOnMissingRollbackFile_DefaultValue" xml:space="preserve"><value>true</value></data>
+  <data name="ProductDefaults_StopRollbackOnMissingRollbackFile_InheritanceNote" xml:space="preserve"><value>Can be overridden per Product or per TargetGroup. When RequireRollbackFile is true, this setting is less relevant because missing rollback files are caught during validation.</value></data>
+  <data name="ProductDefaults_TargetMigrationOrder_Title" xml:space="preserve"><value>Product Defaults - TargetMigrationOrder</value></data>
+  <data name="ProductDefaults_TargetMigrationOrder_Description" xml:space="preserve"><value>Execution order for targets within a target group. Simultaneously: file-first. Successively: target-first. Default: Successively.</value></data>
+  <data name="ProductDefaults_TargetMigrationOrder_ValidValues" xml:space="preserve"><value>Simultaneously | Successively</value></data>
+  <data name="ProductDefaults_TargetMigrationOrder_DefaultValue" xml:space="preserve"><value>Successively</value></data>
+  <data name="ProductDefaults_TargetMigrationOrder_Examples" xml:space="preserve"><value>Simultaneously (file-first): For each migration file, apply it to ALL targets in the group before moving to the next file.
+  File1 -> Target1, Target2, Target3
+  File2 -> Target1, Target2, Target3
+
+Successively (target-first): For each target, apply ALL migration files before moving to the next target.
+  Target1 -> File1, File2, File3
+  Target2 -> File1, File2, File3</value></data>
+  <data name="ProductDefaults_TargetMigrationOrder_InheritanceNote" xml:space="preserve"><value>This is the global default for all TargetGroups. Can be overridden per TargetGroup.</value></data>
+  <data name="ProductDefaults_HashValidationScope_Title" xml:space="preserve"><value>Product Defaults - HashValidationScope</value></data>
+  <data name="ProductDefaults_HashValidationScope_Description" xml:space="preserve"><value>Granularity of hash validation. File: one hash per file. SqlBlocks: one hash per SQL block. Disabled: no validation. Default: File.</value></data>
+  <data name="ProductDefaults_HashValidationScope_ValidValues" xml:space="preserve"><value>File | SqlBlocks | Disabled</value></data>
+  <data name="ProductDefaults_HashValidationScope_DefaultValue" xml:space="preserve"><value>File</value></data>
+  <data name="ProductDefaults_HashValidationScope_Examples" xml:space="preserve"><value>File: One SHA-256 hash is computed over the entire migration file content. Any change to the file will be detected.
+
+SqlBlocks: A hash is computed per SQL statement block (separated by GO for SQL Server, or ; for other engines). This allows adding new blocks at the end without invalidating existing hashes.
+
+Disabled: No hash validation. Use with caution -- changes to already-applied migrations will not be detected.</value></data>
+  <data name="ProductDefaults_HashValidationScope_InheritanceNote" xml:space="preserve"><value>This is the global default for all TargetGroups. Can be overridden per TargetGroup.</value></data>
+  <data name="ProductDefaults_UseCliToolAlias_Title" xml:space="preserve"><value>Product Defaults - UseCliToolAlias</value></data>
+  <data name="ProductDefaults_UseCliToolAlias_Description" xml:space="preserve"><value>Default CLI tool alias for all products. References a CLI tool defined in the CliTools section. Can be overridden per product, target group, or target.</value></data>
+  <data name="ProductDefaults_UseCliToolAlias_DefaultValue" xml:space="preserve"><value>null (use built-in database driver)</value></data>
+  <data name="ProductDefaults_UseCliToolAlias_InheritanceNote" xml:space="preserve"><value>References a CLI tool defined in the CLI Tools section. When set, migrations are executed via the external tool instead of RayMigrator's built-in ADO.NET driver. Inheritance chain: ProductDefaults -> Product -> TargetGroup -> Target (most specific wins).</value></data>
+
+  <!-- Product -->
+  <data name="Product_Alias_Title" xml:space="preserve"><value>Product - Alias</value></data>
+  <data name="Product_Alias_Description" xml:space="preserve"><value>Unique name identifying this product. Used in CLI commands to select which product to migrate.</value></data>
+  <data name="Product_Alias_Examples" xml:space="preserve"><value>MyApp, BackendService, DataWarehouse</value></data>
+  <data name="Product_Alias_InheritanceNote" xml:space="preserve"><value>Used in CLI commands: RayMigrator Migrate-Up --product MyApp</value></data>
+  <data name="Product_MigrationFilesRootDirectory_Title" xml:space="preserve"><value>Product - MigrationFilesRootDirectory</value></data>
+  <data name="Product_MigrationFilesRootDirectory_Description" xml:space="preserve"><value>Path to the root directory containing migration files. Structure: Root/Release_X/TargetGroup/files.sql.</value></data>
+  <data name="Product_MigrationFilesRootDirectory_Examples" xml:space="preserve"><value>./Migrations/MyApp
+../shared-migrations/BackendService
+C:\Migrations\MyApp (absolute path)</value></data>
+  <data name="Product_MigrationFilesRootDirectory_InheritanceNote" xml:space="preserve"><value>Directory structure must follow: Root/Release_X.Y/TargetGroupAlias/migration_files.sql</value></data>
+  <data name="Product_UseCliToolAlias_Title" xml:space="preserve"><value>Product - UseCliToolAlias</value></data>
+  <data name="Product_UseCliToolAlias_Description" xml:space="preserve"><value>Overrides the default CLI tool alias for this product. References a CLI tool defined in the CliTools section.</value></data>
+  <data name="Product_UseCliToolAlias_InheritanceNote" xml:space="preserve"><value>Overrides the global ProductDefaults.UseCliToolAlias for this product. Applies to all TargetGroups and Targets within this product unless they override it again.</value></data>
+  <data name="Product_TargetGroupMigrationOrder_Title" xml:space="preserve"><value>Product - TargetGroupMigrationOrder</value></data>
+  <data name="Product_TargetGroupMigrationOrder_Description" xml:space="preserve"><value>Defines the execution order of target groups within this product. Specify a comma-separated list of target group aliases. If not set, target groups are executed in the order they appear in the configuration.</value></data>
+  <data name="Product_TargetGroupMigrationOrder_Examples" xml:space="preserve"><value>Backend,Frontend,Reporting</value></data>
+  <data name="Product_TargetGroupMigrationOrder_InheritanceNote" xml:space="preserve"><value>All target group aliases must appear exactly once. This is a product-level setting and cannot be inherited from ProductDefaults.</value></data>
+
+  <!-- TargetGroup -->
+  <data name="TargetGroup_Alias_Title" xml:space="preserve"><value>Target Group - Alias</value></data>
+  <data name="TargetGroup_Alias_Description" xml:space="preserve"><value>Unique name identifying this target group within the product. Example: Backend, Frontend, Reporting.</value></data>
+  <data name="TargetGroup_Alias_Examples" xml:space="preserve"><value>Backend, Frontend, Reporting, Analytics</value></data>
+  <data name="TargetGroup_DatabaseType_Title" xml:space="preserve"><value>Target Group - DatabaseType</value></data>
+  <data name="TargetGroup_DatabaseType_Description" xml:space="preserve"><value>Database engine for all targets in this group. All targets must use the same engine.</value></data>
+  <data name="TargetGroup_DatabaseType_ValidValues" xml:space="preserve"><value>SqlServer | PostgreSQL | MariaDb | MySql | Sqlite</value></data>
+  <data name="TargetGroup_DatabaseType_InheritanceNote" xml:space="preserve"><value>All targets within this group must use the same database engine. The migration files in the corresponding directory will be executed using this engine's SQL dialect.</value></data>
+  <data name="TargetGroup_TargetMigrationOrder_Title" xml:space="preserve"><value>Target Group - TargetMigrationOrder</value></data>
+  <data name="TargetGroup_TargetMigrationOrder_Description" xml:space="preserve"><value>Overrides the default execution order for this group. Simultaneously: file-first. Successively: target-first.</value></data>
+  <data name="TargetGroup_TargetMigrationOrder_ValidValues" xml:space="preserve"><value>Simultaneously | Successively</value></data>
+  <data name="TargetGroup_TargetMigrationOrder_InheritanceNote" xml:space="preserve"><value>Overrides the global ProductDefaults.TargetGroupDefaults.TargetMigrationOrder for this specific group.</value></data>
+  <data name="TargetGroup_HashValidationScope_Title" xml:space="preserve"><value>Target Group - HashValidationScope</value></data>
+  <data name="TargetGroup_HashValidationScope_Description" xml:space="preserve"><value>Overrides the default hash validation for this group. File, SqlBlocks, or Disabled.</value></data>
+  <data name="TargetGroup_HashValidationScope_ValidValues" xml:space="preserve"><value>File | SqlBlocks | Disabled</value></data>
+  <data name="TargetGroup_HashValidationScope_InheritanceNote" xml:space="preserve"><value>Overrides the global ProductDefaults.TargetGroupDefaults.HashValidationScope for this specific group.</value></data>
+  <data name="TargetGroup_UseCliToolAlias_Title" xml:space="preserve"><value>Target Group - UseCliToolAlias</value></data>
+  <data name="TargetGroup_UseCliToolAlias_Description" xml:space="preserve"><value>Overrides the CLI tool alias for all targets in this group.</value></data>
+  <data name="TargetGroup_UseCliToolAlias_InheritanceNote" xml:space="preserve"><value>Overrides the Product-level UseCliToolAlias for all targets in this group. Individual targets can still override this.</value></data>
+
+  <!-- Target -->
+  <data name="Target_Alias_Title" xml:space="preserve"><value>Target - Alias</value></data>
+  <data name="Target_Alias_Description" xml:space="preserve"><value>Unique name identifying this target within the target group. Example: MainDB, ReplicaDB.</value></data>
+  <data name="Target_Alias_Examples" xml:space="preserve"><value>MainDB, ReplicaDB, ReadOnlyDB, AnalyticsDB</value></data>
+  <data name="Target_ConnectionString_Title" xml:space="preserve"><value>Target - ConnectionString</value></data>
+  <data name="Target_ConnectionString_Description" xml:space="preserve"><value>Connection string to this target database. Use {ENV:VAR_NAME} for sensitive values.</value></data>
+  <data name="Target_ConnectionString_Examples" xml:space="preserve"><value>SQL Server: Server=myserver;Database=mydb;User Id=sa;Password={ENV:DB_PASSWORD};
+PostgreSQL: Host=myserver;Database=mydb;Username=postgres;Password={ENV:DB_PASSWORD};
+MariaDB/MySQL: Server=myserver;Database=mydb;User=root;Password={ENV:DB_PASSWORD};
+Sqlite: Data Source=./mydb.db</value></data>
+  <data name="Target_ConnectionString_InheritanceNote" xml:space="preserve"><value>Use {ENV:VARIABLE_NAME} placeholders for sensitive values. The placeholder is resolved at runtime from environment variables.</value></data>
+  <data name="Target_Timeout_Title" xml:space="preserve"><value>Target - Timeout</value></data>
+  <data name="Target_Timeout_Description" xml:space="preserve"><value>Overrides the default command timeout for this target. Value in seconds.</value></data>
+  <data name="Target_Timeout_DefaultValue" xml:space="preserve"><value>20</value></data>
+  <data name="Target_Timeout_InheritanceNote" xml:space="preserve"><value>Overrides ProductDefaults.TargetGroupDefaults.TargetDefaults.DbCommandTimeoutInSeconds for this specific target.</value></data>
+  <data name="Target_MaxRetries_Title" xml:space="preserve"><value>Target - Max Retries</value></data>
+  <data name="Target_MaxRetries_Description" xml:space="preserve"><value>Overrides the default retry count for this target.</value></data>
+  <data name="Target_MaxRetries_DefaultValue" xml:space="preserve"><value>0</value></data>
+  <data name="Target_MaxRetries_InheritanceNote" xml:space="preserve"><value>Overrides ProductDefaults.TargetGroupDefaults.TargetDefaults.DbCommandMaxRetries for this specific target. Default 0 means no retries for migration commands (unlike the Repository which defaults to 100).</value></data>
+  <data name="Target_Wait_Title" xml:space="preserve"><value>Target - Wait</value></data>
+  <data name="Target_Wait_Description" xml:space="preserve"><value>Overrides the default retry wait time for this target. Value in milliseconds.</value></data>
+  <data name="Target_Wait_DefaultValue" xml:space="preserve"><value>250</value></data>
+  <data name="Target_Wait_InheritanceNote" xml:space="preserve"><value>Overrides ProductDefaults.TargetGroupDefaults.TargetDefaults.DbCommandWaitTimeInMsBeforeRetry for this specific target.</value></data>
+  <data name="Target_UseCliToolAlias_Title" xml:space="preserve"><value>Target - UseCliToolAlias</value></data>
+  <data name="Target_UseCliToolAlias_Description" xml:space="preserve"><value>Overrides the CLI tool alias for this specific target.</value></data>
+  <data name="Target_UseCliToolAlias_InheritanceNote" xml:space="preserve"><value>Most specific level in the inheritance chain: ProductDefaults -> Product -> TargetGroup -> Target. If set here, this target uses the specified CLI tool regardless of settings at higher levels.</value></data>
+  <data name="Target_CliToolParameters_Title" xml:space="preserve"><value>Target - CliToolParameters</value></data>
+  <data name="Target_CliToolParameters_Description" xml:space="preserve"><value>Custom key-value parameters resolved into the CLI tool's ArgumentTemplate. Keys like Server, User, Password, Database are replaced in the template.</value></data>
+  <data name="Target_CliToolParameters_Examples" xml:space="preserve"><value>Server=myserver
+User=admin
+Password={ENV:DB_PASSWORD}
+Database=mydb
+
+These values replace placeholders in the CLI tool's ArgumentTemplate.
+For example, with template '-S {Server} -U {User} -P {Password} -d {Database} -i "{FilePath}"',
+the parameters above produce: '-S myserver -U admin -P *** -d mydb -i "migration.sql"'</value></data>
+  <data name="Target_CliToolParameters_InheritanceNote" xml:space="preserve"><value>Only applicable when a CLI tool is assigned to this target (directly or via inheritance). The expected parameter keys depend on the CLI tool's ArgumentTemplate.</value></data>
+
+  <!-- CliTool -->
+  <data name="CliTool_Alias_Title" xml:space="preserve"><value>CLI Tool - Alias</value></data>
+  <data name="CliTool_Alias_Description" xml:space="preserve"><value>Unique name for this CLI tool. Referenced by UseCliToolAlias on Products, TargetGroups, or Targets.</value></data>
+  <data name="CliTool_Alias_Examples" xml:space="preserve"><value>sqlcmd, psql, mariadb-cli, mysql-cli, sqlite3</value></data>
+  <data name="CliTool_ExecutablePath_Title" xml:space="preserve"><value>CLI Tool - ExecutablePath</value></data>
+  <data name="CliTool_ExecutablePath_Description" xml:space="preserve"><value>Path to the CLI tool executable. Can be absolute or relative (if the tool is in PATH).</value></data>
+  <data name="CliTool_ExecutablePath_Examples" xml:space="preserve"><value>sqlcmd (if in PATH)
+/opt/mssql-tools18/bin/sqlcmd
+C:\Program Files\Microsoft SQL Server\Client SDK\ODBC\170\Tools\Binn\sqlcmd.exe
+psql
+mariadb
+mysql
+sqlite3</value></data>
+  <data name="CliTool_ArgumentTemplate_Title" xml:space="preserve"><value>CLI Tool - ArgumentTemplate</value></data>
+  <data name="CliTool_ArgumentTemplate_Description" xml:space="preserve"><value>Command-line argument template with placeholders. {FilePath} is the only system-managed placeholder and is always replaced with the migration file path. All other placeholders (e.g. {Server}, {User}, {Password}, {Database}) are exemplary names — you can use any custom placeholder names. Each placeholder is resolved from the target's CliToolParameters.</value></data>
+  <data name="CliTool_ArgumentTemplate_Examples" xml:space="preserve"><value>SQL Server (sqlcmd):
+  -S {Server} -U {User} -P {Password} -d {Database} -i "{FilePath}" -C
+
+PostgreSQL (psql):
+  -h {Host} -U {User} -d {Database} -f "{FilePath}"
+
+MariaDB/MySQL:
+  -h {Host} -u {User} -p{Password} {Database}
+
+Sqlite:
+  "{Database}"</value></data>
+  <data name="CliTool_ArgumentTemplate_InheritanceNote" xml:space="preserve"><value>{FilePath} is always replaced with the migration file path. All other placeholders are resolved from the target's CliToolParameters (JSON path: Products[].TargetGroups[].Targets[].CliToolParameters). Each {Name} in the template requires a matching key in CliToolParameters. The placeholder names shown in the examples (Server, User, Password, Database) are only examples — you can define any names you need.</value></data>
+  <data name="CliTool_InputMode_Title" xml:space="preserve"><value>CLI Tool - InputMode</value></data>
+  <data name="CliTool_InputMode_Description" xml:space="preserve"><value>How the SQL file is passed to the CLI tool. File: as a command-line argument. Stdin: piped via standard input.</value></data>
+  <data name="CliTool_InputMode_ValidValues" xml:space="preserve"><value>File | Stdin</value></data>
+  <data name="CliTool_InputMode_DefaultValue" xml:space="preserve"><value>File</value></data>
+  <data name="CliTool_InputMode_Examples" xml:space="preserve"><value>File: The migration file path is passed as a command-line argument via {FilePath}.
+Stdin: The migration file content is piped into the tool's standard input. Useful for tools that read SQL from stdin (e.g., psql with -f -).</value></data>
+  <data name="CliTool_SuccessExitCodes_Title" xml:space="preserve"><value>CLI Tool - SuccessExitCodes</value></data>
+  <data name="CliTool_SuccessExitCodes_Description" xml:space="preserve"><value>Whitelist of exit codes that indicate successful execution. Any exit code not matched is treated as failure. Supports range notation. Default: ["0"].</value></data>
+  <data name="CliTool_SuccessExitCodes_DefaultValue" xml:space="preserve"><value>["0"]</value></data>
+  <data name="CliTool_SuccessExitCodes_Examples" xml:space="preserve"><value>Single value: "0" -- matches exit code 0.
+Closed range: "1..5" -- matches 1, 2, 3, 4, 5.
+Open-ended up: "10.." -- matches 10, 11, 12, ...
+Open-ended down: "..-1" -- matches ..., -3, -2, -1.
+Combined: ["0", "100..110"] -- matches 0 and 100 through 110.</value></data>
+  <data name="CliTool_Timeout_Title" xml:space="preserve"><value>CLI Tool - Timeout</value></data>
+  <data name="CliTool_Timeout_Description" xml:space="preserve"><value>Maximum time in seconds to wait for the CLI tool to complete. Default: 120.</value></data>
+  <data name="CliTool_Timeout_DefaultValue" xml:space="preserve"><value>120</value></data>
+
+  <!-- Serilog -->
+  <data name="Serilog_MinimumLevel_Title" xml:space="preserve"><value>Serilog - MinimumLevel</value></data>
+  <data name="Serilog_MinimumLevel_Description" xml:space="preserve"><value>Default minimum log level for all Serilog sinks. Recommended: Information for production, Debug for development.</value></data>
+  <data name="Serilog_MinimumLevel_ValidValues" xml:space="preserve"><value>Verbose | Debug | Information | Warning | Error | Fatal</value></data>
+  <data name="Serilog_MinimumLevel_DefaultValue" xml:space="preserve"><value>Information</value></data>
+  <data name="Serilog_MinimumLevel_InheritanceNote" xml:space="preserve"><value>Note: Serilog uses different level names than DatabaseLogging. Serilog uses 'Verbose' and 'Fatal', while DatabaseLogging uses 'Trace' and 'Critical'.</value></data>
+  <data name="Serilog_SinkName_Title" xml:space="preserve"><value>Serilog - Sink Name</value></data>
+  <data name="Serilog_SinkName_Description" xml:space="preserve"><value>Name of the Serilog output sink. Common sinks: Console, File.</value></data>
+  <data name="Serilog_SinkName_ValidValues" xml:space="preserve"><value>Console | File | (any installed Serilog sink)</value></data>
+  <data name="Serilog_SinkName_DefaultValue" xml:space="preserve"><value>Console</value></data>
+  <data name="Serilog_SinkName_Examples" xml:space="preserve"><value>Console: Writes to stdout/stderr
+File: Writes to a log file (configure path in Args)</value></data>
+
+  <!-- DatabaseLogging - TableBaseName -->
+  <data name="DatabaseLogging_TableBaseName_Title" xml:space="preserve"><value>Database Logging - Table Base Name</value></data>
+  <data name="DatabaseLogging_TableBaseName_Description" xml:space="preserve"><value>Optional prefix for the logging table name. When set, the log table is named {Prefix}MigrationLog instead of MigrationLog. Useful when sharing a schema between the migration repository and the logging table, or when multiple RayMigrator instances log to the same schema.</value></data>
+  <data name="DatabaseLogging_TableBaseName_DefaultValue" xml:space="preserve"><value>"" (empty — default table name MigrationLog is used)</value></data>
+  <data name="DatabaseLogging_TableBaseName_Examples" xml:space="preserve"><value>If set to 'App1_', the log table will be named App1_MigrationLog.
+If left empty, the default table name MigrationLog is used.
+Use the same prefix as Repository.TableBaseName to keep table names consistent.</value></data>
+
+  <!-- Serilog - OverrideSource -->
+  <data name="Serilog_OverrideSource_Title" xml:space="preserve"><value>Serilog - Override Source Namespace</value></data>
+  <data name="Serilog_OverrideSource_Description" xml:space="preserve"><value>The .NET namespace or class name to apply a custom minimum log level to. This allows you to increase or decrease logging verbosity for specific parts of the application. Common namespaces include Microsoft.*, System.Net.Http, and Raycoon.RayMigrator.*.</value></data>
+  <data name="Serilog_OverrideSource_Examples" xml:space="preserve"><value>Microsoft → suppresses verbose Microsoft framework logs
+Microsoft.EntityFrameworkCore → suppresses EF Core SQL logging
+System.Net.Http → suppresses HTTP client logs
+Raycoon.RayMigrator.Services → increases detail for migration service
+Raycoon.RayMigrator.Database → shows database operation details</value></data>
+
+  <!-- Serilog - OverrideLevel -->
+  <data name="Serilog_OverrideLevel_Title" xml:space="preserve"><value>Serilog - Override Log Level</value></data>
+  <data name="Serilog_OverrideLevel_Description" xml:space="preserve"><value>The minimum log level to apply to the specified source namespace. Events below this level from the specified namespace are suppressed. This overrides the global MinimumLevel for the matched namespace only.</value></data>
+  <data name="Serilog_OverrideLevel_ValidValues" xml:space="preserve"><value>Verbose | Debug | Information | Warning | Error | Fatal</value></data>
+  <data name="Serilog_OverrideLevel_Examples" xml:space="preserve"><value>Setting Microsoft to Warning suppresses all Info/Debug logs from Microsoft namespaces.
+Setting Raycoon.RayMigrator to Debug shows detailed diagnostic output for RayMigrator.
+Setting System.Net.Http to Error suppresses all HTTP traffic logging except errors.</value></data>
+
+  <!-- Serilog - SinkArgs -->
+  <data name="Serilog_SinkArgs_Title" xml:space="preserve"><value>Serilog - Sink Arguments</value></data>
+  <data name="Serilog_SinkArgs_Description" xml:space="preserve"><value>Key-value arguments passed to the Serilog sink. The available arguments depend on the sink type. For the Console sink, no arguments are typically needed. For the File sink, configure the output path and rolling policy.</value></data>
+  <data name="Serilog_SinkArgs_Examples" xml:space="preserve"><value>Console sink: (no args needed)
+
+File sink:
+  path → ./logs/raymigrator-.log
+  rollingInterval → Day
+  retainedFileCountLimit → 30
+  outputTemplate → {Timestamp:yyyy-MM-dd HH:mm:ss} [{Level:u3}] {Message:lj}{NewLine}{Exception}</value></data>
+
+  <!-- Concept Help -->
+  <data name="Concept_Environment_Title" xml:space="preserve"><value>What is an Environment?</value></data>
+  <data name="Concept_Environment_Description" xml:space="preserve"><value>An Environment represents a deployment stage of your application, such as Development, Staging, or Production. RayMigrator generates a separate configuration file (appsettings.{Environment}.json) for each environment, allowing you to use different connection strings, log levels, or other settings per stage. For example, your Development environment might point to a local Docker database, while Production connects to your live database server.</value></data>
+  <data name="Concept_Environment_Examples" xml:space="preserve"><value>Development — local development with Docker databases
+Staging — pre-production testing environment
+Production — live production environment
+Docker — containerized test environment</value></data>
+
+  <data name="Concept_TargetGroup_Title" xml:space="preserve"><value>What is a Target Group?</value></data>
+  <data name="Concept_TargetGroup_Description" xml:space="preserve"><value>A Target Group is a logical grouping of database targets that share the same database engine (e.g., SQL Server, PostgreSQL). A product can have multiple target groups to manage different parts of your application's database landscape. For example, a 'Backend' target group for your main application databases and a 'Frontend' target group for a separate CMS database. All targets within a target group must use the same database type because they share the same migration SQL files. The migration files for each target group are stored in a subdirectory named after the target group alias.</value></data>
+  <data name="Concept_TargetGroup_Examples" xml:space="preserve"><value>Backend — main application databases (e.g., SQL Server)
+Frontend — CMS or content databases (e.g., PostgreSQL)
+Reporting — analytics and reporting databases
+Archive — archival/historical data databases</value></data>
+  <data name="Concept_TargetGroup_InheritanceNote" xml:space="preserve"><value>Each target group has its own subdirectory under the release folder. For example: Migrations/MyApp/Release_1.0/Backend/*.sql</value></data>
+
+  <data name="Concept_Target_Title" xml:space="preserve"><value>What is a Target?</value></data>
+  <data name="Concept_Target_Description" xml:space="preserve"><value>A Target is a single database instance where migration scripts are applied. A target group can contain multiple targets when you have mirrored, replicated, or load-balanced databases that all need the same schema. For example, if your backend has two mirrored SQL Server databases (BackendDB1 and BackendDB2), you would define both as targets within the same 'Backend' target group. RayMigrator then applies each migration to both databases, ensuring they stay in sync. Each target requires its own connection string.</value></data>
+  <data name="Concept_Target_Examples" xml:space="preserve"><value>BackendDB1 — primary backend database
+BackendDB2 — mirrored/replicated backend database
+ReadOnlyDB — read replica for reporting
+MainDB — single database (simplest setup)</value></data>
+</root>

@@ -1,0 +1,182 @@
+@*
+Copyright (c) 2026 RAYCOON.com GmbH
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License v3.
+
+See the LICENSE file for details.
+*@
+
+@* Product Defaults configuration section. *@
+
+<SectionIntro SectionKey="ProductDefaults" />
+
+<MudStack Spacing="3">
+    @* MigrationErrorAction — Easy Mode *@
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+        <MudSelect T="string" Value="@Model.ProductDefaults.MigrationErrorAction"
+                   ValueChanged="async v => { Model.ProductDefaults.MigrationErrorAction = v; await NotifyChanged(); }"
+                   Label="@L.Get("ProductDefaults.MigrationErrorAction")"
+                   Variant="Variant.Outlined">
+            <MudSelectItem T="string" Value="@("Terminate")">Terminate</MudSelectItem>
+            <MudSelectItem T="string" Value="@("Rollback")">Rollback</MudSelectItem>
+            <MudSelectItem T="string" Value="@("RollbackErrorOnly")">Rollback Error Only</MudSelectItem>
+            <MudSelectItem T="string" Value="@("RollbackRelease")">Rollback Release</MudSelectItem>
+            <MudSelectItem T="string" Value="@("Ignore")">Ignore</MudSelectItem>
+        </MudSelect>
+        <FieldHelpIcon FieldKey="ProductDefaults_MigrationErrorAction" />
+    </MudStack>
+
+    @* RequireRollbackFile — Easy Mode *@
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+        <MudSwitch T="bool" Value="@Model.ProductDefaults.RequireRollbackFile"
+                   ValueChanged="async v => { Model.ProductDefaults.RequireRollbackFile = v; await NotifyChanged(); }"
+                   Label="@L.Get("ProductDefaults.RequireRollbackFile")"
+                   Color="Color.Primary" />
+        <FieldHelpIcon FieldKey="ProductDefaults_RequireRollbackFile" />
+    </MudStack>
+
+    @* StopRollbackOnMissingRollbackFile — Easy Mode (ProductDefaults level) *@
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+        <MudSwitch T="bool" Value="@Model.ProductDefaults.StopRollbackOnMissingRollbackFile"
+                   ValueChanged="async v => { Model.ProductDefaults.StopRollbackOnMissingRollbackFile = v; await NotifyChanged(); }"
+                   Label="@L.Get("ProductDefaults.StopRollbackOnMissingRollbackFile")"
+                   Color="Color.Primary" />
+        <FieldHelpIcon FieldKey="ProductDefaults_StopRollbackOnMissingRollbackFile" />
+    </MudStack>
+
+    @if (IsExpertMode)
+    {
+        @* RollbackErrorAction *@
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+            <MudSelect T="string" Value="@Model.ProductDefaults.RollbackErrorAction"
+                       ValueChanged="async v => { Model.ProductDefaults.RollbackErrorAction = v; await NotifyChanged(); }"
+                       Label="@L.Get("ProductDefaults.RollbackErrorAction")"
+                       Variant="Variant.Outlined">
+                <MudSelectItem T="string" Value="@("Terminate")">Terminate</MudSelectItem>
+                <MudSelectItem T="string" Value="@("Ignore")">Ignore</MudSelectItem>
+            </MudSelect>
+            <FieldHelpIcon FieldKey="ProductDefaults_RollbackErrorAction" />
+        </MudStack>
+
+        @* File settings *@
+        <MudStack Row="true" Spacing="2">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Style="flex:1">
+                <MudTextField T="string" Value="@Model.ProductDefaults.MigrationFilesExtension"
+                              ValueChanged="async v => { Model.ProductDefaults.MigrationFilesExtension = v; await NotifyChanged(); }"
+                              Label="@L.Get("ProductDefaults.MigrationFilesExtension")"
+                              Variant="Variant.Outlined" />
+                <FieldHelpIcon FieldKey="ProductDefaults_MigrationFilesExtension" />
+            </MudStack>
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Style="flex:1">
+                <MudTextField T="string" Value="@Model.ProductDefaults.MigrationRollbackFilesPreExtension"
+                              ValueChanged="async v => { Model.ProductDefaults.MigrationRollbackFilesPreExtension = v; await NotifyChanged(); }"
+                              Label="@L.Get("ProductDefaults.RollbackPreExtension")"
+                              Variant="Variant.Outlined" />
+                <FieldHelpIcon FieldKey="ProductDefaults_RollbackFilesPreExtension" />
+            </MudStack>
+        </MudStack>
+
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+            <MudTextField T="string" Value="@Model.ProductDefaults.MigrationFilesEncoding"
+                          ValueChanged="async v => { Model.ProductDefaults.MigrationFilesEncoding = v; await NotifyChanged(); }"
+                          Label="@L.Get("ProductDefaults.MigrationFilesEncoding")"
+                          Variant="Variant.Outlined" />
+            <FieldHelpIcon FieldKey="ProductDefaults_MigrationFilesEncoding" />
+        </MudStack>
+
+        @* TargetGroupDefaults *@
+        <MudText Typo="Typo.subtitle1" Class="mt-2">@L.Get("ProductDefaults.TargetGroupDefaultsTitle")</MudText>
+
+        <MudStack Row="true" Spacing="2">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Style="flex:1">
+                <MudSelect T="string" Value="@Model.ProductDefaults.TargetGroupDefaults.TargetMigrationOrder"
+                           ValueChanged="async v => { Model.ProductDefaults.TargetGroupDefaults.TargetMigrationOrder = v; await NotifyChanged(); }"
+                           Label="@L.Get("ProductDefaults.TargetMigrationOrder")"
+                           Variant="Variant.Outlined">
+                    <MudSelectItem T="string" Value="@("Simultaneously")">Simultaneously</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("Successively")">Successively</MudSelectItem>
+                </MudSelect>
+                <FieldHelpIcon FieldKey="ProductDefaults_TargetMigrationOrder" />
+            </MudStack>
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Style="flex:1">
+                <MudSelect T="string" Value="@Model.ProductDefaults.TargetGroupDefaults.HashValidationScope"
+                           ValueChanged="async v => { Model.ProductDefaults.TargetGroupDefaults.HashValidationScope = v; await NotifyChanged(); }"
+                           Label="@L.Get("ProductDefaults.HashValidationScope")"
+                           Variant="Variant.Outlined">
+                    <MudSelectItem T="string" Value="@("File")">File</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("SqlBlocks")">SQL Blocks</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("Disabled")">Disabled</MudSelectItem>
+                </MudSelect>
+                <FieldHelpIcon FieldKey="ProductDefaults_HashValidationScope" />
+            </MudStack>
+        </MudStack>
+
+        @* StopRollbackOnMissingRollbackFile (TargetGroupDefaults level) *@
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+            <MudSwitch T="bool" Value="@Model.ProductDefaults.TargetGroupDefaults.StopRollbackOnMissingRollbackFile"
+                       ValueChanged="async v => { Model.ProductDefaults.TargetGroupDefaults.StopRollbackOnMissingRollbackFile = v; await NotifyChanged(); }"
+                       Label="@L.Get("ProductDefaults.TgStopRollbackOnMissingRollbackFile")"
+                       Color="Color.Primary" />
+            <FieldHelpIcon FieldKey="ProductDefaults_StopRollbackOnMissingRollbackFile" />
+        </MudStack>
+
+        @* TargetDefaults *@
+        <MudText Typo="Typo.subtitle1" Class="mt-2">@L.Get("ProductDefaults.TargetDefaultsTitle")</MudText>
+
+        <MudStack Row="true" Spacing="2">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Style="flex:1">
+                <MudNumericField T="int" Value="@Model.ProductDefaults.TargetGroupDefaults.TargetDefaults.DbCommandTimeoutInSeconds"
+                                 ValueChanged="async v => { Model.ProductDefaults.TargetGroupDefaults.TargetDefaults.DbCommandTimeoutInSeconds = v; await NotifyChanged(); }"
+                                 Label="@L.Get("Common.Timeout")"
+                                 Variant="Variant.Outlined" Min="0" />
+                <FieldHelpIcon FieldKey="Target_Timeout" />
+            </MudStack>
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Style="flex:1">
+                <MudNumericField T="int" Value="@Model.ProductDefaults.TargetGroupDefaults.TargetDefaults.DbCommandMaxRetries"
+                                 ValueChanged="async v => { Model.ProductDefaults.TargetGroupDefaults.TargetDefaults.DbCommandMaxRetries = v; await NotifyChanged(); }"
+                                 Label="@L.Get("Common.MaxRetries")"
+                                 Variant="Variant.Outlined" Min="0" />
+                <FieldHelpIcon FieldKey="Target_MaxRetries" />
+            </MudStack>
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Style="flex:1">
+                <MudNumericField T="int" Value="@Model.ProductDefaults.TargetGroupDefaults.TargetDefaults.DbCommandWaitTimeInMsBeforeRetry"
+                                 ValueChanged="async v => { Model.ProductDefaults.TargetGroupDefaults.TargetDefaults.DbCommandWaitTimeInMsBeforeRetry = v; await NotifyChanged(); }"
+                                 Label="@L.Get("Common.WaitTime")"
+                                 Variant="Variant.Outlined" Min="0" />
+                <FieldHelpIcon FieldKey="Target_Wait" />
+            </MudStack>
+        </MudStack>
+
+        @* UseCliToolAlias *@
+        @if (Model.CliTools.Count > 0)
+        {
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                <MudSelect T="string" Value="@Model.ProductDefaults.UseCliToolAlias"
+                           ValueChanged="async v => { Model.ProductDefaults.UseCliToolAlias = v; await NotifyChanged(); }"
+                           Label="@L.Get("ProductDefaults.DefaultCliToolAlias")"
+                           Variant="Variant.Outlined" Clearable="true">
+                    @foreach (var tool in Model.CliTools)
+                    {
+                        <MudSelectItem T="string" Value="@tool.Alias">@tool.Alias</MudSelectItem>
+                    }
+                </MudSelect>
+                <FieldHelpIcon FieldKey="ProductDefaults_UseCliToolAlias" />
+            </MudStack>
+        }
+    }
+</MudStack>
+
+@code {
+    [Parameter, EditorRequired] public ConfigurationModel Model { get; set; } = default!;
+    [Parameter] public EventCallback OnChanged { get; set; }
+    [Parameter] public bool IsExpertMode { get; set; }
+
+    [Inject] private LocalizationService L { get; set; } = default!;
+
+    private Task NotifyChanged()
+    {
+        Model.IsModified = true;
+        return OnChanged.InvokeAsync();
+    }
+}

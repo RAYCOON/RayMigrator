@@ -1,0 +1,56 @@
+services:
+  rm_exampleDB_SqlServer:
+    container_name: rm_exampleDB_SqlServer
+    image: rm_img_exampledb_sqlserver
+    hostname: rm_exampleDB_SqlServer
+    build:
+      context: ./SqlServer
+      dockerfile: Dockerfile
+      args:
+        SOURCE_MICROSOFT: ${SOURCE_MICROSOFT}
+    restart: always
+    ports:
+      - 14330:1433
+    expose:
+      - 1433
+    networks:
+      - example_network
+    profiles:
+      - all
+      - sqlserver
+    healthcheck:
+      test: ["CMD-SHELL", "test -e /tmp/app-initialized"]
+      interval: 3s
+      start_period: 600s
+
+  rm_exampleDB_PostgreSQL:
+    container_name: rm_exampleDB_PostgreSQL
+    image: rm_img_exampledb_postgresql
+    hostname: rm_exampleDB_PostgreSQL
+    build:
+      context: ./PostgreSQL
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - 54320:5432
+    expose:
+      - 5432
+    networks:
+      - example_network
+    profiles:
+      - all
+      - postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  example_network:
+    name: example_network
+    driver: bridge

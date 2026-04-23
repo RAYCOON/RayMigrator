@@ -1,0 +1,68 @@
+@*
+Copyright (c) 2026 RAYCOON.com GmbH
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License v3.
+
+See the LICENSE file for details.
+*@
+
+@* Displays a product x environment matrix for quick navigation overview. *@
+
+<MudPaper Elevation="1" Class="@($"pa-4 {Class}")">
+    <MudText Typo="Typo.subtitle1" Class="mb-2">@L.Get("Matrix.Title")</MudText>
+
+    @if (Model.Products.Count == 0 || !EnvironmentKeys.Any())
+    {
+        <MudText Typo="Typo.body2">
+            @L.Get("Matrix.Empty")
+        </MudText>
+        return;
+    }
+
+    <MudSimpleTable Hover="true" Dense="true" Striped="true">
+        <thead>
+            <tr>
+                <th>@L.Get("Matrix.Product")</th>
+                @foreach (var env in EnvironmentKeys)
+                {
+                    <th>@env</th>
+                }
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var product in Model.Products)
+            {
+                <tr>
+                    <td>
+                        <MudText Typo="Typo.body2"><strong>@product.Alias</strong></MudText>
+                        <MudText Typo="Typo.caption">
+                            @product.TargetGroups.Count TG(s), @product.TargetGroups.Sum(tg => tg.Targets.Count) Target(s)
+                        </MudText>
+                    </td>
+                    @foreach (var env in EnvironmentKeys)
+                    {
+                        string key = $"{product.Alias}.{env}";
+                        bool hasOverride = Wizard.GetProductEnvironmentModel(key) != null;
+                        <td>
+                            <MudChip T="string" Size="Size.Small"
+                                     Color="@(hasOverride ? Color.Primary : Color.Default)"
+                                     Variant="@(hasOverride ? Variant.Filled : Variant.Outlined)">
+                                @(hasOverride ? L.Get("Matrix.Configured") : L.Get("Matrix.BaseOnly"))
+                            </MudChip>
+                        </td>
+                    }
+                </tr>
+            }
+        </tbody>
+    </MudSimpleTable>
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired] public ConfigurationModel Model { get; set; } = default!;
+    [Parameter, EditorRequired] public IReadOnlyCollection<string> EnvironmentKeys { get; set; } = default!;
+    [Parameter] public string Class { get; set; } = "";
+
+    [Inject] private WizardStateService Wizard { get; set; } = default!;
+    [Inject] private LocalizationService L { get; set; } = default!;
+}

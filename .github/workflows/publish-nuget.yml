@@ -1,0 +1,54 @@
+name: Publish NuGet
+
+on:
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+
+      - name: Extract version from Directory.Build.props
+        id: version
+        run: |
+          VERSION=$(grep -oP '(?<=<RayMigratorVersion>).*(?=</RayMigratorVersion>)' Directory.Build.props)
+          echo "VERSION=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build -c Release --no-restore -p:Version=${{ steps.version.outputs.VERSION }}
+
+      - name: Pack NuGet packages
+        run: dotnet pack -c Release --no-build -p:Version=${{ steps.version.outputs.VERSION }}
+
+      - name: Push to NuGet.org
+        run: |
+          FAILED_PACKAGES=""
+          for pkg in $(find . -name "*.nupkg" -path "*/bin/Release/*"); do
+            BASENAME=$(basename "$pkg")
+            echo "::group::Pushing $BASENAME ($(dirname "$pkg"))"
+            if dotnet nuget push "$pkg" \
+              --api-key ${{ secrets.NUGET_RAYCOON_APIKEY }} \
+              --source https://api.nuget.org/v3/index.json; then
+              echo "✓ Push accepted: $BASENAME"
+            else
+              echo "::error::Push failed: $BASENAME"
+              FAILED_PACKAGES="$FAILED_PACKAGES $BASENAME"
+            fi
+            echo "::endgroup::"
+          done
+          if [ -n "$FAILED_PACKAGES" ]; then
+            echo "::error::Failed to push:$FAILED_PACKAGES"
+            exit 1
+          fi

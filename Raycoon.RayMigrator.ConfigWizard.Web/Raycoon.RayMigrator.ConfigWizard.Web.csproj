@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>default</LangVersion>
+    <RootNamespace>Raycoon.RayMigrator.ConfigWizard.Web</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <Company>RAYCOON.com GmbH</Company>
+    <Product>RayMigrator ConfigWizard Web</Product>
+    <Copyright>Copyright (c) 2023-$([System.DateTime]::Now.Year) $(Company)</Copyright>
+    <Version>$(RayMigratorVersion)</Version>
+    <Authors>Daniel Pavic</Authors>
+    <Description>Blazor WebAssembly configuration wizard for RayMigrator</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Raycoon.RayMigrator.Tests.Unit.ConfigWizard.Web" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Condition="'$(Configuration)' == 'Debug'" />
+    <PackageReference Include="MudBlazor" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Raycoon.RayMigrator.ConfigWizard.Core\Raycoon.RayMigrator.ConfigWizard.Core.csproj" />
+  </ItemGroup>
+</Project>

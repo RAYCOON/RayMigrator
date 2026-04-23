@@ -1,0 +1,185 @@
+@*
+Copyright (c) 2026 RAYCOON.com GmbH
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License v3.
+
+See the LICENSE file for details.
+*@
+
+@* Serilog configuration section. *@
+
+<SectionIntro SectionKey="Serilog" />
+
+<MudStack Spacing="3">
+    @* MinimumLevel — Easy Mode *@
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+        <MudSelect T="string" Value="@Model.Serilog.MinimumLevelDefault"
+                   ValueChanged="async v => { Model.Serilog.MinimumLevelDefault = v; await NotifyChanged(); }"
+                   Label="@L.Get("Serilog.MinimumLevel")"
+                   Variant="Variant.Outlined">
+            <MudSelectItem T="string" Value="@("Verbose")">Verbose</MudSelectItem>
+            <MudSelectItem T="string" Value="@("Debug")">Debug</MudSelectItem>
+            <MudSelectItem T="string" Value="@("Information")">Information</MudSelectItem>
+            <MudSelectItem T="string" Value="@("Warning")">Warning</MudSelectItem>
+            <MudSelectItem T="string" Value="@("Error")">Error</MudSelectItem>
+            <MudSelectItem T="string" Value="@("Fatal")">Fatal</MudSelectItem>
+        </MudSelect>
+        <FieldHelpIcon FieldKey="Serilog_MinimumLevel" />
+    </MudStack>
+
+    @if (IsExpertMode)
+    {
+        @* MinimumLevel Overrides — Expert Mode *@
+        <MudText Typo="Typo.subtitle1">@L.Get("Serilog.LevelOverrides")</MudText>
+        @foreach (var kvp in Model.Serilog.MinimumLevelOverrides.ToList())
+        {
+            string key = kvp.Key;
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Style="flex:1">
+                    <MudTextField T="string" Value="@key" ReadOnly="true"
+                                  Label="Source" Variant="Variant.Outlined" />
+                    <FieldHelpIcon FieldKey="Serilog_OverrideSource" />
+                </MudStack>
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Style="flex:1">
+                    <MudSelect T="string" Value="@kvp.Value"
+                               ValueChanged="async v => { Model.Serilog.MinimumLevelOverrides[key] = v; await NotifyChanged(); }"
+                               Label="Level" Variant="Variant.Outlined">
+                        <MudSelectItem T="string" Value="@("Verbose")">Verbose</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("Debug")">Debug</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("Information")">Information</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("Warning")">Warning</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("Error")">Error</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("Fatal")">Fatal</MudSelectItem>
+                    </MudSelect>
+                    <FieldHelpIcon FieldKey="Serilog_OverrideLevel" />
+                </MudStack>
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
+                               Size="Size.Small"
+                               OnClick="async () => { Model.Serilog.MinimumLevelOverrides.Remove(key); await NotifyChanged(); }" />
+            </MudStack>
+        }
+        <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+            <MudTextField T="string" @bind-Value="_newOverrideSource"
+                          Label="Source (e.g., Microsoft)" Variant="Variant.Outlined" />
+            <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       Disabled="@(string.IsNullOrWhiteSpace(_newOverrideSource))"
+                       OnClick="AddOverride">
+                @L.Get("Common.Add")
+            </MudButton>
+        </MudStack>
+
+        @* WriteTo Sinks — Expert Mode *@
+        <MudText Typo="Typo.subtitle1" Class="mt-2">Sinks (WriteTo)</MudText>
+        @for (int i = 0; i < Model.Serilog.WriteTo.Count; i++)
+        {
+            int sinkIdx = i;
+            var sink = Model.Serilog.WriteTo[sinkIdx];
+
+            <MudPaper Elevation="1" Class="pa-3 mt-1">
+                <MudStack Spacing="2">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                            <MudTextField T="string" Value="@sink.Name"
+                                          ValueChanged="async v => { sink.Name = v; await NotifyChanged(); }"
+                                          Label="@L.Get("Serilog.SinkName")"
+                                          Variant="Variant.Outlined" />
+                            <FieldHelpIcon FieldKey="Serilog_SinkName" />
+                        </MudStack>
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
+                                       Size="Size.Small" OnClick="() => RemoveSink(sinkIdx)" />
+                    </MudStack>
+
+                    @* Sink Args *@
+                    @foreach (var arg in sink.Args.ToList())
+                    {
+                        string argKey = arg.Key;
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                            <MudTextField T="string" Value="@argKey" ReadOnly="true"
+                                          Label="Key" Variant="Variant.Outlined" />
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Style="flex:1">
+                                <MudTextField T="string" Value="@arg.Value"
+                                              ValueChanged="async v => { sink.Args[argKey] = v; await NotifyChanged(); }"
+                                              Label="Value" Variant="Variant.Outlined" />
+                                <FieldHelpIcon FieldKey="Serilog_SinkArgs" />
+                            </MudStack>
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
+                                           Size="Size.Small"
+                                           OnClick="async () => { sink.Args.Remove(argKey); await NotifyChanged(); }" />
+                        </MudStack>
+                    }
+                    <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+                        <MudTextField T="string" @bind-Value="_newArgKey"
+                                      Label="Arg Key" Variant="Variant.Outlined" />
+                        <MudTextField T="string" @bind-Value="_newArgValue"
+                                      Label="Arg Value" Variant="Variant.Outlined" />
+                        <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small"
+                                   StartIcon="@Icons.Material.Filled.Add"
+                                   Disabled="@(string.IsNullOrWhiteSpace(_newArgKey))"
+                                   OnClick="() => AddArg(sink)">
+                            @L.Get("Common.Add")
+                        </MudButton>
+                    </MudStack>
+                </MudStack>
+            </MudPaper>
+        }
+
+        <MudButton Variant="Variant.Text" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="AddSink" Class="mt-2">
+            @L.Get("Serilog.AddSink")
+        </MudButton>
+    }
+</MudStack>
+
+@code {
+    [Parameter, EditorRequired] public ConfigurationModel Model { get; set; } = default!;
+    [Parameter] public EventCallback OnChanged { get; set; }
+    [Parameter] public bool IsExpertMode { get; set; }
+
+    [Inject] private LocalizationService L { get; set; } = default!;
+
+    private string _newOverrideSource = "";
+    private string _newArgKey = "";
+    private string _newArgValue = "";
+
+    private async Task AddOverride()
+    {
+        if (!string.IsNullOrWhiteSpace(_newOverrideSource))
+        {
+            Model.Serilog.MinimumLevelOverrides[_newOverrideSource] = "Warning";
+            _newOverrideSource = "";
+            await NotifyChanged();
+        }
+    }
+
+    private async Task AddSink()
+    {
+        Model.Serilog.WriteTo.Add(new SerilogSinkModel { Name = "Console" });
+        await NotifyChanged();
+    }
+
+    private async Task RemoveSink(int index)
+    {
+        Model.Serilog.WriteTo.RemoveAt(index);
+        await NotifyChanged();
+    }
+
+    private async Task AddArg(SerilogSinkModel sink)
+    {
+        if (!string.IsNullOrWhiteSpace(_newArgKey))
+        {
+            sink.Args[_newArgKey] = _newArgValue;
+            _newArgKey = "";
+            _newArgValue = "";
+            await NotifyChanged();
+        }
+    }
+
+    private Task NotifyChanged()
+    {
+        Model.IsModified = true;
+        return OnChanged.InvokeAsync();
+    }
+}

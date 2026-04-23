@@ -1,0 +1,3 @@
+[RayMigrator]
+RunAlways = false
+UseTransaction = true

@@ -1,0 +1,38 @@
+@*
+Copyright (c) 2026 RAYCOON.com GmbH
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License v3.
+
+See the LICENSE file for details.
+*@
+
+@* Displays a help icon that opens a modal dialog with detailed field documentation. Resolved fresh on each render. *@
+
+@{ var help = L.GetFieldHelp(FieldKey); }
+
+@if (help != null)
+{
+    <MudIconButton Icon="@Icons.Material.Outlined.HelpOutline"
+                   Size="Size.Small"
+                   Color="Color.Default"
+                   OnClick="ShowHelp"
+                   aria-label="@($"Help: {help.Title}")" />
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public string FieldKey { get; set; } = "";
+
+    [Inject] private LocalizationService L { get; set; } = default!;
+    [Inject] private IDialogService DialogService { get; set; } = default!;
+
+    private async Task ShowHelp()
+    {
+        var help = L.GetFieldHelp(FieldKey);
+        if (help is null) return;
+        var parameters = new DialogParameters<FieldHelpDialog> { { x => x.Help, help } };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true };
+        await DialogService.ShowAsync<FieldHelpDialog>(help.Title, parameters, options);
+    }
+}

@@ -1,0 +1,44 @@
+@*
+Copyright (c) 2026 RAYCOON.com GmbH
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License v3.
+
+See the LICENSE file for details.
+*@
+
+@* Tabbed view showing JSON for each configuration file (base, per-environment, per-product-env). *@
+
+<MudPaper Elevation="1" Class="@($"pa-4 {Class}")">
+    <MudText Typo="Typo.subtitle1" Class="mb-2">@L.Get("Env.Tabs")</MudText>
+
+    <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true">
+        @* Base *@
+        <MudTabPanel Text="@L.Get("Env.Base")">
+            <JsonPreview Json="@Wizard.GetBaseJson()" />
+        </MudTabPanel>
+
+        @* Per-environment *@
+        @foreach (var env in Wizard.EnvironmentKeys)
+        {
+            <MudTabPanel Text="@($"appsettings.{env}.json")">
+                <JsonPreview Json="@Wizard.GetEnvironmentJson(env)" />
+            </MudTabPanel>
+        }
+
+        @* Per-product-environment *@
+        @foreach (var key in Wizard.State.ProductEnvironmentModels.Keys)
+        {
+            <MudTabPanel Text="@($"appsettings.{key}.json")">
+                <JsonPreview Json="@Wizard.GetProductEnvironmentJson(key)" />
+            </MudTabPanel>
+        }
+    </MudTabs>
+</MudPaper>
+
+@code {
+    [Parameter] public string Class { get; set; } = "";
+
+    [Inject] private WizardStateService Wizard { get; set; } = default!;
+    [Inject] private LocalizationService L { get; set; } = default!;
+}

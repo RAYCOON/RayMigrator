@@ -1,0 +1,79 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <IsPackable>false</IsPackable>
+        <IsPublishable>false</IsPublishable>
+        <IsTestProject>true</IsTestProject>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="coverlet.collector">
+          <PrivateAssets>all</PrivateAssets>
+          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="FluentAssertions" />
+        <PackageReference Include="xunit.v3" />
+        <PackageReference Include="xunit.runner.visualstudio">
+          <PrivateAssets>all</PrivateAssets>
+          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="Microsoft.Extensions.Configuration.Json" />
+        <PackageReference Include="Microsoft.Extensions.Hosting" />
+        <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+        <PackageReference Include="Serilog" />
+        <PackageReference Include="Serilog.Extensions.Hosting" />
+        <PackageReference Include="Serilog.Settings.Configuration" />
+        <PackageReference Include="Serilog.Sinks.Console" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Raycoon.RayMigrator.Testing\Raycoon.RayMigrator.Testing.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Console\Raycoon.RayMigrator.Console.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Services\Raycoon.RayMigrator.Services.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Services.Abstractions\Raycoon.RayMigrator.Services.Abstractions.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Core\Raycoon.RayMigrator.Core.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Infrastructure\Raycoon.RayMigrator.Infrastructure.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Database\Raycoon.RayMigrator.Database.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Database.Common\Raycoon.RayMigrator.Database.Common.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Database.SqlServer\Raycoon.RayMigrator.Database.SqlServer.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Database.PostgreSQL\Raycoon.RayMigrator.Database.PostgreSQL.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Database.MariaDb\Raycoon.RayMigrator.Database.MariaDb.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Database.MySql\Raycoon.RayMigrator.Database.MySql.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Database.Sqlite\Raycoon.RayMigrator.Database.Sqlite.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Shared\Raycoon.RayMigrator.Shared.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.ConfigWizard.Core\Raycoon.RayMigrator.ConfigWizard.Core.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Content Include="MigrationFiles\**\*" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+
+    <!-- Copy DAL assemblies into DataAccessLayers/{Type}/ for plugin discovery by DalFactory -->
+    <Target Name="CopyDalAssembliesToDataAccessLayers" AfterTargets="Build">
+        <Copy SourceFiles="$(OutputPath)Raycoon.RayMigrator.Database.SqlServer.dll"
+              DestinationFolder="$(OutputPath)DataAccessLayers/SqlServer/"
+              SkipUnchangedFiles="true"
+              Condition="Exists('$(OutputPath)Raycoon.RayMigrator.Database.SqlServer.dll')" />
+        <Copy SourceFiles="$(OutputPath)Raycoon.RayMigrator.Database.PostgreSQL.dll"
+              DestinationFolder="$(OutputPath)DataAccessLayers/PostgreSQL/"
+              SkipUnchangedFiles="true"
+              Condition="Exists('$(OutputPath)Raycoon.RayMigrator.Database.PostgreSQL.dll')" />
+        <Copy SourceFiles="$(OutputPath)Raycoon.RayMigrator.Database.MariaDb.dll"
+              DestinationFolder="$(OutputPath)DataAccessLayers/MariaDb/"
+              SkipUnchangedFiles="true"
+              Condition="Exists('$(OutputPath)Raycoon.RayMigrator.Database.MariaDb.dll')" />
+        <Copy SourceFiles="$(OutputPath)Raycoon.RayMigrator.Database.MySql.dll"
+              DestinationFolder="$(OutputPath)DataAccessLayers/MySql/"
+              SkipUnchangedFiles="true"
+              Condition="Exists('$(OutputPath)Raycoon.RayMigrator.Database.MySql.dll')" />
+        <Copy SourceFiles="$(OutputPath)Raycoon.RayMigrator.Database.Sqlite.dll"
+              DestinationFolder="$(OutputPath)DataAccessLayers/Sqlite/"
+              SkipUnchangedFiles="true"
+              Condition="Exists('$(OutputPath)Raycoon.RayMigrator.Database.Sqlite.dll')" />
+    </Target>
+
+</Project>

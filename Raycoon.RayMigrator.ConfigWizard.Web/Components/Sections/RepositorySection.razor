@@ -1,0 +1,84 @@
+@*
+Copyright (c) 2026 RAYCOON.com GmbH
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License v3.
+
+See the LICENSE file for details.
+*@
+
+@* Repository configuration section. *@
+
+<SectionIntro SectionKey="Repository" />
+
+<MudStack Spacing="3">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+        <DatabaseTypeSelector Value="@Model.Repository.DatabaseType"
+                              ValueChanged="async v => { Model.Repository.DatabaseType = v; await NotifyChanged(); }" />
+        <FieldHelpIcon FieldKey="Repository_DatabaseType" />
+    </MudStack>
+
+    <ConnectionStringField Value="@Model.Repository.ConnectionString"
+                           ValueChanged="async v => { Model.Repository.ConnectionString = v; await NotifyChanged(); }"
+                           FieldKey="Repository_ConnectionString" />
+
+    @if (IsExpertMode)
+    {
+        @if (Model.Repository.DatabaseType != "Sqlite")
+        {
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                <MudTextField T="string" Value="@Model.Repository.SchemaName"
+                              ValueChanged="async v => { Model.Repository.SchemaName = v; await NotifyChanged(); }"
+                              Label="@L.Get("Common.SchemaName")"
+                              Variant="Variant.Outlined" />
+                <FieldHelpIcon FieldKey="Repository_SchemaName" />
+            </MudStack>
+        }
+
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+            <MudTextField T="string" Value="@Model.Repository.TableBaseName"
+                          ValueChanged="async v => { Model.Repository.TableBaseName = v; await NotifyChanged(); }"
+                          Label="@L.Get("Repository.TableBaseName")"
+                          Variant="Variant.Outlined" />
+            <FieldHelpIcon FieldKey="Repository_TableBaseName" />
+        </MudStack>
+
+        <MudStack Row="true" Spacing="2">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                <MudNumericField T="int" Value="@Model.Repository.DbCommandTimeoutInSeconds"
+                                 ValueChanged="async v => { Model.Repository.DbCommandTimeoutInSeconds = v; await NotifyChanged(); }"
+                                 Label="@L.Get("Common.Timeout")"
+                                 Variant="Variant.Outlined" Min="0" />
+                <FieldHelpIcon FieldKey="Repository_Timeout" />
+            </MudStack>
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                <MudNumericField T="int" Value="@Model.Repository.DbCommandMaxRetries"
+                                 ValueChanged="async v => { Model.Repository.DbCommandMaxRetries = v; await NotifyChanged(); }"
+                                 Label="@L.Get("Common.MaxRetries")"
+                                 Variant="Variant.Outlined" Min="0" />
+                <FieldHelpIcon FieldKey="Repository_MaxRetries" />
+            </MudStack>
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                <MudNumericField T="int" Value="@Model.Repository.DbCommandWaitTimeInMsBeforeRetry"
+                                 ValueChanged="async v => { Model.Repository.DbCommandWaitTimeInMsBeforeRetry = v; await NotifyChanged(); }"
+                                 Label="@L.Get("Common.WaitTime")"
+                                 Variant="Variant.Outlined" Min="0" />
+                <FieldHelpIcon FieldKey="Repository_Wait" />
+            </MudStack>
+        </MudStack>
+    }
+</MudStack>
+
+@code {
+    [Parameter, EditorRequired] public ConfigurationModel Model { get; set; } = default!;
+    [Parameter] public EventCallback OnChanged { get; set; }
+    [Parameter] public bool IsExpertMode { get; set; }
+
+    [Inject] private LocalizationService L { get; set; } = default!;
+
+    private Task NotifyChanged()
+    {
+        Model.IsModified = true;
+        return OnChanged.InvokeAsync();
+    }
+}

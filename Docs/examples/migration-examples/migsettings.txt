@@ -1,0 +1,38 @@
+[RayMigrator]
+# Directory-wide default settings
+# These apply to all migration files in this directory
+# Individual files can override these settings
+
+# Target all databases by default
+Targets = ["*"]
+
+# Target all environments by default
+Environments = ["*"]
+
+# Use transactions by default for data integrity
+UseTransaction = true
+
+# Don't re-run migrations by default
+RunAlways = false
+
+# Require a rollback file for every migration file
+RequireRollbackFile = true
+
+# Error handling for migrations (Terminate, Rollback, RollbackErrorOnly, RollbackRelease, Ignore)
+# MigrationErrorAction = "Terminate"
+
+# Error handling for rollbacks (Terminate, Ignore)
+# RollbackErrorAction = "Terminate"
+
+# When RequireRollbackFile = false, controls whether an error-recovery rollback chain stops (true)
+# or skips and continues (false) when a rollback file is missing. Has no effect on Migrate-Down.
+# Effective value is resolved from the config cascade: CLI option → TargetGroup → Product → ProductDefaults → default (true)
+# StopRollbackOnMissingRollbackFile = true
+
+# CLI tool alias for executing migrations via an external tool instead of the built-in DAL
+# Must reference a CliTools[].Alias defined in appsettings.json
+# UseCliToolAlias = "sqlcmd-tool"
+
+# Override TargetGroup execution order for this release (only effective in release-level migsettings)
+# All TargetGroup aliases must be listed; order determines execution sequence for Migrate-Up and Baseline
+# TargetGroupMigrationOrder = ["Frontend", "Backend"]

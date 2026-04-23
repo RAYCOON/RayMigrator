@@ -1,0 +1,639 @@
+@*
+Copyright (c) 2026 RAYCOON.com GmbH
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License v3.
+
+See the LICENSE file for details.
+*@
+
+@* Product Settings section -- scoped to the single product in the combination model.
+   Environment and product CRUD are managed on the Hub page. *@
+
+@using Raycoon.RayMigrator.ConfigWizard.Core.Services
+
+<SectionIntro SectionKey="Products" />
+
+@if (Model.Products.Count == 0)
+{
+    <MudAlert Severity="Severity.Warning" Dense="true">
+        @L.Get("Products.Empty")
+    </MudAlert>
+}
+else
+{
+    var product = Model.Products[0];
+
+    <MudExpansionPanels Class="mt-2">
+        <MudExpansionPanel Expanded="true" Class="product-panel">
+            <TitleContent>
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                    <MudIcon Icon="@Icons.Material.Filled.Inventory" Size="Size.Small" />
+                    <MudText Typo="Typo.subtitle1">
+                        @(string.IsNullOrEmpty(product.Alias) ? "Product" : product.Alias)
+                    </MudText>
+                </MudStack>
+            </TitleContent>
+            <ChildContent>
+                <MudStack Spacing="3" Class="pa-2">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                        <MudTextField T="string" Value="@product.MigrationFilesRootDirectory"
+                                      ValueChanged="async v => { product.MigrationFilesRootDirectory = v; await NotifyChanged(); }"
+                                      Label="@L.Get("Products.MigrationFilesRootDirectory")"
+                                      Variant="Variant.Outlined" />
+                        <FieldHelpIcon FieldKey="Product_MigrationFilesRootDirectory" />
+                    </MudStack>
+
+                    @* Override Product Defaults *@
+                    @if (IsExpertMode)
+                    {
+                        <MudExpansionPanels>
+                            <MudExpansionPanel Text="@L.Get("Products.OverrideProductDefaults")" Expanded="true">
+                                <MudStack Spacing="3" Class="pa-2">
+                                    @* MigrationErrorAction *@
+                                    <OverridableField IsOverridden="@product.MigrationErrorAction.IsOverridden"
+                                                      IsOverriddenChanged="async v => { product.MigrationErrorAction = new OverridableValue<string> { IsOverridden = v, Value = v ? (product.MigrationErrorAction.Value ?? Model.ProductDefaults.MigrationErrorAction) : null }; await NotifyChanged(); }"
+                                                      DefaultDisplay="@Model.ProductDefaults.MigrationErrorAction"
+                                                      FieldKey="ProductDefaults_MigrationErrorAction"
+                                                      Label="@L.Get("ProductDefaults.MigrationErrorAction")">
+                                        <MudSelect T="string" Value="@product.MigrationErrorAction.Value"
+                                                   ValueChanged="async v => { product.MigrationErrorAction = new OverridableValue<string> { IsOverridden = true, Value = v }; await NotifyChanged(); }"
+                                                   Label="@L.Get("ProductDefaults.MigrationErrorAction")"
+                                                   Variant="Variant.Outlined">
+                                            <MudSelectItem T="string" Value="@("Terminate")">Terminate</MudSelectItem>
+                                            <MudSelectItem T="string" Value="@("Rollback")">Rollback</MudSelectItem>
+                                            <MudSelectItem T="string" Value="@("RollbackErrorOnly")">Rollback Error Only</MudSelectItem>
+                                            <MudSelectItem T="string" Value="@("RollbackRelease")">Rollback Release</MudSelectItem>
+                                            <MudSelectItem T="string" Value="@("Ignore")">Ignore</MudSelectItem>
+                                        </MudSelect>
+                                    </OverridableField>
+
+                                    @* RollbackErrorAction *@
+                                    <OverridableField IsOverridden="@product.RollbackErrorAction.IsOverridden"
+                                                      IsOverriddenChanged="async v => { product.RollbackErrorAction = new OverridableValue<string> { IsOverridden = v, Value = v ? (product.RollbackErrorAction.Value ?? Model.ProductDefaults.RollbackErrorAction) : null }; await NotifyChanged(); }"
+                                                      DefaultDisplay="@Model.ProductDefaults.RollbackErrorAction"
+                                                      FieldKey="ProductDefaults_RollbackErrorAction"
+                                                      Label="@L.Get("ProductDefaults.RollbackErrorAction")">
+                                        <MudSelect T="string" Value="@product.RollbackErrorAction.Value"
+                                                   ValueChanged="async v => { product.RollbackErrorAction = new OverridableValue<string> { IsOverridden = true, Value = v }; await NotifyChanged(); }"
+                                                   Label="@L.Get("ProductDefaults.RollbackErrorAction")"
+                                                   Variant="Variant.Outlined">
+                                            <MudSelectItem T="string" Value="@("Terminate")">Terminate</MudSelectItem>
+                                            <MudSelectItem T="string" Value="@("Ignore")">Ignore</MudSelectItem>
+                                        </MudSelect>
+                                    </OverridableField>
+
+                                    @* MigrationFilesExtension *@
+                                    <OverridableField IsOverridden="@product.MigrationFilesExtension.IsOverridden"
+                                                      IsOverriddenChanged="async v => { product.MigrationFilesExtension = new OverridableValue<string> { IsOverridden = v, Value = v ? (product.MigrationFilesExtension.Value ?? Model.ProductDefaults.MigrationFilesExtension) : null }; await NotifyChanged(); }"
+                                                      DefaultDisplay="@Model.ProductDefaults.MigrationFilesExtension"
+                                                      FieldKey="ProductDefaults_MigrationFilesExtension"
+                                                      Label="@L.Get("ProductDefaults.MigrationFilesExtension")">
+                                        <MudTextField T="string" Value="@product.MigrationFilesExtension.Value"
+                                                      ValueChanged="async v => { product.MigrationFilesExtension = new OverridableValue<string> { IsOverridden = true, Value = v }; await NotifyChanged(); }"
+                                                      Label="@L.Get("ProductDefaults.MigrationFilesExtension")"
+                                                      Variant="Variant.Outlined" />
+                                    </OverridableField>
+
+                                    @* MigrationRollbackFilesPreExtension *@
+                                    <OverridableField IsOverridden="@product.MigrationRollbackFilesPreExtension.IsOverridden"
+                                                      IsOverriddenChanged="async v => { product.MigrationRollbackFilesPreExtension = new OverridableValue<string> { IsOverridden = v, Value = v ? (product.MigrationRollbackFilesPreExtension.Value ?? Model.ProductDefaults.MigrationRollbackFilesPreExtension) : null }; await NotifyChanged(); }"
+                                                      DefaultDisplay="@Model.ProductDefaults.MigrationRollbackFilesPreExtension"
+                                                      FieldKey="ProductDefaults_RollbackFilesPreExtension"
+                                                      Label="@L.Get("ProductDefaults.RollbackPreExtension")">
+                                        <MudTextField T="string" Value="@product.MigrationRollbackFilesPreExtension.Value"
+                                                      ValueChanged="async v => { product.MigrationRollbackFilesPreExtension = new OverridableValue<string> { IsOverridden = true, Value = v }; await NotifyChanged(); }"
+                                                      Label="@L.Get("ProductDefaults.RollbackPreExtension")"
+                                                      Variant="Variant.Outlined" />
+                                    </OverridableField>
+
+                                    @* MigrationFilesEncoding *@
+                                    <OverridableField IsOverridden="@product.MigrationFilesEncoding.IsOverridden"
+                                                      IsOverriddenChanged="async v => { product.MigrationFilesEncoding = new OverridableValue<string> { IsOverridden = v, Value = v ? (product.MigrationFilesEncoding.Value ?? Model.ProductDefaults.MigrationFilesEncoding) : null }; await NotifyChanged(); }"
+                                                      DefaultDisplay="@Model.ProductDefaults.MigrationFilesEncoding"
+                                                      FieldKey="ProductDefaults_MigrationFilesEncoding"
+                                                      Label="@L.Get("ProductDefaults.MigrationFilesEncoding")">
+                                        <MudTextField T="string" Value="@product.MigrationFilesEncoding.Value"
+                                                      ValueChanged="async v => { product.MigrationFilesEncoding = new OverridableValue<string> { IsOverridden = true, Value = v }; await NotifyChanged(); }"
+                                                      Label="@L.Get("ProductDefaults.MigrationFilesEncoding")"
+                                                      Variant="Variant.Outlined" />
+                                    </OverridableField>
+
+                                    @* RequireRollbackFile *@
+                                    <OverridableField IsOverridden="@product.RequireRollbackFile.IsOverridden"
+                                                      IsOverriddenChanged="async v => { product.RequireRollbackFile = new OverridableValue<bool> { IsOverridden = v, Value = v ? product.RequireRollbackFile.GetEffectiveValue(Model.ProductDefaults.RequireRollbackFile) : default }; await NotifyChanged(); }"
+                                                      DefaultDisplay="@Model.ProductDefaults.RequireRollbackFile.ToString()"
+                                                      FieldKey="ProductDefaults_RequireRollbackFile"
+                                                      Label="@L.Get("ProductDefaults.RequireRollbackFile")">
+                                        <MudSwitch T="bool" Value="@(product.RequireRollbackFile.GetEffectiveValue(Model.ProductDefaults.RequireRollbackFile))"
+                                                   ValueChanged="async v => { product.RequireRollbackFile = new OverridableValue<bool> { IsOverridden = true, Value = v }; await NotifyChanged(); }"
+                                                   Label="@L.Get("ProductDefaults.RequireRollbackFile")"
+                                                   Color="Color.Primary" />
+                                    </OverridableField>
+
+                                    @* StopRollbackOnMissingRollbackFile *@
+                                    <OverridableField IsOverridden="@product.StopRollbackOnMissingRollbackFile.IsOverridden"
+                                                      IsOverriddenChanged="async v => { product.StopRollbackOnMissingRollbackFile = new OverridableValue<bool> { IsOverridden = v, Value = v ? product.StopRollbackOnMissingRollbackFile.GetEffectiveValue(Model.ProductDefaults.StopRollbackOnMissingRollbackFile) : default }; await NotifyChanged(); }"
+                                                      DefaultDisplay="@Model.ProductDefaults.StopRollbackOnMissingRollbackFile.ToString()"
+                                                      FieldKey="ProductDefaults_StopRollbackOnMissingRollbackFile"
+                                                      Label="@L.Get("ProductDefaults.StopRollbackOnMissingRollbackFile")">
+                                        <MudSwitch T="bool" Value="@(product.StopRollbackOnMissingRollbackFile.GetEffectiveValue(Model.ProductDefaults.StopRollbackOnMissingRollbackFile))"
+                                                   ValueChanged="async v => { product.StopRollbackOnMissingRollbackFile = new OverridableValue<bool> { IsOverridden = true, Value = v }; await NotifyChanged(); }"
+                                                   Label="@L.Get("ProductDefaults.StopRollbackOnMissingRollbackFile")"
+                                                   Color="Color.Primary" />
+                                    </OverridableField>
+
+                                    @* UseCliToolAlias (product level) *@
+                                    @if (Model.CliTools.Count > 0)
+                                    {
+                                        <OverridableField IsOverridden="@product.UseCliToolAlias.IsOverridden"
+                                                          IsOverriddenChanged="async v => { product.UseCliToolAlias = new OverridableValue<string> { IsOverridden = v, Value = v ? (product.UseCliToolAlias.Value ?? Model.ProductDefaults.UseCliToolAlias) : null }; if (string.IsNullOrWhiteSpace(ResolveEffectiveCliAlias(product))) product.CliToolParameters = null; await NotifyChanged(); }"
+                                                          DefaultDisplay="@(Model.ProductDefaults.UseCliToolAlias ?? "(none)")"
+                                                          FieldKey="Product_UseCliToolAlias"
+                                                          Label="@L.Get("ProductDefaults.DefaultCliToolAlias")">
+                                            <MudSelect T="string" Value="@product.UseCliToolAlias.Value"
+                                                       ValueChanged="async v => { product.UseCliToolAlias = new OverridableValue<string> { IsOverridden = !string.IsNullOrWhiteSpace(v), Value = v }; if (string.IsNullOrWhiteSpace(ResolveEffectiveCliAlias(product))) product.CliToolParameters = null; await NotifyChanged(); }"
+                                                       Label="@L.Get("ProductDefaults.DefaultCliToolAlias")"
+                                                       Variant="Variant.Outlined" Clearable="true">
+                                                @foreach (var tool in Model.CliTools)
+                                                {
+                                                    <MudSelectItem T="string" Value="@tool.Alias">@tool.Alias</MudSelectItem>
+                                                }
+                                            </MudSelect>
+                                        </OverridableField>
+
+                                        @* CliToolParameters (product level) *@
+                                        @if (!string.IsNullOrWhiteSpace(ResolveEffectiveCliAlias(product)))
+                                        {
+                                            <MudStack Spacing="1" Class="ml-8">
+                                                @if (product.CliToolParameters is { Count: > 0 })
+                                                {
+                                                    <MudStack Spacing="0">
+                                                        @foreach (var kvp in product.CliToolParameters)
+                                                        {
+                                                            <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary)">
+                                                                @kvp.Key = @kvp.Value
+                                                            </MudText>
+                                                        }
+                                                    </MudStack>
+                                                    <MudStack Row="true" Spacing="1">
+                                                        <MudButton Variant="Variant.Text" Color="Color.Primary"
+                                                                   StartIcon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                                                   OnClick="() => OpenCliParamsDialog(product.CliToolParameters, ResolveEffectiveCliAlias(product), p => product.CliToolParameters = p)">
+                                                            @L.Get("CliParams.EditParameters")
+                                                        </MudButton>
+                                                        <MudButton Variant="Variant.Text" Color="Color.Error"
+                                                                   StartIcon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                                                   OnClick="async () => { product.CliToolParameters = null; await NotifyChanged(); }">
+                                                            @L.Get("CliParams.ClearParameters")
+                                                        </MudButton>
+                                                    </MudStack>
+                                                }
+                                                else
+                                                {
+                                                    <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                                                               StartIcon="@Icons.Material.Filled.Settings" Size="Size.Small"
+                                                               OnClick="() => OpenCliParamsDialog(null, ResolveEffectiveCliAlias(product), p => product.CliToolParameters = p)">
+                                                        @L.Get("CliParams.SetParameters")
+                                                    </MudButton>
+                                                }
+                                            </MudStack>
+                                        }
+                                    }
+
+                                    @* TargetGroupMigrationOrder *@
+                                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                        <MudTextField T="string" Value="@product.TargetGroupMigrationOrder"
+                                                      ValueChanged="async v => { product.TargetGroupMigrationOrder = string.IsNullOrWhiteSpace(v) ? null : v; await NotifyChanged(); }"
+                                                      Label="@L.Get("Products.TargetGroupMigrationOrder")"
+                                                      Variant="Variant.Outlined"
+                                                      HelperText="@L.Get("Products.TargetGroupMigrationOrderHint")" />
+                                        <FieldHelpIcon FieldKey="Product_TargetGroupMigrationOrder" />
+                                    </MudStack>
+                                </MudStack>
+                            </MudExpansionPanel>
+                        </MudExpansionPanels>
+                    }
+
+                    @* Target Groups *@
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="mt-2 pa-2 rounded"
+                              Style="background-color: color-mix(in srgb, var(--mud-palette-primary) 25%, transparent);">
+                        <MudText Typo="Typo.subtitle1">Target Groups</MudText>
+                        <FieldHelpIcon FieldKey="Concept_TargetGroup" />
+                    </MudStack>
+
+                    @for (int j = 0; j < product.TargetGroups.Count; j++)
+                    {
+                        int tgIdx = j;
+                        var tg = product.TargetGroups[tgIdx];
+
+                        <MudPaper Elevation="1" Class="pa-3 mt-1">
+                            <MudStack Spacing="2">
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                                    <MudText Typo="Typo.subtitle2">
+                                        @(string.IsNullOrEmpty(tg.Alias) ? $"TargetGroup {tgIdx + 1}" : tg.Alias)
+                                    </MudText>
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                   Color="Color.Error" Size="Size.Small"
+                                                   OnClick="() => RemoveTargetGroup(product, tgIdx)"
+                                                   Disabled="@(product.TargetGroups.Count <= 1)" />
+                                </MudStack>
+
+                                <MudStack Row="true" Spacing="2">
+                                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                        <MudTextField T="string" Value="@tg.Alias"
+                                                      ValueChanged="async v => { tg.Alias = v; await NotifyChanged(); }"
+                                                      Label="@L.Get("Common.Alias")"
+                                                      Variant="Variant.Outlined" />
+                                        <FieldHelpIcon FieldKey="TargetGroup_Alias" />
+                                    </MudStack>
+                                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                        <DatabaseTypeSelector Value="@tg.DatabaseType"
+                                                              ValueChanged="async v => { tg.DatabaseType = v; await NotifyChanged(); }" />
+                                        <FieldHelpIcon FieldKey="TargetGroup_DatabaseType" />
+                                    </MudStack>
+                                </MudStack>
+
+                                @* Override TargetGroup Defaults *@
+                                @if (IsExpertMode)
+                                {
+                                    <MudExpansionPanels>
+                                        <MudExpansionPanel Text="@L.Get("Products.OverrideTargetGroupDefaults")" Expanded="true">
+                                            <MudStack Spacing="3" Class="pa-2">
+                                                @* TargetMigrationOrder *@
+                                                <OverridableField IsOverridden="@tg.TargetMigrationOrder.IsOverridden"
+                                                                  IsOverriddenChanged="async v => { tg.TargetMigrationOrder = new OverridableValue<string> { IsOverridden = v, Value = v ? (tg.TargetMigrationOrder.Value ?? Model.ProductDefaults.TargetGroupDefaults.TargetMigrationOrder) : null }; await NotifyChanged(); }"
+                                                                  DefaultDisplay="@Model.ProductDefaults.TargetGroupDefaults.TargetMigrationOrder"
+                                                                  FieldKey="TargetGroup_TargetMigrationOrder"
+                                                                  Label="@L.Get("ProductDefaults.TargetMigrationOrder")">
+                                                    <MudSelect T="string" Value="@tg.TargetMigrationOrder.Value"
+                                                               ValueChanged="async v => { tg.TargetMigrationOrder = new OverridableValue<string> { IsOverridden = true, Value = v }; await NotifyChanged(); }"
+                                                               Label="@L.Get("ProductDefaults.TargetMigrationOrder")"
+                                                               Variant="Variant.Outlined">
+                                                        <MudSelectItem T="string" Value="@("Simultaneously")">Simultaneously</MudSelectItem>
+                                                        <MudSelectItem T="string" Value="@("Successively")">Successively</MudSelectItem>
+                                                    </MudSelect>
+                                                </OverridableField>
+
+                                                @* HashValidationScope *@
+                                                <OverridableField IsOverridden="@tg.HashValidationScope.IsOverridden"
+                                                                  IsOverriddenChanged="async v => { tg.HashValidationScope = new OverridableValue<string> { IsOverridden = v, Value = v ? (tg.HashValidationScope.Value ?? Model.ProductDefaults.TargetGroupDefaults.HashValidationScope) : null }; await NotifyChanged(); }"
+                                                                  DefaultDisplay="@Model.ProductDefaults.TargetGroupDefaults.HashValidationScope"
+                                                                  FieldKey="TargetGroup_HashValidationScope"
+                                                                  Label="@L.Get("ProductDefaults.HashValidationScope")">
+                                                    <MudSelect T="string" Value="@tg.HashValidationScope.Value"
+                                                               ValueChanged="async v => { tg.HashValidationScope = new OverridableValue<string> { IsOverridden = true, Value = v }; await NotifyChanged(); }"
+                                                               Label="@L.Get("ProductDefaults.HashValidationScope")"
+                                                               Variant="Variant.Outlined">
+                                                        <MudSelectItem T="string" Value="@("File")">File</MudSelectItem>
+                                                        <MudSelectItem T="string" Value="@("SqlBlocks")">SQL Blocks</MudSelectItem>
+                                                        <MudSelectItem T="string" Value="@("Disabled")">Disabled</MudSelectItem>
+                                                    </MudSelect>
+                                                </OverridableField>
+
+                                                @* UseCliToolAlias (target group level) *@
+                                                @if (Model.CliTools.Count > 0)
+                                                {
+                                                    <OverridableField IsOverridden="@tg.UseCliToolAlias.IsOverridden"
+                                                                      IsOverriddenChanged="async v => { tg.UseCliToolAlias = new OverridableValue<string> { IsOverridden = v, Value = v ? tg.UseCliToolAlias.Value : null }; if (string.IsNullOrWhiteSpace(ResolveEffectiveCliAlias(tg, product))) tg.CliToolParameters = null; await NotifyChanged(); }"
+                                                                      DefaultDisplay="@(Model.ProductDefaults.UseCliToolAlias ?? "(none)")"
+                                                                      FieldKey="TargetGroup_UseCliToolAlias"
+                                                                      Label="@L.Get("ProductDefaults.DefaultCliToolAlias")">
+                                                        <MudSelect T="string" Value="@tg.UseCliToolAlias.Value"
+                                                                   ValueChanged="async v => { tg.UseCliToolAlias = new OverridableValue<string> { IsOverridden = !string.IsNullOrWhiteSpace(v), Value = v }; if (string.IsNullOrWhiteSpace(ResolveEffectiveCliAlias(tg, product))) tg.CliToolParameters = null; await NotifyChanged(); }"
+                                                                   Label="@L.Get("ProductDefaults.DefaultCliToolAlias")"
+                                                                   Variant="Variant.Outlined" Clearable="true">
+                                                            @foreach (var tool in Model.CliTools)
+                                                            {
+                                                                <MudSelectItem T="string" Value="@tool.Alias">@tool.Alias</MudSelectItem>
+                                                            }
+                                                        </MudSelect>
+                                                    </OverridableField>
+
+                                                    @* CliToolParameters (target group level) *@
+                                                    @if (!string.IsNullOrWhiteSpace(ResolveEffectiveCliAlias(tg, product)))
+                                                    {
+                                                        <MudStack Spacing="1" Class="ml-8">
+                                                            @if (tg.CliToolParameters is { Count: > 0 })
+                                                            {
+                                                                <MudStack Spacing="0">
+                                                                    @foreach (var kvp in tg.CliToolParameters)
+                                                                    {
+                                                                        <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary)">
+                                                                            @kvp.Key = @kvp.Value
+                                                                        </MudText>
+                                                                    }
+                                                                </MudStack>
+                                                                <MudStack Row="true" Spacing="1">
+                                                                    <MudButton Variant="Variant.Text" Color="Color.Primary"
+                                                                               StartIcon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                                                               OnClick="() => OpenCliParamsDialog(tg.CliToolParameters, ResolveEffectiveCliAlias(tg, product), p => tg.CliToolParameters = p)">
+                                                                        @L.Get("CliParams.EditParameters")
+                                                                    </MudButton>
+                                                                    <MudButton Variant="Variant.Text" Color="Color.Error"
+                                                                               StartIcon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                                                               OnClick="async () => { tg.CliToolParameters = null; await NotifyChanged(); }">
+                                                                        @L.Get("CliParams.ClearParameters")
+                                                                    </MudButton>
+                                                                </MudStack>
+                                                            }
+                                                            else
+                                                            {
+                                                                @if (product.CliToolParameters is { Count: > 0 })
+                                                                {
+                                                                    <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary)">
+                                                                        @L.Get("CliParams.InheritedFrom") Product:
+                                                                        @string.Join(", ", product.CliToolParameters.Select(kv => $"{kv.Key}={kv.Value}"))
+                                                                    </MudText>
+                                                                }
+                                                                <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                                                                           StartIcon="@Icons.Material.Filled.Settings" Size="Size.Small"
+                                                                           OnClick="() => OpenCliParamsDialog(null, ResolveEffectiveCliAlias(tg, product), p => tg.CliToolParameters = p)">
+                                                                    @L.Get("CliParams.SetParameters")
+                                                                </MudButton>
+                                                            }
+                                                        </MudStack>
+                                                    }
+                                                }
+
+                                                @* StopRollbackOnMissingRollbackFile (target group level) *@
+                                                <OverridableField IsOverridden="@tg.StopRollbackOnMissingRollbackFile.IsOverridden"
+                                                                  IsOverriddenChanged="async v => { tg.StopRollbackOnMissingRollbackFile = new OverridableValue<bool> { IsOverridden = v, Value = v ? tg.StopRollbackOnMissingRollbackFile.GetEffectiveValue(Model.ProductDefaults.TargetGroupDefaults.StopRollbackOnMissingRollbackFile) : default }; await NotifyChanged(); }"
+                                                                  DefaultDisplay="@Model.ProductDefaults.TargetGroupDefaults.StopRollbackOnMissingRollbackFile.ToString()"
+                                                                  FieldKey="ProductDefaults_StopRollbackOnMissingRollbackFile"
+                                                                  Label="@L.Get("ProductDefaults.StopRollbackOnMissingRollbackFile")">
+                                                    <MudSwitch T="bool" Value="@(tg.StopRollbackOnMissingRollbackFile.GetEffectiveValue(Model.ProductDefaults.TargetGroupDefaults.StopRollbackOnMissingRollbackFile))"
+                                                               ValueChanged="async v => { tg.StopRollbackOnMissingRollbackFile = new OverridableValue<bool> { IsOverridden = true, Value = v }; await NotifyChanged(); }"
+                                                               Label="@L.Get("ProductDefaults.StopRollbackOnMissingRollbackFile")"
+                                                               Color="Color.Primary" />
+                                                </OverridableField>
+                                            </MudStack>
+                                        </MudExpansionPanel>
+                                    </MudExpansionPanels>
+                                }
+
+                                @* Targets *@
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Class="mt-2 pa-2 rounded"
+                                          Style="background-color: color-mix(in srgb, var(--mud-palette-primary) 25%, transparent);">
+                                    <MudText Typo="Typo.body2">Targets</MudText>
+                                    <FieldHelpIcon FieldKey="Concept_Target" />
+                                </MudStack>
+                                @for (int k = 0; k < tg.Targets.Count; k++)
+                                {
+                                    int tIdx = k;
+                                    var target = tg.Targets[tIdx];
+
+                                    <MudPaper Elevation="0" Outlined="true" Class="pa-2 mt-1">
+                                        <MudStack Spacing="2">
+                                            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                                                <MudText Typo="Typo.caption">
+                                                    @(string.IsNullOrEmpty(target.Alias) ? $"Target {tIdx + 1}" : target.Alias)
+                                                </MudText>
+                                                <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                               Color="Color.Error" Size="Size.Small"
+                                                               OnClick="() => RemoveTarget(tg, tIdx)"
+                                                               Disabled="@(tg.Targets.Count <= 1)" />
+                                            </MudStack>
+
+                                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                                <MudTextField T="string" Value="@target.Alias"
+                                                              ValueChanged="async v => { target.Alias = v; await NotifyChanged(); }"
+                                                              Label="@L.Get("Common.Alias")"
+                                                              Variant="Variant.Outlined" />
+                                                <FieldHelpIcon FieldKey="Target_Alias" />
+                                            </MudStack>
+
+                                            <ConnectionStringField Value="@target.ConnectionString"
+                                                                   ValueChanged="async v => { target.ConnectionString = v; await NotifyChanged(); }"
+                                                                   FieldKey="Target_ConnectionString" />
+
+                                            @* Override Target Defaults *@
+                                            @if (IsExpertMode)
+                                            {
+                                                <MudExpansionPanels>
+                                                    <MudExpansionPanel Text="@L.Get("Products.OverrideTargetDefaults")" Expanded="true">
+                                                        <MudStack Spacing="3" Class="pa-2">
+                                                            @* DbCommandTimeoutInSeconds *@
+                                                            <OverridableField IsOverridden="@target.DbCommandTimeoutInSeconds.IsOverridden"
+                                                                              IsOverriddenChanged="async v => { target.DbCommandTimeoutInSeconds = new OverridableValue<int> { IsOverridden = v, Value = v ? target.DbCommandTimeoutInSeconds.GetEffectiveValue(Model.ProductDefaults.TargetGroupDefaults.TargetDefaults.DbCommandTimeoutInSeconds) : default }; await NotifyChanged(); }"
+                                                                              DefaultDisplay="@Model.ProductDefaults.TargetGroupDefaults.TargetDefaults.DbCommandTimeoutInSeconds.ToString()"
+                                                                              FieldKey="Target_Timeout"
+                                                                              Label="@L.Get("Common.Timeout")">
+                                                                <MudNumericField T="int" Value="@(target.DbCommandTimeoutInSeconds.GetEffectiveValue(Model.ProductDefaults.TargetGroupDefaults.TargetDefaults.DbCommandTimeoutInSeconds))"
+                                                                                 ValueChanged="async v => { target.DbCommandTimeoutInSeconds = new OverridableValue<int> { IsOverridden = true, Value = v }; await NotifyChanged(); }"
+                                                                                 Label="@L.Get("Common.Timeout")"
+                                                                                 Variant="Variant.Outlined" Min="0" />
+                                                            </OverridableField>
+
+                                                            @* DbCommandMaxRetries *@
+                                                            <OverridableField IsOverridden="@target.DbCommandMaxRetries.IsOverridden"
+                                                                              IsOverriddenChanged="async v => { target.DbCommandMaxRetries = new OverridableValue<int> { IsOverridden = v, Value = v ? target.DbCommandMaxRetries.GetEffectiveValue(Model.ProductDefaults.TargetGroupDefaults.TargetDefaults.DbCommandMaxRetries) : default }; await NotifyChanged(); }"
+                                                                              DefaultDisplay="@Model.ProductDefaults.TargetGroupDefaults.TargetDefaults.DbCommandMaxRetries.ToString()"
+                                                                              FieldKey="Target_MaxRetries"
+                                                                              Label="@L.Get("Common.MaxRetries")">
+                                                                <MudNumericField T="int" Value="@(target.DbCommandMaxRetries.GetEffectiveValue(Model.ProductDefaults.TargetGroupDefaults.TargetDefaults.DbCommandMaxRetries))"
+                                                                                 ValueChanged="async v => { target.DbCommandMaxRetries = new OverridableValue<int> { IsOverridden = true, Value = v }; await NotifyChanged(); }"
+                                                                                 Label="@L.Get("Common.MaxRetries")"
+                                                                                 Variant="Variant.Outlined" Min="0" />
+                                                            </OverridableField>
+
+                                                            @* DbCommandWaitTimeInMsBeforeRetry *@
+                                                            <OverridableField IsOverridden="@target.DbCommandWaitTimeInMsBeforeRetry.IsOverridden"
+                                                                              IsOverriddenChanged="async v => { target.DbCommandWaitTimeInMsBeforeRetry = new OverridableValue<int> { IsOverridden = v, Value = v ? target.DbCommandWaitTimeInMsBeforeRetry.GetEffectiveValue(Model.ProductDefaults.TargetGroupDefaults.TargetDefaults.DbCommandWaitTimeInMsBeforeRetry) : default }; await NotifyChanged(); }"
+                                                                              DefaultDisplay="@Model.ProductDefaults.TargetGroupDefaults.TargetDefaults.DbCommandWaitTimeInMsBeforeRetry.ToString()"
+                                                                              FieldKey="Target_Wait"
+                                                                              Label="@L.Get("Common.WaitTime")">
+                                                                <MudNumericField T="int" Value="@(target.DbCommandWaitTimeInMsBeforeRetry.GetEffectiveValue(Model.ProductDefaults.TargetGroupDefaults.TargetDefaults.DbCommandWaitTimeInMsBeforeRetry))"
+                                                                                 ValueChanged="async v => { target.DbCommandWaitTimeInMsBeforeRetry = new OverridableValue<int> { IsOverridden = true, Value = v }; await NotifyChanged(); }"
+                                                                                 Label="@L.Get("Common.WaitTime")"
+                                                                                 Variant="Variant.Outlined" Min="0" />
+                                                            </OverridableField>
+
+                                                            @* UseCliToolAlias (target level) *@
+                                                            @if (Model.CliTools.Count > 0)
+                                                            {
+                                                                <OverridableField IsOverridden="@target.UseCliToolAlias.IsOverridden"
+                                                                                  IsOverriddenChanged="async v => { target.UseCliToolAlias = new OverridableValue<string> { IsOverridden = v, Value = v ? target.UseCliToolAlias.Value : null }; if (string.IsNullOrWhiteSpace(InheritanceResolver.GetEffectiveUseCliToolAlias(target, tg, product, Model.ProductDefaults))) target.CliToolParameters = null; await NotifyChanged(); }"
+                                                                                  DefaultDisplay="@(Model.ProductDefaults.UseCliToolAlias ?? "(none)")"
+                                                                                  FieldKey="Target_UseCliToolAlias"
+                                                                                  Label="@L.Get("ProductDefaults.DefaultCliToolAlias")">
+                                                                    <MudSelect T="string" Value="@target.UseCliToolAlias.Value"
+                                                                               ValueChanged="async v => { target.UseCliToolAlias = new OverridableValue<string> { IsOverridden = !string.IsNullOrWhiteSpace(v), Value = v }; if (string.IsNullOrWhiteSpace(InheritanceResolver.GetEffectiveUseCliToolAlias(target, tg, product, Model.ProductDefaults))) target.CliToolParameters = null; await NotifyChanged(); }"
+                                                                               Label="@L.Get("ProductDefaults.DefaultCliToolAlias")"
+                                                                               Variant="Variant.Outlined" Clearable="true">
+                                                                        @foreach (var tool in Model.CliTools)
+                                                                        {
+                                                                            <MudSelectItem T="string" Value="@tool.Alias">@tool.Alias</MudSelectItem>
+                                                                        }
+                                                                    </MudSelect>
+                                                                </OverridableField>
+
+                                                                @* CliToolParameters (target level) *@
+                                                                @if (!string.IsNullOrWhiteSpace(InheritanceResolver.GetEffectiveUseCliToolAlias(target, tg, product, Model.ProductDefaults)))
+                                                                {
+                                                                    <MudStack Spacing="1" Class="ml-8">
+                                                                        @if (target.CliToolParameters is { Count: > 0 })
+                                                                        {
+                                                                            <MudStack Spacing="0">
+                                                                                @foreach (var kvp in target.CliToolParameters)
+                                                                                {
+                                                                                    <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary)">
+                                                                                        @kvp.Key = @kvp.Value
+                                                                                    </MudText>
+                                                                                }
+                                                                            </MudStack>
+                                                                            <MudStack Row="true" Spacing="1">
+                                                                                <MudButton Variant="Variant.Text" Color="Color.Primary"
+                                                                                           StartIcon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                                                                           OnClick="() => OpenCliParamsDialog(target.CliToolParameters, InheritanceResolver.GetEffectiveUseCliToolAlias(target, tg, product, Model.ProductDefaults), p => target.CliToolParameters = p)">
+                                                                                    @L.Get("CliParams.EditParameters")
+                                                                                </MudButton>
+                                                                                <MudButton Variant="Variant.Text" Color="Color.Error"
+                                                                                           StartIcon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                                                                           OnClick="async () => { target.CliToolParameters = null; await NotifyChanged(); }">
+                                                                                    @L.Get("CliParams.ClearParameters")
+                                                                                </MudButton>
+                                                                            </MudStack>
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            @if (InheritanceResolver.GetEffectiveCliToolParameters(target, tg, product) is { Count: > 0 } inheritedParams)
+                                                                            {
+                                                                                <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary)">
+                                                                                    @L.Get("CliParams.InheritedFrom") @(InheritanceResolver.GetCliToolParametersSourceLabel(target, tg, product)):
+                                                                                    @string.Join(", ", inheritedParams.Select(kv => $"{kv.Key}={kv.Value}"))
+                                                                                </MudText>
+                                                                            }
+                                                                            <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                                                                                       StartIcon="@Icons.Material.Filled.Settings" Size="Size.Small"
+                                                                                       OnClick="() => OpenCliParamsDialog(null, InheritanceResolver.GetEffectiveUseCliToolAlias(target, tg, product, Model.ProductDefaults), p => target.CliToolParameters = p)">
+                                                                                @L.Get("CliParams.SetParameters")
+                                                                            </MudButton>
+                                                                        }
+                                                                    </MudStack>
+                                                                }
+                                                            }
+                                                        </MudStack>
+                                                    </MudExpansionPanel>
+                                                </MudExpansionPanels>
+                                            }
+                                        </MudStack>
+                                    </MudPaper>
+                                }
+                                <MudButton Variant="Variant.Text" Color="Color.Primary"
+                                           StartIcon="@Icons.Material.Filled.Add" Size="Size.Small"
+                                           OnClick="() => AddTarget(tg)"
+                                           Style="align-self: flex-start">
+                                    @L.Get("Products.AddTargetBtn")
+                                </MudButton>
+                            </MudStack>
+                        </MudPaper>
+                    }
+
+                    <MudButton Variant="Variant.Text" Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.Add"
+                               OnClick="() => AddTargetGroup(product)"
+                               Style="align-self: flex-start">
+                        @L.Get("Products.AddTargetGroupBtn")
+                    </MudButton>
+                </MudStack>
+            </ChildContent>
+        </MudExpansionPanel>
+    </MudExpansionPanels>
+}
+
+@code {
+    [Parameter, EditorRequired] public ConfigurationModel Model { get; set; } = default!;
+    [Parameter] public EventCallback OnChanged { get; set; }
+    [Parameter] public bool IsExpertMode { get; set; }
+
+    [Inject] private LocalizationService L { get; set; } = default!;
+    [Inject] private IDialogService DialogService { get; set; } = default!;
+
+    private string? ResolveEffectiveCliAlias(ProductModel prod) =>
+        prod.UseCliToolAlias.IsOverridden ? prod.UseCliToolAlias.Value : Model.ProductDefaults.UseCliToolAlias;
+
+    private string? ResolveEffectiveCliAlias(TargetGroupModel tg, ProductModel prod) =>
+        tg.UseCliToolAlias is { IsOverridden: true, Value: not null }
+            ? tg.UseCliToolAlias.Value
+            : ResolveEffectiveCliAlias(prod);
+
+    private string? ResolveEffectiveCliAlias(TargetModel target, TargetGroupModel tg, ProductModel prod) =>
+        target.UseCliToolAlias is { IsOverridden: true, Value: not null }
+            ? target.UseCliToolAlias.Value
+            : ResolveEffectiveCliAlias(tg, prod);
+
+    private async Task OpenCliParamsDialog(
+        Dictionary<string, string>? currentValues,
+        string? cliToolAlias,
+        Action<Dictionary<string, string>> onSave)
+    {
+        var parameterKeys = WizardCliToolParameterResolver.ResolveParameterKeys(cliToolAlias, Model.CliTools);
+        if (parameterKeys.Count == 0) return;
+
+        var tool = Model.CliTools.FirstOrDefault(t =>
+            string.Equals(t.Alias, cliToolAlias, StringComparison.OrdinalIgnoreCase));
+
+        var parameters = new DialogParameters<CliToolParametersDialog>
+        {
+            { x => x.ParameterKeys, parameterKeys },
+            { x => x.ExistingValues, currentValues },
+            { x => x.ArgumentTemplate, tool?.ArgumentTemplate },
+        };
+        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true };
+
+        var dialog = await DialogService.ShowAsync<CliToolParametersDialog>(
+            L.Get("CliParams.DialogTitle"), parameters, options);
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false, Data: Dictionary<string, string> newValues })
+        {
+            onSave(newValues);
+            await NotifyChanged();
+        }
+    }
+
+    private async Task AddTargetGroup(ProductModel product)
+    {
+        product.TargetGroups.Add(new TargetGroupModel
+        {
+            Alias = "",
+            DatabaseType = "SqlServer",
+            Targets = new List<TargetModel>
+            {
+                new() { Alias = "MainDB", ConnectionString = "" }
+            }
+        });
+        await NotifyChanged();
+    }
+
+    private async Task RemoveTargetGroup(ProductModel product, int index)
+    {
+        if (product.TargetGroups.Count > 1)
+        {
+            product.TargetGroups.RemoveAt(index);
+            await NotifyChanged();
+        }
+    }
+
+    private async Task AddTarget(TargetGroupModel tg)
+    {
+        tg.Targets.Add(new TargetModel { Alias = "", ConnectionString = "" });
+        await NotifyChanged();
+    }
+
+    private async Task RemoveTarget(TargetGroupModel tg, int index)
+    {
+        if (tg.Targets.Count > 1)
+        {
+            tg.Targets.RemoveAt(index);
+            await NotifyChanged();
+        }
+    }
+
+    private Task NotifyChanged()
+    {
+        Model.IsModified = true;
+        return OnChanged.InvokeAsync();
+    }
+}

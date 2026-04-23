@@ -1,0 +1,106 @@
+@*
+Copyright (c) 2026 RAYCOON.com GmbH
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License v3.
+
+See the LICENSE file for details.
+*@
+
+@* Phase 3: Overview with validation, matrix, file preview, and export. *@
+
+<MudContainer MaxWidth="MaxWidth.Large">
+    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+        <div>
+            <MudText Typo="Typo.h5">@L.Get("Phase3.Title")</MudText>
+            <MudText Typo="Typo.body2">@L.Get("Phase3.Subtitle")</MudText>
+        </div>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Download"
+                   OnClick="DownloadZip">
+            @L.Get("Phase3.Download")
+        </MudButton>
+    </MudStack>
+
+    @if (Wizard.LastValidationResult != null)
+    {
+        <MudAlert Severity="@(Wizard.LastValidationResult.IsValid ? Severity.Success : Severity.Error)"
+                  Dense="true" Class="mt-2">
+            @if (Wizard.LastValidationResult.IsValid)
+            {
+                <MudText>Configuration is valid.</MudText>
+            }
+            else
+            {
+                <MudText>@Wizard.LastValidationResult.Errors.Count error(s), @Wizard.LastValidationResult.Warnings.Count warning(s)</MudText>
+            }
+        </MudAlert>
+
+        @if (!Wizard.LastValidationResult.IsValid)
+        {
+            <MudList T="string" Dense="true" Class="mt-1">
+                @foreach (var error in Wizard.LastValidationResult.Errors)
+                {
+                    <MudListItem T="string" Icon="@Icons.Material.Filled.Error" IconColor="Color.Error">
+                        <MudText Typo="Typo.body2">@error.Path: @error.Message</MudText>
+                    </MudListItem>
+                }
+                @foreach (var warning in Wizard.LastValidationResult.Warnings)
+                {
+                    <MudListItem T="string" Icon="@Icons.Material.Filled.Warning" IconColor="Color.Warning">
+                        <MudText Typo="Typo.body2">@warning.Path: @warning.Message</MudText>
+                    </MudListItem>
+                }
+            </MudList>
+        }
+    }
+
+    @* Product/Environment Matrix *@
+    <ProductEnvironmentMatrix Model="@Wizard.BaseModel"
+                              EnvironmentKeys="@Wizard.EnvironmentKeys"
+                              Class="mt-4" />
+
+    @* Environment File Tabs with JSON preview *@
+    <EnvironmentFileTabs Class="mt-4" />
+
+    @* Navigation bar *@
+    <MudStack Row="true" Class="mt-6 mb-4">
+        <MudButton Variant="Variant.Outlined" Color="Color.Default"
+                   StartIcon="@Icons.Material.Filled.ArrowBack"
+                   OnClick="GoToHub">
+            @L.Get("Hub.BackToHub")
+        </MudButton>
+    </MudStack>
+</MudContainer>
+
+@code {
+    [Inject] private WizardStateService Wizard { get; set; } = default!;
+    [Inject] private LocalizationService L { get; set; } = default!;
+    [Inject] private ZipExportService ZipExport { get; set; } = default!;
+    [Inject] private ISnackbar Snackbar { get; set; } = default!;
+
+    protected override void OnInitialized()
+    {
+        var promotionResults = Wizard.PromoteDefaults();
+        if (promotionResults.Count > 0)
+        {
+            foreach (var r in promotionResults)
+            {
+                Snackbar.Add(
+                    $"{r.PropertyName} = \"{r.PromotedValue}\" promoted to {r.Level} ({r.AffectedProducts} products)",
+                    Severity.Success);
+            }
+        }
+
+        Wizard.ValidateAll();
+    }
+
+    private void GoToHub() => Wizard.GoToHub();
+
+    private async Task DownloadZip()
+    {
+        await ZipExport.ExportAsync(Wizard.State);
+        Snackbar.Add(L.Get("Export.Success"), Severity.Success);
+    }
+
+}

@@ -1,0 +1,3 @@
+[RayMigrator]
+UseTransaction = true
+RollbackErrorAction = "Ignore"

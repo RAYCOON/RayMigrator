@@ -1,0 +1,128 @@
+name: Publish Release
+
+on:
+  workflow_run:
+    workflows: ["Build & Test"]
+    types: [completed]
+
+concurrency:
+  group: publish-release-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      startsWith(github.event.workflow_run.head_branch, 'v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    strategy:
+      matrix:
+        include:
+          - rid: win-x64
+            archive_ext: zip
+          - rid: osx-arm64
+            archive_ext: tar.gz
+          - rid: linux-x64
+            archive_ext: tar.gz
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_branch }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${TAG#v}" >> "$GITHUB_OUTPUT"
+        env:
+          TAG: ${{ github.event.workflow_run.head_branch }}
+
+      - name: Publish framework-dependent binary
+        run: >
+          dotnet publish Raycoon.RayMigrator.Console/Raycoon.RayMigrator.Console.csproj
+          -c Release
+          -r ${{ matrix.rid }}
+          -f net10.0
+          -o publish/${{ matrix.rid }}
+          --no-self-contained
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:IncludeAllContentForSelfExtract=true
+          -p:Version=${{ steps.version.outputs.VERSION }}
+          -p:BuildStage=Production
+
+      - name: Verify publish output
+        run: |
+          echo "=== Published files ==="
+          ls -la publish/${{ matrix.rid }}/
+          echo ""
+          echo "=== DataAccessLayers ==="
+          ls -R publish/${{ matrix.rid }}/DataAccessLayers/ || { echo "ERROR: DataAccessLayers/ missing!"; exit 1; }
+          for dal in SqlServer PostgreSQL MariaDb MySql Sqlite; do
+            sql_count=$(find "publish/${{ matrix.rid }}/DataAccessLayers/$dal" -name "*.sql" 2>/dev/null | wc -l)
+            if [ "$sql_count" -eq 0 ]; then
+              echo "ERROR: No SQL templates in DataAccessLayers/$dal!"
+              exit 1
+            fi
+            echo "OK: DataAccessLayers/$dal — $sql_count templates"
+          done
+
+      - name: Create archive (tar.gz)
+        if: matrix.archive_ext == 'tar.gz'
+        run: tar -czf RayMigrator-${{ steps.version.outputs.VERSION }}-${{ matrix.rid }}.tar.gz -C publish/${{ matrix.rid }} .
+
+      - name: Create archive (zip)
+        if: matrix.archive_ext == 'zip'
+        working-directory: publish/${{ matrix.rid }}
+        run: zip -r ../../RayMigrator-${{ steps.version.outputs.VERSION }}-${{ matrix.rid }}.zip .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: RayMigrator-${{ matrix.rid }}
+          path: RayMigrator-${{ steps.version.outputs.VERSION }}-${{ matrix.rid }}.${{ matrix.archive_ext }}
+          retention-days: 1
+
+  release:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_branch }}
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${TAG#v}" >> "$GITHUB_OUTPUT"
+        env:
+          TAG: ${{ github.event.workflow_run.head_branch }}
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v5
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: List release assets
+        run: ls -la release-assets/
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.workflow_run.head_branch }}
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
+          gh release create "$TAG" \
+            --title "RayMigrator v${VERSION}" \
+            --generate-notes \
+            release-assets/*

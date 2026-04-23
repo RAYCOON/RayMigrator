@@ -1,0 +1,30 @@
+// Copyright (c) 2026 RAYCOON.com GmbH
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License v3.
+//
+// See the LICENSE file for details.
+
+using Raycoon.RayMigrator.Core.Configuration.Enums;
+using Raycoon.RayMigrator.Tests.Engine.Fixtures;
+using Raycoon.RayMigrator.Tests.Engine.Infrastructure;
+
+namespace Raycoon.RayMigrator.Tests.Engine.Tests.Features;
+
+[Collection("MySql")]
+[Trait("Engine", "MySql")]
+[Trait("Category", "Features")]
+public class MySqlUpdateHashTests : MySqlTestBase
+{
+    public MySqlUpdateHashTests(MySqlFixture fixture) : base(fixture) { }
+
+    [Fact] public async Task UpdateHash_AfterMigration_NoUpdatesNeeded() { Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available"); await using var ctx = await CreateScenario().BuildAsync(); await ctx.MigrateUpAsync(); ctx.AssertSuccess(true); await ctx.RebuildForAsync(MigrationCommand.UpdateHash, MigrationRunMode.Migrate); var result = await ctx.UpdateHashAsync(); result.Success.Should().BeTrue($"UpdateHash should succeed: {result.ErrorMessage}"); result.UpdatedFiles.Should().Be(0, "Fresh migration, all hashes should match"); }
+
+    [Fact] public async Task UpdateHash_AfterFileModification_ShouldUpdateHash() { Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available"); await using var ctx = await CreateScenario().BuildAsync(); await ctx.MigrateUpAsync("Release_2.0"); ctx.AssertSuccess(true); string filePath = Path.Combine(ctx.WorkDirectory, "Release_1.0", "Backend", "01_CreateTableA.sql"); string content = File.ReadAllText(filePath); File.WriteAllText(filePath, content + "\n-- modified for hash test"); await ctx.RebuildForAsync(MigrationCommand.UpdateHash, MigrationRunMode.Migrate); var result = await ctx.UpdateHashAsync(); result.Success.Should().BeTrue($"UpdateHash should succeed: {result.ErrorMessage}"); result.UpdatedFiles.Should().BeGreaterThanOrEqualTo(1, "At least one file hash should have been updated after modification"); }
+
+    [Fact] public async Task UpdateHash_AfterModification_ThenValidateHash_ShouldPass() { Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available"); await using var ctx = await CreateScenario().BuildAsync(); await ctx.MigrateUpAsync("Release_2.0"); ctx.AssertSuccess(true); string filePath = Path.Combine(ctx.WorkDirectory, "Release_1.0", "Backend", "01_CreateTableA.sql"); string content = File.ReadAllText(filePath); File.WriteAllText(filePath, content + "\n-- modified for hash test"); await ctx.RebuildForAsync(MigrationCommand.UpdateHash, MigrationRunMode.Migrate); var updateResult = await ctx.UpdateHashAsync(); updateResult.Success.Should().BeTrue($"UpdateHash should succeed: {updateResult.ErrorMessage}"); await ctx.RebuildForAsync(MigrationCommand.ValidateHash, MigrationRunMode.Migrate); var validateResult = await ctx.ValidateHashAsync(); validateResult.Success.Should().BeTrue($"ValidateHash after UpdateHash should pass: {validateResult.ErrorMessage}"); validateResult.InvalidFiles.Should().Be(0, "No files should have invalid hashes after UpdateHash fixed them"); }
+
+    [Fact] public async Task UpdateHash_Idempotent_SecondRunNoUpdates() { Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available"); await using var ctx = await CreateScenario().BuildAsync(); await ctx.MigrateUpAsync("Release_2.0"); ctx.AssertSuccess(true); string filePath = Path.Combine(ctx.WorkDirectory, "Release_1.0", "Backend", "01_CreateTableA.sql"); string content = File.ReadAllText(filePath); File.WriteAllText(filePath, content + "\n-- modified for hash test"); await ctx.RebuildForAsync(MigrationCommand.UpdateHash, MigrationRunMode.Migrate); var firstResult = await ctx.UpdateHashAsync(); firstResult.Success.Should().BeTrue($"First UpdateHash should succeed: {firstResult.ErrorMessage}"); firstResult.UpdatedFiles.Should().BeGreaterThanOrEqualTo(1, "First UpdateHash should update at least one file"); await ctx.RebuildForAsync(MigrationCommand.UpdateHash, MigrationRunMode.Migrate); var secondResult = await ctx.UpdateHashAsync(); secondResult.Success.Should().BeTrue($"Second UpdateHash should succeed: {secondResult.ErrorMessage}"); secondResult.UpdatedFiles.Should().Be(0, "Second UpdateHash should find zero files to update (idempotent)"); }
+
+    [Fact] public async Task UpdateHash_OnEmptyRepository_ShouldSucceedGracefully() { Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available"); await using var ctx = await CreateScenario().BuildAsync(MigrationCommand.UpdateHash); var result = await ctx.UpdateHashAsync(); result.Success.Should().BeTrue($"UpdateHash should handle empty repository gracefully: {result.ErrorMessage}"); result.UpdatedFiles.Should().Be(0, "No files should be updated when the repository is empty"); }
+}

@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFrameworks>net10.0;net9.0;net8.0</TargetFrameworks>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>default</LangVersion>
+        <RayMigratorDatabaseType>SqlServer</RayMigratorDatabaseType>
+        <PackageId>Raycoon.RayMigrator.Database.SqlServer</PackageId>
+        <Description>SQL Server data access layer plugin for RayMigrator</Description>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="..\NUGET_README.md" Pack="true" PackagePath="README.md" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Raycoon.RayMigrator.Tests.Unit" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Raycoon.RayMigrator.Database.Common\Raycoon.RayMigrator.Database.Common.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Shared\Raycoon.RayMigrator.Shared.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Data.SqlClient" />
+    </ItemGroup>
+
+    <!-- Templates als Content (transitiv propagiert + NuGet contentFiles) -->
+    <ItemGroup>
+        <Content Include="Templates\**\*.sql">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <Link>DataAccessLayers\$(RayMigratorDatabaseType)\%(RecursiveDir)%(Filename)%(Extension)</Link>
+            <Pack>true</Pack>
+            <PackagePath>contentFiles\any\any\DataAccessLayers\$(RayMigratorDatabaseType)\</PackagePath>
+            <PackageCopyToOutput>true</PackageCopyToOutput>
+        </Content>
+    </ItemGroup>
+
+    <!-- DAL-DLL in DataAccessLayers/{Type}/ kopieren -->
+    <Target Name="CopyDalToDataAccessLayers" AfterTargets="Build">
+        <MakeDir Directories="$(OutputPath)DataAccessLayers\$(RayMigratorDatabaseType)" />
+        <Copy SourceFiles="$(TargetPath)"
+              DestinationFolder="$(OutputPath)DataAccessLayers\$(RayMigratorDatabaseType)\"
+              SkipUnchangedFiles="true" />
+    </Target>
+
+</Project>

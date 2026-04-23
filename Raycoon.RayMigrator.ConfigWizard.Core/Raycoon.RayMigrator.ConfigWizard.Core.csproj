@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>default</LangVersion>
+    <TargetFrameworks>net10.0;net9.0;net8.0</TargetFrameworks>
+    <RootNamespace>Raycoon.RayMigrator.ConfigWizard.Core</RootNamespace>
+    <Company>RAYCOON.com GmbH</Company>
+    <Product>RayMigrator ConfigWizard Core</Product>
+    <Copyright>Copyright (c) 2023-$([System.DateTime]::Now.Year) $(Company)</Copyright>
+    <Version>$(RayMigratorVersion)</Version>
+    <Authors>Daniel Pavic</Authors>
+    <Description>Shared domain logic for RayMigrator configuration wizards (models, validation, serialization)</Description>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Raycoon.RayMigrator.Tests.Unit.ConfigWizard.Core" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Only project reference: the shared validation catalog is WASM-safe by construction (zero deps). -->
+    <ProjectReference Include="..\Raycoon.RayMigrator.Validation\Raycoon.RayMigrator.Validation.csproj" />
+  </ItemGroup>
+</Project>

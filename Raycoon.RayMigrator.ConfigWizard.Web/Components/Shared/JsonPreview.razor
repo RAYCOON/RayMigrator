@@ -1,0 +1,30 @@
+@*
+Copyright (c) 2026 RAYCOON.com GmbH
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License v3.
+
+See the LICENSE file for details.
+*@
+
+@* Live JSON preview panel. *@
+
+<MudPaper Elevation="0" Class="pa-0" Style="position:sticky;top:80px;">
+    <MudText Typo="Typo.subtitle2" Class="mb-2">@L.Get("JsonPreview.Title")</MudText>
+    @_highlighted
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Json { get; set; } = "{}";
+
+    [Inject] private JsonHighlightService Highlighter { get; set; } = default!;
+    [Inject] private LocalizationService L { get; set; } = default!;
+
+    private MarkupString _highlighted;
+
+    protected override void OnParametersSet()
+    {
+        _highlighted = Highlighter.Highlight(Json);
+    }
+}

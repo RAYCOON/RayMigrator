@@ -1,0 +1,52 @@
+@*
+Copyright (c) 2026 RAYCOON.com GmbH
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License v3.
+
+See the LICENSE file for details.
+*@
+
+@* A field that shows default value with optional override toggle, including a property label. *@
+
+<MudStack Spacing="0">
+    @if (!string.IsNullOrEmpty(Label))
+    {
+        <MudText Typo="Typo.body2" Style="font-weight:600">@Label</MudText>
+    }
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+        <MudSwitch T="bool" Value="@IsOverridden" ValueChanged="OnOverrideToggled"
+                   Label="@L.Get("Common.Override")" Color="Color.Primary" Size="Size.Small" />
+        @if (IsOverridden)
+        {
+            @ChildContent
+        }
+        else
+        {
+            <MudText Typo="Typo.body2" Class="override-indicator">
+                @L.Get("Common.InheritedFrom") @L.Get("Common.Default"): @DefaultDisplay
+            </MudText>
+        }
+        @if (!string.IsNullOrEmpty(FieldKey))
+        {
+            <FieldHelpIcon FieldKey="@FieldKey" />
+        }
+    </MudStack>
+</MudStack>
+
+@code {
+    [Parameter] public bool IsOverridden { get; set; }
+    [Parameter] public EventCallback<bool> IsOverriddenChanged { get; set; }
+    [Parameter] public string DefaultDisplay { get; set; } = "";
+    [Parameter] public string FieldKey { get; set; } = "";
+    [Parameter] public string Label { get; set; } = "";
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    [Inject] private LocalizationService L { get; set; } = default!;
+
+    private async Task OnOverrideToggled(bool value)
+    {
+        IsOverridden = value;
+        await IsOverriddenChanged.InvokeAsync(value);
+    }
+}

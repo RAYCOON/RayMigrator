@@ -1,0 +1,27 @@
+@*
+Copyright (c) 2026 RAYCOON.com GmbH
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License v3.
+
+See the LICENSE file for details.
+*@
+
+@* Displays section-level help at the top of a wizard step. Resolved fresh on each render. *@
+
+@{ var help = L.GetSectionHelp(SectionKey); }
+
+@if (help != null)
+{
+    <div class="section-intro">
+        <MudText Typo="Typo.h6">@help.Title</MudText>
+        <MudText Typo="Typo.body2">@help.Description</MudText>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public string SectionKey { get; set; } = "";
+
+    [Inject] private LocalizationService L { get; set; } = default!;
+}

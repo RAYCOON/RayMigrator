@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFrameworks>net10.0;net9.0;net8.0</TargetFrameworks>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>default</LangVersion>
+        <RayMigratorDatabaseType>Example</RayMigratorDatabaseType>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Raycoon.RayMigrator.Database.Common\Raycoon.RayMigrator.Database.Common.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Shared\Raycoon.RayMigrator.Shared.csproj" />
+    </ItemGroup>
+
+    <!-- TODO: Add your database driver NuGet package here, e.g.:
+    <ItemGroup>
+        <PackageReference Include="Oracle.ManagedDataAccess.Core" Version="..." />
+    </ItemGroup>
+    -->
+
+    <!-- Templates als Content (transitiv propagiert + NuGet contentFiles) -->
+    <ItemGroup>
+        <Content Include="Templates\**\*.sql">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <Link>DataAccessLayers\$(RayMigratorDatabaseType)\%(RecursiveDir)%(Filename)%(Extension)</Link>
+            <Pack>true</Pack>
+            <PackagePath>contentFiles\any\any\DataAccessLayers\$(RayMigratorDatabaseType)\</PackagePath>
+            <PackageCopyToOutput>true</PackageCopyToOutput>
+        </Content>
+    </ItemGroup>
+
+    <!-- DAL-DLL in DataAccessLayers/{Type}/ kopieren -->
+    <Target Name="CopyDalToDataAccessLayers" AfterTargets="Build">
+        <MakeDir Directories="$(OutputPath)DataAccessLayers\$(RayMigratorDatabaseType)" />
+        <Copy SourceFiles="$(TargetPath)"
+              DestinationFolder="$(OutputPath)DataAccessLayers\$(RayMigratorDatabaseType)\"
+              SkipUnchangedFiles="true" />
+    </Target>
+
+</Project>

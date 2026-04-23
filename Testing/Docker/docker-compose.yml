@@ -1,0 +1,115 @@
+services:
+  rm_db_sqlserver:
+    container_name: rm_db_sqlserver
+    image: rm_img_db_sqlserver
+    hostname: rm_db_sqlserver
+    build:
+      context: ./SqlServer
+      dockerfile: Dockerfile
+      args:
+        SOURCE_MICROSOFT: ${SOURCE_MICROSOFT}
+    restart: always
+    ports:
+      - 1433:1433
+    expose:
+      - 1433
+    networks:
+      - ray_network
+    profiles:
+      - all
+      - sqlserver
+
+  rm_db_mariadb:
+    container_name: rm_db_mariadb
+    image: rm_img_db_mariadb
+    hostname: rm_db_mariadb
+    build:
+      context: ./MariaDB
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-root123}
+      MYSQL_DATABASE: ${MARIADB_DATABASE:-raydb}
+      MYSQL_USER: ${MARIADB_USER:-rayuser}
+      MYSQL_PASSWORD: ${MARIADB_PASSWORD:-raypass123}
+    ports:
+      - 3306:3306
+    expose:
+      - 3306
+    volumes:
+      - ./MariaDB/init:/docker-entrypoint-initdb.d
+      - ./MariaDB/config:/etc/mysql/conf.d
+    networks:
+      - ray_network
+    profiles:
+      - all
+      - mariadb
+    healthcheck:
+      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost", "-u", "root", "-p${MARIADB_ROOT_PASSWORD:-root123}"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  rm_db_mysql:
+    container_name: rm_db_mysql
+    image: rm_img_db_mysql
+    hostname: rm_db_mysql
+    build:
+      context: ./MySQL
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root123}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-raydb}
+      MYSQL_USER: ${MYSQL_USER:-rayuser}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-raypass123}
+    ports:
+      - 3307:3306
+    expose:
+      - 3306
+    volumes:
+      - ./MySQL/init:/docker-entrypoint-initdb.d
+      - ./MySQL/config:/etc/mysql/conf.d
+    networks:
+      - ray_network
+    profiles:
+      - all
+      - mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-root123}"]
+      timeout: 20s
+      retries: 5
+
+  rm_db_postgresql:
+    container_name: rm_db_postgresql
+    image: rm_img_db_postgresql
+    hostname: rm_db_postgresql
+    build:
+      context: ./PostgreSQL
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - 5432:5432
+    expose:
+      - 5432
+    #volumes:
+    #  - ./PostgreSQL/init:/docker-entrypoint-initdb.d
+    networks:
+      - ray_network
+    profiles:
+      - all
+      - postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  ray_network:
+    name: ray_network
+    driver: bridge

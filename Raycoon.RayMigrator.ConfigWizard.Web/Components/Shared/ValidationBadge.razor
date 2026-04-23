@@ -1,0 +1,41 @@
+@*
+Copyright (c) 2026 RAYCOON.com GmbH
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License v3.
+
+See the LICENSE file for details.
+*@
+
+@* Displays a compact validation status badge (errors/warnings/valid). *@
+
+@if (Result == null)
+{
+    return;
+}
+
+@if (Result.Errors.Count > 0)
+{
+    <MudChip T="string" Color="Color.Error" Size="Size.Small" Icon="@Icons.Material.Filled.Error">
+        @Result.Errors.Count @L.Get("Common.Errors")
+    </MudChip>
+}
+@if (Result.Warnings.Count > 0)
+{
+    <MudChip T="string" Color="Color.Warning" Size="Size.Small" Icon="@Icons.Material.Filled.Warning">
+        @Result.Warnings.Count @L.Get("Common.Warnings")
+    </MudChip>
+}
+@if (Result.IsValid && Result.Warnings.Count == 0)
+{
+    <MudChip T="string" Color="Color.Success" Size="Size.Small" Icon="@Icons.Material.Filled.CheckCircle">
+        @L.Get("Common.Valid")
+    </MudChip>
+}
+
+@code {
+    [Parameter]
+    public WizardValidationResult? Result { get; set; }
+
+    [Inject] private LocalizationService L { get; set; } = default!;
+}

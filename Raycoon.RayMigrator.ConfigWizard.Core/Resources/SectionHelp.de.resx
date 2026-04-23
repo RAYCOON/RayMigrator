@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" msdata:Ordinal="0" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+
+  <data name="Welcome_Title" xml:space="preserve"><value>Willkommen</value></data>
+  <data name="Welcome_Description" xml:space="preserve"><value>Willkommen beim RayMigrator Konfigurations-Assistenten. Dieser Assistent fuehrt Sie Schritt fuer Schritt durch die Erstellung einer vollstaendigen RayMigrator-Konfigurationsdatei.</value></data>
+
+  <data name="Root_Title" xml:space="preserve"><value>RayMigrator Konfiguration</value></data>
+  <data name="Root_Description" xml:space="preserve"><value>Dies ist die Wurzel Ihrer RayMigrator-Konfiguration. Die Konfiguration ist in Abschnitte unterteilt: Repository, DatabaseLogging, ProductDefaults, Products, Serilog und CliTools.</value></data>
+
+  <data name="Repository_Title" xml:space="preserve"><value>Repository</value></data>
+  <data name="Repository_Description" xml:space="preserve"><value>Das Repository speichert Migrationsverfolgungsdaten (welche Migrationen angewendet wurden, deren Status und Hashes). Konfigurieren Sie die Datenbank-Engine, Verbindungszeichenfolge, Schema und Timeout-Einstellungen.</value></data>
+
+  <data name="DatabaseLogging_Title" xml:space="preserve"><value>Datenbank-Protokollierung</value></data>
+  <data name="DatabaseLogging_Description" xml:space="preserve"><value>Optionale Funktion, die Protokolleintraege zusaetzlich zur Serilog-Konsolen-/Datei-Protokollierung in eine Datenbanktabelle schreibt. Nuetzlich fuer zentrale Protokollanalyse und Auditing von Migrationslaeufen.</value></data>
+
+  <data name="ProductDefaults_Title" xml:space="preserve"><value>Produkt-Standardwerte</value></data>
+  <data name="ProductDefaults_Description" xml:space="preserve"><value>Standardwerte, die von allen Produkten geerbt werden. Einzelne Produkte koennen jeden dieser Werte ueberschreiben. Umfasst Fehleraktionen, Dateierweiterungen, Kodierung und verschachtelte TargetGroup/Target-Standardwerte.</value></data>
+
+  <data name="Product_Title" xml:space="preserve"><value>Produkt</value></data>
+  <data name="Product_Description" xml:space="preserve"><value>Ein Produkt ist eine bereitstellbare Einheit, die Migrationsdateien enthaelt. Jedes Produkt hat sein eigenes Verzeichnis mit Migrationsdateien, organisiert nach Release.</value></data>
+
+  <data name="TargetGroup_Title" xml:space="preserve"><value>TargetGroup</value></data>
+  <data name="TargetGroup_Description" xml:space="preserve"><value>Eine TargetGroup enthaelt ein oder mehrere Targets, die denselben DatabaseType teilen. Migrationsdateien werden auf alle Targets in der Gruppe angewendet.</value></data>
+
+  <data name="Target_Title" xml:space="preserve"><value>Target</value></data>
+  <data name="Target_Description" xml:space="preserve"><value>Ein Target ist eine einzelne Datenbankinstanz, auf die Migrationen angewendet werden. Konfigurieren Sie die Verbindungszeichenfolge und optional Timeout-, Wiederholungs- und CLI-Tool-Einstellungen.</value></data>
+
+  <data name="Serilog_Title" xml:space="preserve"><value>Serilog</value></data>
+  <data name="Serilog_Description" xml:space="preserve"><value>Protokollierungskonfiguration mit dem Serilog-Framework. Konfigurieren Sie das minimale Protokollierungslevel, Namespace-Ueberschreibungen und Ausgabe-Sinks (Console, File, etc.).</value></data>
+
+  <data name="CliTools_Title" xml:space="preserve"><value>CLI-Werkzeuge</value></data>
+  <data name="CliTools_Description" xml:space="preserve"><value>Externe Kommandozeilenwerkzeuge (z.B. sqlcmd, psql, mariadb, mysql, sqlite3), die anstelle der eingebauten Datenbanktreiber von RayMigrator zur Ausfuehrung von Migrations-SQL verwendet werden koennen.</value></data>
+
+  <data name="Products_Title" xml:space="preserve"><value>Produkte</value></data>
+  <data name="Products_Description" xml:space="preserve"><value>Container fuer alle konfigurierten Produkte. Ein Produkt ist eine bereitstellbare Einheit mit eigenen Migrationsdateien und Zieldatenbanken.</value></data>
+
+  <data name="TargetGroups_Title" xml:space="preserve"><value>TargetGroups</value></data>
+  <data name="TargetGroups_Description" xml:space="preserve"><value>Container fuer TargetGroups innerhalb eines Produkts. Jede TargetGroup teilt einen DatabaseType und enthaelt eine oder mehrere Zieldatenbanken.</value></data>
+
+  <data name="Targets_Title" xml:space="preserve"><value>Targets</value></data>
+  <data name="Targets_Description" xml:space="preserve"><value>Container fuer Targets innerhalb einer TargetGroup. Jedes Target ist eine einzelne Datenbankinstanz, auf die Migrationen angewendet werden.</value></data>
+</root>

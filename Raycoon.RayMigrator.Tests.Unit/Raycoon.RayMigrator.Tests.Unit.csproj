@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <IsPackable>false</IsPackable>
+        <IsTestProject>true</IsTestProject>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="FluentAssertions" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" />
+        <PackageReference Include="NSubstitute" />
+        <PackageReference Include="Microsoft.Extensions.Configuration" />
+        <PackageReference Include="Microsoft.Extensions.Configuration.Json" />
+        <PackageReference Include="xunit.v3" />
+        <PackageReference Include="xunit.runner.visualstudio">
+          <PrivateAssets>all</PrivateAssets>
+          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Raycoon.RayMigrator.Services\Raycoon.RayMigrator.Services.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Core\Raycoon.RayMigrator.Core.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Infrastructure\Raycoon.RayMigrator.Infrastructure.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Shared\Raycoon.RayMigrator.Shared.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Database\Raycoon.RayMigrator.Database.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Database.Common\Raycoon.RayMigrator.Database.Common.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Database.SqlServer\Raycoon.RayMigrator.Database.SqlServer.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Database.PostgreSQL\Raycoon.RayMigrator.Database.PostgreSQL.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Database.MariaDb\Raycoon.RayMigrator.Database.MariaDb.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Database.MySql\Raycoon.RayMigrator.Database.MySql.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Database.Sqlite\Raycoon.RayMigrator.Database.Sqlite.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Database.Example\Raycoon.RayMigrator.Database.Example.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Pipeline\Raycoon.RayMigrator.Pipeline.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Testing\Raycoon.RayMigrator.Testing.csproj" />
+    </ItemGroup>
+
+</Project>

@@ -1,0 +1,154 @@
+@*
+Copyright (c) 2026 RAYCOON.com GmbH
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License v3.
+
+See the LICENSE file for details.
+*@
+
+@* CLI Tools configuration section. *@
+
+<SectionIntro SectionKey="CliTools" />
+
+@if (Model.CliTools.Count == 0)
+{
+    <MudAlert Severity="Severity.Info" Dense="true">
+        @L.Get("CliTools.Empty")
+    </MudAlert>
+}
+
+@for (int i = 0; i < Model.CliTools.Count; i++)
+{
+    int index = i;
+    var tool = Model.CliTools[index];
+
+    <MudPaper Elevation="1" Class="pa-4 mt-2">
+        <MudStack Spacing="2">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                <MudText Typo="Typo.subtitle1">@(string.IsNullOrEmpty(tool.Alias) ? $"CLI Tool {index + 1}" : tool.Alias)</MudText>
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
+                               Size="Size.Small" OnClick="() => RemoveTool(index)" />
+            </MudStack>
+
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                <MudTextField T="string" Value="@tool.Alias"
+                              ValueChanged="async v => { tool.Alias = v; await NotifyChanged(); }"
+                              Label="@L.Get("Common.Alias")"
+                              Variant="Variant.Outlined" />
+                <FieldHelpIcon FieldKey="CliTool_Alias" />
+            </MudStack>
+
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                <MudTextField T="string" Value="@tool.ExecutablePath"
+                              ValueChanged="async v => { tool.ExecutablePath = v; await NotifyChanged(); }"
+                              Label="@L.Get("CliTools.ExecutablePath")"
+                              Variant="Variant.Outlined" />
+                <FieldHelpIcon FieldKey="CliTool_ExecutablePath" />
+            </MudStack>
+
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                <MudTextField T="string" Value="@tool.ArgumentTemplate"
+                              ValueChanged="async v => { tool.ArgumentTemplate = v; await NotifyChanged(); }"
+                              Label="@L.Get("CliTools.ArgumentTemplate")"
+                              Variant="Variant.Outlined" />
+                <FieldHelpIcon FieldKey="CliTool_ArgumentTemplate" />
+            </MudStack>
+
+            <MudStack Row="true" Spacing="2">
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Style="flex:1">
+                    <MudSelect T="string" Value="@tool.InputMode"
+                               ValueChanged="async v => { tool.InputMode = v; await NotifyChanged(); }"
+                               Label="@L.Get("CliTools.InputMode")" Variant="Variant.Outlined">
+                        <MudSelectItem T="string" Value="@("File")">File</MudSelectItem>
+                        <MudSelectItem T="string" Value="@("Stdin")">Stdin</MudSelectItem>
+                    </MudSelect>
+                    <FieldHelpIcon FieldKey="CliTool_InputMode" />
+                </MudStack>
+
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1" Style="flex:1">
+                    <MudNumericField T="int" Value="@tool.CliToolTimeoutInSeconds"
+                                     ValueChanged="async v => { tool.CliToolTimeoutInSeconds = v; await NotifyChanged(); }"
+                                     Label="@L.Get("Common.Timeout")"
+                                     Variant="Variant.Outlined" Min="1" />
+                    <FieldHelpIcon FieldKey="CliTool_Timeout" />
+                </MudStack>
+            </MudStack>
+
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                <MudTextField T="string" Value="@(string.Join(", ", tool.SuccessExitCodes))"
+                              ValueChanged="async v => { tool.SuccessExitCodes = ParseExitCodes(v); await NotifyChanged(); }"
+                              Label="@L.Get("CliTools.SuccessExitCodes")"
+                              HelperText="@L.Get("CliTools.SuccessExitCodesHelp")"
+                              Variant="Variant.Outlined" />
+                <FieldHelpIcon FieldKey="CliTool_SuccessExitCodes" />
+            </MudStack>
+        </MudStack>
+    </MudPaper>
+}
+
+<MudStack Row="true" Spacing="2" Class="mt-3">
+    <MudButton Variant="Variant.Text" Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.Add"
+               OnClick="AddTool">
+        @L.Get("CliTools.AddTool")
+    </MudButton>
+
+    <MudMenu Label="From Preset" Variant="Variant.Outlined" Color="Color.Default"
+             StartIcon="@Icons.Material.Filled.AutoAwesome">
+        @foreach (var preset in CliToolPresetProvider.GetAllPresets())
+        {
+            <MudMenuItem OnClick="() => AddFromPreset(preset)">
+                @preset.Alias — @preset.Description
+            </MudMenuItem>
+        }
+    </MudMenu>
+</MudStack>
+
+@code {
+    [Parameter, EditorRequired] public ConfigurationModel Model { get; set; } = default!;
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    [Inject] private LocalizationService L { get; set; } = default!;
+
+    private async Task AddTool()
+    {
+        Model.CliTools.Add(new CliToolModel());
+        await NotifyChanged();
+    }
+
+    private async Task AddFromPreset(CliToolPreset preset)
+    {
+        Model.CliTools.Add(new CliToolModel
+        {
+            Alias = preset.Alias,
+            ExecutablePath = preset.ExecutablePath,
+            ArgumentTemplate = preset.ArgumentTemplate,
+            InputMode = preset.InputMode,
+            SuccessExitCodes = new List<string>(preset.SuccessExitCodes),
+            CliToolTimeoutInSeconds = preset.CliToolTimeoutInSeconds,
+        });
+        await NotifyChanged();
+    }
+
+    private async Task RemoveTool(int index)
+    {
+        Model.CliTools.RemoveAt(index);
+        await NotifyChanged();
+    }
+
+    private static List<string> ParseExitCodes(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+            return new List<string> { "0" };
+
+        return input.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .ToList();
+    }
+
+    private Task NotifyChanged()
+    {
+        Model.IsModified = true;
+        return OnChanged.InvokeAsync();
+    }
+}

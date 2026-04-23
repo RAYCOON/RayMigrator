@@ -1,0 +1,484 @@
+@*
+Copyright (c) 2026 RAYCOON.com GmbH
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License v3.
+
+See the LICENSE file for details.
+*@
+
+@* Hub page: central management for products, environments, and combination status. *@
+
+<MudContainer MaxWidth="MaxWidth.Large">
+    <MudText Typo="Typo.h5">@L.Get("Hub.Title")</MudText>
+    <MudText Typo="Typo.body2" Class="mb-2">@L.Get("Hub.Subtitle")</MudText>
+
+    @if (GuidanceKey is not null)
+    {
+        <MudAlert Severity="Severity.Info" Dense="true" Class="mb-4">
+            @L.Get(GuidanceKey)
+        </MudAlert>
+    }
+
+    <MudGrid>
+        @* Left column: Products *@
+        <MudItem xs="6">
+            <MudPaper Class="pa-4" Elevation="2">
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-1">
+                    <MudAvatar Size="Size.Small" Color="Color.Primary" Style="width:26px; height:26px; font-size:0.8rem;">1</MudAvatar>
+                    <MudText Typo="Typo.h6">@L.Get("Hub.Products")</MudText>
+                </MudStack>
+
+                <MudList T="string" Dense="true" Class="mt-2"
+                         SelectedValue="@_selectedProduct"
+                         SelectedValueChanged="OnProductSelected">
+                    @foreach (var product in Wizard.Answers.Products)
+                    {
+                        <MudListItem T="string" Value="@product.Alias">
+                            <div class="d-flex align-center justify-space-between" style="width:100%">
+                                @if (_editingProductAlias == product.Alias)
+                                {
+                                    <MudTextField @bind-Value="_editProductNewName"
+                                                  Variant="Variant.Outlined" Margin="Margin.Dense"
+                                                  Immediate="true" Style="flex:1; margin-right:4px;"
+                                                  OnKeyDown="@(e => { if (e.Key == "Enter") ConfirmRenameProduct(); })" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Check"
+                                                   Size="Size.Small" Color="Color.Success"
+                                                   OnClick="ConfirmRenameProduct" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Close"
+                                                   Size="Size.Small" Color="Color.Default"
+                                                   OnClick="CancelEditProduct" />
+                                }
+                                else
+                                {
+                                    <MudText>@product.Alias</MudText>
+                                    <div>
+                                        <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                                       Size="Size.Small" Color="Color.Default"
+                                                       OnClick="@(() => StartEditProduct(product.Alias))" />
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                       Size="Size.Small" Color="Color.Error"
+                                                       OnClick="@(() => RemoveProduct(product.Alias))"
+                                                       Disabled="@(Wizard.Answers.Products.Count <= 1)" />
+                                    </div>
+                                }
+                            </div>
+                        </MudListItem>
+                    }
+                </MudList>
+
+                <MudStack Row="true" Class="mt-2" AlignItems="AlignItems.Center">
+                    <MudTextField @bind-Value="_newProductAlias"
+                                  Label="@L.Get("Hub.ProductAlias")"
+                                  Variant="Variant.Outlined" Margin="Margin.Dense"
+                                  Immediate="true"
+                                  OnKeyDown="@(e => { if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(_newProductAlias)) AddProduct(); })" />
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.Add"
+                               OnClick="AddProduct"
+                               Disabled="@string.IsNullOrWhiteSpace(_newProductAlias)">
+                        @L.Get("Hub.AddProduct")
+                    </MudButton>
+                </MudStack>
+            </MudPaper>
+        </MudItem>
+
+        @* Right column: Environments for selected product *@
+        <MudItem xs="6">
+            <MudPaper Class="pa-4" Elevation="2"
+                      Style="@(NoProductsExist ? "opacity:0.45; pointer-events:none;" : "")">
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-1">
+                    <MudAvatar Size="Size.Small"
+                               Color="@(NoProductsExist ? Color.Default : Color.Primary)"
+                               Style="width:26px; height:26px; font-size:0.8rem;">2</MudAvatar>
+                    <MudText Typo="Typo.h6">@L.Get("Hub.Environments")</MudText>
+                </MudStack>
+
+                @if (string.IsNullOrEmpty(_selectedProduct))
+                {
+                    <MudText Typo="Typo.body2" Class="mt-2 mud-text-secondary">
+                        @L.Get("Hub.NoProductSelected")
+                    </MudText>
+                }
+                else
+                {
+                    var productSetup = Wizard.Answers.Products
+                        .FirstOrDefault(p => string.Equals(p.Alias, _selectedProduct, StringComparison.OrdinalIgnoreCase));
+
+                    if (productSetup != null)
+                    {
+                        <MudList T="string" Dense="true" Class="mt-2">
+                            @foreach (var env in productSetup.Environments)
+                            {
+                                <MudListItem T="string" Value="@env">
+                                    <div class="d-flex align-center justify-space-between" style="width:100%">
+                                        @if (_editingEnvironmentName == env)
+                                        {
+                                            <MudTextField @bind-Value="_editEnvNewName"
+                                                          Variant="Variant.Outlined" Margin="Margin.Dense"
+                                                          Immediate="true" Style="flex:1; margin-right:4px;"
+                                                          OnKeyDown="@(e => { if (e.Key == "Enter") ConfirmRenameEnvironment(); })" />
+                                            <MudIconButton Icon="@Icons.Material.Filled.Check"
+                                                           Size="Size.Small" Color="Color.Success"
+                                                           OnClick="ConfirmRenameEnvironment" />
+                                            <MudIconButton Icon="@Icons.Material.Filled.Close"
+                                                           Size="Size.Small" Color="Color.Default"
+                                                           OnClick="CancelEditEnvironment" />
+                                        }
+                                        else
+                                        {
+                                            <MudText>@env</MudText>
+                                            <div>
+                                                <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                                               Size="Size.Small" Color="Color.Default"
+                                                               OnClick="@(() => StartEditEnvironment(env))" />
+                                                <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                               Size="Size.Small" Color="Color.Error"
+                                                               OnClick="@(() => RemoveEnvironment(env))" />
+                                            </div>
+                                        }
+                                    </div>
+                                </MudListItem>
+                            }
+                        </MudList>
+
+                        <MudStack Row="true" Class="mt-2" AlignItems="AlignItems.Center">
+                            <MudTextField @bind-Value="_newEnvironmentName"
+                                          Label="@L.Get("Hub.EnvironmentName")"
+                                          Variant="Variant.Outlined" Margin="Margin.Dense"
+                                          Immediate="true"
+                                          OnKeyDown="@(e => { if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(_newEnvironmentName)) AddEnvironment(); })" />
+                            <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                                       StartIcon="@Icons.Material.Filled.Add"
+                                       OnClick="AddEnvironment"
+                                       Disabled="@string.IsNullOrWhiteSpace(_newEnvironmentName)">
+                                @L.Get("Hub.AddEnvironment")
+                            </MudButton>
+                        </MudStack>
+                    }
+                }
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    @* Combination status table *@
+    <MudPaper Class="pa-4 mt-4" Elevation="2"
+              Style="@(_cachedCombinations.Count == 0 ? "opacity:0.45; pointer-events:none;" : "")">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-2">
+            <MudAvatar Size="Size.Small"
+                       Color="@(_cachedCombinations.Count == 0 ? Color.Default : Color.Primary)"
+                       Style="width:26px; height:26px; font-size:0.8rem;">3</MudAvatar>
+            <MudText Typo="Typo.h6">@L.Get("Hub.CombinationTable")</MudText>
+        </MudStack>
+
+        @if (_cachedCombinations.Count == 0)
+        {
+            <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                @L.Get("Hub.NoCombinations")
+            </MudText>
+        }
+        else
+        {
+            <MudSimpleTable Dense="true" Hover="true">
+                <thead>
+                    <tr>
+                        <th>@L.Get("Hub.Products")</th>
+                        <th>@L.Get("Hub.Environments")</th>
+                        <th>@L.Get("Hub.WizardStatus")</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var combo in _cachedCombinations)
+                    {
+                        var isSelected = combo.Product == _selectedCombinationProduct
+                                         && combo.Environment == _selectedCombinationEnv;
+                        <tr style="@(isSelected ? "background-color: color-mix(in srgb, var(--mud-palette-primary) 25%, transparent);" : "")"
+                            class="cursor-pointer"
+                            @onclick="@(() => SelectCombination(combo.Product, combo.Environment))">
+                            <td>@combo.Product</td>
+                            <td>@combo.Environment</td>
+                            <td>
+                                @if (combo.WizardCompleted)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Success"
+                                             Variant="Variant.Filled">
+                                        @L.Get("Hub.Done")
+                                    </MudChip>
+                                }
+                                else
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Warning"
+                                             Variant="Variant.Filled">
+                                        @L.Get("Hub.Todo")
+                                    </MudChip>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </MudSimpleTable>
+        }
+    </MudPaper>
+
+    @* Action buttons *@
+    <MudStack Row="true" Class="mt-6 mb-4" Justify="Justify.SpaceBetween">
+        <MudButton Variant="Variant.Outlined" Color="Color.Warning"
+                   StartIcon="@Icons.Material.Filled.RestartAlt"
+                   OnClick="ConfirmStartOver">
+            @L.Get("Hub.StartOver")
+        </MudButton>
+        <MudStack Row="true" Spacing="2">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.PlayArrow"
+                       OnClick="StartDetailedConfig"
+                       Disabled="@(!HasSelectedCombination)">
+                @L.Get("Hub.StartDetailedConfig")
+            </MudButton>
+            <MudButton Variant="@(AllCombinationsDone ? Variant.Filled : Variant.Outlined)"
+                       Color="@(AllCombinationsDone ? Color.Success : Color.Default)"
+                       StartIcon="@Icons.Material.Filled.Visibility"
+                       OnClick="@(() => Wizard.GoToOverview())"
+                       Disabled="@(!AllCombinationsDone)">
+                @L.Get("Hub.GoToOverview")
+            </MudButton>
+        </MudStack>
+    </MudStack>
+</MudContainer>
+
+@code {
+    [Inject] private WizardStateService Wizard { get; set; } = default!;
+    [Inject] private LocalizationService L { get; set; } = default!;
+    [Inject] private IDialogService DialogService { get; set; } = default!;
+
+    private string? _selectedProduct;
+    private string _newProductAlias = "";
+    private string _newEnvironmentName = "";
+    private string? _selectedCombinationProduct;
+    private string? _selectedCombinationEnv;
+    private List<CombinationInfo> _cachedCombinations = new();
+
+    // Inline editing state
+    private string? _editingProductAlias;
+    private string _editProductNewName = "";
+    private string? _editingEnvironmentName;
+    private string _editEnvNewName = "";
+
+    private bool HasSelectedCombination =>
+        !string.IsNullOrEmpty(_selectedCombinationProduct) &&
+        !string.IsNullOrEmpty(_selectedCombinationEnv);
+
+    private bool AllCombinationsDone =>
+        _cachedCombinations.Count > 0 && _cachedCombinations.All(c => c.WizardCompleted);
+
+    private bool NoProductsExist => Wizard.Answers.Products.Count == 0;
+
+    private bool CurrentProductHasNoEnvironments
+    {
+        get
+        {
+            if (string.IsNullOrEmpty(_selectedProduct)) return false;
+            var product = Wizard.Answers.Products
+                .FirstOrDefault(p => string.Equals(p.Alias, _selectedProduct, StringComparison.OrdinalIgnoreCase));
+            return product is null || product.Environments.Count == 0;
+        }
+    }
+
+    private string? GuidanceKey => NoProductsExist
+        ? "Hub.GuideAddProduct"
+        : string.IsNullOrEmpty(_selectedProduct)
+            ? "Hub.GuideSelectProduct"
+            : CurrentProductHasNoEnvironments
+                ? "Hub.GuideAddEnv"
+                : _cachedCombinations.Count > 0 && !HasSelectedCombination
+                    ? "Hub.GuideSelectCombo"
+                    : null;
+
+    protected override void OnInitialized()
+    {
+        RefreshCombinations();
+        // Auto-select first product if available
+        if (Wizard.Answers.Products.Count > 0)
+        {
+            _selectedProduct = Wizard.Answers.Products[0].Alias;
+        }
+    }
+
+    private void OnProductSelected(string? product)
+    {
+        _selectedProduct = product;
+        StateHasChanged();
+    }
+
+    private void AddProduct()
+    {
+        if (string.IsNullOrWhiteSpace(_newProductAlias)) return;
+        Wizard.AddProduct(_newProductAlias.Trim());
+        _selectedProduct = _newProductAlias.Trim();
+        _newProductAlias = "";
+        RefreshCombinations();
+        StateHasChanged();
+    }
+
+    private void RemoveProduct(string alias)
+    {
+        Wizard.RemoveProduct(alias);
+        if (_selectedProduct == alias)
+        {
+            _selectedProduct = Wizard.Answers.Products.FirstOrDefault()?.Alias;
+        }
+        if (_selectedCombinationProduct == alias)
+        {
+            _selectedCombinationProduct = null;
+            _selectedCombinationEnv = null;
+        }
+        RefreshCombinations();
+        StateHasChanged();
+    }
+
+    private void AddEnvironment()
+    {
+        if (string.IsNullOrWhiteSpace(_selectedProduct) || string.IsNullOrWhiteSpace(_newEnvironmentName))
+            return;
+        Wizard.AddEnvironment(_selectedProduct, _newEnvironmentName.Trim());
+        _newEnvironmentName = "";
+        RefreshCombinations();
+        StateHasChanged();
+    }
+
+    private void RemoveEnvironment(string envName)
+    {
+        if (string.IsNullOrEmpty(_selectedProduct)) return;
+        Wizard.RemoveEnvironment(_selectedProduct, envName);
+        if (_selectedCombinationProduct == _selectedProduct && _selectedCombinationEnv == envName)
+        {
+            _selectedCombinationProduct = null;
+            _selectedCombinationEnv = null;
+        }
+        RefreshCombinations();
+        StateHasChanged();
+    }
+
+    // ── Product rename ──────────────────────────────────────
+
+    private void StartEditProduct(string alias)
+    {
+        _editingProductAlias = alias;
+        _editProductNewName = alias;
+        StateHasChanged();
+    }
+
+    private void ConfirmRenameProduct()
+    {
+        if (_editingProductAlias != null && !string.IsNullOrWhiteSpace(_editProductNewName))
+        {
+            var oldAlias = _editingProductAlias;
+            var newAlias = _editProductNewName.Trim();
+            Wizard.RenameProduct(oldAlias, newAlias);
+
+            // Update local selection to follow the rename
+            if (_selectedProduct == oldAlias)
+                _selectedProduct = newAlias;
+            if (_selectedCombinationProduct == oldAlias)
+                _selectedCombinationProduct = newAlias;
+
+            RefreshCombinations();
+        }
+        _editingProductAlias = null;
+        _editProductNewName = "";
+        StateHasChanged();
+    }
+
+    private void CancelEditProduct()
+    {
+        _editingProductAlias = null;
+        _editProductNewName = "";
+        StateHasChanged();
+    }
+
+    // ── Environment rename ────────────────────────────────
+
+    private void StartEditEnvironment(string envName)
+    {
+        _editingEnvironmentName = envName;
+        _editEnvNewName = envName;
+        StateHasChanged();
+    }
+
+    private void ConfirmRenameEnvironment()
+    {
+        if (_editingEnvironmentName != null && _selectedProduct != null && !string.IsNullOrWhiteSpace(_editEnvNewName))
+        {
+            var oldName = _editingEnvironmentName;
+            var newName = _editEnvNewName.Trim();
+            Wizard.RenameEnvironment(_selectedProduct, oldName, newName);
+
+            if (_selectedCombinationEnv == oldName && _selectedCombinationProduct == _selectedProduct)
+                _selectedCombinationEnv = newName;
+
+            RefreshCombinations();
+        }
+        _editingEnvironmentName = null;
+        _editEnvNewName = "";
+        StateHasChanged();
+    }
+
+    private void CancelEditEnvironment()
+    {
+        _editingEnvironmentName = null;
+        _editEnvNewName = "";
+        StateHasChanged();
+    }
+
+    private void SelectCombination(string product, string environment)
+    {
+        _selectedCombinationProduct = product;
+        _selectedCombinationEnv = environment;
+        StateHasChanged();
+    }
+
+    private void StartDetailedConfig()
+    {
+        if (_selectedCombinationProduct != null && _selectedCombinationEnv != null)
+        {
+            Wizard.StartDetailedConfiguration(_selectedCombinationProduct, _selectedCombinationEnv);
+        }
+    }
+
+    private async Task ConfirmStartOver()
+    {
+        var result = await DialogService.ShowMessageBoxAsync(
+            L.Get("Hub.StartOverTitle"),
+            L.Get("Hub.StartOverMessage"),
+            yesText: L.Get("Hub.StartOverConfirm"),
+            cancelText: L.Get("Common.Cancel"));
+
+        if (result == true)
+            Wizard.GoToStart();
+    }
+
+    private void RefreshCombinations()
+    {
+        _cachedCombinations = BuildCombinations();
+    }
+
+    private record CombinationInfo(string Product, string Environment, bool WizardCompleted);
+
+    private List<CombinationInfo> BuildCombinations()
+    {
+        var result = new List<CombinationInfo>();
+
+        foreach (var productSetup in Wizard.Answers.Products)
+        {
+            foreach (var env in productSetup.Environments)
+            {
+                string key = $"{productSetup.Alias}.{env}";
+                bool wizardCompleted = Wizard.State.CombinationEntries.TryGetValue(key, out var entry)
+                    && entry.WizardCompleted;
+
+                result.Add(new CombinationInfo(productSetup.Alias, env, wizardCompleted));
+            }
+        }
+
+        return result;
+    }
+}

@@ -1,0 +1,118 @@
+@*
+Copyright (c) 2026 RAYCOON.com GmbH
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License v3.
+
+See the LICENSE file for details.
+*@
+
+@* Database Logging configuration section with inline enable/disable toggle. *@
+
+<SectionIntro SectionKey="DatabaseLogging" />
+
+<MudAlert Severity="Severity.Info" Dense="true" Class="mb-3">
+    @L.Get("DbLogging.Recommendation")
+</MudAlert>
+
+<MudStack Spacing="3">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+        <MudSwitch T="bool" Value="@(Model.DatabaseLogging != null)"
+                   ValueChanged="OnToggleDatabaseLogging"
+                   Label="@L.Get("DbLogging.Enable")"
+                   Color="Color.Primary" />
+        <FieldHelpIcon FieldKey="DatabaseLogging_Enable" />
+    </MudStack>
+
+    @if (Model.DatabaseLogging != null)
+    {
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+            <DatabaseTypeSelector Value="@Model.DatabaseLogging.DatabaseType"
+                                  ValueChanged="async v => { Model.DatabaseLogging!.DatabaseType = v; await NotifyChanged(); }" />
+            <FieldHelpIcon FieldKey="DatabaseLogging_DatabaseType" />
+        </MudStack>
+
+        <ConnectionStringField Value="@Model.DatabaseLogging.ConnectionString"
+                               ValueChanged="async v => { Model.DatabaseLogging!.ConnectionString = v; await NotifyChanged(); }"
+                               FieldKey="DatabaseLogging_ConnectionString" />
+
+        @if (IsExpertMode)
+        {
+            @if (Model.DatabaseLogging.DatabaseType != "Sqlite")
+            {
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                    <MudTextField T="string" Value="@Model.DatabaseLogging.SchemaName"
+                                  ValueChanged="async v => { Model.DatabaseLogging!.SchemaName = v; await NotifyChanged(); }"
+                                  Label="@L.Get("Common.SchemaName")"
+                                  Variant="Variant.Outlined" />
+                    <FieldHelpIcon FieldKey="DatabaseLogging_SchemaName" />
+                </MudStack>
+            }
+
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                <MudTextField T="string" Value="@Model.DatabaseLogging.TableBaseName"
+                              ValueChanged="async v => { Model.DatabaseLogging!.TableBaseName = v; await NotifyChanged(); }"
+                              Label="@L.Get("DbLogging.TableBaseName")"
+                              Variant="Variant.Outlined" />
+                <FieldHelpIcon FieldKey="DatabaseLogging_TableBaseName" />
+            </MudStack>
+
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                <MudSelect T="string" Value="@Model.DatabaseLogging.MinimumLevel"
+                           ValueChanged="async v => { Model.DatabaseLogging!.MinimumLevel = v; await NotifyChanged(); }"
+                           Label="@L.Get("DbLogging.MinimumLevel")"
+                           Variant="Variant.Outlined">
+                    <MudSelectItem T="string" Value="@("Trace")">Trace</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("Debug")">Debug</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("Information")">Information</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("Warning")">Warning</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("Error")">Error</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("Critical")">Critical</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("None")">None</MudSelectItem>
+                </MudSelect>
+                <FieldHelpIcon FieldKey="DatabaseLogging_MinimumLevel" />
+            </MudStack>
+
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                <MudNumericField T="int" Value="@Model.DatabaseLogging.DbCommandTimeoutInSeconds"
+                                 ValueChanged="async v => { Model.DatabaseLogging!.DbCommandTimeoutInSeconds = v; await NotifyChanged(); }"
+                                 Label="@L.Get("Common.Timeout")"
+                                 Variant="Variant.Outlined" Min="0" />
+                <FieldHelpIcon FieldKey="DatabaseLogging_Timeout" />
+            </MudStack>
+        }
+    }
+</MudStack>
+
+@code {
+    [Parameter, EditorRequired] public ConfigurationModel Model { get; set; } = default!;
+    [Parameter] public EventCallback OnChanged { get; set; }
+    [Parameter] public bool IsExpertMode { get; set; }
+
+    [Inject] private LocalizationService L { get; set; } = default!;
+
+    private async Task OnToggleDatabaseLogging(bool enabled)
+    {
+        if (enabled)
+        {
+            Model.DatabaseLogging = new DatabaseLoggingModel
+            {
+                DatabaseType = Model.Repository.DatabaseType,
+                ConnectionString = "{ENV:DBLOG_CONNECTION_STRING}",
+                SchemaName = Model.Repository.DatabaseType == "Sqlite" ? "" : Model.Repository.SchemaName,
+            };
+        }
+        else
+        {
+            Model.DatabaseLogging = null;
+        }
+
+        await NotifyChanged();
+    }
+
+    private Task NotifyChanged()
+    {
+        Model.IsModified = true;
+        return OnChanged.InvokeAsync();
+    }
+}

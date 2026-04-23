@@ -1,0 +1,10 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Publish RayMigrator (osx-x64)" type="DotNetFolderPublish" factoryName="Publish to folder">
+    <riderPublish configuration="Release" delete_existing_files="true" include_all_content_for_self_extract="true" include_native_libs_for_self_extract="true" platform="Any CPU" produce_single_file="true" target_folder="$PROJECT_DIR$/_publish/osx-x64" target_framework="net10.0" uuid_high="-6114235151426697662" uuid_low="-6875882746072278213">
+      <runtimes>
+        <item value="osx-x64" />
+      </runtimes>
+    </riderPublish>
+    <method v="2" />
+  </configuration>
+</component>

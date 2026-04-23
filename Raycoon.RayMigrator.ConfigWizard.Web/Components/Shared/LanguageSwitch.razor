@@ -1,0 +1,43 @@
+@*
+Copyright (c) 2026 RAYCOON.com GmbH
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License v3.
+
+See the LICENSE file for details.
+*@
+
+@* Language selector dropdown in the app bar. *@
+
+<MudMenu AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+    <ActivatorContent>
+        <MudButton OnClick="@context.ToggleAsync"
+                   Color="Color.Inherit"
+                   StartIcon="@Icons.Material.Filled.Language"
+                   EndIcon="@Icons.Material.Filled.ArrowDropDown">
+            @_l.Language.ToUpperInvariant()
+        </MudButton>
+    </ActivatorContent>
+    <ChildContent>
+        @foreach (var lang in LocalizationService.SupportedLanguages)
+        {
+            <MudMenuItem Icon="@(lang.Code == _l.Language ? Icons.Material.Filled.Check : null)"
+                         OnClick="@(() => SetLanguage(lang.Code))">
+                @lang.NativeName (@lang.Code.ToUpperInvariant())
+            </MudMenuItem>
+        }
+    </ChildContent>
+</MudMenu>
+
+@code {
+    [Inject] private LocalizationService _l { get; set; } = default!;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+
+    private async Task SetLanguage(string code)
+    {
+        if (_l.Language == code) return;
+        _l.Language = code;
+        try { await JS.InvokeVoidAsync("setLocalStorage", "rayMigratorLanguage", code); }
+        catch { /* localStorage unavailable */ }
+    }
+}
