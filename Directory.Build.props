@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <RayMigratorVersion>0.10.0</RayMigratorVersion>
+    <RayMigratorVersion>0.10.3</RayMigratorVersion>
     <Version>$(RayMigratorVersion)</Version>
     <!-- NuGet Metadata (global for all packages) -->
     <Authors>Daniel Pavic (RAYCOON.com GmbH)</Authors>
