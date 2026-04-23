@@ -50,6 +50,6 @@ We welcome bug reports and feature requests. See [CONTRIBUTING.md](CONTRIBUTING.
 
 ---
 
-📄 Full license: see `LICENSE.md`  
+📄 Full license: see [LICENSE.md](LICENSE.md)  
 📧 Contact: raymigrator@raycoon.com
 For commercial licensing inquiries, contact raymigrator@raycoon.com.
