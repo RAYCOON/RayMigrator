@@ -1,11 +1,4 @@
-// Copyright (c) 2026 RAYCOON.com GmbH
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License v3.
-//
-// See the LICENSE file for details.
-
-﻿namespace Raycoon.RayMigrator;
+namespace Raycoon.RayMigrator;
 
 /// <summary>
 /// Provides assembly information to be displayed at program startup.

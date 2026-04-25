@@ -1,9 +1,3 @@
-// Copyright (c) 2026 RAYCOON.com GmbH
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License v3.
-//
-// See the LICENSE file for details.
 
 using Microsoft.Extensions.Logging;
 using Raycoon.RayMigrator.Core.Configuration.Enums;
@@ -71,7 +65,7 @@ public class RayMigratorDatabaseSink : ILogEventSink, IDisposable
         var productId = GetNullableIntProperty(logEvent, "ProductId");
         var environmentId = GetNullableIntProperty(logEvent, "EnvironmentId");
         var migrationRunId = GetNullableIntProperty(logEvent, "MigrationRunId");
-        var migrationId = GetNullableIntProperty(logEvent, "MigrationId");
+        var migrationRecordId = GetNullableIntProperty(logEvent, "MigrationRecordId");
         var releaseVersion = GetStringProperty(logEvent, "ReleaseVersion");
         var targetGroupAlias = GetStringProperty(logEvent, "TargetGroupAlias");
         var targetAlias = GetStringProperty(logEvent, "TargetAlias");
@@ -81,7 +75,7 @@ public class RayMigratorDatabaseSink : ILogEventSink, IDisposable
 
         writer.EnqueueLogEntry(
             logLevel, eventId, message,
-            runModeId, productId, environmentId, migrationRunId, migrationId,
+            runModeId, productId, environmentId, migrationRunId, migrationRecordId,
             releaseVersion, targetGroupAlias, targetAlias,
             fileName, fileOrderId, fileBlockId);
     }

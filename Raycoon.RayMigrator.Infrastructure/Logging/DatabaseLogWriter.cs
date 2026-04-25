@@ -1,9 +1,3 @@
-// Copyright (c) 2026 RAYCOON.com GmbH
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License v3.
-//
-// See the LICENSE file for details.
 
 using Microsoft.Extensions.Logging;
 using Raycoon.RayMigrator.Core;
@@ -89,7 +83,7 @@ public class DatabaseLogWriter
         int? productId,
         int? environmentId,
         int? migrationRunId,
-        int? migrationId,
+        int? migrationRecordId,
         string? releaseVersion,
         string? targetGroupAlias,
         string? targetAlias,
@@ -105,7 +99,7 @@ public class DatabaseLogWriter
 
         _databaseLoggerQueue.EnqueueLog(() => WriteToDatabase(
             logLevel, eventId, message,
-            runModeId, productId, environmentId, migrationRunId, migrationId,
+            runModeId, productId, environmentId, migrationRunId, migrationRecordId,
             releaseVersion, targetGroupAlias, targetAlias,
             fileName, fileOrderId, fileBlockId));
     }
@@ -121,7 +115,7 @@ public class DatabaseLogWriter
         int? productId,
         int? environmentId,
         int? migrationRunId,
-        int? migrationId,
+        int? migrationRecordId,
         string? releaseVersion,
         string? targetGroupAlias,
         string? targetAlias,
@@ -139,7 +133,7 @@ public class DatabaseLogWriter
         dalParameterList.AddParameter(new DalParameter("ProductId", productId > 0 ? productId : null, typeof(int?)));
         dalParameterList.AddParameter(new DalParameter("EnvironmentId", environmentId > 0 ? environmentId : null, typeof(int?)));
         dalParameterList.AddParameter(new DalParameter("MigrationRunId", migrationRunId > 0 ? migrationRunId : null, typeof(int?)));
-        dalParameterList.AddParameter(new DalParameter("MigrationId", migrationId > 0 ? migrationId : null, typeof(int?)));
+        dalParameterList.AddParameter(new DalParameter("MigrationRecordId", migrationRecordId > 0 ? migrationRecordId : null, typeof(int?)));
         dalParameterList.AddParameter(new DalParameter("ReleaseVersion", string.IsNullOrWhiteSpace(releaseVersion) ? null : releaseVersion, typeof(string)));
         dalParameterList.AddParameter(new DalParameter("TargetGroupAlias", string.IsNullOrWhiteSpace(targetGroupAlias) ? null : targetGroupAlias, typeof(string)));
         dalParameterList.AddParameter(new DalParameter("TargetAlias", string.IsNullOrWhiteSpace(targetAlias) ? null : targetAlias, typeof(string)));

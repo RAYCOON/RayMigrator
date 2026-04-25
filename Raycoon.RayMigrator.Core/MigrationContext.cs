@@ -1,11 +1,4 @@
-// Copyright (c) 2026 RAYCOON.com GmbH
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License v3.
-//
-// See the LICENSE file for details.
-
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using Raycoon.RayMigrator.Core.Configuration.Options;
 using Raycoon.RayMigrator.Database.Common;
 
@@ -45,7 +38,7 @@ public class MigrationContext
                 ProductId = migrationState.ProductId,
                 EnvironmentId = migrationState.EnvironmentId,
                 MigrationRunId = migrationState.MigrationRunId,
-                MigrationId = migrationState.MigrationId,
+                MigrationRecordId = migrationState.MigrationRecordId,
                 ReleaseVersionFromFileNameWithPath = migrationState.ReleaseVersionFromFileNameWithPath,
                 FilenameWithRelativePath = migrationState.FilenameWithRelativePath,
                 FileOrderId = migrationState.FileOrderId,

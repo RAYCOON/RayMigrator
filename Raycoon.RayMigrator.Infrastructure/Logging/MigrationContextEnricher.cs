@@ -1,9 +1,3 @@
-// Copyright (c) 2026 RAYCOON.com GmbH
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License v3.
-//
-// See the LICENSE file for details.
 
 using Raycoon.RayMigrator.Core;
 using Serilog.Core;
@@ -36,7 +30,7 @@ public class MigrationContextEnricher : ILogEventEnricher
         var fileOrderId = state.FileOrderId;
         var fileBlockId = state.FileBlockId;
         var productId = state.ProductId;
-        var migrationId = state.MigrationId;
+        var migrationRecordId = state.MigrationRecordId;
         var releaseVersion = state.ReleaseVersionFromFileNameWithPath ?? string.Empty;
 
         // Properties for Serilog console/file output — text environment preserved for readability
@@ -52,7 +46,7 @@ public class MigrationContextEnricher : ILogEventEnricher
         logEvent.AddPropertyIfAbsent(propertyFactory.CreateProperty("RunModeId", runModeId));
         logEvent.AddPropertyIfAbsent(propertyFactory.CreateProperty("ProductId", productId));
         logEvent.AddPropertyIfAbsent(propertyFactory.CreateProperty("EnvironmentId", environmentId));
-        logEvent.AddPropertyIfAbsent(propertyFactory.CreateProperty("MigrationId", migrationId));
+        logEvent.AddPropertyIfAbsent(propertyFactory.CreateProperty("MigrationRecordId", migrationRecordId));
         logEvent.AddPropertyIfAbsent(propertyFactory.CreateProperty("ReleaseVersion", releaseVersion));
         logEvent.AddPropertyIfAbsent(propertyFactory.CreateProperty("FileName", filenameWithRelativePath));
         logEvent.AddPropertyIfAbsent(propertyFactory.CreateProperty("FileOrderId", fileOrderId));

@@ -1,9 +1,3 @@
-// Copyright (c) 2026 RAYCOON.com GmbH
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License v3.
-//
-// See the LICENSE file for details.
 
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
@@ -26,14 +20,14 @@ public class HandleMigrationErrorBehaviorTests
         MigrationService service,
         ProductOptions productOptions,
         MigrationFileInfo file,
-        int failedMigrationId,
-        List<(MigrationFileInfo File, int MigrationId, string TargetAlias)> successRecords)
+        int failedMigrationRecordId,
+        List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)> successRecords)
     {
         var method = typeof(MigrationService).GetMethod("HandleMigrationError",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
         method.Should().NotBeNull("HandleMigrationError should exist");
 
-        var task = (Task)method!.Invoke(service, new object[] { productOptions, file, failedMigrationId, successRecords })!;
+        var task = (Task)method!.Invoke(service, new object[] { productOptions, file, failedMigrationRecordId, successRecords })!;
         await task;
     }
 
@@ -51,7 +45,7 @@ public class HandleMigrationErrorBehaviorTests
             MigrationErrorActionOverride = null
         };
 
-        var successRecords = new List<(MigrationFileInfo File, int MigrationId, string TargetAlias)>();
+        var successRecords = new List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)>();
 
         await InvokeHandleMigrationError(service, productOptions, file, 42, successRecords);
 
@@ -73,7 +67,7 @@ public class HandleMigrationErrorBehaviorTests
             MigrationErrorActionOverride = null
         };
 
-        var successRecords = new List<(MigrationFileInfo File, int MigrationId, string TargetAlias)>
+        var successRecords = new List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)>
         {
             (new MigrationFileInfo { Filename = "05_Init.sql", ReleaseVersion = "Release 1.0", TargetGroupAlias = "Backend" }, 1, "T1")
         };
@@ -98,7 +92,7 @@ public class HandleMigrationErrorBehaviorTests
             MigrationErrorActionOverride = MigrationErrorAction.Terminate
         };
 
-        var successRecords = new List<(MigrationFileInfo File, int MigrationId, string TargetAlias)>();
+        var successRecords = new List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)>();
 
         await InvokeHandleMigrationError(service, productOptions, file, 42, successRecords);
 
@@ -122,7 +116,7 @@ public class HandleMigrationErrorBehaviorTests
             MigrationErrorActionOverride = null
         };
 
-        var successRecords = new List<(MigrationFileInfo File, int MigrationId, string TargetAlias)>();
+        var successRecords = new List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)>();
 
         await InvokeHandleMigrationError(service, productOptions, file, 42, successRecords);
 
@@ -144,7 +138,7 @@ public class HandleMigrationErrorBehaviorTests
             MigrationErrorActionOverride = MigrationErrorAction.Ignore
         };
 
-        var successRecords = new List<(MigrationFileInfo File, int MigrationId, string TargetAlias)>();
+        var successRecords = new List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)>();
 
         await InvokeHandleMigrationError(service, productOptions, file, 42, successRecords);
 
@@ -168,7 +162,7 @@ public class HandleMigrationErrorBehaviorTests
             MigrationErrorActionOverride = (MigrationErrorAction)99
         };
 
-        var successRecords = new List<(MigrationFileInfo File, int MigrationId, string TargetAlias)>();
+        var successRecords = new List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)>();
 
         await InvokeHandleMigrationError(service, productOptions, file, 42, successRecords);
 

@@ -76,7 +76,7 @@ BEGIN
         product_id             INT              NULL,
         environment_id         INT              NULL,
         migration_run_id       INT              NULL,
-        migration_id           INT              NULL,
+        migration_record_id           INT              NULL,
         release_version        TEXT             NULL,
         target_group_alias     TEXT             NULL,
         target_alias           TEXT             NULL,

@@ -1,9 +1,3 @@
-// Copyright (c) 2026 RAYCOON.com GmbH
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License v3.
-//
-// See the LICENSE file for details.
 
 using FluentAssertions;
 using Raycoon.RayMigrator.Core.Configuration.Enums;
@@ -182,7 +176,7 @@ public class MigrationErrorActionIgnoreHandleMigrationErrorTests
             MigrationErrorActionOverride = MigrationErrorAction.Ignore
         };
 
-        var successRecords = new List<(MigrationFileInfo File, int MigrationId, string TargetAlias)>();
+        var successRecords = new List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)>();
 
         // HandleMigrationError is private — invoke via reflection
         var method = typeof(MigrationService).GetMethod("HandleMigrationError",
@@ -212,7 +206,7 @@ public class MigrationErrorActionIgnoreHandleMigrationErrorTests
             MigrationErrorActionOverride = null // Uses product default = Ignore
         };
 
-        var successRecords = new List<(MigrationFileInfo File, int MigrationId, string TargetAlias)>
+        var successRecords = new List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)>
         {
             (new MigrationFileInfo { Filename = "10_Schema.sql", ReleaseVersion = "Release 1.0", TargetGroupAlias = "Backend" }, 1, "T1")
         };

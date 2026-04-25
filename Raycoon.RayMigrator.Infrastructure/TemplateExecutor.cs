@@ -1,11 +1,4 @@
-// Copyright (c) 2026 RAYCOON.com GmbH
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License v3.
-//
-// See the LICENSE file for details.
-
-﻿using System.Data.Common;
+using System.Data.Common;
 using Microsoft.Extensions.Logging;
 using Raycoon.RayMigrator.Core.Extensions;
 using Raycoon.RayMigrator.Core.Configuration;
@@ -268,9 +261,9 @@ public class TemplateExecutor
     /// <param name="status">Target status: NotMigrated (50) or Migrated (100).</param>
     /// <returns>Number of updated MigrationRecord entries (0 = none found, which is not an error).</returns>
     /// <exception cref="TemplateExecutionException"></exception>
-    public int RepositoryMigrationFixOrphaned(int migrationRunId, MigrationStatus status)
+    public int RepositoryMigrationRecordFixOrphaned(int migrationRunId, MigrationStatus status)
     {
-        var templateType = TemplateType.Repository_Migration_FixOrphaned;
+        var templateType = TemplateType.Repository_MigrationRecord_FixOrphaned;
         var eventId = MigrationEvent.TemplateExecutionRepositoryMigrationFixOrphaned;
 
         _logger.LogDebug(eventId, "Fixing orphaned MigrationRecord entries for MigrationRunId {MigrationRunId} with status {Status}{MigrationContext}",
@@ -293,7 +286,7 @@ public class TemplateExecutor
     /// <exception cref="TemplateExecutionException"></exception>
     public InterruptedMigrationInfo? RepositoryMigrationGetInterrupted()
     {
-        var templateType = TemplateType.Repository_Migration_GetInterrupted;
+        var templateType = TemplateType.Repository_MigrationRecord_GetInterrupted;
         var eventId = MigrationEvent.TemplateExecutionRepositoryMigrationGetInterrupted;
 
         _logger.LogDebug(eventId, "Checking for interrupted migrations for product {ProductId} with environment {Environment} ({EnvironmentId}){MigrationContext}",
@@ -313,7 +306,7 @@ public class TemplateExecutor
         }
 
         // Parse the pipe-separated result message
-        // Format: MigrationId|MigrationRunId|ReleaseVersion|Filename|FileUpBlocksMigrated|FileUpBlocksTotal|EnvironmentId|TargetGroupAlias|TargetAlias
+        // Format: MigrationRecordId|MigrationRunId|ReleaseVersion|Filename|FileUpBlocksMigrated|FileUpBlocksTotal|EnvironmentId|TargetGroupAlias|TargetAlias
         var parts = (templateResponse.ResultMessage ?? string.Empty).Split('|');
         if (parts.Length < 9)
         {
@@ -325,7 +318,7 @@ public class TemplateExecutor
         // fill from console options rather than a redundant JOIN to the Environment table.
         return new InterruptedMigrationInfo
         {
-            MigrationId = int.Parse(parts[0]),
+            MigrationRecordId = int.Parse(parts[0]),
             MigrationRunId = int.Parse(parts[1]),
             ReleaseVersion = parts[2],
             Filename = parts[3],
@@ -342,7 +335,7 @@ public class TemplateExecutor
     /// Creates a new MigrationRecord entry or resets an existing archived record
     /// with block-level tracking for recovery support.
     /// </summary>
-    /// <param name="existingMigrationId">0 to INSERT a new record, or the existing Migration ID to UPDATE/reset.</param>
+    /// <param name="existingMigrationRecordId">0 to INSERT a new record, or the existing Migration ID to UPDATE/reset.</param>
     /// <param name="filename">The migration filename.</param>
     /// <param name="releaseVersion">The release version from file path.</param>
     /// <param name="targetGroupAlias">The target group alias.</param>
@@ -354,10 +347,10 @@ public class TemplateExecutor
     /// <param name="fileUpBlocksTotal">Total number of blocks in the file.</param>
     /// <param name="fileUpConfigJson">JSON representation of file configuration.</param>
     /// <param name="migrateDownFileExists">Whether a down-migration file exists.</param>
-    /// <returns>The MigrationId (new or existing).</returns>
+    /// <returns>The MigrationRecordId (new or existing).</returns>
     /// <exception cref="TemplateExecutionException"></exception>
     public int RepositoryMigrationInsert(
-        int existingMigrationId,
+        int existingMigrationRecordId,
         string filename,
         string releaseVersion,
         string targetGroupAlias,
@@ -370,13 +363,13 @@ public class TemplateExecutor
         string? fileUpConfigJson,
         bool migrateDownFileExists)
     {
-        var templateType = TemplateType.Repository_Migration_Insert;
+        var templateType = TemplateType.Repository_MigrationRecord_Insert;
         var eventId = MigrationEvent.TemplateExecutionRepositoryMigrationInsert;
 
         _logger.LogDebug(eventId, "Create MigrationRecord-entry for file {Filename}{MigrationContext}", filename, _ctxAccessor.Current.Clone);
 
         DalParameterList dalParameterList = new DalParameterList();
-        dalParameterList.AddParameter(new DalParameter("ExistingMigrationId", existingMigrationId, typeof(int)));
+        dalParameterList.AddParameter(new DalParameter("ExistingMigrationRecordId", existingMigrationRecordId, typeof(int)));
         dalParameterList.AddParameter(new DalParameter("ProductId", _ctxAccessor.Current.MigrationState.ProductId, typeof(int)));
         dalParameterList.AddParameter(new DalParameter("EnvironmentId", _ctxAccessor.Current.MigrationState.EnvironmentId, typeof(int)));
         dalParameterList.AddParameter(new DalParameter("MigrationRunId", _ctxAccessor.Current.MigrationState.MigrationRunId, typeof(int)));
@@ -398,27 +391,27 @@ public class TemplateExecutor
         var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
         var templateResponse = ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId);
 
-        _ctxAccessor.Current.MigrationState.MigrationId = templateResponse.ResultCode;
+        _ctxAccessor.Current.MigrationState.MigrationRecordId = templateResponse.ResultCode;
         return templateResponse.ResultCode;
     }
 
     /// <summary>
     /// Updates a MigrationRecord entry with block progress or final status.
     /// </summary>
-    /// <param name="migrationId">The migration record ID to update.</param>
+    /// <param name="migrationRecordId">The migration record ID to update.</param>
     /// <param name="migrationStatus">The migration status.</param>
     /// <param name="fileUpBlocksMigrated">Number of blocks successfully migrated.</param>
     /// <exception cref="TemplateExecutionException"></exception>
-    public void RepositoryMigrationUpdate(int migrationId, MigrationStatus migrationStatus, int fileUpBlocksMigrated)
+    public void RepositoryMigrationUpdate(int migrationRecordId, MigrationStatus migrationStatus, int fileUpBlocksMigrated)
     {
-        var templateType = TemplateType.Repository_Migration_Update;
+        var templateType = TemplateType.Repository_MigrationRecord_Update;
         var eventId = MigrationEvent.TemplateExecutionRepositoryMigrationUpdate;
 
-        _logger.LogDebug(eventId, "Update MigrationRecord-entry {MigrationId} - Block {Block} - Status {Status}{MigrationContext}",
-            migrationId, fileUpBlocksMigrated, migrationStatus, _ctxAccessor.Current.Clone);
+        _logger.LogDebug(eventId, "Update MigrationRecord-entry {MigrationRecordId} - Block {Block} - Status {Status}{MigrationContext}",
+            migrationRecordId, fileUpBlocksMigrated, migrationStatus, _ctxAccessor.Current.Clone);
 
         DalParameterList dalParameterList = new DalParameterList();
-        dalParameterList.AddParameter(new DalParameter("MigrationId", migrationId, typeof(int)));
+        dalParameterList.AddParameter(new DalParameter("MigrationRecordId", migrationRecordId, typeof(int)));
         dalParameterList.AddParameter(new DalParameter("MigrationStatusId", (byte)migrationStatus, typeof(byte)));
         dalParameterList.AddParameter(new DalParameter("FileUpBlocksMigrated", fileUpBlocksMigrated, typeof(int)));
 
@@ -430,7 +423,7 @@ public class TemplateExecutor
     /// Updates a MigrationRecord entry with rollback (FileDown*) fields and status.
     /// Used during rollback execution to track rollback file metadata and block progress.
     /// </summary>
-    /// <param name="migrationId">The migration record ID to update.</param>
+    /// <param name="migrationRecordId">The migration record ID to update.</param>
     /// <param name="migrationStatus">The migration status.</param>
     /// <param name="fileDownHash">SHA256 hash of the rollback file.</param>
     /// <param name="fileDownConfigHash">SHA256 hash of the TOML config in the rollback file.</param>
@@ -440,7 +433,7 @@ public class TemplateExecutor
     /// <param name="fileDownConfigJson">JSON of parsed TOML configuration from the rollback file.</param>
     /// <exception cref="TemplateExecutionException"></exception>
     public void RepositoryMigrationUpdateRollback(
-        int migrationId,
+        int migrationRecordId,
         MigrationStatus migrationStatus,
         string fileDownHash,
         string? fileDownConfigHash,
@@ -449,14 +442,14 @@ public class TemplateExecutor
         int fileDownBlocksTotal,
         string? fileDownConfigJson)
     {
-        var templateType = TemplateType.Repository_Migration_UpdateRollback;
+        var templateType = TemplateType.Repository_MigrationRecord_UpdateRollback;
         var eventId = MigrationEvent.TemplateExecutionRepositoryMigrationUpdateRollback;
 
-        _logger.LogDebug(eventId, "Update MigrationRecord-entry {MigrationId} rollback - Block {Block}/{Total} - Status {Status}{MigrationContext}",
-            migrationId, fileDownBlocksMigrated, fileDownBlocksTotal, migrationStatus, _ctxAccessor.Current.Clone);
+        _logger.LogDebug(eventId, "Update MigrationRecord-entry {MigrationRecordId} rollback - Block {Block}/{Total} - Status {Status}{MigrationContext}",
+            migrationRecordId, fileDownBlocksMigrated, fileDownBlocksTotal, migrationStatus, _ctxAccessor.Current.Clone);
 
         DalParameterList dalParameterList = new DalParameterList();
-        dalParameterList.AddParameter(new DalParameter("MigrationId", migrationId, typeof(int)));
+        dalParameterList.AddParameter(new DalParameter("MigrationRecordId", migrationRecordId, typeof(int)));
         dalParameterList.AddParameter(new DalParameter("MigrationStatusId", (byte)migrationStatus, typeof(byte)));
         dalParameterList.AddParameter(new DalParameter("FileDownHash", fileDownHash, typeof(string)));
         dalParameterList.AddParameter(new DalParameter("FileDownConfigHash", fileDownConfigHash ?? string.Empty, typeof(string)));
@@ -473,7 +466,7 @@ public class TemplateExecutor
     /// Updates a MigrationRecord entry with block progress or final status using a caller-provided
     /// shared connection and transaction for atomic execution with target SQL blocks.
     /// </summary>
-    /// <param name="migrationId">The migration record ID to update.</param>
+    /// <param name="migrationRecordId">The migration record ID to update.</param>
     /// <param name="migrationStatus">The migration status.</param>
     /// <param name="fileUpBlocksMigrated">Number of blocks successfully migrated.</param>
     /// <param name="connection">The shared database connection.</param>
@@ -481,21 +474,21 @@ public class TemplateExecutor
     /// <param name="repoCommandTimeoutInSeconds">Command timeout for the repository update.</param>
     /// <exception cref="TemplateExecutionException"></exception>
     public void RepositoryMigrationUpdate(
-        int migrationId,
+        int migrationRecordId,
         MigrationStatus migrationStatus,
         int fileUpBlocksMigrated,
         DbConnection connection,
         DbTransaction transaction,
         int repoCommandTimeoutInSeconds)
     {
-        var templateType = TemplateType.Repository_Migration_Update;
+        var templateType = TemplateType.Repository_MigrationRecord_Update;
         var eventId = MigrationEvent.TemplateExecutionRepositoryMigrationUpdate;
 
-        _logger.LogDebug(eventId, "Update MigrationRecord-entry {MigrationId} - Block {Block} - Status {Status} (atomic shared connection){MigrationContext}",
-            migrationId, fileUpBlocksMigrated, migrationStatus, _ctxAccessor.Current.Clone);
+        _logger.LogDebug(eventId, "Update MigrationRecord-entry {MigrationRecordId} - Block {Block} - Status {Status} (atomic shared connection){MigrationContext}",
+            migrationRecordId, fileUpBlocksMigrated, migrationStatus, _ctxAccessor.Current.Clone);
 
         DalParameterList dalParameterList = new DalParameterList();
-        dalParameterList.AddParameter(new DalParameter("MigrationId", migrationId, typeof(int)));
+        dalParameterList.AddParameter(new DalParameter("MigrationRecordId", migrationRecordId, typeof(int)));
         dalParameterList.AddParameter(new DalParameter("MigrationStatusId", (byte)migrationStatus, typeof(byte)));
         dalParameterList.AddParameter(new DalParameter("FileUpBlocksMigrated", fileUpBlocksMigrated, typeof(int)));
 
@@ -509,7 +502,7 @@ public class TemplateExecutor
     /// </summary>
     /// <exception cref="TemplateExecutionException"></exception>
     public void RepositoryMigrationUpdateRollback(
-        int migrationId,
+        int migrationRecordId,
         MigrationStatus migrationStatus,
         string fileDownHash,
         string? fileDownConfigHash,
@@ -521,14 +514,14 @@ public class TemplateExecutor
         DbTransaction transaction,
         int repoCommandTimeoutInSeconds)
     {
-        var templateType = TemplateType.Repository_Migration_UpdateRollback;
+        var templateType = TemplateType.Repository_MigrationRecord_UpdateRollback;
         var eventId = MigrationEvent.TemplateExecutionRepositoryMigrationUpdateRollback;
 
-        _logger.LogDebug(eventId, "Update MigrationRecord-entry {MigrationId} rollback - Block {Block}/{Total} - Status {Status} (atomic shared connection){MigrationContext}",
-            migrationId, fileDownBlocksMigrated, fileDownBlocksTotal, migrationStatus, _ctxAccessor.Current.Clone);
+        _logger.LogDebug(eventId, "Update MigrationRecord-entry {MigrationRecordId} rollback - Block {Block}/{Total} - Status {Status} (atomic shared connection){MigrationContext}",
+            migrationRecordId, fileDownBlocksMigrated, fileDownBlocksTotal, migrationStatus, _ctxAccessor.Current.Clone);
 
         DalParameterList dalParameterList = new DalParameterList();
-        dalParameterList.AddParameter(new DalParameter("MigrationId", migrationId, typeof(int)));
+        dalParameterList.AddParameter(new DalParameter("MigrationRecordId", migrationRecordId, typeof(int)));
         dalParameterList.AddParameter(new DalParameter("MigrationStatusId", (byte)migrationStatus, typeof(byte)));
         dalParameterList.AddParameter(new DalParameter("FileDownHash", fileDownHash, typeof(string)));
         dalParameterList.AddParameter(new DalParameter("FileDownConfigHash", fileDownConfigHash ?? string.Empty, typeof(string)));
@@ -555,7 +548,7 @@ public class TemplateExecutor
     public List<MigrationRecord> RepositoryMigrationSelect(MigrationRunMode? overrideRunMode = null)
     {
         var effectiveRunMode = overrideRunMode ?? _ctxAccessor.Current.RayMigratorConsoleOptions.RunMode;
-        var templateType = TemplateType.Repository_Migration_Select;
+        var templateType = TemplateType.Repository_MigrationRecord_Select;
         var eventId = MigrationEvent.TemplateExecutionRepositoryMigrationSelect;
 
         _logger.LogDebug(eventId, "Selecting migrations for product {ProductId} with environment {Environment} ({EnvironmentId}) with run mode {RunMode}{MigrationContext}",
@@ -616,25 +609,25 @@ public class TemplateExecutor
     /// Updates the hash fields of an existing MigrationRecord entry.
     /// Used by the Update-Hash command to synchronize repository hashes with changed files on disk.
     /// </summary>
-    /// <param name="migrationId">The migration record ID to update.</param>
+    /// <param name="migrationRecordId">The migration record ID to update.</param>
     /// <param name="fileUpHash">New SHA256 hash of the entire file.</param>
     /// <param name="fileUpConfigHash">New SHA256 hash of the TOML config section.</param>
     /// <param name="fileUpBlocksHash">New SHA256 hash of the SQL blocks.</param>
     /// <exception cref="TemplateExecutionException"></exception>
     public void RepositoryMigrationUpdateHash(
-        int migrationId,
+        int migrationRecordId,
         string fileUpHash,
         string? fileUpConfigHash,
         string fileUpBlocksHash)
     {
-        var templateType = TemplateType.Repository_Migration_UpdateHash;
+        var templateType = TemplateType.Repository_MigrationRecord_UpdateHash;
         var eventId = MigrationEvent.TemplateExecutionRepositoryMigrationUpdateHash;
 
-        _logger.LogDebug(eventId, "Update MigrationRecord-entry {MigrationId} hashes{MigrationContext}",
-            migrationId, _ctxAccessor.Current.Clone);
+        _logger.LogDebug(eventId, "Update MigrationRecord-entry {MigrationRecordId} hashes{MigrationContext}",
+            migrationRecordId, _ctxAccessor.Current.Clone);
 
         DalParameterList dalParameterList = new DalParameterList();
-        dalParameterList.AddParameter(new DalParameter("MigrationId", migrationId, typeof(int)));
+        dalParameterList.AddParameter(new DalParameter("MigrationRecordId", migrationRecordId, typeof(int)));
         dalParameterList.AddParameter(new DalParameter("FileUpHash", fileUpHash, typeof(string)));
         dalParameterList.AddParameter(new DalParameter("FileUpConfigHash", fileUpConfigHash ?? string.Empty, typeof(string)));
         dalParameterList.AddParameter(new DalParameter("FileUpBlocksHash", fileUpBlocksHash, typeof(string)));

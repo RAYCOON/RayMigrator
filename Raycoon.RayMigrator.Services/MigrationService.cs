@@ -1,9 +1,3 @@
-// Copyright (c) 2026 RAYCOON.com GmbH
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License v3.
-//
-// See the LICENSE file for details.
 
 using System.Data.Common;
 using System.Text;
@@ -95,8 +89,8 @@ public class MigrationService : IMigrationService
                 if (interruptedMigration != null)
                 {
                     _logger.LogWarning(
-                        "Interrupted migration detected: MigrationId={MigrationId} file {Filename} at block {BlocksMigrated}/{BlocksTotal}",
-                        interruptedMigration.MigrationId, interruptedMigration.Filename,
+                        "Interrupted migration detected: MigrationRecordId={MigrationRecordId} file {Filename} at block {BlocksMigrated}/{BlocksTotal}",
+                        interruptedMigration.MigrationRecordId, interruptedMigration.Filename,
                         interruptedMigration.BlocksMigrated, interruptedMigration.BlocksTotal);
                 }
 
@@ -219,7 +213,7 @@ public class MigrationService : IMigrationService
 
             // --- Phase 3: Execute Migrations ---
             // Track successfully migrated records for potential rollback
-            var successfullyMigratedRecords = new List<(MigrationFileInfo File, int MigrationId, string TargetAlias)>();
+            var successfullyMigratedRecords = new List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)>();
             string? lastErrorMessage = null;
 
             // Release-based ordering: Release → TargetGroup → Targets
@@ -273,7 +267,7 @@ public class MigrationService : IMigrationService
                         {
                             // Both modes: error aborts entire run
                             await HandleMigrationError(
-                                productOptions, result.FailedFile!, result.FailedMigrationId,
+                                productOptions, result.FailedFile!, result.FailedMigrationRecordId,
                                 successfullyMigratedRecords);
 
                             await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(MigrationRunResult.Error));
@@ -405,7 +399,7 @@ public class MigrationService : IMigrationService
     internal async Task<TargetGroupExecutionResult> ExecuteTargetGroupSimultaneously(
         List<MigrationFileInfo> files, TargetGroupOptions targetGroupOptions,
         ProductOptions productOptions, MigrateUpRequest request,
-        List<(MigrationFileInfo File, int MigrationId, string TargetAlias)> successfullyMigratedRecords,
+        List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)> successfullyMigratedRecords,
         List<MigrationFileResult> migrationResults,
         List<MigrationRecord> existingRecords)
     {
@@ -433,7 +427,7 @@ public class MigrationService : IMigrationService
                         {
                             successfullyMigratedRecords.Add((file, finalizedId, targetOptions.Alias!));
                             _logger.LogInformation(
-                                "Migration recovered | Product: {Product} | Env: {Environment} | Release: {Release} | TargetGroup: {TargetGroup} | Target: {Target} | File: {Filename} | MigrationId: {MigrationId} (finalized from previous incomplete run)",
+                                "Migration recovered | Product: {Product} | Env: {Environment} | Release: {Release} | TargetGroup: {TargetGroup} | Target: {Target} | File: {Filename} | MigrationRecordId: {MigrationRecordId} (finalized from previous incomplete run)",
                                 productOptions.Alias, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, file.ReleaseVersion, targetGroupOptions.Alias, targetOptions.Alias, file.Filename, finalizedId);
                             continue; // Skip to next target - this file+target is already done
                         }
@@ -445,13 +439,13 @@ public class MigrationService : IMigrationService
                         r.ReleaseVersion == file.ReleaseVersion &&
                         r.TargetGroupAlias == file.TargetGroupAlias &&
                         r.TargetAlias == targetOptions.Alias);
-                    int existingMigrationId = existingRecord?.Id ?? 0;
+                    int existingMigrationRecordId = existingRecord?.Id ?? 0;
 
-                    int migrationId = 0;
+                    int migrationRecordId = 0;
                     if (request.RunMode.ShouldWriteRepository())
                     {
-                        migrationId = await Task.Run(() => _templateExecutor.RepositoryMigrationInsert(
-                            existingMigrationId,
+                        migrationRecordId = await Task.Run(() => _templateExecutor.RepositoryMigrationInsert(
+                            existingMigrationRecordId,
                             file.Filename,
                             file.ReleaseVersion,
                             file.TargetGroupAlias,
@@ -464,11 +458,11 @@ public class MigrationService : IMigrationService
                             file.FileUpConfigJson,
                             file.MigrateDownFileExists));
 
-                        if (existingMigrationId > 0)
-                            migrationId = existingMigrationId;
+                        if (existingMigrationRecordId > 0)
+                            migrationRecordId = existingMigrationRecordId;
                     }
 
-                    _ctxAccessor.Current.MigrationState.MigrationId = migrationId;
+                    _ctxAccessor.Current.MigrationState.MigrationRecordId = migrationRecordId;
                     _ctxAccessor.Current.MigrationState.ReleaseVersionFromFileNameWithPath = file.ReleaseVersion;
                     _ctxAccessor.Current.MigrationState.FilenameWithRelativePath = file.FilenameWithRelativePath;
                     _ctxAccessor.Current.MigrationState.FileOrderId = file.FileOrderId;
@@ -486,13 +480,13 @@ public class MigrationService : IMigrationService
                     {
                         var cliTool = GetCliToolByAlias(resolvedCliAlias);
                         (succeededBlocks, failedBlocks) = await ExecuteWithCliTool(
-                            file, targetGroupOptions, targetOptions, migrationId, request.RunMode, cliTool);
+                            file, targetGroupOptions, targetOptions, migrationRecordId, request.RunMode, cliTool);
                         atomicCommitCompleted = false;
                     }
                     else
                     {
                         (succeededBlocks, failedBlocks, atomicCommitCompleted) = await ExecuteSqlBlocks(
-                            file, targetGroupOptions, targetOptions, migrationId, request.RunMode,
+                            file, targetGroupOptions, targetOptions, migrationRecordId, request.RunMode,
                             ignoreBlockErrors: ignoreErrors,
                             startFromBlock: startFromBlock);
                     }
@@ -509,7 +503,7 @@ public class MigrationService : IMigrationService
                         if (request.RunMode.ShouldWriteRepository())
                         {
                             await Task.Run(() => _templateExecutor.RepositoryMigrationUpdate(
-                                migrationId, MigrationStatus.Failed, _ctxAccessor.Current.MigrationState.FileBlockId));
+                                migrationRecordId, MigrationStatus.Failed, _ctxAccessor.Current.MigrationState.FileBlockId));
                         }
 
                         break; // Skip remaining targets for this file
@@ -518,14 +512,14 @@ public class MigrationService : IMigrationService
                     if (!atomicCommitCompleted && request.RunMode.ShouldWriteRepository())
                     {
                         await Task.Run(() => _templateExecutor.RepositoryMigrationUpdate(
-                            migrationId, MigrationStatus.Migrated, file.FileUpBlocksTotal));
+                            migrationRecordId, MigrationStatus.Migrated, file.FileUpBlocksTotal));
                     }
 
-                    successfullyMigratedRecords.Add((file, migrationId, targetOptions.Alias!));
+                    successfullyMigratedRecords.Add((file, migrationRecordId, targetOptions.Alias!));
 
                     _logger.LogInformation(
-                        "Migration successful | Product: {Product} | Env: {Environment} | Release: {Release} | TargetGroup: {TargetGroup} | Target: {Target} | File: {Filename} | MigrationId: {MigrationId} | SqlBlocks: {SqlBlocksTotal}",
-                        productOptions.Alias, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, file.ReleaseVersion, targetGroupOptions.Alias, targetOptions.Alias, file.Filename, migrationId, file.FileUpBlocksTotal);
+                        "Migration successful | Product: {Product} | Env: {Environment} | Release: {Release} | TargetGroup: {TargetGroup} | Target: {Target} | File: {Filename} | MigrationRecordId: {MigrationRecordId} | SqlBlocks: {SqlBlocksTotal}",
+                        productOptions.Alias, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, file.ReleaseVersion, targetGroupOptions.Alias, targetOptions.Alias, file.Filename, migrationRecordId, file.FileUpBlocksTotal);
                 }
 
                 if (fileHadBlockFailures)
@@ -558,23 +552,23 @@ public class MigrationService : IMigrationService
             catch (Exception ex)
             {
                 _logger.LogError(ex,
-                    "Migration FAILED | Product: {Product} | Env: {Environment} | Release: {Release} | TargetGroup: {TargetGroup} | Target: {Target} | File: {Filename} | MigrationId: {MigrationId} | SqlBlock: {SqlBlock}/{SqlBlocksTotal}",
-                    productOptions.Alias, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, file.ReleaseVersion, targetGroupOptions.Alias, _ctxAccessor.Current.MigrationState.TargetAlias, file.Filename, _ctxAccessor.Current.MigrationState.MigrationId, _ctxAccessor.Current.MigrationState.FileBlockId, file.FileUpBlocksTotal);
+                    "Migration FAILED | Product: {Product} | Env: {Environment} | Release: {Release} | TargetGroup: {TargetGroup} | Target: {Target} | File: {Filename} | MigrationRecordId: {MigrationRecordId} | SqlBlock: {SqlBlock}/{SqlBlocksTotal}",
+                    productOptions.Alias, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, file.ReleaseVersion, targetGroupOptions.Alias, _ctxAccessor.Current.MigrationState.TargetAlias, file.Filename, _ctxAccessor.Current.MigrationState.MigrationRecordId, _ctxAccessor.Current.MigrationState.FileBlockId, file.FileUpBlocksTotal);
 
                 try
                 {
                     if (request.RunMode.ShouldWriteRepository())
                     {
                         await Task.Run(() => _templateExecutor.RepositoryMigrationUpdate(
-                            _ctxAccessor.Current.MigrationState.MigrationId, MigrationStatus.Failed,
+                            _ctxAccessor.Current.MigrationState.MigrationRecordId, MigrationStatus.Failed,
                             _ctxAccessor.Current.MigrationState.FileBlockId));
                     }
                 }
                 catch (Exception updateEx)
                 {
                     _logger.LogWarning(updateEx,
-                        "Failed to update migration record {MigrationId} ({Filename}) for error state",
-                        _ctxAccessor.Current.MigrationState.MigrationId, file.Filename);
+                        "Failed to update migration record {MigrationRecordId} ({Filename}) for error state",
+                        _ctxAccessor.Current.MigrationState.MigrationRecordId, file.Filename);
                 }
 
                 if (ignoreErrors)
@@ -602,7 +596,7 @@ public class MigrationService : IMigrationService
                 result.FailCount++;
                 result.Success = false;
                 result.FailedFile = file;
-                result.FailedMigrationId = _ctxAccessor.Current.MigrationState.MigrationId;
+                result.FailedMigrationRecordId = _ctxAccessor.Current.MigrationState.MigrationRecordId;
                 result.ErrorMessage = ex.Message;
 
                 migrationResults.Add(new MigrationFileResult
@@ -631,7 +625,7 @@ public class MigrationService : IMigrationService
     internal async Task<TargetGroupExecutionResult> ExecuteTargetGroupSuccessively(
         List<MigrationFileInfo> files, TargetGroupOptions targetGroupOptions,
         ProductOptions productOptions, MigrateUpRequest request,
-        List<(MigrationFileInfo File, int MigrationId, string TargetAlias)> successfullyMigratedRecords,
+        List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)> successfullyMigratedRecords,
         List<MigrationFileResult> migrationResults,
         List<MigrationRecord> existingRecords)
     {
@@ -657,7 +651,7 @@ public class MigrationService : IMigrationService
                         {
                             successfullyMigratedRecords.Add((file, finalizedId, targetOptions.Alias!));
                             _logger.LogInformation(
-                                "Migration recovered | Product: {Product} | Env: {Environment} | Release: {Release} | TargetGroup: {TargetGroup} | Target: {Target} | File: {Filename} | MigrationId: {MigrationId} (finalized from previous incomplete run)",
+                                "Migration recovered | Product: {Product} | Env: {Environment} | Release: {Release} | TargetGroup: {TargetGroup} | Target: {Target} | File: {Filename} | MigrationRecordId: {MigrationRecordId} (finalized from previous incomplete run)",
                                 productOptions.Alias, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, file.ReleaseVersion, targetGroupOptions.Alias, targetOptions.Alias, file.Filename, finalizedId);
 
                             result.SuccessCount++;
@@ -680,13 +674,13 @@ public class MigrationService : IMigrationService
                         r.ReleaseVersion == file.ReleaseVersion &&
                         r.TargetGroupAlias == file.TargetGroupAlias &&
                         r.TargetAlias == targetOptions.Alias);
-                    int existingMigrationId = existingRecord?.Id ?? 0;
+                    int existingMigrationRecordId = existingRecord?.Id ?? 0;
 
-                    int migrationId = 0;
+                    int migrationRecordId = 0;
                     if (request.RunMode.ShouldWriteRepository())
                     {
-                        migrationId = await Task.Run(() => _templateExecutor.RepositoryMigrationInsert(
-                            existingMigrationId,
+                        migrationRecordId = await Task.Run(() => _templateExecutor.RepositoryMigrationInsert(
+                            existingMigrationRecordId,
                             file.Filename,
                             file.ReleaseVersion,
                             file.TargetGroupAlias,
@@ -699,11 +693,11 @@ public class MigrationService : IMigrationService
                             file.FileUpConfigJson,
                             file.MigrateDownFileExists));
 
-                        if (existingMigrationId > 0)
-                            migrationId = existingMigrationId;
+                        if (existingMigrationRecordId > 0)
+                            migrationRecordId = existingMigrationRecordId;
                     }
 
-                    _ctxAccessor.Current.MigrationState.MigrationId = migrationId;
+                    _ctxAccessor.Current.MigrationState.MigrationRecordId = migrationRecordId;
                     _ctxAccessor.Current.MigrationState.ReleaseVersionFromFileNameWithPath = file.ReleaseVersion;
                     _ctxAccessor.Current.MigrationState.FilenameWithRelativePath = file.FilenameWithRelativePath;
                     _ctxAccessor.Current.MigrationState.FileOrderId = file.FileOrderId;
@@ -721,13 +715,13 @@ public class MigrationService : IMigrationService
                     {
                         var cliTool = GetCliToolByAlias(resolvedCliAlias);
                         (succeededBlocks, failedBlocks) = await ExecuteWithCliTool(
-                            file, targetGroupOptions, targetOptions, migrationId, request.RunMode, cliTool);
+                            file, targetGroupOptions, targetOptions, migrationRecordId, request.RunMode, cliTool);
                         atomicCommitCompleted = false;
                     }
                     else
                     {
                         (succeededBlocks, failedBlocks, atomicCommitCompleted) = await ExecuteSqlBlocks(
-                            file, targetGroupOptions, targetOptions, migrationId, request.RunMode,
+                            file, targetGroupOptions, targetOptions, migrationRecordId, request.RunMode,
                             ignoreBlockErrors: ignoreErrors,
                             startFromBlock: startFromBlock);
                     }
@@ -742,7 +736,7 @@ public class MigrationService : IMigrationService
                         if (request.RunMode.ShouldWriteRepository())
                         {
                             await Task.Run(() => _templateExecutor.RepositoryMigrationUpdate(
-                                migrationId, MigrationStatus.Failed, _ctxAccessor.Current.MigrationState.FileBlockId));
+                                migrationRecordId, MigrationStatus.Failed, _ctxAccessor.Current.MigrationState.FileBlockId));
                         }
 
                         result.FailCount++;
@@ -762,14 +756,14 @@ public class MigrationService : IMigrationService
                     if (!atomicCommitCompleted && request.RunMode.ShouldWriteRepository())
                     {
                         await Task.Run(() => _templateExecutor.RepositoryMigrationUpdate(
-                            migrationId, MigrationStatus.Migrated, file.FileUpBlocksTotal));
+                            migrationRecordId, MigrationStatus.Migrated, file.FileUpBlocksTotal));
                     }
 
-                    successfullyMigratedRecords.Add((file, migrationId, targetOptions.Alias!));
+                    successfullyMigratedRecords.Add((file, migrationRecordId, targetOptions.Alias!));
 
                     _logger.LogInformation(
-                        "Migration successful | Product: {Product} | Env: {Environment} | Release: {Release} | TargetGroup: {TargetGroup} | Target: {Target} | File: {Filename} | MigrationId: {MigrationId} | SqlBlocks: {SqlBlocksTotal}",
-                        productOptions.Alias, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, file.ReleaseVersion, targetGroupOptions.Alias, targetOptions.Alias, file.Filename, migrationId, file.FileUpBlocksTotal);
+                        "Migration successful | Product: {Product} | Env: {Environment} | Release: {Release} | TargetGroup: {TargetGroup} | Target: {Target} | File: {Filename} | MigrationRecordId: {MigrationRecordId} | SqlBlocks: {SqlBlocksTotal}",
+                        productOptions.Alias, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, file.ReleaseVersion, targetGroupOptions.Alias, targetOptions.Alias, file.Filename, migrationRecordId, file.FileUpBlocksTotal);
 
                     result.SuccessCount++;
                     migrationResults.Add(new MigrationFileResult
@@ -785,23 +779,23 @@ public class MigrationService : IMigrationService
                 catch (Exception ex)
                 {
                     _logger.LogError(ex,
-                        "Migration FAILED | Product: {Product} | Env: {Environment} | Release: {Release} | TargetGroup: {TargetGroup} | Target: {Target} | File: {Filename} | MigrationId: {MigrationId} | SqlBlock: {SqlBlock}/{SqlBlocksTotal}",
-                        productOptions.Alias, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, file.ReleaseVersion, targetGroupOptions.Alias, targetOptions.Alias, file.Filename, _ctxAccessor.Current.MigrationState.MigrationId, _ctxAccessor.Current.MigrationState.FileBlockId, file.FileUpBlocksTotal);
+                        "Migration FAILED | Product: {Product} | Env: {Environment} | Release: {Release} | TargetGroup: {TargetGroup} | Target: {Target} | File: {Filename} | MigrationRecordId: {MigrationRecordId} | SqlBlock: {SqlBlock}/{SqlBlocksTotal}",
+                        productOptions.Alias, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, file.ReleaseVersion, targetGroupOptions.Alias, targetOptions.Alias, file.Filename, _ctxAccessor.Current.MigrationState.MigrationRecordId, _ctxAccessor.Current.MigrationState.FileBlockId, file.FileUpBlocksTotal);
 
                     try
                     {
                         if (request.RunMode.ShouldWriteRepository())
                         {
                             await Task.Run(() => _templateExecutor.RepositoryMigrationUpdate(
-                                _ctxAccessor.Current.MigrationState.MigrationId, MigrationStatus.Failed,
+                                _ctxAccessor.Current.MigrationState.MigrationRecordId, MigrationStatus.Failed,
                                 _ctxAccessor.Current.MigrationState.FileBlockId));
                         }
                     }
                     catch (Exception updateEx)
                     {
                         _logger.LogWarning(updateEx,
-                            "Failed to update migration record {MigrationId} ({Filename}) for error state",
-                            _ctxAccessor.Current.MigrationState.MigrationId, file.Filename);
+                            "Failed to update migration record {MigrationRecordId} ({Filename}) for error state",
+                            _ctxAccessor.Current.MigrationState.MigrationRecordId, file.Filename);
                     }
 
                     if (ignoreErrors)
@@ -829,7 +823,7 @@ public class MigrationService : IMigrationService
                     result.FailCount++;
                     result.Success = false;
                     result.FailedFile = file;
-                    result.FailedMigrationId = _ctxAccessor.Current.MigrationState.MigrationId;
+                    result.FailedMigrationRecordId = _ctxAccessor.Current.MigrationState.MigrationRecordId;
                     result.ErrorMessage = ex.Message;
 
                     migrationResults.Add(new MigrationFileResult
@@ -1360,10 +1354,10 @@ public class MigrationService : IMigrationService
                     r.ReleaseVersion == file.ReleaseVersion &&
                     r.TargetGroupAlias == file.TargetGroupAlias &&
                     r.TargetAlias == targetOptions.Alias);
-                int existingMigrationId = existingRecord?.Id ?? 0;
+                int existingMigrationRecordId = existingRecord?.Id ?? 0;
 
-                int migrationId = await Task.Run(() => _templateExecutor.RepositoryMigrationInsert(
-                    existingMigrationId,
+                int migrationRecordId = await Task.Run(() => _templateExecutor.RepositoryMigrationInsert(
+                    existingMigrationRecordId,
                     file.Filename,
                     file.ReleaseVersion,
                     file.TargetGroupAlias,
@@ -1376,11 +1370,11 @@ public class MigrationService : IMigrationService
                     file.FileUpConfigJson,
                     file.MigrateDownFileExists));
 
-                if (existingMigrationId > 0)
-                    migrationId = existingMigrationId;
+                if (existingMigrationRecordId > 0)
+                    migrationRecordId = existingMigrationRecordId;
 
                 await Task.Run(() => _templateExecutor.RepositoryMigrationUpdate(
-                    migrationId, MigrationStatus.Migrated, file.FileUpBlocksTotal));
+                    migrationRecordId, MigrationStatus.Migrated, file.FileUpBlocksTotal));
 
                 _logger.LogDebug("Baselined: {Filename} (Release: {Release}, Target: {Target})",
                     file.Filename, file.ReleaseVersion, targetOptions.Alias);
@@ -1478,7 +1472,7 @@ public class MigrationService : IMigrationService
                     if (productOptions.RequireRollbackFile == true)
                     {
                         _logger.LogError(
-                            "Rollback file missing (RequireRollbackFile=true) | Product: {Product} | Env: {Environment} | Release: {Release} | TargetGroup: {TargetGroup} | Target: {Target} | File: {Filename} | MigrationId: {MigrationId} | Expected: {RollbackPath}",
+                            "Rollback file missing (RequireRollbackFile=true) | Product: {Product} | Env: {Environment} | Release: {Release} | TargetGroup: {TargetGroup} | Target: {Target} | File: {Filename} | MigrationRecordId: {MigrationRecordId} | Expected: {RollbackPath}",
                             productOptions.Alias, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, record.ReleaseVersion, record.TargetGroupAlias, record.TargetAlias, record.Filename, record.Id, rollbackRelativePath);
 
                         // RequireRollbackFile=true + file missing = structural error → abort chain regardless of RollbackErrorAction
@@ -1507,7 +1501,7 @@ public class MigrationService : IMigrationService
                             if (effectiveStop)
                             {
                                 _logger.LogWarning(
-                                    "Rollback stopped (StopRollbackOnMissingRollbackFile=true) | Product: {Product} | Env: {Environment} | Release: {Release} | TargetGroup: {TargetGroup} | Target: {Target} | File: {Filename} | MigrationId: {MigrationId} | Searched: {RollbackPath}",
+                                    "Rollback stopped (StopRollbackOnMissingRollbackFile=true) | Product: {Product} | Env: {Environment} | Release: {Release} | TargetGroup: {TargetGroup} | Target: {Target} | File: {Filename} | MigrationRecordId: {MigrationRecordId} | Searched: {RollbackPath}",
                                     productOptions.Alias, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, record.ReleaseVersion, record.TargetGroupAlias, record.TargetAlias, record.Filename, record.Id, rollbackRelativePath);
 
                                 result.AddWarning(record.Filename, $"Rollback stopped: rollback file not found: {rollbackFilename}");
@@ -1516,7 +1510,7 @@ public class MigrationService : IMigrationService
                         }
 
                         _logger.LogInformation(
-                            "No Rollback file provided | Product: {Product} | Env: {Environment} | Release: {Release} | TargetGroup: {TargetGroup} | Target: {Target} | File: {Filename} | MigrationId: {MigrationId} | Searched: {RollbackPath}",
+                            "No Rollback file provided | Product: {Product} | Env: {Environment} | Release: {Release} | TargetGroup: {TargetGroup} | Target: {Target} | File: {Filename} | MigrationRecordId: {MigrationRecordId} | Searched: {RollbackPath}",
                             productOptions.Alias, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, record.ReleaseVersion, record.TargetGroupAlias, record.TargetAlias, record.Filename, record.Id, rollbackRelativePath);
                     }
 
@@ -1608,7 +1602,7 @@ public class MigrationService : IMigrationService
                         if (rollbackStartBlock > 0 && rollbackStartBlock < rollbackFileInfo.SqlBlocks.Count)
                         {
                             _logger.LogInformation(
-                                "Resuming rollback for migration {MigrationId} ({Filename}) from block {ResumeBlock}/{Total} (previous run executed {Done} blocks successfully)",
+                                "Resuming rollback for migration {MigrationRecordId} ({Filename}) from block {ResumeBlock}/{Total} (previous run executed {Done} blocks successfully)",
                                 record.Id, record.Filename, rollbackStartBlock + 1,
                                 rollbackFileInfo.FileUpBlocksTotal, rollbackStartBlock);
                         }
@@ -1632,7 +1626,7 @@ public class MigrationService : IMigrationService
                                 // Atomic transaction was rolled back -- all repo updates within it are gone.
                                 // Write Failed status via non-shared path (separate connection).
                                 _logger.LogCritical(blockEx,
-                                    "CRITICAL: Atomic rollback failed for migration {MigrationId} ({Filename}). RollbackErrorAction=Terminate — rollback chain ABORTED.",
+                                    "CRITICAL: Atomic rollback failed for migration {MigrationRecordId} ({Filename}). RollbackErrorAction=Terminate — rollback chain ABORTED.",
                                     record.Id, record.Filename);
 
                                 if (runMode.ShouldWriteRepository())
@@ -1662,7 +1656,7 @@ public class MigrationService : IMigrationService
                                     rollbackFileInfo.SqlBlocks[blockIndex], rollbackFileInfo.Filename, blockIndex + 1, rollbackFileInfo.FileUpBlocksTotal);
 
                                 _logger.LogDebug(
-                                    "Executing rollback block {Block}/{Total} for migration {MigrationId} ({Filename})",
+                                    "Executing rollback block {Block}/{Total} for migration {MigrationRecordId} ({Filename})",
                                     blockIndex + 1, rollbackFileInfo.FileUpBlocksTotal, record.Id, record.Filename);
 
                                 _logger.LogTrace("Rollback SQL block {Block}/{Total} for {Filename}:\n{SqlContent}",
@@ -1689,7 +1683,7 @@ public class MigrationService : IMigrationService
                                     if (rollbackErrorAction == RollbackErrorAction.Terminate)
                                     {
                                         _logger.LogCritical(blockEx,
-                                            "CRITICAL: Rollback block {Block}/{Total} failed for migration {MigrationId} ({Filename}). RollbackErrorAction=Terminate — rollback chain ABORTED.",
+                                            "CRITICAL: Rollback block {Block}/{Total} failed for migration {MigrationRecordId} ({Filename}). RollbackErrorAction=Terminate — rollback chain ABORTED.",
                                             blockIndex + 1, rollbackFileInfo.FileUpBlocksTotal, record.Id, record.Filename);
 
                                         // Mark as failed - cannot recover from a failed rollback
@@ -1712,7 +1706,7 @@ public class MigrationService : IMigrationService
 
                                     // RollbackErrorAction.Ignore — skip failed block, continue with next block
                                     _logger.LogWarning(blockEx,
-                                        "Rollback block {Block}/{Total} failed for migration {MigrationId} ({Filename}). RollbackErrorAction=Ignore — skipping block, continuing rollback.",
+                                        "Rollback block {Block}/{Total} failed for migration {MigrationRecordId} ({Filename}). RollbackErrorAction=Ignore — skipping block, continuing rollback.",
                                         blockIndex + 1, rollbackFileInfo.FileUpBlocksTotal, record.Id, record.Filename);
 
                                     fileHadBlockError = true;
@@ -1776,14 +1770,14 @@ public class MigrationService : IMigrationService
                 });
 
                 _logger.LogInformation(
-                    "Rollback {Status} | Product: {Product} | Env: {Environment} | TargetGroup: {TargetGroup} | Target: {Target} | File: {Filename} | MigrationId: {MigrationId} | SqlBlocks: {SqlBlocksTotal}",
+                    "Rollback {Status} | Product: {Product} | Env: {Environment} | TargetGroup: {TargetGroup} | Target: {Target} | File: {Filename} | MigrationRecordId: {MigrationRecordId} | SqlBlocks: {SqlBlocksTotal}",
                     fileHadBlockError ? "completed with errors" : "successful",
                     productOptions.Alias, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, record.TargetGroupAlias, record.TargetAlias, record.Filename, record.Id, rollbackFileInfo.FileUpBlocksTotal);
             }
             catch (Exception ex)
             {
                 _logger.LogCritical(ex,
-                    "CRITICAL: Rollback failed for migration {MigrationId} ({Filename}). Rollback chain ABORTED.",
+                    "CRITICAL: Rollback failed for migration {MigrationRecordId} ({Filename}). Rollback chain ABORTED.",
                     record.Id, record.Filename);
 
                 result.AddFailure(record.Filename, ex.Message);
@@ -1808,8 +1802,8 @@ public class MigrationService : IMigrationService
     private async Task HandleMigrationError(
         ProductOptions productOptions,
         MigrationFileInfo failedFile,
-        int failedMigrationId,
-        List<(MigrationFileInfo File, int MigrationId, string TargetAlias)> successfullyMigratedRecords)
+        int failedMigrationRecordId,
+        List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)> successfullyMigratedRecords)
     {
         var errorAction = failedFile.MigrationErrorActionOverride ?? productOptions.MigrationErrorActionEnum;
 
@@ -1828,7 +1822,7 @@ public class MigrationService : IMigrationService
 
             case MigrationErrorAction.RollbackErrorOnly:
                 _logger.LogInformation("MigrationErrorAction=RollbackErrorOnly: Rolling back only the failed migration file.");
-                await RollbackSingleMigration(productOptions, failedFile, failedMigrationId);
+                await RollbackSingleMigration(productOptions, failedFile, failedMigrationRecordId);
                 break;
 
             case MigrationErrorAction.Rollback:
@@ -1842,7 +1836,7 @@ public class MigrationService : IMigrationService
                 // Add the failed migration
                 recordsToRollback.Add(new MigrationRecord
                 {
-                    Id = failedMigrationId,
+                    Id = failedMigrationRecordId,
                     Filename = failedFile.Filename,
                     ReleaseVersion = failedFile.ReleaseVersion,
                     TargetGroupAlias = failedFile.TargetGroupAlias,
@@ -1852,11 +1846,11 @@ public class MigrationService : IMigrationService
                 });
 
                 // Add successful migrations in reverse order
-                foreach (var (file, migrationId, targetAlias) in successfullyMigratedRecords.AsEnumerable().Reverse())
+                foreach (var (file, migrationRecordId, targetAlias) in successfullyMigratedRecords.AsEnumerable().Reverse())
                 {
                     recordsToRollback.Add(new MigrationRecord
                     {
-                        Id = migrationId,
+                        Id = migrationRecordId,
                         Filename = file.Filename,
                         ReleaseVersion = file.ReleaseVersion,
                         TargetGroupAlias = file.TargetGroupAlias,
@@ -1879,7 +1873,7 @@ public class MigrationService : IMigrationService
                 // Add the failed migration first
                 releaseRecords.Add(new MigrationRecord
                 {
-                    Id = failedMigrationId,
+                    Id = failedMigrationRecordId,
                     Filename = failedFile.Filename,
                     ReleaseVersion = failedFile.ReleaseVersion,
                     TargetGroupAlias = failedFile.TargetGroupAlias,
@@ -1889,13 +1883,13 @@ public class MigrationService : IMigrationService
                 });
 
                 // Add successful records from same release in reverse order
-                foreach (var (file, migrationId, targetAlias) in
+                foreach (var (file, migrationRecordId, targetAlias) in
                     successfullyMigratedRecords.AsEnumerable().Reverse()
                         .Where(r => r.File.ReleaseVersion == failedFile.ReleaseVersion))
                 {
                     releaseRecords.Add(new MigrationRecord
                     {
-                        Id = migrationId,
+                        Id = migrationRecordId,
                         Filename = file.Filename,
                         ReleaseVersion = file.ReleaseVersion,
                         TargetGroupAlias = file.TargetGroupAlias,
@@ -1926,13 +1920,13 @@ public class MigrationService : IMigrationService
     private async Task RollbackSingleMigration(
         ProductOptions productOptions,
         MigrationFileInfo failedFile,
-        int failedMigrationId)
+        int failedMigrationRecordId)
     {
         var singleRecord = new List<MigrationRecord>
         {
             new MigrationRecord
             {
-                Id = failedMigrationId,
+                Id = failedMigrationRecordId,
                 Filename = failedFile.Filename,
                 ReleaseVersion = failedFile.ReleaseVersion,
                 TargetGroupAlias = failedFile.TargetGroupAlias,
@@ -2646,23 +2640,23 @@ public class MigrationService : IMigrationService
         MigrationFileInfo file,
         TargetGroupOptions targetGroupOptions,
         TargetOptions targetOptions,
-        int migrationId,
+        int migrationRecordId,
         MigrationRunMode runMode,
         CliToolOptions cliToolOptions)
     {
         if (!runMode.ShouldExecuteSql())
         {
             _logger.LogInformation(
-                "[{RunMode}] Would execute CLI tool '{CliTool}' | Product: {Product} | Env: {Environment} | TargetGroup: {TargetGroup} | Target: {Target} | File: {Filename} | MigrationId: {MigrationId}",
+                "[{RunMode}] Would execute CLI tool '{CliTool}' | Product: {Product} | Env: {Environment} | TargetGroup: {TargetGroup} | Target: {Target} | File: {Filename} | MigrationRecordId: {MigrationRecordId}",
                 runMode, cliToolOptions.Alias,
                 _ctxAccessor.Current.RayMigratorConsoleOptions.Product,
                 _ctxAccessor.Current.RayMigratorConsoleOptions.Environment,
-                targetGroupOptions.Alias, targetOptions.Alias, file.Filename, migrationId);
+                targetGroupOptions.Alias, targetOptions.Alias, file.Filename, migrationRecordId);
 
             if (runMode.ShouldWriteRepository())
             {
                 await Task.Run(() => _templateExecutor.RepositoryMigrationUpdate(
-                    migrationId, MigrationStatus.Executing, 1));
+                    migrationRecordId, MigrationStatus.Executing, 1));
             }
 
             return (file.FileUpBlocksTotal, 0);
@@ -2692,7 +2686,7 @@ public class MigrationService : IMigrationService
 
         // Update repository: mark as executing
         await Task.Run(() => _templateExecutor.RepositoryMigrationUpdate(
-            migrationId, MigrationStatus.Executing, 1));
+            migrationRecordId, MigrationStatus.Executing, 1));
 
         var result = await _cliToolExecutor.ExecuteAsync(request);
 
@@ -2721,7 +2715,7 @@ public class MigrationService : IMigrationService
         MigrationFileInfo file,
         TargetGroupOptions targetGroupOptions,
         TargetOptions targetOptions,
-        int migrationId,
+        int migrationRecordId,
         MigrationRunMode runMode,
         bool ignoreBlockErrors = false,
         int startFromBlock = 0)
@@ -2739,8 +2733,8 @@ public class MigrationService : IMigrationService
         if (!runMode.ShouldExecuteSql())
         {
             _logger.LogInformation(
-                "[{RunMode}] Would execute | Product: {Product} | Env: {Environment} | TargetGroup: {TargetGroup} | Target: {Target} | File: {Filename} | MigrationId: {MigrationId} | SqlBlocks: {SqlBlocksTotal}",
-                runMode, _ctxAccessor.Current.RayMigratorConsoleOptions.Product, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, targetGroupOptions.Alias, targetOptions.Alias, file.Filename, migrationId, file.FileUpBlocksTotal);
+                "[{RunMode}] Would execute | Product: {Product} | Env: {Environment} | TargetGroup: {TargetGroup} | Target: {Target} | File: {Filename} | MigrationRecordId: {MigrationRecordId} | SqlBlocks: {SqlBlocksTotal}",
+                runMode, _ctxAccessor.Current.RayMigratorConsoleOptions.Product, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, targetGroupOptions.Alias, targetOptions.Alias, file.Filename, migrationRecordId, file.FileUpBlocksTotal);
 
             for (int i = startFromBlock; i < file.SqlBlocks.Count; i++)
             {
@@ -2756,7 +2750,7 @@ public class MigrationService : IMigrationService
                 if (runMode.ShouldWriteRepository())
                 {
                     await Task.Run(() => _templateExecutor.RepositoryMigrationUpdate(
-                        migrationId, MigrationStatus.Executing, i + 1));
+                        migrationRecordId, MigrationStatus.Executing, i + 1));
                 }
 
                 succeededBlocks++;
@@ -2787,7 +2781,7 @@ public class MigrationService : IMigrationService
 
         if (useSharedConnection)
         {
-            return await ExecuteSqlBlocksAtomic(file, targetDal!, dalSettings, migrationId, runMode, startFromBlock);
+            return await ExecuteSqlBlocksAtomic(file, targetDal!, dalSettings, migrationRecordId, runMode, startFromBlock);
         }
 
         for (int blockIndex = startFromBlock; blockIndex < file.SqlBlocks.Count; blockIndex++)
@@ -2826,7 +2820,7 @@ public class MigrationService : IMigrationService
 
             // Update block progress in repository
             await Task.Run(() => _templateExecutor.RepositoryMigrationUpdate(
-                migrationId, MigrationStatus.Executing, blockIndex + 1));
+                migrationRecordId, MigrationStatus.Executing, blockIndex + 1));
         }
 
         return (succeededBlocks, failedBlocks, false);
@@ -2841,7 +2835,7 @@ public class MigrationService : IMigrationService
         MigrationFileInfo file,
         IDal targetDal,
         DalSettings dalSettings,
-        int migrationId,
+        int migrationRecordId,
         MigrationRunMode runMode,
         int startFromBlock)
     {
@@ -2883,7 +2877,7 @@ public class MigrationService : IMigrationService
 
                     // Repository UPDATE on SAME connection+transaction
                     _templateExecutor.RepositoryMigrationUpdate(
-                        migrationId, MigrationStatus.Executing, blockIndex + 1,
+                        migrationRecordId, MigrationStatus.Executing, blockIndex + 1,
                         connection, transaction, repoTimeout);
                 }
 
@@ -2891,7 +2885,7 @@ public class MigrationService : IMigrationService
                 if (runMode.ShouldWriteRepository())
                 {
                     _templateExecutor.RepositoryMigrationUpdate(
-                        migrationId, MigrationStatus.Migrated, file.FileUpBlocksTotal,
+                        migrationRecordId, MigrationStatus.Migrated, file.FileUpBlocksTotal,
                         connection, transaction, repoTimeout);
                 }
 
@@ -2953,7 +2947,7 @@ public class MigrationService : IMigrationService
                         rollbackFileInfo.SqlBlocks[blockIndex], rollbackFileInfo.Filename, blockIndex + 1, rollbackFileInfo.FileUpBlocksTotal);
 
                     _logger.LogDebug(
-                        "Executing rollback block {Block}/{Total} for migration {MigrationId} ({Filename}) (atomic mode)",
+                        "Executing rollback block {Block}/{Total} for migration {MigrationRecordId} ({Filename}) (atomic mode)",
                         blockIndex + 1, rollbackFileInfo.FileUpBlocksTotal, record.Id, record.Filename);
 
                     _logger.LogTrace("Rollback SQL block {Block}/{Total} for {Filename}:\n{SqlContent}",
@@ -3245,7 +3239,7 @@ public class MigrationService : IMigrationService
                 double minutesRunning = Convert.ToDouble(orphanRow["MinutesRunning"]);
 
                 await Task.Run(() =>
-                    _templateExecutor.RepositoryMigrationFixOrphaned(orphanRunId, MigrationStatus.NotMigrated));
+                    _templateExecutor.RepositoryMigrationRecordFixOrphaned(orphanRunId, MigrationStatus.NotMigrated));
                 await Task.Run(() =>
                     _templateExecutor.RepositoryMigrationRunFixOrphaned(orphanRunId));
 
@@ -3356,7 +3350,7 @@ public class MigrationService : IMigrationService
         _logger.LogWarning(
             "Recovery: Migration {Filename} on target {Target} was fully executed " +
             "({BlocksMigrated}/{BlocksTotal} blocks) but not finalized (status=Executing). " +
-            "Finalizing as Migrated now (MigrationId={MigrationId}).",
+            "Finalizing as Migrated now (MigrationRecordId={MigrationRecordId}).",
             file.Filename, targetAlias, completedRecord.FileUpBlocksMigrated,
             completedRecord.FileUpBlocksTotal, completedRecord.Id);
 
@@ -4569,7 +4563,7 @@ public class MigrationService : IMigrationService
 
                     // Fix orphaned Migration entries first (before closing the run)
                     int migrationsFixed = await Task.Run(() =>
-                        _templateExecutor.RepositoryMigrationFixOrphaned(run.MigrationRunId, targetStatus));
+                        _templateExecutor.RepositoryMigrationRecordFixOrphaned(run.MigrationRunId, targetStatus));
 
                     if (migrationsFixed > 0)
                     {
@@ -4659,7 +4653,7 @@ public class MigrationService : IMigrationService
         public int SuccessCount { get; set; }
         public int FailCount { get; set; }
         public MigrationFileInfo? FailedFile { get; set; }
-        public int FailedMigrationId { get; set; }
+        public int FailedMigrationRecordId { get; set; }
         public string? ErrorMessage { get; set; }
     }
 

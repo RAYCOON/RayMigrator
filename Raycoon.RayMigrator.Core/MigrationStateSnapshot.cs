@@ -1,11 +1,4 @@
-// Copyright (c) 2026 RAYCOON.com GmbH
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License v3.
-//
-// See the LICENSE file for details.
-
-﻿using Raycoon.RayMigrator.Core.Configuration.Enums;
+using Raycoon.RayMigrator.Core.Configuration.Enums;
 
 namespace Raycoon.RayMigrator.Core;
 
@@ -17,7 +10,7 @@ public class MigrationStateSnapshot
     // Migration Process: RunId's
     public int ProductId { get; init; }
     public int MigrationRunId { get; init; }
-    public int MigrationId { get; init; }
+    public int MigrationRecordId { get; init; }
 
     // Migration Process: File / Block
     public required string ReleaseVersionFromFileNameWithPath { get; init; }

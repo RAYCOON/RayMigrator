@@ -1,9 +1,3 @@
-// Copyright (c) 2026 RAYCOON.com GmbH
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License v3.
-//
-// See the LICENSE file for details.
 
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -270,7 +264,7 @@ public class TemplateExecutorEnvironmentIdTests
         var (executor, _, getCapture) = CreateExecutor(environmentId: TestEnvironmentId);
 
         InvokeAndCapture(executor, e => e.RepositoryMigrationInsert(
-            existingMigrationId: 0,
+            existingMigrationRecordId: 0,
             filename: "10_Create.sql",
             releaseVersion: "Release 1.0",
             targetGroupAlias: "Backend",
@@ -296,7 +290,7 @@ public class TemplateExecutorEnvironmentIdTests
         var (executor, _, getCapture) = CreateExecutor();
 
         InvokeAndCapture(executor, e => e.RepositoryMigrationInsert(
-            existingMigrationId: 0,
+            existingMigrationRecordId: 0,
             filename: "10_Create.sql",
             releaseVersion: "Release 1.0",
             targetGroupAlias: "Backend",

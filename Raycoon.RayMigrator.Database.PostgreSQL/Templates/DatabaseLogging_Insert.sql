@@ -34,7 +34,7 @@ RunModeId        = "SMALLINT | OPTIONAL | Run mode: 10=Validate, 20=Simulate, 10
 ProductId        = "INT | OPTIONAL | Product ID if available"
 EnvironmentId    = "INT | OPTIONAL | Environment ID if available"
 MigrationRunId   = "INT | OPTIONAL | MigrationRun ID if available"
-MigrationId      = "INT | OPTIONAL | Migration record ID if available"
+MigrationRecordId      = "INT | OPTIONAL | Migration record ID if available"
 ReleaseVersion   = "VARCHAR(100) | OPTIONAL | Release version if applicable"
 TargetGroupAlias = "VARCHAR(100) | OPTIONAL | Target group alias if applicable"
 TargetAlias      = "VARCHAR(100) | OPTIONAL | Target alias if applicable"
@@ -62,7 +62,7 @@ INSERT INTO {CFG:SchemaName}.{CFG:TableBaseName}migration_log
     product_id,
     environment_id,
     migration_run_id,
-    migration_id,
+    migration_record_id,
     release_version,
     target_group_alias,
     target_alias,
@@ -80,7 +80,7 @@ VALUES
     @ProductId,
     @EnvironmentId,
     @MigrationRunId,
-    @MigrationId,
+    @MigrationRecordId,
     @ReleaseVersion,
     @TargetGroupAlias,
     @TargetAlias,

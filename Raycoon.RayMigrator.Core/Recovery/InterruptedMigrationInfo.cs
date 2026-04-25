@@ -1,9 +1,3 @@
-// Copyright (c) 2026 RAYCOON.com GmbH
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License v3.
-//
-// See the LICENSE file for details.
 
 namespace Raycoon.RayMigrator.Core.Recovery;
 
@@ -15,7 +9,7 @@ public class InterruptedMigrationInfo
     /// <summary>
     /// The ID of the interrupted migration record.
     /// </summary>
-    public int MigrationId { get; set; }
+    public int MigrationRecordId { get; set; }
 
     /// <summary>
     /// The ID of the migration run that was interrupted.
@@ -74,6 +68,6 @@ public class InterruptedMigrationInfo
 
     public override string ToString()
     {
-        return $"Migration {MigrationId} ({Filename}): Block {BlocksMigrated}/{BlocksTotal} ({ProgressPercent:F1}%)";
+        return $"Migration {MigrationRecordId} ({Filename}): Block {BlocksMigrated}/{BlocksTotal} ({ProgressPercent:F1}%)";
     }
 }

@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS {CFG:TableBaseName}migration_log (
     product_id             INT              NULL,
     environment_id         INT              NULL,
     migration_run_id       INT              NULL,
-    migration_id           INT              NULL,
+    migration_record_id           INT              NULL,
     release_version        VARCHAR(100)     NULL,
     target_group_alias     VARCHAR(100)     NULL,
     target_alias           VARCHAR(100)     NULL,

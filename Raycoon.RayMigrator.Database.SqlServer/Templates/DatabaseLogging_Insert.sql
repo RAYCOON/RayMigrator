@@ -34,7 +34,7 @@ RunModeId        = "TINYINT | OPTIONAL | Run mode: 10=Validate, 20=Simulate, 100
 ProductId        = "INT | OPTIONAL | Product ID if available"
 EnvironmentId    = "INT | OPTIONAL | Environment ID if available"
 MigrationRunId   = "INT | OPTIONAL | MigrationRun ID if available"
-MigrationId      = "INT | OPTIONAL | Migration record ID if available"
+MigrationRecordId      = "INT | OPTIONAL | Migration record ID if available"
 ReleaseVersion   = "NVARCHAR(100) | OPTIONAL | Release version if applicable"
 TargetGroupAlias = "NVARCHAR(100) | OPTIONAL | Target group alias if applicable"
 TargetAlias      = "NVARCHAR(100) | OPTIONAL | Target alias if applicable"
@@ -78,7 +78,7 @@ INSERT INTO [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationLog]
 	[ProductId],
 	[EnvironmentId],
 	[MigrationRunId],
-	[MigrationId],
+	[MigrationRecordId],
 	[ReleaseVersion],
 	[TargetGroupAlias],
 	[TargetAlias],
@@ -96,7 +96,7 @@ VALUES
 	@ProductId,
 	@EnvironmentId,
 	@MigrationRunId,
-	@MigrationId,
+	@MigrationRecordId,
 	@ReleaseVersion,
 	@TargetGroupAlias,
 	@TargetAlias,

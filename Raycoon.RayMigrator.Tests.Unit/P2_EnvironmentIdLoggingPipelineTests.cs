@@ -1,9 +1,3 @@
-// Copyright (c) 2026 RAYCOON.com GmbH
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License v3.
-//
-// See the LICENSE file for details.
 
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
@@ -25,7 +19,7 @@ namespace Raycoon.RayMigrator.Tests.Unit;
 ///   1. MigrationContextEnricher emits EnvironmentId int property (and retains text Environment property).
 ///   2. DatabaseLogWriter.EnqueueLogEntry null-guards: passes null to DAL when environmentId == 0,
 ///      passes the actual int value otherwise.
-/// Mirrors the style of P2_MigrationIdLoggingPipelineTests.cs.
+/// Mirrors the style of P2_MigrationRecordIdLoggingPipelineTests.cs.
 /// </summary>
 public class EnvironmentIdLoggingPipelineTests : IDisposable
 {
@@ -274,7 +268,7 @@ public class EnvironmentIdLoggingPipelineTests : IDisposable
         writer.EnqueueLogEntry(
             LogLevel.Information, 0, "Test",
             runModeId: 100, productId: 3, environmentId: 7,
-            migrationRunId: 1, migrationId: 0,
+            migrationRunId: 1, migrationRecordId: 0,
             releaseVersion: "1.0", targetGroupAlias: "Backend", targetAlias: "MainDB",
             fileName: null, fileOrderId: 0, fileBlockId: 0);
 
@@ -304,7 +298,7 @@ public class EnvironmentIdLoggingPipelineTests : IDisposable
         writer.EnqueueLogEntry(
             LogLevel.Information, 0, "Test",
             runModeId: 100, productId: 3, environmentId: 0,
-            migrationRunId: 1, migrationId: 0,
+            migrationRunId: 1, migrationRecordId: 0,
             releaseVersion: "1.0", targetGroupAlias: "Backend", targetAlias: "MainDB",
             fileName: null, fileOrderId: 0, fileBlockId: 0);
 
@@ -333,7 +327,7 @@ public class EnvironmentIdLoggingPipelineTests : IDisposable
         writer.EnqueueLogEntry(
             LogLevel.Information, 0, "Test",
             runModeId: 100, productId: 3, environmentId: null,
-            migrationRunId: 1, migrationId: 0,
+            migrationRunId: 1, migrationRecordId: 0,
             releaseVersion: "1.0", targetGroupAlias: "Backend", targetAlias: "MainDB",
             fileName: null, fileOrderId: 0, fileBlockId: 0);
 
@@ -374,7 +368,7 @@ public class EnvironmentIdLoggingPipelineTests : IDisposable
         writer.EnqueueLogEntry(
             LogLevel.Information, 0, "Test",
             runModeId: 100, productId: 3, environmentId: 7,
-            migrationRunId: 1, migrationId: 0,
+            migrationRunId: 1, migrationRecordId: 0,
             releaseVersion: null, targetGroupAlias: null, targetAlias: null,
             fileName: null, fileOrderId: 0, fileBlockId: 0);
 

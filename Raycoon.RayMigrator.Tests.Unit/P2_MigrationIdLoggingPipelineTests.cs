@@ -1,9 +1,3 @@
-// Copyright (c) 2026 RAYCOON.com GmbH
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License v3.
-//
-// See the LICENSE file for details.
 
 using FluentAssertions;
 using Microsoft.Extensions.Logging;
@@ -19,10 +13,10 @@ using Serilog.Parsing;
 namespace Raycoon.RayMigrator.Tests.Unit;
 
 /// <summary>
-/// P2: Tests for MigrationId propagation through the logging pipeline.
-/// Verifies that MigrationId flows from MigrationState → Enricher → Sink → Writer → DalParameter.
+/// P2: Tests for MigrationRecordId propagation through the logging pipeline.
+/// Verifies that MigrationRecordId flows from MigrationState → Enricher → Sink → Writer → DalParameter.
 /// </summary>
-public class MigrationIdLoggingPipelineTests : IDisposable
+public class MigrationRecordIdLoggingPipelineTests : IDisposable
 {
     public void Dispose()
     {
@@ -31,7 +25,7 @@ public class MigrationIdLoggingPipelineTests : IDisposable
 
     #region Helper Methods
 
-    private static MigrationContext CreateTestContext(int migrationId = 0, int migrationRunId = 0, int productId = 0)
+    private static MigrationContext CreateTestContext(int migrationRecordId = 0, int migrationRunId = 0, int productId = 0)
     {
         var rayOptions = new RayMigratorOptions
         {
@@ -111,7 +105,7 @@ public class MigrationIdLoggingPipelineTests : IDisposable
         };
 
         var ctx = new MigrationContext(rayOptions, consoleOptions, "3.0.0");
-        ctx.MigrationState.MigrationId = migrationId;
+        ctx.MigrationState.MigrationRecordId = migrationRecordId;
         ctx.MigrationState.MigrationRunId = migrationRunId;
         ctx.MigrationState.ProductId = productId;
         return ctx;
@@ -139,10 +133,10 @@ public class MigrationIdLoggingPipelineTests : IDisposable
     #region MigrationContextEnricher Tests
 
     [Fact]
-    public void Enricher_ShouldAddMigrationId_WhenContextHasMigrationId()
+    public void Enricher_ShouldAddMigrationRecordId_WhenContextHasMigrationRecordId()
     {
         // Arrange
-        var ctx = CreateTestContext(migrationId: 42);
+        var ctx = CreateTestContext(migrationRecordId: 42);
         MigrationLoggingContext.Current = ctx;
 
         var enricher = new MigrationContextEnricher();
@@ -154,16 +148,16 @@ public class MigrationIdLoggingPipelineTests : IDisposable
             : new TestPropertyFactory());
 
         // Assert
-        logEvent.Properties.Should().ContainKey("MigrationId");
-        var scalar = logEvent.Properties["MigrationId"] as ScalarValue;
+        logEvent.Properties.Should().ContainKey("MigrationRecordId");
+        var scalar = logEvent.Properties["MigrationRecordId"] as ScalarValue;
         scalar!.Value.Should().Be(42);
     }
 
     [Fact]
-    public void Enricher_ShouldAddMigrationIdZero_WhenMigrationIdNotSet()
+    public void Enricher_ShouldAddMigrationRecordIdZero_WhenMigrationRecordIdNotSet()
     {
         // Arrange
-        var ctx = CreateTestContext(migrationId: 0);
+        var ctx = CreateTestContext(migrationRecordId: 0);
         MigrationLoggingContext.Current = ctx;
 
         var enricher = new MigrationContextEnricher();
@@ -173,8 +167,8 @@ public class MigrationIdLoggingPipelineTests : IDisposable
         enricher.Enrich(logEvent, new TestPropertyFactory());
 
         // Assert
-        logEvent.Properties.Should().ContainKey("MigrationId");
-        var scalar = logEvent.Properties["MigrationId"] as ScalarValue;
+        logEvent.Properties.Should().ContainKey("MigrationRecordId");
+        var scalar = logEvent.Properties["MigrationRecordId"] as ScalarValue;
         scalar!.Value.Should().Be(0);
     }
 
@@ -191,7 +185,7 @@ public class MigrationIdLoggingPipelineTests : IDisposable
         enricher.Enrich(logEvent, new TestPropertyFactory());
 
         // Assert
-        logEvent.Properties.Should().NotContainKey("MigrationId");
+        logEvent.Properties.Should().NotContainKey("MigrationRecordId");
     }
 
     #endregion
@@ -199,7 +193,7 @@ public class MigrationIdLoggingPipelineTests : IDisposable
     #region RayMigratorDatabaseSink Tests
 
     [Fact]
-    public void Sink_ShouldExtractMigrationId_AndPassToWriter()
+    public void Sink_ShouldExtractMigrationRecordId_AndPassToWriter()
     {
         // Arrange
         var dal = Substitute.For<IDal>();
@@ -224,7 +218,7 @@ public class MigrationIdLoggingPipelineTests : IDisposable
             ("ProductId", 5),
             ("EnvironmentId", 7),
             ("MigrationRunId", 10),
-            ("MigrationId", 42),
+            ("MigrationRecordId", 42),
             ("Environment", "Docker"),
             ("ReleaseVersion", "1.0"),
             ("TargetGroupAlias", "Backend"),
@@ -242,7 +236,7 @@ public class MigrationIdLoggingPipelineTests : IDisposable
     }
 
     [Fact]
-    public void Sink_ShouldHandleMissingMigrationId_Gracefully()
+    public void Sink_ShouldHandleMissingMigrationRecordId_Gracefully()
     {
         // Arrange
         var dal = Substitute.For<IDal>();
@@ -261,7 +255,7 @@ public class MigrationIdLoggingPipelineTests : IDisposable
         var writer = new DatabaseLogWriter(options, dal);
         var sink = new RayMigratorDatabaseSink(writer, LogEventLevel.Debug);
 
-        // LogEvent without MigrationId property
+        // LogEvent without MigrationRecordId property
         var logEvent = CreateLogEvent(
             ("RunModeId", (byte)100),
             ("MigrationRunId", 10));
@@ -276,7 +270,7 @@ public class MigrationIdLoggingPipelineTests : IDisposable
     #region DatabaseLogWriter Tests
 
     [Fact]
-    public void Writer_ShouldIncludeMigrationIdParameter_WhenValueIsPositive()
+    public void Writer_ShouldIncludeMigrationRecordIdParameter_WhenValueIsPositive()
     {
         // Arrange
         var dal = Substitute.For<IDal>();
@@ -319,13 +313,13 @@ public class MigrationIdLoggingPipelineTests : IDisposable
 
         // Assert
         capturedParams.Should().NotBeNull();
-        capturedParams!.TryGetValue("MigrationId", out var migrationIdParam).Should().BeTrue();
-        migrationIdParam!.ParameterValue.Should().Be(42);
-        migrationIdParam.ParameterType.Should().Be(typeof(int?));
+        capturedParams!.TryGetValue("MigrationRecordId", out var migrationRecordIdParam).Should().BeTrue();
+        migrationRecordIdParam!.ParameterValue.Should().Be(42);
+        migrationRecordIdParam.ParameterType.Should().Be(typeof(int?));
     }
 
     [Fact]
-    public void Writer_ShouldSetMigrationIdToNull_WhenValueIsZero()
+    public void Writer_ShouldSetMigrationRecordIdToNull_WhenValueIsZero()
     {
         // Arrange
         var dal = Substitute.For<IDal>();
@@ -355,7 +349,7 @@ public class MigrationIdLoggingPipelineTests : IDisposable
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
         templateField!.SetValue(writer, new Raycoon.RayMigrator.Core.Templates.Template { Content = "INSERT INTO logs" });
 
-        // Act - MigrationId = 0
+        // Act - MigrationRecordId = 0
         writer.EnqueueLogEntry(
             LogLevel.Information, 0, "Test message",
             100, 5, 7, 10, 0,
@@ -366,13 +360,13 @@ public class MigrationIdLoggingPipelineTests : IDisposable
 
         // Assert
         capturedParams.Should().NotBeNull();
-        capturedParams!.TryGetValue("MigrationId", out var migrationIdParam).Should().BeTrue();
-        migrationIdParam!.ParameterValue.Should().BeNull();
-        migrationIdParam.ParameterType.Should().Be(typeof(int?));
+        capturedParams!.TryGetValue("MigrationRecordId", out var migrationRecordIdParam).Should().BeTrue();
+        migrationRecordIdParam!.ParameterValue.Should().BeNull();
+        migrationRecordIdParam.ParameterType.Should().Be(typeof(int?));
     }
 
     [Fact]
-    public void Writer_ShouldSetMigrationIdToNull_WhenValueIsNull()
+    public void Writer_ShouldSetMigrationRecordIdToNull_WhenValueIsNull()
     {
         // Arrange
         var dal = Substitute.For<IDal>();
@@ -402,7 +396,7 @@ public class MigrationIdLoggingPipelineTests : IDisposable
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
         templateField!.SetValue(writer, new Raycoon.RayMigrator.Core.Templates.Template { Content = "INSERT INTO logs" });
 
-        // Act - MigrationId = null
+        // Act - MigrationRecordId = null
         writer.EnqueueLogEntry(
             LogLevel.Information, 0, "Test message",
             100, 5, 7, 10, null,
@@ -413,9 +407,9 @@ public class MigrationIdLoggingPipelineTests : IDisposable
 
         // Assert
         capturedParams.Should().NotBeNull();
-        capturedParams!.TryGetValue("MigrationId", out var migrationIdParam).Should().BeTrue();
-        migrationIdParam!.ParameterValue.Should().BeNull();
-        migrationIdParam.ParameterType.Should().Be(typeof(int?));
+        capturedParams!.TryGetValue("MigrationRecordId", out var migrationRecordIdParam).Should().BeTrue();
+        migrationRecordIdParam!.ParameterValue.Should().BeNull();
+        migrationRecordIdParam.ParameterType.Should().Be(typeof(int?));
     }
 
     #endregion

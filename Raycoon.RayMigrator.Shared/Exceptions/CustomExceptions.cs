@@ -1,11 +1,4 @@
-// Copyright (c) 2026 RAYCOON.com GmbH
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License v3.
-//
-// See the LICENSE file for details.
-
-﻿namespace Raycoon.RayMigrator.Shared.Exceptions;
+namespace Raycoon.RayMigrator.Shared.Exceptions;
 
 
 #region Pre-Migration Exceptions
@@ -286,7 +279,7 @@ public class MigrationRecoveryException : Exception
     /// <summary>
     /// The ID of the specific migration record being recovered.
     /// </summary>
-    public int? MigrationId { get; }
+    public int? MigrationRecordId { get; }
 
     public MigrationRecoveryException(string message) : base(AbortMessage + message) { }
 
@@ -295,10 +288,10 @@ public class MigrationRecoveryException : Exception
         MigrationRunId = migrationRunId;
     }
 
-    public MigrationRecoveryException(string message, int? migrationRunId, int? migrationId) : base(AbortMessage + message)
+    public MigrationRecoveryException(string message, int? migrationRunId, int? migrationRecordId) : base(AbortMessage + message)
     {
         MigrationRunId = migrationRunId;
-        MigrationId = migrationId;
+        MigrationRecordId = migrationRecordId;
     }
 
     public MigrationRecoveryException(string message, Exception innerException) : base(AbortMessage + message, innerException) { }

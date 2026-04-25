@@ -73,7 +73,7 @@ BEGIN TRY
 					ProductId            int      NULL,
 					EnvironmentId        int      NULL,
 					MigrationRunId       int      NULL,
-					MigrationId          int      NULL,
+					MigrationRecordId          int      NULL,
 					ReleaseVersion       nvarchar(100)      NULL,
 					TargetGroupAlias     nvarchar(100)      NULL,
 					TargetAlias          nvarchar(100)      NULL,

@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS "{CFG:TableBaseName}MigrationLog" (
     "ProductId"            INTEGER          NULL,
     "EnvironmentId"        INTEGER          NULL,
     "MigrationRunId"       INTEGER          NULL,
-    "MigrationId"          INTEGER          NULL,
+    "MigrationRecordId"          INTEGER          NULL,
     "ReleaseVersion"       TEXT             NULL,
     "TargetGroupAlias"     TEXT             NULL,
     "TargetAlias"          TEXT             NULL,

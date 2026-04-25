@@ -31,7 +31,7 @@ RunModeId        = "INTEGER | OPTIONAL | Run mode: 10=Validate, 20=Simulate, 100
 ProductId        = "INTEGER | OPTIONAL | Product ID if available"
 EnvironmentId    = "INTEGER | OPTIONAL | Environment ID if available"
 MigrationRunId   = "INTEGER | OPTIONAL | MigrationRun ID if available"
-MigrationId      = "INTEGER | OPTIONAL | Migration record ID if available"
+MigrationRecordId      = "INTEGER | OPTIONAL | Migration record ID if available"
 ReleaseVersion   = "TEXT | OPTIONAL | Release version if applicable"
 TargetGroupAlias = "TEXT | OPTIONAL | Target group alias if applicable"
 TargetAlias      = "TEXT | OPTIONAL | Target alias if applicable"
@@ -58,7 +58,7 @@ INSERT INTO "{CFG:TableBaseName}MigrationLog"
     "ProductId",
     "EnvironmentId",
     "MigrationRunId",
-    "MigrationId",
+    "MigrationRecordId",
     "ReleaseVersion",
     "TargetGroupAlias",
     "TargetAlias",
@@ -76,7 +76,7 @@ VALUES
     @ProductId,
     @EnvironmentId,
     @MigrationRunId,
-    @MigrationId,
+    @MigrationRecordId,
     @ReleaseVersion,
     @TargetGroupAlias,
     @TargetAlias,
