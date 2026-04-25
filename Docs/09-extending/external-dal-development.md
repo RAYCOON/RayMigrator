@@ -235,13 +235,13 @@ The `Database.Example` project includes all 19 files as placeholders with TODO c
 | `Repository_CheckCreate.sql` | Create all repository tables |
 | `Repository_Drop.sql` | Drop all repository tables and schema |
 | `Repository_Environment_CheckInsert.sql` | Insert environment if not exists, return EnvironmentId |
-| `Repository_Migration_FixOrphaned.sql` | Fix orphaned migration records |
-| `Repository_Migration_GetInterrupted.sql` | Get interrupted migrations |
-| `Repository_Migration_Insert.sql` | Insert migration record |
-| `Repository_Migration_Select.sql` | Select migrations for a product |
-| `Repository_Migration_Update.sql` | Update migration status and hash (includes inline MigrationRecordHistory insert) |
-| `Repository_Migration_UpdateHash.sql` | Update migration hash only |
-| `Repository_Migration_UpdateRollback.sql` | Update after rollback (includes inline MigrationRecordHistory insert) |
+| `Repository_MigrationRecord_FixOrphaned.sql` | Fix orphaned migration records |
+| `Repository_MigrationRecord_GetInterrupted.sql` | Get interrupted migrations |
+| `Repository_MigrationRecord_Insert.sql` | Insert migration record |
+| `Repository_MigrationRecord_Select.sql` | Select migrations for a product |
+| `Repository_MigrationRecord_Update.sql` | Update migration status and hash (includes inline MigrationRecordHistory insert) |
+| `Repository_MigrationRecord_UpdateHash.sql` | Update migration hash only |
+| `Repository_MigrationRecord_UpdateRollback.sql` | Update after rollback (includes inline MigrationRecordHistory insert) |
 | `Repository_MigrationRun_FixOrphaned.sql` | Fix orphaned run records |
 | `Repository_MigrationRun_Insert.sql` | Insert migration run record |
 | `Repository_MigrationRun_Select.sql` | Select current run for product |

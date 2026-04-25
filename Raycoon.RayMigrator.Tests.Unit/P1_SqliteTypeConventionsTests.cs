@@ -1,9 +1,3 @@
-// Copyright (c) 2026 RAYCOON.com GmbH
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License v3.
-//
-// See the LICENSE file for details.
 
 using System.Text.RegularExpressions;
 using FluentAssertions;
@@ -221,11 +215,11 @@ public class SqliteTypeConventionsTests
         new object[] { "DatabaseLogging_CheckCreate.sql" },
         new object[] { "Repository_CheckCreate.sql" },
         new object[] { "Repository_Environment_CheckInsert.sql" },
-        new object[] { "Repository_Migration_FixOrphaned.sql" },
-        new object[] { "Repository_Migration_Insert.sql" },
-        new object[] { "Repository_Migration_Update.sql" },
-        new object[] { "Repository_Migration_UpdateHash.sql" },
-        new object[] { "Repository_Migration_UpdateRollback.sql" },
+        new object[] { "Repository_MigrationRecord_FixOrphaned.sql" },
+        new object[] { "Repository_MigrationRecord_Insert.sql" },
+        new object[] { "Repository_MigrationRecord_Update.sql" },
+        new object[] { "Repository_MigrationRecord_UpdateHash.sql" },
+        new object[] { "Repository_MigrationRecord_UpdateRollback.sql" },
         new object[] { "Repository_MigrationRun_FixOrphaned.sql" },
         new object[] { "Repository_MigrationRun_Insert.sql" },
         new object[] { "Repository_MigrationRun_Update.sql" },
@@ -236,8 +230,8 @@ public class SqliteTypeConventionsTests
     {
         new object[] { "DatabaseLogging_Insert.sql" },
         new object[] { "Repository_Drop.sql" },
-        new object[] { "Repository_Migration_GetInterrupted.sql" },
-        new object[] { "Repository_Migration_Select.sql" },
+        new object[] { "Repository_MigrationRecord_GetInterrupted.sql" },
+        new object[] { "Repository_MigrationRecord_Select.sql" },
         new object[] { "Repository_MigrationRun_Select.sql" },
         new object[] { "Repository_MigrationRun_SelectOrphaned.sql" },
     };

@@ -1,0 +1,150 @@
+/*
+================================================================================
+RayMigrator SQL Template
+================================================================================
+[RayMigratorTemplate]
+TemplateType   = "Repository_MigrationRecord_Insert"
+DatabaseType   = "PostgreSQL"
+Author         = "RAYCOON.com GmbH (https://raycoon.com)"
+Version        = "2026-04-18.1"
+
+[Description]
+Function = """
+Creates a new Migration record or resets an existing archived record
+to track individual migration file execution.
+Supports block-level tracking for recovery from interrupted migrations.
+"""
+
+Behaviour = """
+- When @ExistingMigrationRecordId = 0: INSERT a new record (original behaviour)
+- When @ExistingMigrationRecordId > 0: UPDATE the existing record, resetting all fields
+- Return value >= 0: Success (MigrationRecordId returned, logged at Debug level)
+- Return value < 0: Error (logged at Error level, migration aborted)
+- FileUpBlocksMigrated starts at 0, incremented as blocks execute
+- StartedAt timestamp recorded immediately
+- UPDATE resets all FileDown* fields to NULL
+"""
+
+[ConfigPlaceholders]
+SchemaName    = "Database schema from Repository configuration (e.g., 'ray')"
+TableBaseName = "Table name prefix from Repository configuration (e.g., '' or 'RM_')"
+
+[Parameters]
+ExistingMigrationRecordId  = "INT | REQUIRED | 0 = INSERT new record, >0 = UPDATE existing record with this ID"
+ProductId            = "INT | REQUIRED | Product ID from Product table"
+MigrationRunId       = "INT | REQUIRED | Parent MigrationRun ID"
+MigrationRunModeId   = "SMALLINT | REQUIRED | Run mode: 10=Validate, 20=Simulate, 100=Migrate"
+MigrationOperationId = "SMALLINT | REQUIRED | Operation: 5=Rollback, 50=MigrateDown, 100=MigrateUp"
+MigrationStatusId    = "SMALLINT | REQUIRED | Initial status (should be 10=Pending)"
+EnvironmentId        = "INT | REQUIRED | Environment ID from Environment table"
+ReleaseVersion       = "VARCHAR(100) | REQUIRED | Release version from folder path"
+TargetGroupAlias     = "VARCHAR(100) | REQUIRED | Target group alias from folder path"
+TargetAlias          = "VARCHAR(100) | REQUIRED | Target alias (specific database)"
+Filename             = "VARCHAR(200) | REQUIRED | Migration filename without path"
+FileOrderId          = "INT | REQUIRED | Execution order (based on sorted path)"
+FileUpHash           = "VARCHAR(64) | REQUIRED | SHA256 hash of entire file"
+FileUpConfigHash     = "VARCHAR(64) | OPTIONAL | SHA256 hash of TOML config section"
+FileUpBlocksHash     = "VARCHAR(64) | REQUIRED | SHA256 hash of SQL content blocks"
+FileUpBlocksTotal    = "INT | REQUIRED | Total number of separator-delimited blocks"
+FileUpConfigJson     = "TEXT | OPTIONAL | JSON of parsed TOML configuration"
+MigrateDownFileExists = "BOOLEAN | REQUIRED | TRUE if .down.sql file exists, FALSE otherwise"
+
+[ReturnValues]
+# Format: SELECT 'code,message'
+Success_Created = "N (MigrationRecordId),Migration record with Id [N] successfully created for file [Filename]"
+Success_Updated = "N (MigrationRecordId),Migration record with Id [N] successfully reset for file [Filename]"
+
+[ModificationNotes]
+Note1 = "SELECT result format: 'code,message' - DO NOT change this format"
+Note2 = "No commas allowed in error messages"
+Note3 = "Use NOW() for StartedAt timestamp (TIMESTAMPTZ column)"
+Note4 = "FileUpBlocksMigrated initialized to 0 - updated by Repository_MigrationRecord_Update"
+================================================================================
+*/
+
+DO $$
+DECLARE
+    v_migration_record_id INT;
+    v_existing_id INT := @ExistingMigrationRecordId;
+BEGIN
+    IF v_existing_id > 0 THEN
+        -- Reset existing archived record
+        UPDATE {CFG:SchemaName}.{CFG:TableBaseName}migration_record
+        SET
+            migration_run_id          = @MigrationRunId,
+            migration_run_mode_id     = @MigrationRunModeId,
+            migration_operation_id    = @MigrationOperationId,
+            migration_status_id       = @MigrationStatusId,
+            file_order_id             = @FileOrderId,
+            file_up_hash              = @FileUpHash,
+            file_up_config_hash       = @FileUpConfigHash,
+            file_up_blocks_hash       = @FileUpBlocksHash,
+            file_up_blocks_migrated   = 0,
+            file_up_blocks_total      = @FileUpBlocksTotal,
+            file_up_config_json       = @FileUpConfigJson,
+            migrate_down_file_exists  = @MigrateDownFileExists,
+            file_down_hash            = NULL,
+            file_down_config_hash     = NULL,
+            file_down_blocks_hash     = NULL,
+            file_down_blocks_migrated = NULL,
+            file_down_blocks_total    = NULL,
+            file_down_config_json     = NULL,
+            started_at                = NOW(),
+            finished_at               = NULL,
+            duration_in_ms            = NULL
+        WHERE id = v_existing_id;
+
+        v_migration_record_id := v_existing_id;
+
+        RAISE NOTICE '%,Migration record with Id [%] successfully reset for file [%]', v_migration_record_id, v_migration_record_id, COALESCE(@Filename, 'NULL');
+    ELSE
+        -- Insert new record
+        INSERT INTO {CFG:SchemaName}.{CFG:TableBaseName}migration_record
+        (
+            product_id,
+            environment_id,
+            migration_run_id,
+            migration_run_mode_id,
+            migration_operation_id,
+            migration_status_id,
+            release_version,
+            target_group_alias,
+            target_alias,
+            filename,
+            file_order_id,
+            file_up_hash,
+            file_up_config_hash,
+            file_up_blocks_hash,
+            file_up_blocks_migrated,
+            file_up_blocks_total,
+            file_up_config_json,
+            migrate_down_file_exists,
+            started_at
+        )
+        VALUES
+        (
+            @ProductId,
+            @EnvironmentId,
+            @MigrationRunId,
+            @MigrationRunModeId,
+            @MigrationOperationId,
+            @MigrationStatusId,
+            @ReleaseVersion,
+            @TargetGroupAlias,
+            @TargetAlias,
+            @Filename,
+            @FileOrderId,
+            @FileUpHash,
+            @FileUpConfigHash,
+            @FileUpBlocksHash,
+            0,
+            @FileUpBlocksTotal,
+            @FileUpConfigJson,
+            @MigrateDownFileExists,
+            NOW()
+        )
+        RETURNING id INTO v_migration_record_id;
+
+        RAISE NOTICE '%,Migration record with Id [%] successfully created for file [%]', v_migration_record_id, v_migration_record_id, COALESCE(@Filename, 'NULL');
+    END IF;
+END $$;

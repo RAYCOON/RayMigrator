@@ -1,9 +1,3 @@
-// Copyright (c) 2026 RAYCOON.com GmbH
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License v3.
-//
-// See the LICENSE file for details.
 
 using FluentAssertions;
 using Raycoon.RayMigrator.Core.Configuration.Enums;
@@ -216,7 +210,7 @@ public class FixCommandTemplateTypeTests
     {
         Enum.IsDefined(typeof(TemplateType), TemplateType.Repository_MigrationRun_SelectOrphaned).Should().BeTrue();
         Enum.IsDefined(typeof(TemplateType), TemplateType.Repository_MigrationRun_FixOrphaned).Should().BeTrue();
-        Enum.IsDefined(typeof(TemplateType), TemplateType.Repository_Migration_FixOrphaned).Should().BeTrue();
+        Enum.IsDefined(typeof(TemplateType), TemplateType.Repository_MigrationRecord_FixOrphaned).Should().BeTrue();
     }
 }
 
@@ -264,7 +258,7 @@ public class FixCommandSqlTemplateStructureTests
     [InlineData("MySql")]
     public void FixOrphanedMigration_TemplateExists_AndContainsExpectedContent(string engine)
     {
-        var templatePath = GetTemplatePath(engine, "Repository_Migration_FixOrphaned.sql");
+        var templatePath = GetTemplatePath(engine, "Repository_MigrationRecord_FixOrphaned.sql");
         var content = File.ReadAllText(templatePath);
 
         content.Should().Contain("MigrationStatusId", $"{engine} FixOrphanedMigration should update MigrationStatusId");
@@ -282,7 +276,7 @@ public class FixCommandSqlTemplateStructureTests
         {
             "Repository_MigrationRun_SelectOrphaned.sql",
             "Repository_MigrationRun_FixOrphaned.sql",
-            "Repository_Migration_FixOrphaned.sql"
+            "Repository_MigrationRecord_FixOrphaned.sql"
         };
 
         foreach (var templateFile in templates)

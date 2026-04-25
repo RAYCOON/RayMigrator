@@ -1,9 +1,3 @@
-// Copyright (c) 2026 RAYCOON.com GmbH
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License v3.
-//
-// See the LICENSE file for details.
 
 using System.Text.RegularExpressions;
 using FluentAssertions;
@@ -33,13 +27,13 @@ public class PostgreSqlIdentifierCasingTests
         "Repository_Drop.sql",
         "Repository_Environment_CheckInsert.sql",
         "Repository_Product_CheckInsert.sql",
-        "Repository_Migration_Insert.sql",
-        "Repository_Migration_Update.sql",
-        "Repository_Migration_UpdateHash.sql",
-        "Repository_Migration_UpdateRollback.sql",
-        "Repository_Migration_Select.sql",
-        "Repository_Migration_GetInterrupted.sql",
-        "Repository_Migration_FixOrphaned.sql",
+        "Repository_MigrationRecord_Insert.sql",
+        "Repository_MigrationRecord_Update.sql",
+        "Repository_MigrationRecord_UpdateHash.sql",
+        "Repository_MigrationRecord_UpdateRollback.sql",
+        "Repository_MigrationRecord_Select.sql",
+        "Repository_MigrationRecord_GetInterrupted.sql",
+        "Repository_MigrationRecord_FixOrphaned.sql",
         "Repository_MigrationRun_Insert.sql",
         "Repository_MigrationRun_Update.sql",
         "Repository_MigrationRun_Select.sql",
@@ -69,13 +63,13 @@ public class PostgreSqlIdentifierCasingTests
     [InlineData("Repository_Drop.sql")]
     [InlineData("Repository_Environment_CheckInsert.sql")]
     [InlineData("Repository_Product_CheckInsert.sql")]
-    [InlineData("Repository_Migration_Insert.sql")]
-    [InlineData("Repository_Migration_Update.sql")]
-    [InlineData("Repository_Migration_UpdateHash.sql")]
-    [InlineData("Repository_Migration_UpdateRollback.sql")]
-    [InlineData("Repository_Migration_Select.sql")]
-    [InlineData("Repository_Migration_GetInterrupted.sql")]
-    [InlineData("Repository_Migration_FixOrphaned.sql")]
+    [InlineData("Repository_MigrationRecord_Insert.sql")]
+    [InlineData("Repository_MigrationRecord_Update.sql")]
+    [InlineData("Repository_MigrationRecord_UpdateHash.sql")]
+    [InlineData("Repository_MigrationRecord_UpdateRollback.sql")]
+    [InlineData("Repository_MigrationRecord_Select.sql")]
+    [InlineData("Repository_MigrationRecord_GetInterrupted.sql")]
+    [InlineData("Repository_MigrationRecord_FixOrphaned.sql")]
     [InlineData("Repository_MigrationRun_Insert.sql")]
     [InlineData("Repository_MigrationRun_Update.sql")]
     [InlineData("Repository_MigrationRun_Select.sql")]
@@ -132,20 +126,20 @@ public class PostgreSqlIdentifierCasingTests
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// Repository_Migration_Select.sql must expose exactly 21 PascalCase output aliases
+    /// Repository_MigrationRecord_Select.sql must expose exactly 21 PascalCase output aliases
     /// (one per column consumed by TemplateExecutor.RepositoryMigrationSelect and the
     /// cross-engine row["PascalCaseKey"] reader contract).
     /// </summary>
     [Fact]
     public void MigrationSelect_Has21PascalCaseAliases()
     {
-        var content = ReadTemplate("PostgreSQL", "Repository_Migration_Select.sql");
+        var content = ReadTemplate("PostgreSQL", "Repository_MigrationRecord_Select.sql");
 
         var aliasPattern = new Regex(@"\bAS\s+""[A-Z][a-zA-Z]+""");
         var count = aliasPattern.Matches(content).Count;
 
         count.Should().Be(21,
-            "Repository_Migration_Select.sql must have exactly 21 AS \"PascalCase\" aliases to satisfy " +
+            "Repository_MigrationRecord_Select.sql must have exactly 21 AS \"PascalCase\" aliases to satisfy " +
             "the cross-engine row[\"PascalCase\"] reader contract (DAL-017 Strategy B)");
     }
 
@@ -193,7 +187,7 @@ public class PostgreSqlIdentifierCasingTests
     {
         var readerTemplates = new[]
         {
-            "Repository_Migration_Select.sql",
+            "Repository_MigrationRecord_Select.sql",
             "Repository_MigrationRun_Select.sql",
             "Repository_MigrationRun_SelectOrphaned.sql"
         };

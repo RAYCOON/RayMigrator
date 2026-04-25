@@ -24,13 +24,13 @@ Raycoon.RayMigrator.Database.SqlServer/
     ├── Repository_CheckCreate.sql
     ├── Repository_Drop.sql
     ├── Repository_Environment_CheckInsert.sql
-    ├── Repository_Migration_FixOrphaned.sql
-    ├── Repository_Migration_GetInterrupted.sql
-    ├── Repository_Migration_Insert.sql
-    ├── Repository_Migration_Select.sql
-    ├── Repository_Migration_Update.sql
-    ├── Repository_Migration_UpdateHash.sql
-    ├── Repository_Migration_UpdateRollback.sql
+    ├── Repository_MigrationRecord_FixOrphaned.sql
+    ├── Repository_MigrationRecord_GetInterrupted.sql
+    ├── Repository_MigrationRecord_Insert.sql
+    ├── Repository_MigrationRecord_Select.sql
+    ├── Repository_MigrationRecord_Update.sql
+    ├── Repository_MigrationRecord_UpdateHash.sql
+    ├── Repository_MigrationRecord_UpdateRollback.sql
     ├── Repository_MigrationRun_FixOrphaned.sql
     ├── Repository_MigrationRun_Insert.sql
     ├── Repository_MigrationRun_Select.sql
@@ -51,7 +51,7 @@ Each SQL template file begins with a TOML-like header inside a SQL block comment
 RayMigrator SQL Template
 ================================================================================
 [RayMigratorTemplate]
-TemplateType   = "Repository_Migration_Insert"
+TemplateType   = "Repository_MigrationRecord_Insert"
 DatabaseType   = "SqlServer"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
 Version        = "2025-01-29.1"
@@ -176,7 +176,7 @@ Unknown negative codes (e.g., from user-customized templates) throw `UndefinedTe
 
 ### Inline Historization in Update Templates
 
-`Repository_Migration_Update.sql` and `Repository_Migration_UpdateRollback.sql` include an inline `INSERT INTO MigrationRecordHistory` that fires whenever a migration record transitions to a terminal state. The insert is gated on `MigrationStatusId IN (30, 50, 100)` (Failed, NotMigrated, Migrated). This means historization happens at the moment each record reaches its final status — no separate archive step is required.
+`Repository_MigrationRecord_Update.sql` and `Repository_MigrationRecord_UpdateRollback.sql` include an inline `INSERT INTO MigrationRecordHistory` that fires whenever a migration record transitions to a terminal state. The insert is gated on `MigrationStatusId IN (30, 50, 100)` (Failed, NotMigrated, Migrated). This means historization happens at the moment each record reaches its final status — no separate archive step is required.
 
 When customizing these templates, preserve the inline `INSERT INTO MigrationRecordHistory` block and ensure the `HistorizedAt` column is populated with the current UTC timestamp.
 
@@ -222,7 +222,7 @@ CREATE  TABLE [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRecord] (
 ### DML Operation Template
 
 ```sql
--- Repository_Migration_Insert.sql (SQL Server, excerpt)
+-- Repository_MigrationRecord_Insert.sql (SQL Server, excerpt)
 INSERT INTO [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRecord]
 (
     ProductId,

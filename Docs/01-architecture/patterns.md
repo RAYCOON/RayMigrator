@@ -97,13 +97,13 @@ Repository_MigrationRun_Update.sql      - Update run result/status
 Repository_MigrationRun_Select.sql      - Query migration runs (history)
 Repository_MigrationRun_SelectOrphaned.sql - Find orphaned runs (Fix command)
 Repository_MigrationRun_FixOrphaned.sql - Mark orphaned runs as Error
-Repository_Migration_Insert.sql         - Create migration record with block tracking
-Repository_Migration_Update.sql         - Update migration block progress/status
-Repository_Migration_UpdateRollback.sql - Update rollback fields (FileDown*)
-Repository_Migration_UpdateHash.sql     - Update hash fields (Update-Hash command)
-Repository_Migration_Select.sql         - Query migrations
-Repository_Migration_FixOrphaned.sql    - Fix orphaned migration entries
-Repository_Migration_GetInterrupted.sql - Find interrupted migrations for recovery
+Repository_MigrationRecord_Insert.sql         - Create migration record with block tracking
+Repository_MigrationRecord_Update.sql         - Update migration block progress/status
+Repository_MigrationRecord_UpdateRollback.sql - Update rollback fields (FileDown*)
+Repository_MigrationRecord_UpdateHash.sql     - Update hash fields (Update-Hash command)
+Repository_MigrationRecord_Select.sql         - Query migrations
+Repository_MigrationRecord_FixOrphaned.sql    - Fix orphaned migration entries
+Repository_MigrationRecord_GetInterrupted.sql - Find interrupted migrations for recovery
 DatabaseLogging_CheckCreate.sql         - Create database logging table
 DatabaseLogging_Insert.sql              - Insert log entry
 ```

@@ -660,7 +660,7 @@ These engines retain PascalCase identifiers for repository tables and columns. S
 
 ### Reader SELECT aliases
 
-The three SELECT templates that feed `ExecuteReaderAsync` for PostgreSQL (`Repository_Migration_Select.sql`, `Repository_MigrationRun_Select.sql`, `Repository_MigrationRun_SelectOrphaned.sql`) emit `AS "PascalCase"` aliases on every output column. The equivalent MariaDB and MySQL templates emit `` AS `PascalCase` `` (backtick-quoted) aliases for the same 36 cross-engine reader keys. This keeps the C# consumers in `TemplateExecutor` and `MigrationService` cross-engine consistent — they continue to read `row["MigrationRunResultId"]` without per-engine branching. The aliases affect only the query result set, not storage.
+The three SELECT templates that feed `ExecuteReaderAsync` for PostgreSQL (`Repository_MigrationRecord_Select.sql`, `Repository_MigrationRun_Select.sql`, `Repository_MigrationRun_SelectOrphaned.sql`) emit `AS "PascalCase"` aliases on every output column. The equivalent MariaDB and MySQL templates emit `` AS `PascalCase` `` (backtick-quoted) aliases for the same 36 cross-engine reader keys. This keeps the C# consumers in `TemplateExecutor` and `MigrationService` cross-engine consistent — they continue to read `row["MigrationRunResultId"]` without per-engine branching. The aliases affect only the query result set, not storage.
 
 ### Why not enforce one style globally?
 
@@ -677,7 +677,7 @@ Third-party DAL plugin authors (starting from `Raycoon.RayMigrator.Database.Exam
 
 1. **Follow the engine's community convention** for repository-table identifiers. Examples: `UPPER_CASE` for Oracle, `snake_case` for Snowflake / BigQuery, PascalCase for any case-insensitive engine without a stronger convention.
 2. **Document the convention in the plugin's README.** A future reader of your templates should not need to reverse-engineer the decision.
-3. **Implement the bridge in the DAL, not the other way around.** The framework's C# consumers (`TemplateExecutor`, `MigrationService`) read repository rows via stable PascalCase keys (e.g., `row["MigrationRunResultId"]`). Your reader templates (`Repository_Migration_Select.sql`, `Repository_MigrationRun_Select.sql`, `Repository_MigrationRun_SelectOrphaned.sql`) are responsible for emitting `AS "PascalCase"` / `` AS `PascalCase` `` / `AS [PascalCase]` aliases so the C# layer stays engine-agnostic. Do not push engine-native casing up to the C# layer.
+3. **Implement the bridge in the DAL, not the other way around.** The framework's C# consumers (`TemplateExecutor`, `MigrationService`) read repository rows via stable PascalCase keys (e.g., `row["MigrationRunResultId"]`). Your reader templates (`Repository_MigrationRecord_Select.sql`, `Repository_MigrationRun_Select.sql`, `Repository_MigrationRun_SelectOrphaned.sql`) are responsible for emitting `AS "PascalCase"` / `` AS `PascalCase` `` / `AS [PascalCase]` aliases so the C# layer stays engine-agnostic. Do not push engine-native casing up to the C# layer.
 
 ### Historical decision record
 

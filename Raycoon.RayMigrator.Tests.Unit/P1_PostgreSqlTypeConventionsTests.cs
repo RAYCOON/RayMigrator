@@ -1,9 +1,3 @@
-// Copyright (c) 2026 RAYCOON.com GmbH
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License v3.
-//
-// See the LICENSE file for details.
 
 using System.Text.RegularExpressions;
 using FluentAssertions;
@@ -106,19 +100,19 @@ public class PostgreSqlTypeConventionsTests
     [Fact]
     public void Migration_Update_EpochExtract_UsesPlainNow()
     {
-        var content = ReadTemplate("PostgreSQL", "Repository_Migration_Update.sql");
+        var content = ReadTemplate("PostgreSQL", "Repository_MigrationRecord_Update.sql");
 
         content.Should().Contain("EXTRACT(EPOCH FROM (NOW() - started_at))",
-            "Repository_Migration_Update.sql must extract epoch from plain NOW() minus started_at");
+            "Repository_MigrationRecord_Update.sql must extract epoch from plain NOW() minus started_at");
     }
 
     [Fact]
     public void Migration_UpdateRollback_EpochExtract_UsesPlainNow()
     {
-        var content = ReadTemplate("PostgreSQL", "Repository_Migration_UpdateRollback.sql");
+        var content = ReadTemplate("PostgreSQL", "Repository_MigrationRecord_UpdateRollback.sql");
 
         content.Should().Contain("EXTRACT(EPOCH FROM (NOW() - started_at))",
-            "Repository_Migration_UpdateRollback.sql must extract epoch from plain NOW() minus started_at");
+            "Repository_MigrationRecord_UpdateRollback.sql must extract epoch from plain NOW() minus started_at");
     }
 
     #endregion

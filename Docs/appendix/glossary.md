@@ -399,7 +399,7 @@ A static class (`TemplateResultCode`) defining all known `ResultCode` values ret
 - `-10..-19`: Repository health (`Repository_CheckCreate`)
 - `-20..-29`: Product table (`Repository_Product_CheckInsert`)
 - `-30..-39`: MigrationRun table (`Repository_MigrationRun_*`)
-- `-40..-49`: Migration record (`Repository_Migration_*`)
+- `-40..-49`: Migration record (`Repository_MigrationRecord_*`)
 - `-50..-59`: Environment table (`Repository_Environment_CheckInsert`)
 
 Currently assigned codes:

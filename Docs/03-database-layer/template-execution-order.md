@@ -213,9 +213,9 @@ Called immediately after Product registration at all 8 `MigrationService` entry 
 **Call site:** `MigrationService.MigrateUpAsync()` -> `TemplateExecutor.RepositoryMigrationGetInterrupted()`
 **Target database:** Repository database
 
-### Template 4c: `Repository_Migration_GetInterrupted`
+### Template 4c: `Repository_MigrationRecord_GetInterrupted`
 
-**File:** `DataAccessLayers/{DB}/Repository_Migration_GetInterrupted.sql`
+**File:** `DataAccessLayers/{DB}/Repository_MigrationRecord_GetInterrupted.sql`
 **Purpose:** Checks for interrupted migrations (status `Executing`) from a previous aborted run. If an interrupted migration is found, a warning is logged with the MigrationId, filename, and block progress. This is an informational check only; execution continues regardless of the result.
 
 **SQL parameters:**
@@ -283,7 +283,7 @@ Called immediately after Product registration at all 8 `MigrationService` entry 
 | 3 | `Repository_CheckCreate` | Repository DB | `MigrateUpAsync` | Creates schema + 11 tables + FKs + master data + VersionId |
 | 4 | `Repository_Product_CheckInsert` | Repository DB | `MigrateUpAsync` | Registers the product, returns ProductId |
 | 4b | `Repository_Environment_CheckInsert` | Repository DB | All 8 entry points (after Product check-insert) | Registers the environment, returns EnvironmentId |
-| 4c | `Repository_Migration_GetInterrupted` | Repository DB | `MigrateUpAsync` | Checks for interrupted migrations (informational) |
+| 4c | `Repository_MigrationRecord_GetInterrupted` | Repository DB | `MigrateUpAsync` | Checks for interrupted migrations (informational) |
 | 5 | `Repository_MigrationRun_Insert` | Repository DB | `MigrateUpAsync` (via `RepositoryMigrationRunInsertWithAutoFix`) | Creates MigrationRun record, returns MigrationRunId |
 
 ---
@@ -296,14 +296,14 @@ These templates exist in the template cache but are only used during specific op
 |----------|-----------|
 | `Repository_Drop` | Explicit repository deletion |
 | `Repository_MigrationRun_Update` | After completion or error of a MigrationRun |
-| `Repository_Migration_Insert` | Per migration file during actual migration execution |
-| `Repository_Migration_Update` | Block progress or completion per file |
-| `Repository_Migration_UpdateRollback` | Update migration record with rollback (FileDown) metadata and progress |
-| `Repository_Migration_UpdateHash` | Update hash fields (used by Update-Hash command) |
-| `Repository_Migration_Select` | Query existing migration records for filtering and rollback |
+| `Repository_MigrationRecord_Insert` | Per migration file during actual migration execution |
+| `Repository_MigrationRecord_Update` | Block progress or completion per file |
+| `Repository_MigrationRecord_UpdateRollback` | Update migration record with rollback (FileDown) metadata and progress |
+| `Repository_MigrationRecord_UpdateHash` | Update hash fields (used by Update-Hash command) |
+| `Repository_MigrationRecord_Select` | Query existing migration records for filtering and rollback |
 | `Repository_MigrationRun_SelectOrphaned` | Fix command: select orphaned runs (also used by `RepositoryMigrationRunInsertWithAutoFix` for auto-fix) |
 | `Repository_MigrationRun_FixOrphaned` | Fix command: mark orphaned MigrationRun as Error (also used by `RepositoryMigrationRunInsertWithAutoFix` for auto-fix) |
-| `Repository_Migration_FixOrphaned` | Fix command: update orphaned Migration entries (also used by `RepositoryMigrationRunInsertWithAutoFix` for auto-fix) |
+| `Repository_MigrationRecord_FixOrphaned` | Fix command: update orphaned Migration entries (also used by `RepositoryMigrationRunInsertWithAutoFix` for auto-fix) |
 | `Repository_MigrationRun_Select` | Query MigrationRun records (used by Info command) |
 
 ---

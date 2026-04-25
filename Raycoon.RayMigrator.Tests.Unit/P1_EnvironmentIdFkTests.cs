@@ -1,9 +1,3 @@
-// Copyright (c) 2026 RAYCOON.com GmbH
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License v3.
-//
-// See the LICENSE file for details.
 
 using System.Text.RegularExpressions;
 using FluentAssertions;
@@ -219,10 +213,10 @@ public class EnvironmentIdFkTests
     [InlineData("Sqlite")]
     public void MigrationInsert_BindsEnvironmentId(string engine)
     {
-        var content = ReadTemplate(engine, "Repository_Migration_Insert.sql");
+        var content = ReadTemplate(engine, "Repository_MigrationRecord_Insert.sql");
 
         content.Should().Contain("@EnvironmentId",
-            $"{engine} Repository_Migration_Insert.sql must bind @EnvironmentId parameter");
+            $"{engine} Repository_MigrationRecord_Insert.sql must bind @EnvironmentId parameter");
     }
 
     [Theory]
@@ -233,16 +227,16 @@ public class EnvironmentIdFkTests
     [InlineData("Sqlite")]
     public void MigrationUpdate_BindsEnvironmentIdInHistoryCopy(string engine)
     {
-        var content = ReadTemplate(engine, "Repository_Migration_Update.sql");
+        var content = ReadTemplate(engine, "Repository_MigrationRecord_Update.sql");
 
         // History copy INSERT must carry EnvironmentId — scope the check to the INSERT INTO ... history block
         var historyBlock = ExtractHistoryInsertBlock(engine, content);
         historyBlock.Should().NotBeEmpty(
-            $"{engine} Repository_Migration_Update.sql must contain an INSERT INTO MigrationRecordHistory block");
+            $"{engine} Repository_MigrationRecord_Update.sql must contain an INSERT INTO MigrationRecordHistory block");
 
         var hasEnvironmentId = ContainsEnvironmentIdIdentifier(historyBlock);
         hasEnvironmentId.Should().BeTrue(
-            $"{engine} Repository_Migration_Update.sql history INSERT block must include EnvironmentId/environment_id column");
+            $"{engine} Repository_MigrationRecord_Update.sql history INSERT block must include EnvironmentId/environment_id column");
     }
 
     [Theory]
@@ -253,15 +247,15 @@ public class EnvironmentIdFkTests
     [InlineData("Sqlite")]
     public void MigrationUpdateRollback_BindsEnvironmentIdInHistoryCopy(string engine)
     {
-        var content = ReadTemplate(engine, "Repository_Migration_UpdateRollback.sql");
+        var content = ReadTemplate(engine, "Repository_MigrationRecord_UpdateRollback.sql");
 
         var historyBlock = ExtractHistoryInsertBlock(engine, content);
         historyBlock.Should().NotBeEmpty(
-            $"{engine} Repository_Migration_UpdateRollback.sql must contain an INSERT INTO MigrationRecordHistory block");
+            $"{engine} Repository_MigrationRecord_UpdateRollback.sql must contain an INSERT INTO MigrationRecordHistory block");
 
         var hasEnvironmentId = ContainsEnvironmentIdIdentifier(historyBlock);
         hasEnvironmentId.Should().BeTrue(
-            $"{engine} Repository_Migration_UpdateRollback.sql history INSERT block must include EnvironmentId/environment_id column");
+            $"{engine} Repository_MigrationRecord_UpdateRollback.sql history INSERT block must include EnvironmentId/environment_id column");
     }
 
     [Theory]
@@ -290,10 +284,10 @@ public class EnvironmentIdFkTests
     [InlineData("Sqlite")]
     public void MigrationSelect_FiltersOnEnvironmentId(string engine)
     {
-        var content = ReadTemplate(engine, "Repository_Migration_Select.sql");
+        var content = ReadTemplate(engine, "Repository_MigrationRecord_Select.sql");
 
         content.Should().Contain("@EnvironmentId",
-            $"{engine} Repository_Migration_Select.sql must filter on @EnvironmentId parameter");
+            $"{engine} Repository_MigrationRecord_Select.sql must filter on @EnvironmentId parameter");
     }
 
     [Theory]
@@ -304,10 +298,10 @@ public class EnvironmentIdFkTests
     [InlineData("Sqlite")]
     public void MigrationGetInterrupted_FiltersOnEnvironmentId(string engine)
     {
-        var content = ReadTemplate(engine, "Repository_Migration_GetInterrupted.sql");
+        var content = ReadTemplate(engine, "Repository_MigrationRecord_GetInterrupted.sql");
 
         content.Should().Contain("@EnvironmentId",
-            $"{engine} Repository_Migration_GetInterrupted.sql must filter on @EnvironmentId parameter");
+            $"{engine} Repository_MigrationRecord_GetInterrupted.sql must filter on @EnvironmentId parameter");
     }
 
     [Theory]
@@ -336,23 +330,23 @@ public class EnvironmentIdFkTests
     [InlineData("Sqlite")]
     public void MigrationGetInterrupted_PipePositionSix_IsEnvironmentId(string engine)
     {
-        var content = ReadTemplate(engine, "Repository_Migration_GetInterrupted.sql");
+        var content = ReadTemplate(engine, "Repository_MigrationRecord_GetInterrupted.sql");
 
         // The pipe-separated result format must include EnvironmentId at position 6 (0-based).
-        // Format: MigrationId|MigrationRunId|ReleaseVersion|Filename|FileUpBlocksMigrated|FileUpBlocksTotal|EnvironmentId|TargetGroupAlias|TargetAlias
+        // Format: MigrationRecordId|MigrationRunId|ReleaseVersion|Filename|FileUpBlocksMigrated|FileUpBlocksTotal|EnvironmentId|TargetGroupAlias|TargetAlias
         //
         // Each engine concatenates the 9 output fields differently. We verify that the 7th concatenated
         // output token (0-based index 6) is the EnvironmentId field — not a text environment column or
         // any other placeholder.
         var sixthToken = ExtractPipePositionSixOutputToken(engine, content);
         sixthToken.Should().NotBeEmpty(
-            $"{engine} Repository_Migration_GetInterrupted.sql must produce a parseable pipe-separated result string");
+            $"{engine} Repository_MigrationRecord_GetInterrupted.sql must produce a parseable pipe-separated result string");
 
         var matchesEnvironmentId = Regex.IsMatch(
             sixthToken,
             @"(?i)\b(?:v_found_environment_id|FoundEnvironmentId|EnvironmentId|environment_id)\b");
         matchesEnvironmentId.Should().BeTrue(
-            $"{engine} Repository_Migration_GetInterrupted.sql must emit EnvironmentId at pipe position 6 " +
+            $"{engine} Repository_MigrationRecord_GetInterrupted.sql must emit EnvironmentId at pipe position 6 " +
             $"(found token: \"{sixthToken}\")");
     }
 
@@ -531,7 +525,7 @@ public class EnvironmentIdFkTests
     {
         // Find the second RAISE NOTICE (the positive-result one).
         // Format: RAISE NOTICE '%,%|%|%|%|%|%|%|%|%', arg0, arg1, arg2, ..., arg9;
-        // arg0 is the code (v_migration_id); pipe fields start at arg1.
+        // arg0 is the code (v_migration_record_id); pipe fields start at arg1.
         // pipe position N (0-based) => arg(N + 1).
         var matches = Regex.Matches(
             sql,

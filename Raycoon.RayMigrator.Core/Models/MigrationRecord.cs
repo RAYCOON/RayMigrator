@@ -1,9 +1,3 @@
-// Copyright (c) 2026 RAYCOON.com GmbH
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License v3.
-//
-// See the LICENSE file for details.
 
 using Raycoon.RayMigrator.Core.Configuration.Enums;
 
@@ -11,7 +5,7 @@ namespace Raycoon.RayMigrator.Core.Models;
 
 /// <summary>
 /// Represents a migration record from the repository database.
-/// Maps to the result of Repository_Migration_Select query.
+/// Maps to the result of Repository_MigrationRecord_Select query.
 /// Used for comparing already-executed migrations with files on disk.
 /// </summary>
 public class MigrationRecord

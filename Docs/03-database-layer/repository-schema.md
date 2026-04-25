@@ -292,7 +292,7 @@ Individual migration file records.
 
 ### MigrationRecordHistory
 
-Audit table for MigrationRecord records. A history snapshot is written inline whenever a migration record reaches a terminal state — specifically when `MigrationStatusId IN (30, 50, 100)` (Failed, NotMigrated, or Migrated). This INSERT INTO MigrationRecordHistory is embedded directly in the `Repository_Migration_Update.sql` and `Repository_Migration_UpdateRollback.sql` templates, so historization happens at the moment each record transitions to its final status rather than in a separate bulk-archive step.
+Audit table for MigrationRecord records. A history snapshot is written inline whenever a migration record reaches a terminal state — specifically when `MigrationStatusId IN (30, 50, 100)` (Failed, NotMigrated, or Migrated). This INSERT INTO MigrationRecordHistory is embedded directly in the `Repository_MigrationRecord_Update.sql` and `Repository_MigrationRecord_UpdateRollback.sql` templates, so historization happens at the moment each record transitions to its final status rather than in a separate bulk-archive step.
 
 Same columns as `MigrationRecord`, plus:
 | Column | Type | Description |

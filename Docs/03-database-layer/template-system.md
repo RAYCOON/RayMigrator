@@ -13,13 +13,13 @@ RayMigrator uses SQL templates with placeholder substitution for database-agnost
 | `Repository_MigrationRun_Update` | Update migration run status |
 | `Repository_MigrationRun_SelectOrphaned` | Select orphaned migration runs |
 | `Repository_MigrationRun_FixOrphaned` | Fix an orphaned MigrationRun entry |
-| `Repository_Migration_FixOrphaned` | Fix orphaned Migration entries for a MigrationRun |
-| `Repository_Migration_Select` | Query migration records |
-| `Repository_Migration_Insert` | Create new migration record |
-| `Repository_Migration_Update` | Update migration record |
-| `Repository_Migration_UpdateRollback` | Update migration record with rollback (FileDown) fields |
-| `Repository_Migration_UpdateHash` | Update hash fields of a migration record |
-| `Repository_Migration_GetInterrupted` | Check for interrupted migrations |
+| `Repository_MigrationRecord_FixOrphaned` | Fix orphaned Migration entries for a MigrationRun |
+| `Repository_MigrationRecord_Select` | Query migration records |
+| `Repository_MigrationRecord_Insert` | Create new migration record |
+| `Repository_MigrationRecord_Update` | Update migration record |
+| `Repository_MigrationRecord_UpdateRollback` | Update migration record with rollback (FileDown) fields |
+| `Repository_MigrationRecord_UpdateHash` | Update hash fields of a migration record |
+| `Repository_MigrationRecord_GetInterrupted` | Check for interrupted migrations |
 | `Repository_MigrationRun_Select` | Query MigrationRun records for history |
 | `Repository_Drop` | Drop repository (cleanup) |
 | `DatabaseLogging_CheckCreate` | Create logging tables |
@@ -38,13 +38,13 @@ RayMigrator uses SQL templates with placeholder substitution for database-agnost
 | `Repository_MigrationRun_SelectOrphaned` | Active | Active | Active | Active | Active |
 | `Repository_MigrationRun_FixOrphaned` | Active | Active | Active | Active | Active |
 | `Repository_MigrationRun_Select` | Active | Active | Active | Active | Active |
-| `Repository_Migration_Select` | Active | Active | Active | Active | Active |
-| `Repository_Migration_FixOrphaned` | Active | Active | Active | Active | Active |
-| `Repository_Migration_Insert` | Active | Active | Active | Active | Active |
-| `Repository_Migration_Update` | Active | Active | Active | Active | Active |
-| `Repository_Migration_UpdateRollback` | Active | Active | Active | Active | Active |
-| `Repository_Migration_UpdateHash` | Active | Active | Active | Active | Active |
-| `Repository_Migration_GetInterrupted` | Active | Active | Active | Active | Active |
+| `Repository_MigrationRecord_Select` | Active | Active | Active | Active | Active |
+| `Repository_MigrationRecord_FixOrphaned` | Active | Active | Active | Active | Active |
+| `Repository_MigrationRecord_Insert` | Active | Active | Active | Active | Active |
+| `Repository_MigrationRecord_Update` | Active | Active | Active | Active | Active |
+| `Repository_MigrationRecord_UpdateRollback` | Active | Active | Active | Active | Active |
+| `Repository_MigrationRecord_UpdateHash` | Active | Active | Active | Active | Active |
+| `Repository_MigrationRecord_GetInterrupted` | Active | Active | Active | Active | Active |
 
 > **Note:** The 18 templates listed above are shared by all DAL plugins, including the SQLite DAL.
 

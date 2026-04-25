@@ -293,7 +293,7 @@ public string TargetAlias { get; set; }
 | Class | Purpose |
 |-------|---------|
 | `MigrationFileInfo` | Represents a parsed migration file ready for execution. Contains file metadata, TOML configuration, SQL blocks, computed hashes, and optional `UseCliToolAlias` override. |
-| `MigrationRecord` | Represents a migration record from the repository database. Maps to the result of `Repository_Migration_Select` query. |
+| `MigrationRecord` | Represents a migration record from the repository database. Maps to the result of `Repository_MigrationRecord_Select` query. |
 
 ### File Sorting
 
@@ -607,7 +607,7 @@ Each DAL is a separate project (not a subdirectory of the Database project):
 
 | Enum | Values |
 |------|--------|
-| `TemplateType` | Undefined (0), DatabaseLogging_CheckCreate, DatabaseLogging_Insert, Repository_CheckCreate, Repository_Drop, Repository_MigrationRun_Insert, Repository_MigrationRun_Update, Repository_MigrationRun_SelectOrphaned, Repository_MigrationRun_FixOrphaned, Repository_Migration_FixOrphaned, Repository_Product_CheckInsert, Repository_Environment_CheckInsert, Repository_Migration_Insert, Repository_Migration_Update, Repository_Migration_UpdateHash, Repository_Migration_UpdateRollback, Repository_Migration_Select, Repository_Migration_GetInterrupted, Repository_MigrationRun_Select |
+| `TemplateType` | Undefined (0), DatabaseLogging_CheckCreate, DatabaseLogging_Insert, Repository_CheckCreate, Repository_Drop, Repository_MigrationRun_Insert, Repository_MigrationRun_Update, Repository_MigrationRun_SelectOrphaned, Repository_MigrationRun_FixOrphaned, Repository_MigrationRecord_FixOrphaned, Repository_Product_CheckInsert, Repository_Environment_CheckInsert, Repository_MigrationRecord_Insert, Repository_MigrationRecord_Update, Repository_MigrationRecord_UpdateHash, Repository_MigrationRecord_UpdateRollback, Repository_MigrationRecord_Select, Repository_MigrationRecord_GetInterrupted, Repository_MigrationRun_Select |
 
 ## Shared Layer Components
 

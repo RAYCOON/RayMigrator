@@ -754,7 +754,7 @@ If the orphaned run is younger than 10 minutes, RayMigrator aborts with a `Migra
    ```
 
 3. **Ensure templates are updated**
-   - Verify `Repository_Migration_Update.sql` exists
+   - Verify `Repository_MigrationRecord_Update.sql` exists
    - Check template version matches schema version
 
 ## CLI Tool Execution Issues

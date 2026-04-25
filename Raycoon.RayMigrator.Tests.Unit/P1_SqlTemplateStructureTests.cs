@@ -1,9 +1,3 @@
-// Copyright (c) 2026 RAYCOON.com GmbH
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License v3.
-//
-// See the LICENSE file for details.
 
 using FluentAssertions;
 
@@ -57,7 +51,7 @@ public class SqlTemplateStructureTests
     [Fact]
     public void SqlServer_MigrationUpdate_UsesRowCountAfterUpdate()
     {
-        var templatePath = GetTemplatePath("SqlServer", "Repository_Migration_Update.sql");
+        var templatePath = GetTemplatePath("SqlServer", "Repository_MigrationRecord_Update.sql");
         var content = File.ReadAllText(templatePath);
 
         content.Should().Contain("@@ROWCOUNT", "SqlServer template should use @@ROWCOUNT after UPDATE");
@@ -67,7 +61,7 @@ public class SqlTemplateStructureTests
     [Fact]
     public void PostgreSql_MigrationUpdate_UsesGetDiagnosticsAfterUpdate()
     {
-        var templatePath = GetTemplatePath("PostgreSQL", "Repository_Migration_Update.sql");
+        var templatePath = GetTemplatePath("PostgreSQL", "Repository_MigrationRecord_Update.sql");
         var content = File.ReadAllText(templatePath);
 
         content.Should().Contain("GET DIAGNOSTICS", "PostgreSQL template should use GET DIAGNOSTICS after UPDATE");
