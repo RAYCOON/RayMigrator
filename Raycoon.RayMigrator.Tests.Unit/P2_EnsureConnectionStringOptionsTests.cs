@@ -1,4 +1,3 @@
-
 using FluentAssertions;
 using MySqlConnector;
 using Raycoon.RayMigrator.Database.MariaDb;

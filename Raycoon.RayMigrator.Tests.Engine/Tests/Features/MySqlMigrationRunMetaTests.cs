@@ -1,4 +1,3 @@
-
 using System.Text.Json;
 using Raycoon.RayMigrator.Core.Configuration;
 using Raycoon.RayMigrator.Core.Configuration.Enums;

@@ -1,4 +1,3 @@
-
 using FluentAssertions;
 using Raycoon.RayMigrator.Core.Models;
 using Raycoon.RayMigrator.Shared.Exceptions;

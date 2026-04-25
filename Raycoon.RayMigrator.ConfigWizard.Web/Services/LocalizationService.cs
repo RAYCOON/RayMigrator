@@ -1,4 +1,3 @@
-
 using System.Globalization;
 using Microsoft.JSInterop;
 using Raycoon.RayMigrator.ConfigWizard.Core.Models;

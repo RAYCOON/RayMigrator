@@ -1,4 +1,3 @@
-
 namespace Raycoon.RayMigrator.Core.Configuration.Sources;
 
 /// <summary>

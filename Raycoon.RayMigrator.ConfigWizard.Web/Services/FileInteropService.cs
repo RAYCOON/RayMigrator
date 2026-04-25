@@ -1,4 +1,3 @@
-
 using Microsoft.JSInterop;
 
 namespace Raycoon.RayMigrator.ConfigWizard.Web.Services;

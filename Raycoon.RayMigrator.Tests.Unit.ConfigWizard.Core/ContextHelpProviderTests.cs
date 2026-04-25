@@ -1,4 +1,3 @@
-
 using System.Globalization;
 
 namespace Raycoon.RayMigrator.Tests.Unit.ConfigWizard.Core;

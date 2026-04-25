@@ -1,4 +1,3 @@
-
 namespace Raycoon.RayMigrator.ConfigWizard.Core.Models;
 
 public class DatabaseLoggingModel

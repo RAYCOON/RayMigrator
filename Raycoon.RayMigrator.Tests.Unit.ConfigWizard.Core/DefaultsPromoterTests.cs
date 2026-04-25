@@ -1,4 +1,3 @@
-
 using Raycoon.RayMigrator.Tests.Unit.ConfigWizard.Core.Helpers;
 
 namespace Raycoon.RayMigrator.Tests.Unit.ConfigWizard.Core;

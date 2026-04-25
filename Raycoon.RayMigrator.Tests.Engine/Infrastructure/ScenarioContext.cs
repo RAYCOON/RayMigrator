@@ -1,4 +1,3 @@
-
 using FluentAssertions;
 using Raycoon.RayMigrator.Core.Configuration;
 using Raycoon.RayMigrator.Core.Configuration.Enums;

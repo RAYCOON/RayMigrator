@@ -1,4 +1,3 @@
-
 using System.Reflection;
 using FluentAssertions;
 using Raycoon.RayMigrator.Database;

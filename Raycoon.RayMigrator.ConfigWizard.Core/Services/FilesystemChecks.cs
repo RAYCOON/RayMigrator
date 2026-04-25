@@ -1,4 +1,3 @@
-
 using Raycoon.RayMigrator.ConfigWizard.Core.Models;
 
 namespace Raycoon.RayMigrator.ConfigWizard.Core.Services;

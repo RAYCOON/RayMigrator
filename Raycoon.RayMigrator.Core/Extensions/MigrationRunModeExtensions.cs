@@ -1,4 +1,3 @@
-
 using Raycoon.RayMigrator.Core.Configuration.Enums;
 
 namespace Raycoon.RayMigrator.Core.Extensions;

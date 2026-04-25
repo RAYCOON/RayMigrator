@@ -1,4 +1,3 @@
-
 using System.Text.RegularExpressions;
 using Raycoon.RayMigrator.Validation.Messages;
 using Raycoon.RayMigrator.Validation.Models;

@@ -1,4 +1,3 @@
-
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Raycoon.RayMigrator.Database.Common;

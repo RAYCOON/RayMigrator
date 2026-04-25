@@ -1,4 +1,3 @@
-
 using FluentAssertions;
 using Raycoon.RayMigrator.Core.Extensions;
 using Raycoon.RayMigrator.Services;

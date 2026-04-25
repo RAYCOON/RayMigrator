@@ -1,4 +1,3 @@
-
 namespace Raycoon.RayMigrator.Core.Extensions;
 
 public static class EnumTypeExtensions

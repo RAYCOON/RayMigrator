@@ -1,4 +1,3 @@
-
 using FluentAssertions;
 using Microsoft.Data.Sqlite;
 using Raycoon.RayMigrator.Database.Sqlite;

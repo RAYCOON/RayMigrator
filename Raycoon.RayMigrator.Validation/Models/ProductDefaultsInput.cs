@@ -1,4 +1,3 @@
-
 namespace Raycoon.RayMigrator.Validation.Models;
 
 /// <summary>

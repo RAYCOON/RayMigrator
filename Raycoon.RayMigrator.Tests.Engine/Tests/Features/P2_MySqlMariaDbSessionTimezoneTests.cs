@@ -1,4 +1,3 @@
-
 using Raycoon.RayMigrator.Database;
 using Raycoon.RayMigrator.Database.Common;
 using Raycoon.RayMigrator.Tests.Engine.Fixtures;

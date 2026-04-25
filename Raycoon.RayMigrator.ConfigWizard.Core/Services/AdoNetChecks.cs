@@ -1,4 +1,3 @@
-
 using System.Data.Common;
 using Raycoon.RayMigrator.ConfigWizard.Core.Models;
 

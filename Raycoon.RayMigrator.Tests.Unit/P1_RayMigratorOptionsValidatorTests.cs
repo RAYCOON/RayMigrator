@@ -1,4 +1,3 @@
-
 using FluentAssertions;
 using Microsoft.Extensions.Options;
 using Raycoon.RayMigrator.Core.Configuration.Options;

@@ -1,4 +1,3 @@
-
 using System.Text.RegularExpressions;
 using FluentAssertions;
 using Raycoon.RayMigrator.Core.Configuration;

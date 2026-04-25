@@ -1,4 +1,3 @@
-
 using Raycoon.RayMigrator.ConfigWizard.Core.Models;
 using Raycoon.RayMigrator.Validation.Models;
 using CoreValidationSeverity = Raycoon.RayMigrator.ConfigWizard.Core.Models.ValidationSeverity;

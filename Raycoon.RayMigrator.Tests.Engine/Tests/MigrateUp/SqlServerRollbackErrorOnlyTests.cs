@@ -1,4 +1,3 @@
-
 using Raycoon.RayMigrator.Core.Configuration.Enums;
 using Raycoon.RayMigrator.Tests.Engine.Fixtures;
 using Raycoon.RayMigrator.Tests.Engine.Infrastructure;

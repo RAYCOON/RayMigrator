@@ -1,4 +1,3 @@
-
 using Microsoft.AspNetCore.Components;
 
 namespace Raycoon.RayMigrator.Tests.Unit.ConfigWizard.Web;

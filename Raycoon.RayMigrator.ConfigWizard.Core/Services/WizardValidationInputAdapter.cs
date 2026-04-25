@@ -1,4 +1,3 @@
-
 using Raycoon.RayMigrator.ConfigWizard.Core.Models;
 using Raycoon.RayMigrator.Validation.Models;
 

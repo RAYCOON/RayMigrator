@@ -1,4 +1,3 @@
-
 using Microsoft.Extensions.Logging;
 using Raycoon.RayMigrator.Core;
 using Raycoon.RayMigrator.Core.Configuration.Options;

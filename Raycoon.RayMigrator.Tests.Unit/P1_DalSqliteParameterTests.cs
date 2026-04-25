@@ -1,4 +1,3 @@
-
 using FluentAssertions;
 using Raycoon.RayMigrator.Database.Common;
 using Raycoon.RayMigrator.Database.Sqlite;

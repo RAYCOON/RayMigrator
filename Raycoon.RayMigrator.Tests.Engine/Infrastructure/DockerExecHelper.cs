@@ -1,4 +1,3 @@
-
 using System.Diagnostics;
 
 namespace Raycoon.RayMigrator.Tests.Engine.Infrastructure;

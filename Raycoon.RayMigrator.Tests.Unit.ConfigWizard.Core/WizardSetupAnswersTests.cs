@@ -1,4 +1,3 @@
-
 namespace Raycoon.RayMigrator.Tests.Unit.ConfigWizard.Core;
 
 public class WizardSetupAnswersTests

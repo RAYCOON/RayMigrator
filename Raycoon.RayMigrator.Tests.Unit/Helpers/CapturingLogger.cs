@@ -1,4 +1,3 @@
-
 using Microsoft.Extensions.Logging;
 
 namespace Raycoon.RayMigrator.Tests.Unit.Helpers;

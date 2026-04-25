@@ -1,4 +1,3 @@
-
 using Microsoft.Extensions.DependencyInjection;
 using Raycoon.RayMigrator.Core;
 using Raycoon.RayMigrator.Core.Templates;

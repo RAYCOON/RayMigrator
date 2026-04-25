@@ -1,4 +1,3 @@
-
 using System.Text.Json.Nodes;
 using Raycoon.RayMigrator.Tests.Unit.ConfigWizard.Core.Helpers;
 

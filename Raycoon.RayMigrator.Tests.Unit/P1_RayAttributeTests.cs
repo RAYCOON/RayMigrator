@@ -1,4 +1,3 @@
-
 using System.ComponentModel.DataAnnotations;
 using FluentAssertions;
 using Raycoon.RayMigrator.Core.Configuration.Enums;

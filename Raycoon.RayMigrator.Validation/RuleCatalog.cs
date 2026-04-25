@@ -1,4 +1,3 @@
-
 using Raycoon.RayMigrator.Validation.Models;
 using Raycoon.RayMigrator.Validation.Rules;
 

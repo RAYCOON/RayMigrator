@@ -1,4 +1,3 @@
-
 namespace Raycoon.RayMigrator.Tests.Unit.Validation;
 
 public class RuleCatalogTests

@@ -1,4 +1,3 @@
-
 namespace Raycoon.RayMigrator.ConfigWizard.Core.Models;
 
 /// <summary>Tracks wizard completion status for a product+environment combination.</summary>

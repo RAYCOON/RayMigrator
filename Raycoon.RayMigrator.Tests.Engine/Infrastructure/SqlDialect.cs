@@ -1,4 +1,3 @@
-
 using System.Text;
 
 namespace Raycoon.RayMigrator.Tests.Engine.Infrastructure;

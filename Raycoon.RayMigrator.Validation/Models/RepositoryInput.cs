@@ -1,4 +1,3 @@
-
 namespace Raycoon.RayMigrator.Validation.Models;
 
 /// <summary>Repository or DatabaseLogging section snapshot for validation.</summary>

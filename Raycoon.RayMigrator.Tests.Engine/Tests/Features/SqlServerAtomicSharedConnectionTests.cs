@@ -1,4 +1,3 @@
-
 using Raycoon.RayMigrator.Core.Configuration.Enums;
 using Raycoon.RayMigrator.Database;
 using Raycoon.RayMigrator.Database.Common;

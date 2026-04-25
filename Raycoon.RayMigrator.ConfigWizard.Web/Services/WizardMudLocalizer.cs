@@ -1,4 +1,3 @@
-
 using Microsoft.Extensions.Localization;
 using MudBlazor;
 

@@ -1,4 +1,3 @@
-
 using Raycoon.RayMigrator.Core;
 using Serilog.Core;
 using Serilog.Events;

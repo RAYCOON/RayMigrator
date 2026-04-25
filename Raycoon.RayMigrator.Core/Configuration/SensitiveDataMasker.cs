@@ -1,4 +1,3 @@
-
 using Raycoon.RayMigrator.Core.Configuration.Options;
 
 namespace Raycoon.RayMigrator.Core.Configuration;

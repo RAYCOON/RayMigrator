@@ -1,4 +1,3 @@
-
 using System.Text;
 using Microsoft.Extensions.Options;
 using Raycoon.RayMigrator.Core.Configuration.Enums;

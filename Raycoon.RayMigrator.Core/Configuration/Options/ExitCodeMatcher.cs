@@ -1,4 +1,3 @@
-
 using Raycoon.RayMigrator.Validation.Helpers;
 
 namespace Raycoon.RayMigrator.Core.Configuration.Options;

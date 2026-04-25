@@ -1,4 +1,3 @@
-
 namespace Raycoon.RayMigrator.Tests.Engine.Infrastructure;
 
 /// <summary>

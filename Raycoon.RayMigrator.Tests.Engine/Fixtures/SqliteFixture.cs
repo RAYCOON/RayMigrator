@@ -1,4 +1,3 @@
-
 using Raycoon.RayMigrator.Tests.Engine.Infrastructure;
 
 namespace Raycoon.RayMigrator.Tests.Engine.Fixtures;

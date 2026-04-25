@@ -1,4 +1,3 @@
-
 using Raycoon.RayMigrator.Validation;
 
 namespace Raycoon.RayMigrator.Tests.Unit.ConfigWizard.Web;

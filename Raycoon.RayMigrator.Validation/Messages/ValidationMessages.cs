@@ -1,4 +1,3 @@
-
 using System.Globalization;
 
 namespace Raycoon.RayMigrator.Validation.Messages;
