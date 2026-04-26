@@ -9,18 +9,13 @@
     <PackageProjectUrl>https://raymigrator.com</PackageProjectUrl>
     <RepositoryUrl>https://github.com/RAYCOON/RayMigrator</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
-    <PackageLicenseExpression>AGPL-3.0-only</PackageLicenseExpression>
+    <PackageLicenseFile>LICENSE.md</PackageLicenseFile>
     <DebugType>embedded</DebugType>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
-    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
-    <PackageReleaseNotes>
-Version 0.10.0:
-- License changed from BSL 1.1 to AGPL-3.0-only
-- Dual licensing now offered:
-  - AGPL for open source usage
-  - Commercial license for production use without AGPL obligations
-  - Free license for public sector and education
-- Source files now contain AGPLv3 copyright headers
-    </PackageReleaseNotes>
+    <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)LICENSE.md" Pack="true" PackagePath="LICENSE.md" Visible="false" />
+  </ItemGroup>
 </Project>
