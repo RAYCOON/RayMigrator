@@ -53,7 +53,7 @@ The total number of persons employed by the User and all Affiliates, including e
 
 ## 3. Free License
 
-### 3.1 Non-Production Usage
+### 3.1 Free Non-Production Usage
 
 The Software may be used free of charge for:
 
