@@ -102,12 +102,12 @@ public delegate void RetryLogCallback(
 
 **SQL Server:**
 - `-2`: Timeout expired
-- `20`: Instance does not support encryption
-- `64`: Connection lost
-- `233`: Connection initialization error
+- `20`: Instance connection error (broken TDS / encryption negotiation failure)
+- `64`: Connection established but lost (`ERROR_NETNAME_DELETED`)
+- `233`: Connection closed during initialization (pool exhaustion / server busy)
 - `10053`, `10054`, `10060`: Network-related errors
 - `40197`, `40501`, `40613`: Azure SQL service errors
-- `49918`, `49919`, `49920`: Resource/throttling errors
+- `49918`, `49919`, `49920`: Azure SQL resource/throttling errors
 
 **PostgreSQL** (SQLSTATE codes via `Npgsql.PostgresException`):
 - `08000`, `08001`, `08003`, `08004`, `08006`: Connection exceptions
@@ -133,7 +133,7 @@ public delegate void RetryLogCallback(
 **Common (all providers):**
 - `TimeoutException`: Treated as transient regardless of database provider
 
-> **Note**: `IsTransientException` recursively checks inner exceptions. If the top-level exception is not recognized as transient, the inner exception chain is inspected.
+> **Note**: `DalBase.IsTransient` recursively checks inner exceptions. If the top-level exception is not recognized as transient, the inner exception chain is inspected via `base.IsTransient(ex.InnerException)`.
 
 ### Retry Behavior
 
@@ -226,8 +226,10 @@ Thrown during recovery operations:
 throw new MigrationRecoveryException(
     "Cannot resume: migration file has changed",
     migrationRunId: (int?)123,
-    migrationId: (int?)456);
+    migrationRecordId: (int?)456);
 ```
+
+Properties: `MigrationRunId` (int?), `MigrationRecordId` (int?)
 
 ### DatabaseTransientException
 
@@ -291,7 +293,7 @@ The same properties also exist on `RepositoryOptions` for repository database op
 
 > **Note**: The "Effective Target Default" column shows the value after `ProductDefaultsPostConfigureOptions` merges `TargetDefaults` into each `TargetOptions`. Since `TargetDefaults` (250) is always present, individual targets effectively default to 250, not the annotation default of 500. See [Target Options](../06-configuration-reference/target-options.md) for details.
 
-Repository retry is active. `RepositoryExtensions.GetDalSettings()` (in `Raycoon.RayMigrator.Core/Extensions/RepositoryExtensions.cs`) builds the `DalSettings` passed to every repository template call. After startup validation, `DbCommandMaxRetries` is already populated with the configured value (annotation default: 100), so the effective repository retry count is 100 by default. See [Repository Options](../06-configuration-reference/repository-options.md) for details.
+Repository retry is active. `RepositoryExtensions.GetDalSettings()` (in `Raycoon.RayMigrator.Infrastructure/RepositoryExtensions.cs`) builds the `DalSettings` passed to every repository template call. After startup validation, `DbCommandMaxRetries` is already populated with the configured value (annotation default: 100), so the effective repository retry count is 100 by default. See [Repository Options](../06-configuration-reference/repository-options.md) for details.
 
 ### Orphan Detection
 

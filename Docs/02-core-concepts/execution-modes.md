@@ -502,7 +502,7 @@ internal class TargetGroupExecutionResult
     public int SuccessCount { get; set; }
     public int FailCount { get; set; }
     public MigrationFileInfo? FailedFile { get; set; }
-    public int FailedMigrationId { get; set; }
+    public int FailedMigrationRecordId { get; set; }
     public string? ErrorMessage { get; set; }
 }
 ```

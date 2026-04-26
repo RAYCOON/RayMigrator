@@ -117,7 +117,7 @@ Extension guides for developers.
 Testing infrastructure and test documentation.
 
 - [test-infrastructure.md](10-testing/test-infrastructure.md) - Docker setup and container configuration
-- [engine-tests.md](10-testing/engine-tests.md) - Engine integration tests (~876 tests, test matrix, ScenarioBuilder API)
+- [engine-tests.md](10-testing/engine-tests.md) - Engine integration tests (~888 tests across 171 test class files, test matrix, ScenarioBuilder API)
 - [unit-tests.md](10-testing/unit-tests.md) - Unit test structure and conventions
 - [cli-test-coverage-matrix.md](10-testing/cli-test-coverage-matrix.md) - CLI command test coverage matrix across unit and engine tests
 
@@ -139,6 +139,7 @@ Reference materials.
 - [glossary.md](appendix/glossary.md) - Terms and definitions
 - [open-features.md](appendix/open-features.md) - Open features
 - [troubleshooting.md](appendix/troubleshooting.md) - Common issues
+- [validation-rules.md](appendix/validation-rules.md) - Shared validation rule catalog (consumed by `Raycoon.RayMigrator.Validation`)
 
 ### [user-manual/](user-manual/)
 Tutorial-driven end-user guide with BookStore example.
@@ -165,7 +166,13 @@ Working configuration and migration examples.
 - [appsettings.complete.json](examples/appsettings.complete.json) - All options
 - [appsettings.docker.json](examples/appsettings.docker.json) - Docker environment
 - [appsettings.docker-cli.json](examples/appsettings.docker-cli.json) - Docker CLI tool execution across all four database engines
-- [migration-examples/](examples/migration-examples/) - Sample migrations
+- [migration-examples/](examples/migration-examples/) - Sample migrations (rollback file pair, master-data insert, environment-specific file, multi-block migration, `migsettings.txt`)
+
+### [todo/](todo/)
+Internal audit notes and planning documents (work-in-progress, not part of the user-facing documentation).
+
+- [dal-best-practices-audit.md](todo/dal-best-practices-audit.md) - DAL best-practices audit
+- [dal-audit/](todo/dal-audit/) - Per-DAL audit working files
 
 ## How to Use This Documentation
 
@@ -238,4 +245,4 @@ RayMigrator Validate-Hash -p RayMigratorTests -env Docker
 
 ## Version
 
-This documentation is for RayMigrator v0.9.x
+This documentation is for RayMigrator v0.10.x

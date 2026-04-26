@@ -95,41 +95,41 @@ public List<Dictionary<string, object?>> RepositoryMigrationRunSelect(int limit)
 ### Fix Operations
 
 ```csharp
-public int RepositoryMigrationFixOrphaned(int migrationRunId, MigrationStatus status);
+public int RepositoryMigrationRecordFixOrphaned(int migrationRunId, MigrationStatus status);
 ```
 
 ### Migration Record Operations
 
 ```csharp
-public int RepositoryMigrationInsert(int existingMigrationId, string filename,
+public int RepositoryMigrationInsert(int existingMigrationRecordId, string filename,
     string releaseVersion, string targetGroupAlias, string targetAlias,
     int fileOrderId, string fileUpHash, string? fileUpConfigHash,
     string fileUpBlocksHash, int fileUpBlocksTotal, string? fileUpConfigJson,
     bool migrateDownFileExists);
 
 // Standard overload (uses the internally-managed repository connection)
-public void RepositoryMigrationUpdate(int migrationId,
+public void RepositoryMigrationUpdate(int migrationRecordId,
     MigrationStatus migrationStatus, int fileUpBlocksMigrated);
 
 // Atomic overload (uses caller-provided shared connection+transaction)
-public void RepositoryMigrationUpdate(int migrationId,
+public void RepositoryMigrationUpdate(int migrationRecordId,
     MigrationStatus migrationStatus, int fileUpBlocksMigrated,
     DbConnection connection, DbTransaction transaction,
     int repoCommandTimeoutInSeconds);
 
 // Standard overload (uses the internally-managed repository connection)
-public void RepositoryMigrationUpdateRollback(int migrationId,
+public void RepositoryMigrationUpdateRollback(int migrationRecordId,
     MigrationStatus migrationStatus, string fileDownHash, string? fileDownConfigHash,
     string fileDownBlocksHash, int fileDownBlocksMigrated, int fileDownBlocksTotal, string? fileDownConfigJson);
 
 // Atomic overload (uses caller-provided shared connection+transaction)
-public void RepositoryMigrationUpdateRollback(int migrationId,
+public void RepositoryMigrationUpdateRollback(int migrationRecordId,
     MigrationStatus migrationStatus, string fileDownHash, string? fileDownConfigHash,
     string fileDownBlocksHash, int fileDownBlocksMigrated, int fileDownBlocksTotal, string? fileDownConfigJson,
     DbConnection connection, DbTransaction transaction,
     int repoCommandTimeoutInSeconds);
 
-public void RepositoryMigrationUpdateHash(int migrationId, string fileUpHash,
+public void RepositoryMigrationUpdateHash(int migrationRecordId, string fileUpHash,
     string? fileUpConfigHash, string fileUpBlocksHash);
 public List<MigrationRecord> RepositoryMigrationSelect(MigrationRunMode? overrideRunMode = null);
 public InterruptedMigrationInfo? RepositoryMigrationGetInterrupted();

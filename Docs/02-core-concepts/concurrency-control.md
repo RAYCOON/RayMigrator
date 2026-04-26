@@ -41,7 +41,7 @@ BEGIN TRANSACTION;
     IF EXISTS (
         SELECT TOP (1) 1 FROM [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRun] WITH (UPDLOCK, HOLDLOCK)
         WHERE [ProductId] = @ProductId
-          AND [Environment] = @Environment
+          AND [EnvironmentId] = @EnvironmentId
           AND [MigrationRunModeId] = @MigrationRunModeId
           AND [FinishedAt] IS NULL
     )
@@ -64,7 +64,7 @@ PERFORM pg_advisory_xact_lock(hashtext('MigrationRun_' || CAST(@ProductId AS TEX
 **MariaDB and MySQL** use `GET_LOCK()` for cross-process advisory locking with immediate timeout:
 
 ```sql
-SET @v_lock_name = CONCAT('RayMigrator_Run_', CAST(@ProductId AS CHAR), '_', @Environment);
+SET @v_lock_name = CONCAT('RayMigrator_Run_', CAST(@ProductId AS CHAR), '_', CAST(@EnvironmentId AS CHAR));
 SET @v_lock_acquired = GET_LOCK(@v_lock_name, 0);
 -- Then checks for existing unfinished run and inserts if lock acquired and no run found
 DO RELEASE_LOCK(@v_lock_name);
@@ -223,19 +223,19 @@ The `Repository_MigrationRun_SelectOrphaned.sql` template returns all orphaned r
 ```sql
 SELECT
     [Id] AS MigrationRunId,
-    [Environment],
+    [EnvironmentId],
     [StartedAt],
     [MigrationRunModeId],
     DATEDIFF(MINUTE, [StartedAt], SYSUTCDATETIME()) AS MinutesRunning
 FROM [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRun]
 WHERE [ProductId] = @ProductId
-    AND [Environment] = @Environment
+    AND [EnvironmentId] = @EnvironmentId
     AND [MigrationRunResultId] = 10  -- Running
     AND [FinishedAt] IS NULL
 ORDER BY [StartedAt];
 ```
 
-Note: The template filters by `ProductId` and `Environment` and does not apply a timeout threshold -- all orphaned runs are returned regardless of how long they have been running.
+Note: The template filters by `ProductId` and `EnvironmentId` and does not apply a timeout threshold -- all orphaned runs are returned regardless of how long they have been running.
 
 For ad-hoc queries to list all running migrations across all products:
 
@@ -243,7 +243,7 @@ For ad-hoc queries to list all running migrations across all products:
 SELECT
     mr.Id,
     mr.ProductId,
-    mr.Environment,
+    mr.EnvironmentId,
     mr.StartedAt,
     DATEDIFF(MINUTE, mr.StartedAt, SYSUTCDATETIME()) AS MinutesRunning
 FROM MigrationRun mr
@@ -271,7 +271,7 @@ WHERE Id = @OrphanedMigrationRunId;
 
 ### Manual Cleanup via Fix Command
 
-The `Fix` command identifies orphaned runs using `RepositoryMigrationRunSelectOrphaned` and fixes them using `RepositoryMigrationRunFixOrphaned` (sets `MigrationRunResultId` to Error and `FinishedAt` to current UTC time). It also fixes orphaned Migration entries via `RepositoryMigrationFixOrphaned`. The default age threshold is 60 minutes (`--older-than` option), which is more conservative than the 10-minute auto-fix threshold.
+The `Fix` command identifies orphaned runs using `RepositoryMigrationRunSelectOrphaned` and fixes them using `RepositoryMigrationRunFixOrphaned` (sets `MigrationRunResultId` to Error and `FinishedAt` to current UTC time). It also fixes orphaned MigrationRecord entries via `RepositoryMigrationRecordFixOrphaned`. The default age threshold is 60 minutes (`--older-than` option), which is more conservative than the 10-minute auto-fix threshold.
 
 ## Best Practices
 

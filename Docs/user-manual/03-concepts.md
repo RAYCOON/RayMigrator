@@ -83,6 +83,7 @@ The repository contains these tables:
 |-------|---------|
 | `MigratorMeta` | Tracks repository schema version, database type, and the RayMigrator application version that created it. |
 | `Product` | One record per product alias. Links migrations to the product they belong to. |
+| `Environment` | One record per environment value (e.g., Development, Production). Referenced by `MigrationRun`, `MigrationRecord`, and `MigrationRecordHistory`. |
 | `MigrationRun` | One record per execution of `Migrate-Up` or `Migrate-Down`. Records start time, end time, and overall result. |
 | `MigrationRunMeta` | One-to-one with `MigrationRun`. Stores the serialized settings JSON and an optional description. |
 | `MigrationRecord` | One record per migration file per target. Records file path, hash, status, execution timestamps. |
@@ -195,7 +196,7 @@ When you run `Migrate-Up`, RayMigrator follows this sequence:
            └── Commit or rollback transaction
 
 6. Record results in repository
-   └── Write Migration record (status, hash, timestamps)
+   └── Write MigrationRecord row (status, hash, timestamps)
    └── Update MigrationRun record (end time, overall result)
 ```
 

@@ -103,7 +103,7 @@ flowchart TD
     G --> I[Return Error with Rollback Failure]
 ```
 
-**Implementation detail**: The rollback list is built from `successfullyMigratedRecords`, a `List<(MigrationFileInfo File, int MigrationId, string TargetAlias)>`. Each record stores the `TargetAlias` at the time the migration was executed, ensuring that rollbacks target the correct database even when multiple targets exist. The failed migration itself uses the current `MigrationState.TargetAlias`.
+**Implementation detail**: The rollback list is built from `successfullyMigratedRecords`, a `List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)>`. Each record stores the `TargetAlias` at the time the migration was executed, ensuring that rollbacks target the correct database even when multiple targets exist. The failed migration itself uses the current `MigrationState.TargetAlias`.
 
 **Characteristics**:
 - Attempts to restore pre-migration state
@@ -338,7 +338,7 @@ All custom exceptions are defined in `Raycoon.RayMigrator.Shared/Exceptions/Cust
 |-----------|---------------------|-------------|
 | `DatabaseParameterException` | "RayMigrator aborted due to a database parameter conversion error." | Parameter conversion failure. Has `ParameterCount` property. |
 | `MigrationAlreadyRunningException` | "RayMigrator aborted because another migration is already running." | Concurrent migration guard. Has `ProductId` and `ExistingMigrationRunId` properties. |
-| `MigrationRecoveryException` | "RayMigrator encountered an error during migration recovery." | Recovery/fix operation failure. Has `MigrationRunId` and `MigrationId` properties. |
+| `MigrationRecoveryException` | "RayMigrator encountered an error during migration recovery." | Recovery/fix operation failure. Has `MigrationRunId` and `MigrationRecordId` properties. |
 | `DatabaseTransientException` | "RayMigrator aborted after exhausting retry attempts for transient database error." | Thrown after all retries exhausted. Has `AttemptsMade` (int) and `LastErrorCode` (string?) properties. |
 
 #### Retry Exception (Database.Common)
@@ -587,7 +587,7 @@ Additionally, `TimeoutException` is always considered transient. Inner exception
 
 ### Custom Transient Predicates
 
-External DAL developers override the `IsTransient(Exception)` virtual method in their DAL class. `RetryHelper` accepts a `Func<Exception, (bool isTransient, string? errorCode)>` predicate as a required parameter, which each DAL passes from its `IsTransient` implementation.
+External DAL developers override the `IsTransient(Exception)` virtual method in their DAL class. The method returns a `(bool isTransient, string? errorCode)` tuple. `RetryHelper` accepts a `Func<Exception, (bool isTransient, string? errorCode)>` predicate as a required parameter, which each DAL passes from its `IsTransient` implementation. The error code is a string to support both numeric codes (e.g., SQL Server "233") and SQLSTATE codes (e.g., PostgreSQL "08000").
 
 ### Retry Exhaustion
 

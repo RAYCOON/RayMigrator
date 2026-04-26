@@ -209,6 +209,7 @@ SELECT
     FileDownBlocksTotal
 FROM MigrationRecord
 WHERE ProductId = @ProductId
+    AND EnvironmentId = @EnvironmentId
     AND TargetAlias = @TargetAlias;
 ```
 
@@ -297,7 +298,7 @@ WHERE Id = @MigrationRecordId;
 ```sql
 SELECT
     p.Name AS Product,
-    m.Environment,
+    m.EnvironmentId,
     m.ReleaseVersion,
     m.Filename,
     m.FileUpBlocksMigrated,

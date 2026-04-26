@@ -2,7 +2,7 @@
 
 The **RayMigrator Config-Wizard** ecosystem eliminates the need to hand-edit JSON configuration files. It consists of two projects:
 
-- **`Raycoon.RayMigrator.ConfigWizard.Core`** — shared domain library (models, services, validation). Has zero NuGet and zero project dependencies; targets `net10.0`, `net9.0`, and `net8.0`. Used by the Web wizard and independently unit-tested.
+- **`Raycoon.RayMigrator.ConfigWizard.Core`** — shared domain library (models, services, validation adapters). Zero NuGet dependencies; one project reference to the WASM-safe `Raycoon.RayMigrator.Validation` shared rule catalog. Targets `net10.0`, `net9.0`, and `net8.0`. Used by the Web wizard and independently unit-tested.
 - **`Raycoon.RayMigrator.ConfigWizard.Web`** — Blazor WASM standalone wizard. Targets `net10.0`. Uses MudBlazor 9. Supports English and German (DE/EN). All validation runs client-side (no server required).
 
 ## Purpose
@@ -13,7 +13,6 @@ The wizard:
 - Validates all settings in real time
 - Manages the 4-level `appsettings` file hierarchy (Base, Environment, Product, ProductEnvironment)
 - Generates skeleton environment files and `example.env` files
-- Generates a starter migration file directory structure (scaffold)
 - Provides context-sensitive help for every field (multilingual)
 
 ## Web Wizard Flow

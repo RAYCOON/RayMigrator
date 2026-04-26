@@ -91,7 +91,7 @@ Database-specific properties are carried by the `DalSpecificProperties` class (`
 Each DAL is an independent project/assembly:
 
 ```
-Raycoon.RayMigrator.Database/                  <- DalFactory only (no NuGet deps)
+Raycoon.RayMigrator.Database/                  <- DalFactory only (depends on Microsoft.Extensions.DependencyModel for built-in DAL discovery)
 ├── DalFactory.cs
 └── Raycoon.RayMigrator.Database.csproj
 
@@ -114,6 +114,7 @@ Raycoon.RayMigrator.Database.SqlServer/        <- Separate project
 │   ├── DatabaseLogging_Insert.sql
 │   ├── Repository_CheckCreate.sql
 │   ├── Repository_Drop.sql
+│   ├── Repository_Environment_CheckInsert.sql
 │   ├── Repository_MigrationRecord_FixOrphaned.sql
 │   ├── Repository_MigrationRecord_GetInterrupted.sql
 │   ├── Repository_MigrationRecord_Insert.sql
@@ -126,8 +127,7 @@ Raycoon.RayMigrator.Database.SqlServer/        <- Separate project
 │   ├── Repository_MigrationRun_Select.sql
 │   ├── Repository_MigrationRun_SelectOrphaned.sql
 │   ├── Repository_MigrationRun_Update.sql
-│   ├── Repository_Product_CheckInsert.sql
-│   └── Repository_Environment_CheckInsert.sql
+│   └── Repository_Product_CheckInsert.sql
 └── Raycoon.RayMigrator.Database.SqlServer.csproj
 
 Raycoon.RayMigrator.Database.PostgreSQL/       <- Separate project
@@ -508,7 +508,7 @@ public override (bool isTransient, string? errorCode) IsTransient(Exception ex)
 }
 ```
 
-When all retries are exhausted, a `RetryExhaustedException` is thrown containing `AttemptsMade` (int) and `LastErrorCode` (string?).
+When all retries are exhausted, a `RetryExhaustedException` is thrown containing `AttemptsMade` (int) and `LastErrorCode` (string?). Error codes are returned as `string?` so the same predicate can carry both numeric driver codes (e.g., SQL Server `"233"`) and SQLSTATE codes (e.g., PostgreSQL `"08000"`).
 
 ## Related Documentation
 

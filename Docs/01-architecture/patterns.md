@@ -30,7 +30,8 @@ public class RayMigratorOptions
 // Registration with DataAnnotations validation
 services.AddOptions<RayMigratorOptions>()
     .Configure(options => rayMigratorConfigurationSection.Bind(options))
-    .ValidateDataAnnotations();
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
 
 // PostConfigure merges ProductDefaults into Products/TargetGroups.
 // The static MergeDefaults method can also be called directly
@@ -41,6 +42,10 @@ services.AddOptions<RayMigratorOptions>()
 //         DbCommand* settings, UseCliToolAlias → Target level
 services.AddTransient<IPostConfigureOptions<RayMigratorOptions>,
     ProductDefaultsPostConfigureOptions>();
+
+// IValidateOptions implementation that delegates to the shared rule catalog
+// (Raycoon.RayMigrator.Validation.RuleCatalog).
+services.AddSingleton<IValidateOptions<RayMigratorOptions>, RayMigratorOptionsValidator>();
 
 // PostConfigure delegates to a static method for reuse outside the DI pipeline
 public class ProductDefaultsPostConfigureOptions : IPostConfigureOptions<RayMigratorOptions>
@@ -195,10 +200,14 @@ public class TemplateCache
 **Template Structure**:
 ```sql
 /*
+================================================================================
+RayMigrator SQL Template
+================================================================================
 [RayMigratorTemplate]
-TemplateType = "Repository_CheckCreate"
-DatabaseType = "SqlServer"
-Version = "2026-04-17.1"
+TemplateType   = "Repository_CheckCreate"
+DatabaseType   = "SqlServer"
+Author         = "RAYCOON.com GmbH (https://raycoon.com)"
+Version        = "2026-04-18.1"
 */
 
 CREATE TABLE [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRecord] (
@@ -540,8 +549,8 @@ The `MigrationErrorAction` enum defines the available strategies. See [Error Han
 private async Task HandleMigrationError(
     ProductOptions productOptions,
     MigrationFileInfo failedFile,
-    int failedMigrationId,
-    List<(MigrationFileInfo File, int MigrationId, string TargetAlias)> successfullyMigratedRecords)
+    int failedMigrationRecordId,
+    List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)> successfullyMigratedRecords)
 {
     // File-level TOML override takes precedence over product-level setting
     var errorAction = failedFile.MigrationErrorActionOverride ?? productOptions.MigrationErrorActionEnum;
@@ -554,7 +563,7 @@ private async Task HandleMigrationError(
 
         case MigrationErrorAction.RollbackErrorOnly:
             // Rollback only the failed migration
-            await RollbackSingleMigration(productOptions, failedFile, failedMigrationId);
+            await RollbackSingleMigration(productOptions, failedFile, failedMigrationRecordId);
             break;
 
         case MigrationErrorAction.Rollback:

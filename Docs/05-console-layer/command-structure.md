@@ -172,8 +172,8 @@ private void SetupMigrateUpHandler(Command command, Option<bool> showInfoOption,
         var runMode = ParseRunMode(runModeString);
         var allowOutOfOrder = parseResult.GetValue(command.Options.OfType<Option<bool>>().First(o => o.Name == "--allow-out-of-order"));
 
-        var tgmoRaw = parseResult.GetValue(command.Options.OfType<Option<string?>>().First(o => o.Name == "--TargetGroup-MigrationOrder"));
-        var tgmoArray = ParseCommaSeparatedToArray(tgmoRaw);
+        var tgeoRaw = parseResult.GetValue(command.Options.OfType<Option<string?>>().First(o => o.Name == "--TargetGroup-MigrationOrder"));
+        var tgeoArray = ParseCommaSeparatedToArray(tgeoRaw);
 
         var stopRollbackOnMissingRollbackFile = parseResult.GetValue(
             command.Options.OfType<Option<bool?>>().First(o => o.Name == "--stop-rollback-on-missing-rollback-file"));
@@ -192,7 +192,7 @@ private void SetupMigrateUpHandler(Command command, Option<bool> showInfoOption,
             StopRollbackOnMissingRollbackFile = stopRollbackOnMissingRollbackFile,
             TargetGroupAliases = parseResult.GetValue(command.Options.OfType<Option<string[]>>().First(o => o.Name == "--target-group"))
                 ?.Select(a => ResolveEnvironmentVariable(a)).Where(a => !string.IsNullOrWhiteSpace(a)).ToArray(),
-            TargetGroupMigrationOrder = tgmoArray,
+            TargetGroupMigrationOrder = tgeoArray,
             ConfigDir = ResolveConfigDir(parseResult.GetValue(configDirOption)),
         };
     });
@@ -306,25 +306,32 @@ RayMigrator Migrate-Up --help
 
 ## Help Output
 
+When the user runs `RayMigrator --help`, the custom `LogoHelpAction` (set on the root command's `HelpOption.Action`) prepends the ASCII assembly-info banner, strips the empty `Description:` section from the default help text, and writes the result to standard output:
+
 ```
-RayMigrator - Database Migration Framework
+[ASCII logo banner from AssemblyInfoHelper.GetAssemblyInfo()]
 
 Usage:
   RayMigrator [command] [options]
 
-Commands:
-  Migrate-Up      Apply pending migrations forward
-  Migrate-Down    Rollback to previous version
-  Validate-Hash   Verify migration file integrity
-  Update-Hash     Update repository hashes after approved changes
-  Info            Display migration status information
-  Baseline        Mark existing database as migrated (all releases, or up to a specific release)
-  Fix             Fix repository inconsistencies (orphaned runs)
-
 Options:
-  --version       Show version information
-  -h, --help      Show help and usage information
+  -si, --startup-info             Show startup information [default: True]
+  -rsd, --reveal-sensitive-data   Include sensitive data in logs (WARNING: includes passwords) [default: False]
+  -cd, --config-dir <config-dir>  Override directory where RayMigrator searches for appsettings.json files (default: current directory)
+  --version                       Show version information
+  -?, -h, --help                  Show help and usage information
+
+Commands:
+  Migrate-Up     Apply pending migrations forward
+  Migrate-Down   Rollback to previous version
+  Validate-Hash  Verify migration file integrity
+  Update-Hash    Update repository hashes after approved changes
+  Info           Display migration status information
+  Baseline       Mark existing database as migrated (all releases, or up to a specific release)
+  Fix            Fix repository inconsistencies (orphaned runs)
 ```
+
+For subcommands (`RayMigrator Migrate-Up --help`), the default help renderer is used without the logo banner.
 
 ## Exit Codes
 
@@ -353,12 +360,16 @@ sequenceDiagram
     Src-->>Prog: OptionsSourceResult
 
     Prog->>Pipeline: DirectModePipeline.ExecuteAsync
-    Pipeline->>Pipeline: Validate Serilog config, create Serilog logger
+    Pipeline->>Pipeline: Validate Serilog config, create Serilog logger (with DB sink)
+    Pipeline->>Pipeline: Log environment variable replacements
     Pipeline->>Pipeline: Build host (DI, configuration)
     Pipeline->>Pipeline: Resolve DatabaseLogWriter (triggers options validation)
+    Pipeline->>Pipeline: Register sensitive data for masking
     Pipeline->>Pipeline: Validate product alias
-    Pipeline->>Pipeline: Initialize DatabaseLogWriter, MigrationContext
-    Pipeline->>Pipeline: Populate DalSpecificPropertiesDictionary, validate connections
+    Pipeline->>Pipeline: Resolve MigrationContext, set MigrationLoggingContext.Current
+    Pipeline->>Pipeline: Initialize DatabaseLogWriter (wire DB sink to writer)
+    Pipeline->>Pipeline: Populate DalSpecificPropertiesDictionary, validate schema names
+    Pipeline->>Pipeline: Validate target connection strings
 
     Pipeline->>Svc: DoWorkAsync(host)
     Svc->>Svc: Switch on Command enum
@@ -366,6 +377,7 @@ sequenceDiagram
     Mig-->>Svc: MigrationOperationResult
     Svc-->>Pipeline: Exit code
 
+    Pipeline->>Pipeline: Flush DB log writer, stop host
     Pipeline-->>Prog: Exit code
     Prog-->>User: Exit with code
 ```

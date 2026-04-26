@@ -91,7 +91,7 @@ Database logging uses a multi-component pipeline:
 
 2. **`MigrationContextEnricher`** -- A Serilog `ILogEventEnricher` that reads `MigrationLoggingContext.Current` (an `AsyncLocal<MigrationContext>` ambient context) and adds migration-specific properties to every log event:
    - `Environment`, `MigrationRunId`, `TargetGroupAlias`, `TargetAlias`, `MigrationFilename`, `MigrationFileId`, `MigrationBlockId` (for Serilog console/file output)
-   - `RunModeId`, `ProductId`, `MigrationId`, `ReleaseVersion`, `FileName`, `FileOrderId`, `FileBlockId` (additional properties for the database sink)
+   - `RunModeId`, `ProductId`, `EnvironmentId`, `MigrationRecordId`, `ReleaseVersion`, `FileName`, `FileOrderId`, `FileBlockId` (additional properties for the database sink)
 
 3. **`DatabaseLogWriter`** -- A service that enqueues log entries for asynchronous writing via `DatabaseLoggerQueue`. It validates the minimum log level and converts Serilog log events into DAL parameter lists for SQL template execution.
 

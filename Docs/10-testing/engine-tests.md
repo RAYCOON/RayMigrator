@@ -8,15 +8,17 @@ The engine test project (`Raycoon.RayMigrator.Tests.Engine`) tests the core migr
 
 | Metric | Value |
 |--------|-------|
-| Total test methods | ~876 (across 169 test class files) |
-| PostgreSQL tests | ~179 (35 test classes) |
-| SqlServer tests | ~183 (36 test classes, includes 6 block-level tests, 11 CLI tool tests, and 2 atomic shared connection tests) |
-| MariaDb tests | ~175 (34 test classes) |
-| MySql tests | ~175 (34 test classes) |
-| Sqlite tests | ~164 (30 test classes) |
+| Total test methods | ~888 (across 171 test class files, including the engine-agnostic `CliToolPresetConsistencyTests` with 16 inline cases) |
+| PostgreSQL tests | ~176 (34 PostgreSQL test class files using unprefixed filenames as the "base" engine) |
+| SqlServer tests | ~184 (36 test class files, includes 6 block-level tests, 11 CLI tool tests, and 2 atomic shared connection tests) |
+| MariaDb tests | ~176 (34 test class files; one is `MariaDbSessionTimezoneTests` defined alongside `MySqlSessionTimezoneTests` in `P2_MySqlMariaDbSessionTimezoneTests.cs`) |
+| MySql tests | ~176 (34 test class files; one is `MySqlSessionTimezoneTests` defined in the same shared P2 file) |
+| Sqlite tests | ~168 (31 test class files; includes 3 SQLite-only `SqliteDatetimeCheckConstraintTests` tests) |
 | Backend migration file sets | 5 engines x 24 files = 120 files |
 | Frontend migration file sets | 5 engines x 16 files = 80 files |
 | Database engines | PostgreSQL, SQL Server, MariaDB, MySQL, SQLite |
+
+> **Note**: PostgreSQL is treated as the "base" engine — its test classes have unprefixed filenames (`HappyPathTests.cs`, `RollbackTests.cs`, etc.) and live in the same `Tests.Engine` namespace. Each unprefixed class is replicated by engine-specific wrapper classes (e.g. `SqlServerHappyPathTests`, `MariaDbHappyPathTests`, `MySqlHappyPathTests`, `SqliteHappyPathTests`). The lone exception is `P2_MySqlMariaDbSessionTimezoneTests.cs`, which contains two engine-specific classes (one for MySQL, one for MariaDB) and runs against neither PostgreSQL nor SqlServer.
 
 ## Prerequisites
 
@@ -91,7 +93,7 @@ dotnet test Raycoon.RayMigrator.Tests.Engine/ --filter "Category=Features"
 
 ### Without Docker
 
-Tests automatically skip when Docker containers are unavailable. No test failures occur — tests are marked as skipped via `Assert.SkipUnless`. SQLite tests use a local temporary file database and do not require Docker; `SqliteFixture.IsDatabaseAvailable` always returns `true`.
+Tests automatically skip when Docker containers are unavailable. No test failures occur — tests call `Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available")` (xUnit v3 native skip support). SQLite tests use a local temporary file database and do not require Docker; `SqliteFixture.IsDatabaseAvailable` always returns `true`.
 
 > **Note**: CliTool tests (`Category=CliTool`) and CliToolDocker tests (`Category=CliToolDocker`) both require Docker because they use `docker exec` to pipe SQL into the database containers. These tests are skipped when the target engine's Docker container is unavailable.
 
@@ -104,18 +106,18 @@ Raycoon.RayMigrator.Tests.Engine/
 ├── Infrastructure/
 │   ├── CliToolConfigHelper.cs      — Pre-built CLI tool configs for CliTool tests (File and Stdin modes)
 │   ├── DockerExecHelper.cs         — Static Process wrapper for docker exec -i stdin piping
-│   ├── EngineTestHost.cs           — DI container (mirrors Program.cs setup)
-│   ├── ScenarioBuilder.cs          — Fluent API for test scenario configuration
-│   ├── ScenarioContext.cs          — Execution + assertions
-│   ├── SqlDialect.cs               — Engine-specific error SQL
 │   ├── EngineConfig.cs             — Engine configuration record
+│   ├── EngineTestHost.cs           — DI container (mirrors Program.cs setup)
+│   ├── MariaDbTestBase.cs          — MariaDB base class
 │   ├── MigrationRecordExpectation.cs  — Partial-match DTO for MigrationRecord table
 │   ├── MigrationRunExpectation.cs     — Partial-match DTO for MigrationRun table
-│   ├── PostgreSqlTestBase.cs       — PostgreSQL base class
-│   ├── SqlServerTestBase.cs        — SqlServer base class
-│   ├── MariaDbTestBase.cs          — MariaDB base class
 │   ├── MySqlTestBase.cs            — MySQL base class
-│   └── SqliteTestBase.cs           — SQLite base class
+│   ├── PostgreSqlTestBase.cs       — PostgreSQL base class
+│   ├── ScenarioBuilder.cs          — Fluent API for test scenario configuration
+│   ├── ScenarioContext.cs          — Execution + assertions
+│   ├── SqlDialect.cs               — Engine-specific error SQL helpers (`GetErrorSql`, `GetBrokenRollbackSql`, `GetCreateSimpleTableSql`, `GetDropSimpleTableSql`)
+│   ├── SqliteTestBase.cs           — SQLite base class
+│   └── SqlServerTestBase.cs        — SqlServer base class
 ├── Fixtures/                       — Engine-specific xUnit fixtures (PostgreSQL, SqlServer, MariaDb, MySql, Sqlite)
 ├── Collections/                    — xUnit collection definitions
 ├── MigrationFiles/                 — ONE unified base set per engine
@@ -130,11 +132,11 @@ Raycoon.RayMigrator.Tests.Engine/
 │   ├── Sqlite/                     — 24 files
 │   └── Sqlite_Frontend/            — 16 files
 └── Tests/
-    ├── MigrateUp/                  — 51 test classes (10 PostgreSQL, 11 SqlServer, 10 MariaDb, 10 MySql, 10 Sqlite)
-    ├── MigrateDown/                — 15 test classes (3 per engine)
-    ├── Compound/                   — 10 test classes (2 per engine)
-    ├── Features/                   — 76 test classes (15 per engine + 1 SqlServer-only AtomicSharedConnectionTests)
-    └── CliTool/                    — 17 test classes (4 engines × 4 classes [File, Stdin, Docker raw, ExitCodeRange] + 1 PresetConsistency; no Sqlite)
+    ├── MigrateUp/                  — 51 test class files (10 PostgreSQL base + 11 SqlServer + 10 MariaDb + 10 MySql + 10 Sqlite)
+    ├── MigrateDown/                — 15 test class files (3 per engine)
+    ├── Compound/                   — 10 test class files (2 per engine)
+    ├── Features/                   — 78 test class files (15 PostgreSQL base + 16 SqlServer + 15 MariaDb + 15 MySql + 16 Sqlite + 1 shared P2 file `P2_MySqlMariaDbSessionTimezoneTests.cs` containing one MySQL and one MariaDB class)
+    └── CliTool/                    — 17 test class files (4 engines × 4 classes [File, Stdin, Docker raw, ExitCodeRange] + 1 PresetConsistency; no Sqlite)
 ```
 
 ### ScenarioBuilder — Fluent Test Setup
@@ -190,10 +192,14 @@ public async Task ErrorInR3_OnlyR3RolledBack()
 
 **Execution:**
 - `MigrateUpAsync(toRelease?, allowOutOfOrder?, targetGroupAliases?, runMode?, targetGroupMigrationOrder?)` — executes MigrateUp
-- `MigrateDownAsync(toRelease, targetGroupAliases?, runMode?)` — executes MigrateDown
-- `BaselineAsync(toRelease?, targetGroupAliases?, targetGroupMigrationOrder?)` — executes Baseline
+- `MigrateDownAsync(toRelease, targetGroupAliases?, runMode?, revealSensitiveData?)` — executes MigrateDown
+- `BaselineAsync(toRelease?, targetGroupAliases?, targetGroupMigrationOrder?, revealSensitiveData?)` — executes Baseline
 - `ValidateHashAsync(scope?, targetGroupAliases?)` — executes ValidateHash
 - `UpdateHashAsync(targetGroupAliases?)` — executes UpdateHash
+- `InfoAsync()` — executes the `Info` command (returns `MigrationStatusInfo`)
+- `GetHistoryAsync(limit?)` — fetches the run history (returns `MigrationHistory`)
+- `FixIssuesAsync(scope?, olderThanMinutes?, dryRun?, assumedMigrationStatus?)` — executes the `Fix` command
+- `InsertOrphanedMigrationRun(minutesOld?)` — inserts a fake `MigrationRun` record with Running status and a `StartedAt` in the past (helper for Fix tests)
 - `RebuildForAsync(command, mode, toRelease?)` — rebuilds DI container for next phase (no DB cleanup)
 
 **Assertions:**
@@ -203,13 +209,14 @@ public async Task ErrorInR3_OnlyR3RolledBack()
 - `AssertFileStatus(filename, MigrationStatus)` — checks MigrationStatusId
 - `AssertFileStatuses(params ...)` — bulk file status check
 - `AssertFileStatusForTarget(filename, target, status)` — multi-target status check
-- `AssertMigrationRecord(filename, expectation)` — checks all MigrationRecord table columns
-- `AssertMigrationRun(runIndex, expectation)` — checks all MigrationRun table columns
+- `AssertMigrationRecord(filename, expectation)` — checks selected MigrationRecord columns via `MigrationRecordExpectation` (partial match)
+- `AssertMigrationRun(runIndex, expectation)` — checks selected MigrationRun columns via `MigrationRunExpectation` (partial match)
 - `AssertTableExists(tableName, bool)` — checks user table existence on primary connection
 - `AssertTableExistsOnConnection(connectionString, tableName, bool)` — checks user table existence on specific connection
 - `AssertRowCount(tableName, int)` — checks user table row count
 - `AssertRepositoryTableExists(tableName, bool)` — checks repository table existence
 - `AssertProductExists(bool)` — checks that the Product record exists in the repository
+- `AssertEnvironmentExists(environmentName, bool)` — checks that an Environment record exists (case-insensitive via NameLower)
 - `AssertTargetGroupMigrationOrder(params string[])` — checks that MigrationRecord rows appear in the repository in the expected target group order (by ascending Id)
 
 **Query helpers (for custom assertions):**
@@ -256,7 +263,7 @@ public async Task ErrorInR3_OnlyR3RolledBack()
 
 ### Test Catalog with Abbreviations
 
-The catalog lists the unique test scenarios defined for the base PostgreSQL test classes. Each scenario is replicated across all supported engines (MariaDb, MySql, SqlServer) by engine-specific test classes with the same test methods.
+The catalog lists the unique test scenarios defined for the base PostgreSQL test classes. Each scenario is replicated across all supported engines (SqlServer, MariaDb, MySql, Sqlite) by engine-specific test classes with the same test methods (with the exceptions noted in the Features table — SqlServer-only block-level and atomic-shared-connection scenarios, and Sqlite-only datetime-CHECK-constraint scenarios).
 
 | ID | Abbr | Test Name | Class |
 |----|------|-----------|-------|
@@ -322,13 +329,13 @@ The catalog lists the unique test scenarios defined for the base PostgreSQL test
 | #60 | FL-1 | MixedFlatAndTraditionalLayout_AllReleasesMigrateSuccessfully | FlatLayoutTests |
 | #61 | FL-2 | MixedLayout_MigrateDownToRelease2_RollsBackFlatAndTraditionalReleases | FlatLayoutTests |
 
-**Features tests** (all 5 engines, 15 test classes each; SqlServer has 16):
+**Features tests** (all 5 engines have 15 base feature test classes each; SqlServer adds 1 atomic-shared-connection class, Sqlite adds 1 datetime-CHECK-constraint class, plus a P2 file shared between MySql and MariaDb):
 
 | Class | Tests | Description |
 |-------|-------|-------------|
 | `MigrationHistoryTrackingTests` | 5 | MigrationRecordHistory records written inline on terminal status transitions (simulate, first run, failed retry, down-then-up, baseline). Source file: `ArchiveRetentionTests.cs`. |
 | `BaselineTests` | 10 | Baseline marking, incremental baseline, baseline then MigrateUp |
-| `DatabaseLogTests` | 3 | Log entries written after MigrateUp, multiple log levels, logs during error |
+| `DatabaseLogTests` | 4 | Log entries written after MigrateUp, multiple log levels, logs during error |
 | `FixTests` | 8 | Fix command: no orphans, fix orphan, dry-run, older-than filter, fix-then-migrate, multiple orphans, details, assumed-status=Migrated |
 | `InfoTests` | 8 | Info command: fresh repo, full/partial migration, baseline, target groups, error state, multiple-run history, run details |
 | `MigrationRunMetaTests` | 7 | MigrationRunSettingsJson content (console options, product, masked credentials, MigrateDown masking, Baseline masking) |
@@ -342,6 +349,8 @@ The catalog lists the unique test scenarios defined for the base PostgreSQL test
 | `UpdateHashTests` | 5 | Update-Hash: no updates after fresh migration, update after file modification, validate passes after update, idempotent second run, empty-repo no-op |
 | `ValidateHashTests` | 8 | Hash validation in File and SqlBlocks scopes, detecting modifications, Disabled scope (ignores modification, passes after full migration) |
 | `SqlServerAtomicSharedConnectionTests` | 2 | SqlServer-only: atomic shared-connection path — transient error triggers file-level retry with full transaction rollback (ASC1), permanent error rolls back all blocks including prior DDL (ASC2) |
+| `SqliteDatetimeCheckConstraintTests` | 3 | SQLite-only: DAL-021 strict ISO-8601 CHECK constraints on repository datetime columns (rejects bad input, accepts `datetime('now')`, allows NULLs on nullable columns) |
+| `MySqlSessionTimezoneTests` / `MariaDbSessionTimezoneTests` | 2 + 2 | DAL-014 session time-zone enforcement: every DAL execute method issues `SET time_zone = '+00:00';` after opening a connection; `DateTime.UtcNow` round-trips through `TIMESTAMP` columns with millisecond fidelity. Defined together in `P2_MySqlMariaDbSessionTimezoneTests.cs`. |
 
 **CliTool tests** (PostgreSQL, SqlServer, MariaDb, MySql — 4 engines × 2 classes [File + Stdin] = 8 test classes; not available for SQLite):
 
@@ -436,17 +445,17 @@ Tests validate that for each of the 4 Docker presets (sqlcmd-docker, psql-docker
 
 ## Repository Assertions
 
-Tests verify the following database columns:
+Tests verify the following database columns via `MigrationRecordExpectation` and `MigrationRunExpectation` (partial-match DTOs — only non-null fields are asserted):
 
-**MigrationRun table:**
+**MigrationRun table** (`MigrationRunExpectation`):
 - `MigrationRunResultId` (Ok=100, Error=90)
-- `Environment` (always "Docker")
+- `EnvironmentId` (FK to Environment lookup — typically resolves to "Docker")
 - `FromReleaseVersion`, `ToReleaseVersion`
 
-**MigrationRecord table:**
+**MigrationRecord table** (`MigrationRecordExpectation`):
 - `MigrationStatusId` (Migrated=100, NotMigrated=50, Failed=30)
 - `MigrationOperationId` (MigrateUp=100)
-- `Environment`, `ReleaseVersion`, `TargetGroupAlias`, `TargetAlias`
+- `EnvironmentId`, `ReleaseVersion`, `TargetGroupAlias`, `TargetAlias`
 - `FileOrderId` (1-12, sequential)
 - `FileUpBlocksMigrated`, `FileUpBlocksTotal` (block-level execution tracking)
 - `MigrateDownFileExists` (set at MigrateUp discovery time)

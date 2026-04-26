@@ -4,7 +4,7 @@
 
 The Config-Wizard ecosystem consists of two projects:
 
-- **`Raycoon.RayMigrator.ConfigWizard.Core`** — shared domain library (zero NuGet/project dependencies). Provides all models, services, and validation logic. Used by the Web wizard and independently unit-tested.
+- **`Raycoon.RayMigrator.ConfigWizard.Core`** — shared domain library. Zero NuGet dependencies; one project reference to the WASM-safe `Raycoon.RayMigrator.Validation` shared rule catalog. Provides all models, services, and validation adapters. Used by the Web wizard and independently unit-tested.
 - **`Raycoon.RayMigrator.ConfigWizard.Web`** — Blazor WASM standalone wizard. Consumes Core models and services; adds Blazor components, `WizardStateService`, and Web-specific infrastructure services.
 
 ## Models
@@ -138,13 +138,15 @@ public class WizardValidationResult
 }
 ```
 
-`ValidationEntry` has `Path` (e.g. `"Products > MyProduct > TargetGroups > Backend > Alias"`), `Message`, and `ValidationSeverity` (`Error` or `Warning`).
+`ValidationEntry` has `Path` (e.g. `"Products > MyProduct > TargetGroups > Backend > Alias"`), `Message`, `Severity` (`ValidationSeverity.Error` or `ValidationSeverity.Warning`), and an optional `Code` (e.g. `"RULE_3_8"`) sourced from the shared rule catalog. The Code is `null` for issues raised by wizard-only helpers that have no catalog mapping.
 
 `WizardValidationResult` provides these helper methods:
 
 ```csharp
 void AddError(string path, string message)
 void AddWarning(string path, string message)
+void AddError(string path, string message, string? code)
+void AddWarning(string path, string message, string? code)
 void Merge(WizardValidationResult other)  // appends all errors and warnings from another result
 ```
 

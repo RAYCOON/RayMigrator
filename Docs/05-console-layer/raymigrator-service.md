@@ -49,18 +49,18 @@ Main()
 ```
 
 `RunDirectMode` delegates to `DirectModePipeline.ExecuteAsync()`, which handles the complete lifecycle:
-1. Validate Serilog configuration exists in the loaded config
+1. Validate Serilog configuration exists in the loaded config (returns exit code 4 if missing, with diagnostics for missing config files)
 2. Create Serilog logger (with optional database sink) and log environment variable replacements
-3. Build the DI host and register all services (including `TemplateCache`, `MigrationContext`, `RayMigratorService`)
+3. Build the DI host and register all services (including `RayMigratorOptions`, `RayMigratorConsoleOptions`, `DatabaseLogWriter`, the Service Layer via `AddRayMigratorServices`, `TemplateCache`, `TemplateExecutor`, `RayMigratorService`, and `MigrationContext`)
 4. Resolve `DatabaseLogWriter` (triggers options validation in Standalone mode)
 5. Register sensitive configuration values for masking in TRACE logs
 6. Validate the `--product` alias exists in the loaded configuration (with case-sensitive matching and helpful suggestions)
 7. Resolve `MigrationContext` and set `MigrationLoggingContext.Current` (enables log enrichment with migration properties)
 8. Initialize database logging infrastructure (wire database sink to `DatabaseLogWriter`)
-9. Populate `DalSpecificPropertiesDictionary` for all configured database types and validate schema names
-10. Validate all target connection strings
+9. Populate `DalSpecificPropertiesDictionary` for all configured database types and validate schema names (Repository and DatabaseLogging)
+10. Validate all target connection strings via `ConnectionValidator.ValidateTargetConnections`
 11. Resolve `RayMigratorService` from DI and call `DoWorkAsync`
-12. Wait for queued database logs to flush, then stop the host
+12. Flush queued database logs (`dbLogWriter.Flush()`), then stop the host
 
 ## Dependencies
 
@@ -419,7 +419,7 @@ private async Task<int> ExecuteFixIssuesAsync()
 
 ## Integration with CLI
 
-CLI argument parsing is handled by `CommandLineConfiguration` (in the Core project), which populates `RayMigratorConsoleOptions`. `RayMigratorConsoleOptions` is registered as a singleton in DI via `DirectModePipeline` (in the Pipeline project). The `RayMigratorService` receives these options via constructor injection and dispatches to the appropriate method via `DoWorkAsync`.
+CLI argument parsing is handled by `CommandLineConfiguration` (in the Core project), which populates `RayMigratorConsoleOptions`. `RayMigratorConsoleOptions` is registered as a singleton in DI via `DirectModePipeline` (in the Pipeline project), while `RayMigratorService` itself is registered as a scoped service. The `RayMigratorService` receives these options via constructor injection and dispatches to the appropriate method via `DoWorkAsync`.
 
 ## Error Handling Pattern
 

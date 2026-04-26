@@ -12,7 +12,7 @@ RayMigrator supports multiple database systems, each with specific SQL dialect r
 | **Multi-Line Comment** (`SqlMultiLineCommentStart`/`End`) | `/*` `*/` | `/*` `*/` | `/*` `*/` | `/*` `*/` | `/*` `*/` |
 | **Identifier Escape** | `[` `]` | `"` `"` | `` ` `` | `` ` `` | `"` `"` |
 | **DDL Transactions** | Full | Full | Limited | Limited | Full |
-| **Auto-increment** | `IDENTITY(1,1)` | `GENERATED ALWAYS AS IDENTITY` | `AUTO_INCREMENT` | `AUTO_INCREMENT` | `INTEGER PRIMARY KEY AUTOINCREMENT` |
+| **Auto-increment** | `IDENTITY(1,1)` | `GENERATED ALWAYS AS IDENTITY` | `AUTO_INCREMENT` | `AUTO_INCREMENT` | `INTEGER PRIMARY KEY` (rowid alias; DAL-020 removed `AUTOINCREMENT`) |
 | **UUID Type** | `UNIQUEIDENTIFIER` | `UUID` | `UUID` | `CHAR(36)` | `TEXT` |
 | **Current UTC Timestamp** | `SYSUTCDATETIME()` | `NOW()` (columns are `TIMESTAMPTZ`) | `CURRENT_TIMESTAMP` (columns are `TIMESTAMP`, session `time_zone='+00:00'`) | `CURRENT_TIMESTAMP` (columns are `TIMESTAMP`, session `time_zone='+00:00'`) | `datetime('now')` |
 | **Audit Column Type** | `DATETIME2(3)` | `TIMESTAMPTZ` | `TIMESTAMP` | `TIMESTAMP` | `TEXT` |
@@ -337,12 +337,14 @@ SQLite uses `;` for statements:
 
 ```sql
 CREATE TABLE users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id INTEGER PRIMARY KEY,
     name TEXT NOT NULL
 );
 
 CREATE INDEX ix_users_name ON users(name);
 ```
+
+> RayMigrator's repository templates intentionally use `INTEGER PRIMARY KEY` (rowid alias) without the `AUTOINCREMENT` keyword (DAL-020). User migrations are free to use either form.
 
 ### Identifier Escaping
 
@@ -370,7 +372,7 @@ SQLite does not support schemas. Tables exist in a single flat namespace:
 
 ```sql
 CREATE TABLE my_table (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id INTEGER PRIMARY KEY,
     name TEXT
 );
 ```
@@ -384,7 +386,7 @@ CREATE TEMP TABLE IF NOT EXISTS "_rc_state" ("key" TEXT PRIMARY KEY, "val" TEXT)
 DELETE FROM "_rc_state";
 
 INSERT OR REPLACE INTO "_rc_state" ("key", "val") VALUES
-    ('repository_version', '2026-04-17.1'),
+    ('repository_version', '2026-04-18.1'),
     ('pre_table_count', CAST((SELECT COUNT(*) FROM sqlite_master
         WHERE type='table' AND name IN (...)) AS TEXT));
 ```
@@ -396,6 +398,7 @@ INSERT OR REPLACE INTO "_rc_state" ("key", "val") VALUES
 - **Idempotent DDL**: `CREATE TABLE IF NOT EXISTS`
 - **Idempotent DML**: `INSERT OR IGNORE` / `INSERT OR REPLACE`
 - **WAL mode**: Connection validation sets `PRAGMA journal_mode=WAL` for better concurrency
+- **Foreign keys**: The DAL injects `Foreign Keys=true` into the connection string via `EnsureForeignKeysEnabled` (unless the user has explicitly set the value), which causes Microsoft.Data.Sqlite to issue `PRAGMA foreign_keys = ON` per connection
 - **STRICT tables**: RayMigrator's repository and logging templates use `CREATE TABLE ... STRICT` (SQLite 3.37+, DAL-022). This enforces column types (`INTEGER`, `TEXT`) at INSERT time instead of relying on SQLite's type-affinity coercion. The bundled `Microsoft.Data.Sqlite` is well above the 3.37 floor; no DAL code change is required.
 - **Datetime CHECK**: Every `TEXT` datetime column in the repository and logging schemas carries a CHECK constraint enforcing strict ISO-8601 (`YYYY-MM-DD HH:MM:SS`) via `datetime()` round-trip (DAL-021). Form for NOT NULL columns: `CHECK (datetime("X") IS NOT NULL AND datetime("X") = "X")`; nullable columns add `"X" IS NULL OR (...)`. The `IS NOT NULL` guard is required because SQLite's CHECK treats NULL as non-violation — without it, malformed input like `'yesterday'` would silently pass. All RayMigrator write paths use `datetime('now')` (no subsec, no `T` separator), so the strict CHECK never fires on Production inserts.
 - **Primary use**: SQLite can be used as a migration repository and as a target database for migrations
@@ -580,7 +583,7 @@ CREATE TEMP TABLE IF NOT EXISTS "_rc_state" ("key" TEXT PRIMARY KEY, "val" TEXT)
 DELETE FROM "_rc_state";
 
 INSERT OR REPLACE INTO "_rc_state" ("key", "val") VALUES
-    ('repository_version', '2026-04-17.1'),
+    ('repository_version', '2026-04-18.1'),
     ('pre_table_count', CAST((SELECT COUNT(*) FROM sqlite_master
         WHERE type='table' AND name IN (...)) AS TEXT));
 
@@ -606,7 +609,7 @@ END;
 - **Timestamps**: `datetime('now')`
 - **Identifiers**: `"{CFG:TableBaseName}TableName"` (double-quoted, no schema prefix)
 - **String concat**: `||`
-- **Auto-increment**: `INTEGER PRIMARY KEY AUTOINCREMENT`
+- **Auto-increment**: `INTEGER PRIMARY KEY` (rowid alias; DAL-020 removed `AUTOINCREMENT` from repository templates)
 - **Existence check**: `sqlite_master` table with `type='table'`
 - **Idempotent DDL**: `CREATE TABLE IF NOT EXISTS`
 - **Idempotent DML**: `INSERT OR IGNORE` for master data, `INSERT OR REPLACE` for state

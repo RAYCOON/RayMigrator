@@ -16,7 +16,7 @@ flowchart TD
     RepoInit --> P2
 
     P2["<b>Phase 2: File Discovery</b><br/>DiscoverAndPrepareMigrationFiles()"] --> FilesExist{Files found?}
-    FilesExist -->|No| EarlyOk1["MigrationRunUpdate(Ok)<br/>Return Success"]
+    FilesExist -->|No| EarlyOk1["RepositoryMigrationRunUpdate(Ok)<br/>Return Success"]
 
     FilesExist -->|Yes| ShouldRead{RunMode ≥ Simulate?}
     ShouldRead -->|Yes| QueryRepo["RepositoryMigrationSelect()<br/>FilterAlreadyMigratedFiles()"]
@@ -32,7 +32,7 @@ flowchart TD
     WarnOOO --> FilesRemain
 
     FilesRemain{Files remaining?}
-    FilesRemain -->|No| EarlyOk2["MigrationRunUpdate(Ok)<br/>Return Success"]
+    FilesRemain -->|No| EarlyOk2["RepositoryMigrationRunUpdate(Ok)<br/>Return Success"]
     FilesRemain -->|Yes| SafetyWarn["LogMigrationSafetyWarnings()"]
 
     SafetyWarn --> P3["<b>Phase 3: Execute Migrations</b>"]
@@ -53,15 +53,15 @@ flowchart TD
     TGResult -->|Yes| AccumOk["Accumulate counts"]
     AccumOk --> TGLoop
 
-    TGResult -->|No| HandleErr["HandleMigrationError()<br/>MigrationRunUpdate(Error)"]
+    TGResult -->|No| HandleErr["HandleMigrationError()<br/>RepositoryMigrationRunUpdate(Error)"]
     HandleErr --> ReturnErr["Return Result = Error"]
 
     TGLoop -->|exhausted| ReleaseLoop
     ReleaseLoop -->|exhausted| P5
 
     P5["<b>Phase 5: Finalization</b>"] --> FinalCheck{failedMigrations > 0?}
-    FinalCheck -->|Yes| FinalErr["MigrationRunUpdate(Error)"]
-    FinalCheck -->|No| FinalOk["MigrationRunUpdate(Ok)"]
+    FinalCheck -->|Yes| FinalErr["RepositoryMigrationRunUpdate(Error)"]
+    FinalCheck -->|No| FinalOk["RepositoryMigrationRunUpdate(Ok)"]
 
     style Start fill:#e1f5fe
     style EarlyOk1 fill:#c8e6c9
@@ -229,13 +229,13 @@ flowchart TD
     P2 --> FilterRollback["Filter records:<br/>Status = Migrated or partial<br/>Release > target release<br/>Match --target-group filter<br/>Order by FileOrderId DESC"]
 
     FilterRollback --> HasRecords{Records to<br/>rollback?}
-    HasRecords -->|No| EarlyOk["MigrationRunUpdate(Ok)<br/>Already at target release"]
+    HasRecords -->|No| EarlyOk["RepositoryMigrationRunUpdate(Ok)<br/>Already at target release"]
 
     HasRecords -->|Yes| P3["<b>Phase 3: Execute Rollbacks</b><br/>ExecuteRollbackForMigrations()"]
 
     P3 --> FinalCheck{All successful?}
-    FinalCheck -->|Yes| FinalOk["MigrationRunUpdate(Ok)"]
-    FinalCheck -->|No| FinalErr["MigrationRunUpdate(Error)"]
+    FinalCheck -->|Yes| FinalOk["RepositoryMigrationRunUpdate(Ok)"]
+    FinalCheck -->|No| FinalErr["RepositoryMigrationRunUpdate(Error)"]
 
     style Start fill:#e1f5fe
     style ValReturn fill:#c8e6c9
@@ -258,15 +258,15 @@ flowchart TD
 
     P1 --> P2["<b>Phase 2: File Discovery</b><br/>DiscoverAndPrepareMigrationFiles()"]
     P2 --> FilesExist{Files found?}
-    FilesExist -->|No| EarlyOk1["MigrationRunUpdate(Ok)"]
+    FilesExist -->|No| EarlyOk1["RepositoryMigrationRunUpdate(Ok)"]
 
     FilesExist -->|Yes| P3["<b>Phase 3: Filter</b><br/>FilterByTargetRelease()<br/>ValidateTargetGroupAliases()<br/>FilterByTargetGroups()"]
     P3 --> FilteredExist{Files after<br/>filter?}
-    FilteredExist -->|No| EarlyOk2["MigrationRunUpdate(Ok)"]
+    FilteredExist -->|No| EarlyOk2["RepositoryMigrationRunUpdate(Ok)"]
 
     FilteredExist -->|Yes| QueryRepo["RepositoryMigrationSelect()<br/>FilterAlreadyMigratedFiles()"]
     QueryRepo --> StillRemain{Files after<br/>dedup?}
-    StillRemain -->|No| EarlyOk3["MigrationRunUpdate(Ok)"]
+    StillRemain -->|No| EarlyOk3["RepositoryMigrationRunUpdate(Ok)"]
 
     StillRemain -->|Yes| P4["<b>Phase 4: Record as Migrated</b>"]
 
@@ -292,7 +292,7 @@ flowchart TD
     TGLoop -->|exhausted| ReleaseLoop
     ReleaseLoop -->|exhausted| P5
 
-    P5["<b>Phase 5: Finalization</b><br/>MigrationRunUpdate(Ok)"] --> ReturnOk(["Return BaselineResult"])
+    P5["<b>Phase 5: Finalization</b><br/>RepositoryMigrationRunUpdate(Ok)"] --> ReturnOk(["Return BaselineResult"])
 
     style Start fill:#e1f5fe
     style EarlyOk1 fill:#c8e6c9

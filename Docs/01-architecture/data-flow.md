@@ -71,7 +71,7 @@ sequenceDiagram
         end
     end
 
-    Note over Svc: Phase 4 - Finalization
+    Note over Svc: Phase 5 - Finalization
     Svc->>Tmpl: RepositoryMigrationRunUpdate(Ok/Error)
     Svc-->>Bridge: MigrationOperationResult
     Bridge-->>CLI: Exit code (0/1)

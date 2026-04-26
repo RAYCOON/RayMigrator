@@ -150,14 +150,19 @@ All request types are in `Models/Requests.cs`, all result types are in `Models/R
 
 | Result DTO | Purpose |
 |-----|---------|
-| `OperationResult` | Abstract base class (Success, ErrorMessage, ErrorCode, Messages, ExecutedAt, Duration) |
-| `MigrationOperationResult` | Result of migration up/down (extends `OperationResult`) |
-| `ValidationResult` | Result of hash validation |
-| `HashUpdateResult` | Result of hash update |
-| `BaselineResult` | Result of baseline operation |
-| `MigrationStatusInfo` | Current migration status for a product |
-| `FixIssuesResult` | Result of repository fix operations |
-| `MigrationHistory` | Migration run history |
+| `OperationResult` | Abstract base class (Success, ErrorMessage, ErrorCode, Messages, ExecutedAt, Duration). `ErrorCode` is `int?`: negative = SQL template ResultCode, positive = C# backend ErrorCode, null = unclassified. |
+| `MigrationOperationResult` | Result of migration up/down (extends `OperationResult`). Adds `RunId` (Guid), `ProductAlias`, `Environment`, `Operation`, `Result`, `TotalMigrations`, `SuccessfulMigrations`, `FailedMigrations`, `CurrentRelease`, `MigrationResults` (List<MigrationFileResult>). |
+| `MigrationFileResult` | Result of a single migration file execution (FileName, ReleaseVersion, TargetGroup, Success, ErrorMessage, ExecutedAt, Duration). |
+| `ValidationResult` | Result of hash validation (TotalFiles, ValidFiles, InvalidFiles, MissingFiles, Issues). |
+| `HashValidationIssue` | Individual hash validation issue (FileName, IssueType, ExpectedHash, ActualHash, Details). |
+| `HashUpdateResult` | Result of hash update (UpdatedFiles, NewFiles, RemovedFiles, UpdatedFileNames). |
+| `BaselineResult` | Result of baseline operation (TargetReleaseVersion, BaselinedFiles). |
+| `MigrationStatusInfo` | Current migration status for a product (CurrentRelease, LastMigrationDate, TotalMigrationsExecuted, PendingMigrations, LastRunResult, TargetGroups). |
+| `TargetGroupStatus` | Status of a target group (Alias, DatabaseType, CurrentRelease, ExecutedMigrations, LastMigrationDate, Targets). |
+| `MigrationHistory` | Migration run history (Runs: List<MigrationRunInfo>). |
+| `MigrationRunInfo` | Information about a migration run (MigrationRunId, RunId, StartedAt, CompletedAt, Operation, Result, RunMode, InitiatedBy, TotalMigrations, SuccessfulMigrations, FailedMigrations, ToRelease). |
+| `FixIssuesResult` | Result of Fix command (WasDryRun, OrphanedRunsFound, OrphanedRunsFixed, OrphanedRuns: List<OrphanedRunInfo>). |
+| `OrphanedRunInfo` | Information about an orphaned MigrationRun entry (MigrationRunId, Environment, EnvironmentId, StartedAt, MinutesRunning, MigrationRunModeId, WasFixed). |
 
 ### CLI Tool Execution
 
@@ -238,7 +243,7 @@ public int MigratorMetaId { get; set; }  // Set from RepositoryCheckCreate resul
 public int ProductId { get; set; }
 public int EnvironmentId { get; set; }   // Set from RepositoryEnvironmentCheckInsert result
 public int MigrationRunId { get; set; }
-public int MigrationId { get; set; }
+public int MigrationRecordId { get; set; }
 
 // File metadata
 public string ReleaseVersionFromFileNameWithPath { get; set; }
@@ -260,7 +265,7 @@ public string TargetAlias { get; set; }
 ### `MigrationStateSnapshot`
 **Location**: `Raycoon.RayMigrator.Core/MigrationStateSnapshot.cs`
 
-**Purpose**: Immutable snapshot of `MigrationState` properties used for structured logging. The snapshot captures all state properties (`ProductId`, `MigrationRunId`, `MigrationId`, file metadata, `MigrationRunResult`, `MigrationOperation`, `MigrationStatus`, target group/target aliases, `HashValidationScope`) as `init`-only properties.
+**Purpose**: Immutable snapshot of `MigrationState` properties used for structured logging. The snapshot captures all state properties (`ProductId`, `MigrationRunId`, `MigrationRecordId`, file metadata, `MigrationRunResult`, `MigrationOperation`, `MigrationStatus`, target group/target aliases, `HashValidationScope`) as `init`-only properties.
 
 > **Note**: `MigrationContext.Clone` creates a new `MigrationContext` with a deep-copied `MigrationState`, not a `MigrationStateSnapshot`. The `MigrationStateSnapshot` class is a separate lightweight type for log enrichment.
 
@@ -394,7 +399,7 @@ Validation is split across two projects. The **shared rule catalog** lives in `R
 | Class | Location | Purpose |
 |-------|----------|---------|
 | `ConfigurationConstants` | `Core/Configuration/ConfigurationConstants.cs` | Static constants and compiled regexes for `{ENV:...}` and `{CFG:...}` placeholder syntax, allowed template variable names, sensitive data masking string, `DotNetEnvironmentVariableName`, and `DatabaseAccessLayersRootDirectory`. |
-| `ConfigurationHelper` | `Core/Configuration/ConfigurationHelper.cs` | Static utility returning all `TemplateType` enum values (excluding `Undefined`). |
+| `ConfigurationHelper` | `Core/Configuration/ConfigurationHelper.cs` | Class with static `GetTemplateTypes()` method returning all `TemplateType` enum values (excluding `Undefined`). |
 | `StringExtensions` | `Core/Extensions/StringExtensions.cs` | Extension methods for SHA-256 hashing, path parsing, and connection string utilities. |
 | `RayMigratorOptionsExtensions` | `Core/Extensions/RayMigratorOptionsExtensions.cs` | Extension method (`ToDetailString`) on `IConfigurationSection` for formatted configuration output with optional sensitive data masking. |
 | `MigrationRunModeExtensions` | `Core/Extensions/MigrationRunModeExtensions.cs` | Extension methods for the `MigrationRunMode` enum. |
@@ -421,7 +426,7 @@ Validation is split across two projects. The **shared rule catalog** lives in `R
 ### `MigrationContextEnricher`
 **Location**: `Raycoon.RayMigrator.Infrastructure/Logging/MigrationContextEnricher.cs` (namespace: `Raycoon.RayMigrator.Infrastructure.Logging`)
 
-**Purpose**: Serilog enricher that reads `MigrationLoggingContext.Current` and adds migration-specific properties to every log event. Console/file properties: `Environment`, `MigrationRunId`, `TargetGroupAlias`, `TargetAlias`, `MigrationFilename`, `MigrationFileId`, `MigrationBlockId`. Database sink properties: `RunModeId`, `ProductId`, `MigrationId`, `ReleaseVersion`, `FileName`, `FileOrderId`, `FileBlockId`.
+**Purpose**: Serilog enricher that reads `MigrationLoggingContext.Current` and adds migration-specific properties to every log event. Console/file properties: `Environment`, `MigrationRunId`, `TargetGroupAlias`, `TargetAlias`, `MigrationFilename`, `MigrationFileId`, `MigrationBlockId`. Database sink properties: `RunModeId`, `ProductId`, `EnvironmentId`, `MigrationRecordId`, `ReleaseVersion`, `FileName`, `FileOrderId`, `FileBlockId`.
 
 ### `ConnectionValidator`
 **Location**: `Raycoon.RayMigrator.Infrastructure/ConnectionValidator.cs` (namespace: `Raycoon.RayMigrator.Core.Configuration.Validation`)
@@ -447,22 +452,22 @@ void RepositoryProductCheckInsert()
 void RepositoryEnvironmentCheckInsert()
 void RepositoryMigrationRunInsert(string migrationRunSettingsJson)
 void RepositoryMigrationRunUpdate(MigrationRunResult runResult)
-List<Dictionary<string, object?>> RepositoryMigrationRunSelectOrphaned(int productId, string environment)
+List<Dictionary<string, object?>> RepositoryMigrationRunSelectOrphaned(int productId, int environmentId)
 void RepositoryMigrationRunFixOrphaned(int migrationRunId)
-int RepositoryMigrationFixOrphaned(int migrationRunId, MigrationStatus status)
+int RepositoryMigrationRecordFixOrphaned(int migrationRunId, MigrationStatus status)
 InterruptedMigrationInfo? RepositoryMigrationGetInterrupted()
-int RepositoryMigrationInsert(int existingMigrationId, string filename, string releaseVersion,
+int RepositoryMigrationInsert(int existingMigrationRecordId, string filename, string releaseVersion,
     string targetGroupAlias, string targetAlias, int fileOrderId, string fileUpHash,
     string? fileUpConfigHash, string fileUpBlocksHash, int fileUpBlocksTotal,
     string? fileUpConfigJson, bool migrateDownFileExists)
-void RepositoryMigrationUpdate(int migrationId, MigrationStatus migrationStatus, int fileUpBlocksMigrated)
+void RepositoryMigrationUpdate(int migrationRecordId, MigrationStatus migrationStatus, int fileUpBlocksMigrated)
 // Shared-connection atomic overload (used by ExecuteSqlBlocksAtomic):
-void RepositoryMigrationUpdate(int migrationId, MigrationStatus migrationStatus, int fileUpBlocksMigrated,
+void RepositoryMigrationUpdate(int migrationRecordId, MigrationStatus migrationStatus, int fileUpBlocksMigrated,
     DbConnection connection, DbTransaction transaction, int repoCommandTimeoutInSeconds)
-void RepositoryMigrationUpdateRollback(int migrationId, MigrationStatus migrationStatus, string fileDownHash, string? fileDownConfigHash, string fileDownBlocksHash, int fileDownBlocksMigrated, int fileDownBlocksTotal, string? fileDownConfigJson)
+void RepositoryMigrationUpdateRollback(int migrationRecordId, MigrationStatus migrationStatus, string fileDownHash, string? fileDownConfigHash, string fileDownBlocksHash, int fileDownBlocksMigrated, int fileDownBlocksTotal, string? fileDownConfigJson)
 // Shared-connection atomic overload (used by ExecuteSqlBlocksAtomic):
-void RepositoryMigrationUpdateRollback(int migrationId, MigrationStatus migrationStatus, string fileDownHash, string? fileDownConfigHash, string fileDownBlocksHash, int fileDownBlocksMigrated, int fileDownBlocksTotal, string? fileDownConfigJson, DbConnection connection, DbTransaction transaction, int repoCommandTimeoutInSeconds)
-void RepositoryMigrationUpdateHash(int migrationId, string fileUpHash, string? fileUpConfigHash, string fileUpBlocksHash)
+void RepositoryMigrationUpdateRollback(int migrationRecordId, MigrationStatus migrationStatus, string fileDownHash, string? fileDownConfigHash, string fileDownBlocksHash, int fileDownBlocksMigrated, int fileDownBlocksTotal, string? fileDownConfigJson, DbConnection connection, DbTransaction transaction, int repoCommandTimeoutInSeconds)
+void RepositoryMigrationUpdateHash(int migrationRecordId, string fileUpHash, string? fileUpConfigHash, string fileUpBlocksHash)
 List<MigrationRecord> RepositoryMigrationSelect(MigrationRunMode? overrideRunMode = null)
 List<Dictionary<string, object?>> RepositoryMigrationRunSelect(int limit)
 TemplateResponse ExecuteScalarWithNegativeResultCodeException(Template template, IDal dal, DalSettings dalSettings, DalParameterList? dalParameterList, ILogger? logger = null, EventId? eventId = null)

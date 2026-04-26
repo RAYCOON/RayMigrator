@@ -121,7 +121,7 @@ Namespace: `Raycoon.RayMigrator.Core.Configuration.Options`
 
 ### Enum Values
 
-Enum properties are stored as strings in JSON and parsed with `Enum.TryParse`. Each options class exposes a computed `*Enum` property (e.g., `MigrationErrorActionEnum`) with lazy parsing.
+Enum properties are stored as strings in JSON and parsed lazily. Each options class exposes a computed `*Enum` property (e.g., `MigrationErrorActionEnum`) that returns `Undefined` (0) when parsing fails or the underlying string is missing.
 
 | Enum | Values |
 |------|--------|
@@ -129,7 +129,9 @@ Enum properties are stored as strings in JSON and parsed with `Enum.TryParse`. E
 | `RollbackErrorAction` | `Terminate` (10), `Ignore` (30) |
 | `TargetMigrationOrder` | `Simultaneously` (1), `Successively` (2) |
 | `HashValidationScope` | `File` (1), `SqlBlocks` (2), `Disabled` (3) |
-| `CliToolInputMode` | `Undefined` (0), `File` (1), `Stdin` (2) |
+| `CliToolInputMode` | `File` (1), `Stdin` (2) |
+
+All enums also define an `Undefined = 0` sentinel for invalid/unset values.
 
 Namespace: `Raycoon.RayMigrator.Core.Configuration.Enums`
 

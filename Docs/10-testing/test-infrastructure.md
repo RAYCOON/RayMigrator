@@ -649,6 +649,14 @@ Server=127.0.0.1;Port=3307;Database={database};User Id=rayuser;Password=raypass1
 
 > **Note**: MySQL uses port 3307 (external) to avoid conflict with MariaDB on 3306.
 
+### SQLite
+
+```
+Data Source=/path/to/database.sqlite
+```
+
+> **Note**: SQLite is file-based and does not require Docker. Engine tests create temporary database files under `Path.GetTempPath()/RayMigrator_SqliteTests/raytest_<guid>.sqlite` (see `SqliteFixture.cs`). The fixture deletes the files in `DisposeAsync`.
+
 ## Troubleshooting
 
 ### Container Won't Start

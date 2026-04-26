@@ -232,7 +232,7 @@ public abstract class OperationResult
 {
     public bool Success { get; set; }
     public string? ErrorMessage { get; set; }
-    public int? ErrorCode { get; set; }  // Negative = SQL template ResultCode, positive = C# backend ErrorCode
+    public int? ErrorCode { get; set; }  // Negative = SQL template ResultCode, positive = C# backend ErrorCode, null = unclassified. See TemplateResultCode catalog.
     public List<string> Messages { get; set; } = new List<string>();
     public DateTime ExecutedAt { get; set; } = DateTime.UtcNow;
     public TimeSpan Duration { get; set; }
@@ -395,6 +395,7 @@ public class OrphanedRunInfo
 {
     public int MigrationRunId { get; set; }
     public string Environment { get; set; } = string.Empty;
+    public int EnvironmentId { get; set; }
     public DateTime StartedAt { get; set; }
     public double MinutesRunning { get; set; }
     public int MigrationRunModeId { get; set; }
@@ -556,7 +557,7 @@ public async Task<MigrationOperationResult> MigrateUpAsync(MigrateUpRequest requ
         _templateExecutor.RepositoryProductCheckInsert();
         _templateExecutor.RepositoryEnvironmentCheckInsert();
         var interruptedMigration = _templateExecutor.RepositoryMigrationGetInterrupted();
-        if (interruptedMigration != null) _logger.LogWarning("Interrupted migration detected: ...", interruptedMigration.MigrationId, ...);
+        if (interruptedMigration != null) _logger.LogWarning("Interrupted migration detected: ...", interruptedMigration.MigrationRecordId, ...);
         var settingsJson = BuildMigrationRunSettingsJson(_ctxAccessor.Current);
         await RepositoryMigrationRunInsertWithAutoFix(settingsJson);
     }
@@ -586,7 +587,7 @@ public async Task<MigrationOperationResult> MigrateUpAsync(MigrateUpRequest requ
     LogMigrationSafetyWarnings(filesToMigrate, productOptions);
 
     // Phase 3: Execute Migrations (Release → TargetGroup → Targets)
-    var successfullyMigratedRecords = new List<(MigrationFileInfo File, int MigrationId, string TargetAlias)>();
+    var successfullyMigratedRecords = new List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)>();
 
     foreach (var release in orderedReleases)
     {
@@ -598,7 +599,7 @@ public async Task<MigrationOperationResult> MigrateUpAsync(MigrateUpRequest requ
 
             if (!result.Success)
             {
-                await HandleMigrationError(productOptions, result.FailedFile!, result.FailedMigrationId,
+                await HandleMigrationError(productOptions, result.FailedFile!, result.FailedMigrationRecordId,
                     successfullyMigratedRecords);
                 _templateExecutor.RepositoryMigrationRunUpdate(MigrationRunResult.Error);
                 return errorResult;
@@ -717,8 +718,8 @@ public async Task<BaselineResult> BaselineAsync(BaselineRequest request)
         string? cliAlias = ResolveUseCliToolAlias(file, targetOptions);
         if (cliAlias != null) GetCliToolByAlias(cliAlias); // Throws if alias not found
 
-        int migrationId = _templateExecutor.RepositoryMigrationInsert(...);
-        _templateExecutor.RepositoryMigrationUpdate(migrationId, MigrationStatus.Migrated, file.FileUpBlocksTotal);
+        int migrationRecordId = _templateExecutor.RepositoryMigrationInsert(...);
+        _templateExecutor.RepositoryMigrationUpdate(migrationRecordId, MigrationStatus.Migrated, file.FileUpBlocksTotal);
     }
 
     // --- Phase 5: Finalization ---
@@ -776,10 +777,10 @@ Returns `MigrationHistory` with a list of `MigrationRunInfo` entries.
 Fixes repository inconsistencies such as orphaned `MigrationRun` entries.
 
 1. **Phase 1**: Repository initialization (`RepositoryCheckCreate`, `RepositoryProductCheckInsert`, `RepositoryEnvironmentCheckInsert`)
-2. **Phase 2**: Query orphaned runs via `RepositoryMigrationRunSelectOrphaned(productId, environment)`
+2. **Phase 2**: Query orphaned runs via `RepositoryMigrationRunSelectOrphaned(productId, environmentId)`
 3. **Phase 3**: Filter by `OlderThanMinutes`
 4. **Phase 4**: Log found orphans
-5. **Phase 5**: If not `DryRun`, fix each orphaned run: fix orphaned Migration entries (`RepositoryMigrationFixOrphaned` with `AssumedMigrationStatus`) then mark the run as Error (`RepositoryMigrationRunFixOrphaned`)
+5. **Phase 5**: If not `DryRun`, fix each orphaned run: fix orphaned MigrationRecord entries (`RepositoryMigrationRecordFixOrphaned` with `AssumedMigrationStatus`) then mark the run as Error (`RepositoryMigrationRunFixOrphaned`)
 6. **Phase 6**: Return `FixIssuesResult`
 
 ## TargetGroup Execution
@@ -796,20 +797,20 @@ An error aborts the entire TargetGroup unless `MigrationErrorAction` is `Ignore`
 internal async Task<TargetGroupExecutionResult> ExecuteTargetGroupSimultaneously(
     List<MigrationFileInfo> files, TargetGroupOptions targetGroupOptions,
     ProductOptions productOptions, MigrateUpRequest request,
-    List<(MigrationFileInfo File, int MigrationId, string TargetAlias)> successfullyMigratedRecords,
+    List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)> successfullyMigratedRecords,
     List<MigrationFileResult> migrationResults,
     List<MigrationRecord> existingRecords)
 ```
 
 Each file/target execution:
 1. Inserts a migration record (`RepositoryMigrationInsert`)
-2. Sets `_ctxAccessor.Current.MigrationState` fields (MigrationId, ReleaseVersion, TargetAlias, etc.)
+2. Sets `_ctxAccessor.Current.MigrationState` fields (MigrationRecordId, ReleaseVersionFromFileNameWithPath, FilenameWithRelativePath, FileOrderId, TargetGroupAlias, TargetAlias)
 3. Checks for resumable partial execution (`FindResumableBlock`)
 4. Resolves CLI tool alias via `ResolveUseCliToolAlias(file, targetOptions)`
 5. If a CLI tool alias is resolved: executes via `ExecuteWithCliTool()` (entire file as single unit)
 6. Otherwise: executes SQL blocks via `ExecuteSqlBlocks()` (block-wise DAL execution)
 7. Updates migration record status (`RepositoryMigrationUpdate`)
-8. Adds `(file, migrationId, targetOptions.Alias!)` to `successfullyMigratedRecords`
+8. Adds `(file, migrationRecordId, targetOptions.Alias!)` to `successfullyMigratedRecords`
 
 ### ExecuteTargetGroupSuccessively
 
@@ -823,7 +824,7 @@ Error handling behavior is identical to Simultaneously: Ignore causes the file t
 internal async Task<TargetGroupExecutionResult> ExecuteTargetGroupSuccessively(
     List<MigrationFileInfo> files, TargetGroupOptions targetGroupOptions,
     ProductOptions productOptions, MigrateUpRequest request,
-    List<(MigrationFileInfo File, int MigrationId, string TargetAlias)> successfullyMigratedRecords,
+    List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)> successfullyMigratedRecords,
     List<MigrationFileResult> migrationResults,
     List<MigrationRecord> existingRecords)
 ```
@@ -884,7 +885,7 @@ internal class TargetGroupExecutionResult
     public int SuccessCount { get; set; }
     public int FailCount { get; set; }
     public MigrationFileInfo? FailedFile { get; set; }
-    public int FailedMigrationId { get; set; }
+    public int FailedMigrationRecordId { get; set; }
     public string? ErrorMessage { get; set; }
 }
 ```
@@ -926,7 +927,7 @@ internal async Task<(int succeededBlocks, int failedBlocks)> ExecuteWithCliTool(
     MigrationFileInfo file,
     TargetGroupOptions targetGroupOptions,
     TargetOptions targetOptions,
-    int migrationId,
+    int migrationRecordId,
     MigrationRunMode runMode,
     CliToolOptions cliToolOptions)
 ```
@@ -1002,7 +1003,7 @@ When `RepositoryMigrationRunInsert` fails with `MigrationAlreadyRunningException
 1. Queries orphaned MigrationRun entries via `RepositoryMigrationRunSelectOrphaned`
 2. Filters to runs older than `AutoFixOrphanedRunsThresholdMinutes` (10 minutes)
 3. If no auto-fixable orphaned runs are found, rethrows the original exception
-4. For each auto-fixable orphaned run: fixes Migration entries (`RepositoryMigrationFixOrphaned` with `NotMigrated`) and marks the run as Error (`RepositoryMigrationRunFixOrphaned`)
+4. For each auto-fixable orphaned run: fixes MigrationRecord entries (`RepositoryMigrationRecordFixOrphaned` with `NotMigrated`) and marks the run as Error (`RepositoryMigrationRunFixOrphaned`)
 5. Retries `RepositoryMigrationRunInsert` once
 
 Used by `MigrateUpAsync`, `MigrateDownAsync`, and `BaselineAsync`.
@@ -1097,8 +1098,8 @@ The service handles errors based on `MigrationErrorAction` via `HandleMigrationE
 private async Task HandleMigrationError(
     ProductOptions productOptions,
     MigrationFileInfo failedFile,
-    int failedMigrationId,
-    List<(MigrationFileInfo File, int MigrationId, string TargetAlias)> successfullyMigratedRecords)
+    int failedMigrationRecordId,
+    List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)> successfullyMigratedRecords)
 {
     // ErrorAction Inheritance: file-level TOML override takes precedence over product-level config
     var errorAction = failedFile.MigrationErrorActionOverride ?? productOptions.MigrationErrorActionEnum;
@@ -1111,7 +1112,7 @@ private async Task HandleMigrationError(
 
         case MigrationErrorAction.RollbackErrorOnly:
             // Rollback only the failed migration
-            await RollbackSingleMigration(productOptions, failedFile, failedMigrationId);
+            await RollbackSingleMigration(productOptions, failedFile, failedMigrationRecordId);
             break;
 
         case MigrationErrorAction.Rollback:
@@ -1209,7 +1210,7 @@ All marked `internal static` for testability:
 | Method | Purpose |
 |--------|---------|
 | `ExtractTomlAndSql` | Extracts TOML block (`/* [RayMigrator] ... */`) and SQL content |
-| `ParseTomlConfig` | Parses TOML key=value pairs (UseTransaction, Description, Environments, Targets, RunAlways, RequireRollbackFile, StopRollbackOnMissingRollbackFile, MigrationErrorAction, RollbackErrorAction, UseCliToolAlias, TargetGroupMigrationOrder) |
+| `ParseTomlConfig` | Parses TOML key=value pairs (UseTransaction, Description, Environments, Targets, RunAlways, RequireRollbackFile, MigrationErrorAction, RollbackErrorAction, UseCliToolAlias, TargetGroupMigrationOrder, StopRollbackOnMissingRollbackFile) |
 | `ParseTomlBool` | Parses `true`/`false` TOML values |
 | `ParseTomlString` | Strips surrounding quotes from TOML strings |
 | `ParseTomlStringArray` | Parses `["val1", "val2"]` TOML arrays |

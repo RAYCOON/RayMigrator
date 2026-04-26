@@ -121,7 +121,7 @@ Directory.GetFiles(subDir, "*.sql");
 Replaced with values from configuration options.
 
 ```sql
-CREATE TABLE [{CFG:SchemaName}].[{CFG:TableBaseName}Migration] (
+CREATE TABLE [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRecord] (
     ...
 );
 ```
@@ -183,7 +183,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_CheckCreate"
 DatabaseType   = "SqlServer"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-04-17.1"
+Version        = "2026-04-18.1"
 
 [Description]
 Function = """
@@ -292,42 +292,42 @@ public class TemplateExecutor
     // Migration Run Operations
     public void RepositoryMigrationRunInsert(string migrationRunSettingsJson);
     public void RepositoryMigrationRunUpdate(MigrationRunResult runResult);
-    public List<Dictionary<string, object?>> RepositoryMigrationRunSelectOrphaned(int productId, string environment);
+    public List<Dictionary<string, object?>> RepositoryMigrationRunSelectOrphaned(int productId, int environmentId);
     public void RepositoryMigrationRunFixOrphaned(int migrationRunId);
     public List<Dictionary<string, object?>> RepositoryMigrationRunSelect(int limit);
 
     // Fix Operations
-    public int RepositoryMigrationFixOrphaned(int migrationRunId, MigrationStatus status);
+    public int RepositoryMigrationRecordFixOrphaned(int migrationRunId, MigrationStatus status);
 
     // Migration Record Operations
     public int RepositoryMigrationInsert(
-        int existingMigrationId,
+        int existingMigrationRecordId,
         string filename, string releaseVersion,
         string targetGroupAlias, string targetAlias, int fileOrderId,
         string fileUpHash, string? fileUpConfigHash, string fileUpBlocksHash,
         int fileUpBlocksTotal, string? fileUpConfigJson, bool migrateDownFileExists);
 
     // Standard overload: manages its own connection
-    public void RepositoryMigrationUpdate(int migrationId,
+    public void RepositoryMigrationUpdate(int migrationRecordId,
         MigrationStatus migrationStatus, int fileUpBlocksMigrated);
     // Shared-connection overload: caller provides connection + transaction for atomic execution
-    public void RepositoryMigrationUpdate(int migrationId,
+    public void RepositoryMigrationUpdate(int migrationRecordId,
         MigrationStatus migrationStatus, int fileUpBlocksMigrated,
         DbConnection connection, DbTransaction transaction, int repoCommandTimeoutInSeconds);
 
     // Standard overload: manages its own connection
-    public void RepositoryMigrationUpdateRollback(int migrationId,
+    public void RepositoryMigrationUpdateRollback(int migrationRecordId,
         MigrationStatus migrationStatus, string fileDownHash, string? fileDownConfigHash,
         string fileDownBlocksHash, int fileDownBlocksMigrated, int fileDownBlocksTotal,
         string? fileDownConfigJson);
     // Shared-connection overload: caller provides connection + transaction for atomic execution
-    public void RepositoryMigrationUpdateRollback(int migrationId,
+    public void RepositoryMigrationUpdateRollback(int migrationRecordId,
         MigrationStatus migrationStatus, string fileDownHash, string? fileDownConfigHash,
         string fileDownBlocksHash, int fileDownBlocksMigrated, int fileDownBlocksTotal,
         string? fileDownConfigJson,
         DbConnection connection, DbTransaction transaction, int repoCommandTimeoutInSeconds);
 
-    public void RepositoryMigrationUpdateHash(int migrationId, string fileUpHash,
+    public void RepositoryMigrationUpdateHash(int migrationRecordId, string fileUpHash,
         string? fileUpConfigHash, string fileUpBlocksHash);
     // Optional overrideRunMode allows Simulate mode to query records written by Migrate mode
     public List<MigrationRecord> RepositoryMigrationSelect(MigrationRunMode? overrideRunMode = null);
@@ -435,11 +435,11 @@ Current `RepositoryVersion` values per engine (also stored in `SET @v_repository
 
 | Engine | Repository_CheckCreate | DatabaseLogging_CheckCreate |
 |--------|------------------------|------------------------------|
-| SQL Server | `2026-04-17.1` | `2026-04-17.1` |
-| PostgreSQL | `2026-04-17.4` | `2026-04-17.4` |
-| MariaDB | `2026-04-17.3` | `2026-04-17.3` |
-| MySQL | `2026-04-17.3` | `2026-04-17.3` |
-| SQLite | `2026-04-17.1` | `2026-04-17.1` |
+| SQL Server | `2026-04-18.1` | `2026-04-18.1` |
+| PostgreSQL | `2026-04-18.1` | `2026-04-18.1` |
+| MariaDB | `2026-04-18.1` | `2026-04-18.1` |
+| MySQL | `2026-04-18.1` | `2026-04-18.1` |
+| SQLite | `2026-04-18.1` | `2026-04-18.1` |
 
 Per-engine version numbers are independent. Bumping one engine's version does not require bumping the others.
 
@@ -450,7 +450,7 @@ Per-engine version numbers are independent. Bumping one engine's version does no
 [RayMigratorTemplate]
 TemplateType = "Repository_CheckCreate"
 DatabaseType = "SqlServer"
-Version = "2026-04-17.1"
+Version = "2026-04-18.1"
 */
 
 SET NOCOUNT ON;
@@ -472,9 +472,9 @@ BEGIN TRY
     -- Create tables
     CREATE TABLE [{CFG:SchemaName}].[{CFG:TableBaseName}MigratorMeta] (
         Id INT IDENTITY(1,1) PRIMARY KEY,
-        RepositoryVersion VARCHAR(100) NOT NULL,
-        RepositoryDatabaseType VARCHAR(100) NOT NULL,
-        CreatedByRayMigratorVersion VARCHAR(100) NOT NULL,
+        RepositoryVersion NVARCHAR(100) NOT NULL,
+        RepositoryDatabaseType NVARCHAR(100) NOT NULL,
+        CreatedByRayMigratorVersion NVARCHAR(100) NOT NULL,
         CreatedAt DATETIME2(3) NOT NULL
     );
 
@@ -495,7 +495,7 @@ END CATCH;
 [RayMigratorTemplate]
 TemplateType = "Repository_CheckCreate"
 DatabaseType = "PostgreSQL"
-Version = "2026-04-17.4"
+Version = "2026-04-18.1"
 */
 
 DO $$

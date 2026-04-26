@@ -351,13 +351,13 @@ RayMigrator Fix -p BookStore -env Production
 | `--scope` | `OrphanedRuns` | What to fix: `OrphanedRuns` or `All` |
 | `--older-than` | `60` | Minimum age in minutes for a run to be considered orphaned |
 | `--dry-run` | `false` | Preview what would be fixed without making changes |
-| `--last-migration-status` | `not-migrated` | Status to assign to orphaned Migration records: `not-migrated` or `migrated` |
+| `--last-migration-status` | `not-migrated` | Status to assign to orphaned MigrationRecord rows: `not-migrated` or `migrated` |
 
 ### What Fix Does
 
 For each orphaned `MigrationRun` that matches the age threshold:
 
-1. Updates orphaned `Migration` entries (records stuck in `Pending` or `Executing`) to the status specified by `--last-migration-status` (default: `NotMigrated`).
+1. Updates orphaned `MigrationRecord` rows (entries stuck in `Pending` or `Executing`) to the status specified by `--last-migration-status` (default: `NotMigrated`).
 2. Marks the `MigrationRun` itself as `Error` and sets its `FinishedAt` timestamp.
 
 ### Choosing --last-migration-status

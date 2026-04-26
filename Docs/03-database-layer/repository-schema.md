@@ -308,7 +308,7 @@ All four lookup tables (`MigrationOperation`, `MigrationRunResult`, `MigrationRu
 |--------|------|----------|-------------|
 | `Id` | TINYINT | NOT NULL | Primary key |
 | `Name` | NVARCHAR(100) | NOT NULL | Enum name (e.g., `MigrateUp`, `Migrated`) |
-| `Description` | VARCHAR(1000) | NULL | Human-readable description |
+| `Description` | NVARCHAR(1000) | NULL | Human-readable description |
 
 `Name` is `NOT NULL` across all 5 database engines. `Description` is intentionally nullable.
 
@@ -375,7 +375,7 @@ The documentation above uses SQL Server types as the canonical reference. The ac
 
 ## Indexes
 
-The following indexes are created on all 5 database engines (shown using SQL Server / canonical names; PostgreSQL, MariaDB, and MySQL use the snake_case equivalents `uix_product_name_lower`, `uix_environment_name_lower`, `ix_migration_record_history_migration_record_id`):
+The following indexes are created on all 5 database engines (shown using SQL Server / SQLite canonical names; PostgreSQL, MariaDB, and MySQL use the snake_case equivalents `uix_product_name_lower`, `uix_environment_name_lower`, `ix_migration_record_history_migration_record_id`):
 
 ```sql
 -- Product: Unique constraint on lowercase name (case-insensitive deduplication)
@@ -385,7 +385,7 @@ CREATE UNIQUE INDEX uix_Product_NameLower ON Product (NameLower);
 CREATE UNIQUE INDEX uix_Environment_NameLower ON Environment (NameLower);
 
 -- MigrationRecordHistory: Fast lookup by MigrationRecordId
-CREATE INDEX ix_MigrationRecordHistory_MigrationRecordId ON MigrationRecordHistory (MigrationRecordId);
+CREATE INDEX ix_MigrationRecordHistory ON MigrationRecordHistory (MigrationRecordId);
 ```
 
 PostgreSQL does not auto-create indexes for FK columns (unlike MySQL/MariaDB InnoDB, which does). The following additional indexes are therefore created on PostgreSQL only (shown with snake_case names used by the PostgreSQL templates):

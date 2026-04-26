@@ -1,6 +1,6 @@
 # Open Features
 
-Central registry of open features in RayMigrator v0.9.x.
+Central registry of open features in RayMigrator v0.10.x.
 
 ---
 
@@ -10,9 +10,9 @@ Central registry of open features in RayMigrator v0.9.x.
 
 **Status:** IMPLEMENTED
 
-Detection of orphaned runs and interrupted migrations works and logs warnings. Orphaned run cleanup is implemented via the `Fix` command (`FixIssuesAsync`), which marks orphaned `MigrationRun` entries as Error and fixes associated `Migration` entries. Resume-from-block recovery is implemented for both Migrate-Up and Migrate-Down.
+Detection of orphaned runs and interrupted migrations works and logs warnings. Orphaned run cleanup is implemented via the `Fix` command (`FixIssuesAsync`), which marks orphaned `MigrationRun` entries as Error and fixes associated `MigrationRecord` entries. Resume-from-block recovery is implemented for both Migrate-Up and Migrate-Down.
 
-- **What exists:** `RepositoryMigrationRunSelectOrphaned()`, `RepositoryMigrationGetInterrupted()`, warning logging, `FixIssuesAsync` command with `RepositoryMigrationRunFixOrphaned` and `RepositoryMigrationFixOrphaned` SQL templates (all 5 engines), `InterruptedMigrationInfo` model, dry-run mode, `--older-than` filter, `--last-migration-status` option, `FindResumableBlock()` for automatic resume-from-block in Migrate-Up, rollback block resume in Migrate-Down via `FileDownBlocksMigrated`, auto-fix of orphaned runs older than 10 minutes (`AutoFixOrphanedRunsThresholdMinutes`) when a parallel-run conflict is detected, `StopRollbackOnMissingRollbackFile` configuration setting and `--stop-rollback-on-missing-rollback-file` / `-sromrf` CLI option (controls error-recovery rollback chain behavior when rollback file is missing and `RequireRollbackFile=false`)
+- **What exists:** `RepositoryMigrationRunSelectOrphaned()`, `RepositoryMigrationGetInterrupted()`, warning logging, `FixIssuesAsync` command with `Repository_MigrationRun_FixOrphaned.sql` and `Repository_MigrationRecord_FixOrphaned.sql` templates (all 5 engines), `RepositoryMigrationRecordFixOrphaned` template-executor method, `InterruptedMigrationInfo` model, dry-run mode, `--older-than` filter, `--last-migration-status` option, `FindResumableBlock()` for automatic resume-from-block in Migrate-Up, rollback block resume in Migrate-Down via `FileDownBlocksMigrated`, auto-fix of orphaned runs older than 10 minutes (`AutoFixOrphanedRunsThresholdMinutes`) when a parallel-run conflict is detected, `StopRollbackOnMissingRollbackFile` configuration setting and `--stop-rollback-on-missing-rollback-file` / `-sromrf` CLI option (controls error-recovery rollback chain behavior when rollback file is missing and `RequireRollbackFile=false`)
 - **What's missing:** `--force-restart` / `--skip` CLI options
 - **Files:** `MigrationService.cs`, `TemplateExecutor.cs`, `RayMigratorService.cs`
 - **Docs:** [Resilience](../02-core-concepts/resilience.md)
@@ -27,7 +27,7 @@ Detection of orphaned runs and interrupted migrations works and logs warnings. O
 
 Oracle DAL is not yet implemented. The pluggable DAL architecture supports adding new database engines via the `Database.Example` skeleton project.
 
-- **What exists:** Pluggable DAL architecture with 5 migration engines (SqlServer, PostgreSQL, MariaDb, MySql, Sqlite), `Database.Example` skeleton for external DAL development
+- **What exists:** Pluggable DAL architecture with 5 migration engines (SqlServer, PostgreSQL, MariaDb, MySql, Sqlite), `Database.Example` skeleton for external DAL development (19 placeholder templates including `Repository_MigrationRecordHistory_Archive.sql`)
 - **What's missing:** Oracle DAL
 - **Docs:** [Adding New Database](../03-database-layer/adding-new-database.md), [New Database Type](../09-extending/new-database-type.md), [External DAL Development](../09-extending/external-dal-development.md)
 

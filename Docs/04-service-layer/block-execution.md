@@ -118,7 +118,7 @@ sequenceDiagram
             Svc->>Svc: ReplaceEnvironmentVariablesInSqlBlock()
             Svc->>Ctx: Update MigrationState.FileBlockId
             opt RunMode.ShouldWriteRepository()
-                Svc->>Tmpl: RepositoryMigrationUpdate(migrationId, Executing, blockIndex+1)
+                Svc->>Tmpl: RepositoryMigrationUpdate(migrationRecordId, Executing, blockIndex+1)
                 Tmpl->>Repo: Update block progress
             end
         end
@@ -141,7 +141,7 @@ sequenceDiagram
             alt ignoreBlockErrors=true and block fails
                 Svc->>Svc: Log warning, increment failedBlocks
             end
-            Svc->>Tmpl: RepositoryMigrationUpdate(migrationId, Executing, blockIndex+1)
+            Svc->>Tmpl: RepositoryMigrationUpdate(migrationRecordId, Executing, blockIndex+1)
             Tmpl->>Repo: Update block progress (called even on ignored block failure)
         end
         Svc-->>Svc: Return (succeededBlocks, failedBlocks, false)
@@ -186,7 +186,7 @@ internal async Task<(int succeededBlocks, int failedBlocks, bool atomicCommitCom
     MigrationFileInfo file,
     TargetGroupOptions targetGroupOptions,
     TargetOptions targetOptions,
-    int migrationId,
+    int migrationRecordId,
     MigrationRunMode runMode,
     bool ignoreBlockErrors = false,
     int startFromBlock = 0)
@@ -213,7 +213,7 @@ internal async Task<(int succeededBlocks, int failedBlocks, bool atomicCommitCom
             if (runMode.ShouldWriteRepository())
             {
                 await Task.Run(() => _templateExecutor.RepositoryMigrationUpdate(
-                    migrationId, MigrationStatus.Executing, i + 1));
+                    migrationRecordId, MigrationStatus.Executing, i + 1));
             }
             succeededBlocks++;
         }
@@ -243,7 +243,7 @@ internal async Task<(int succeededBlocks, int failedBlocks, bool atomicCommitCom
         targetGroupOptions.DatabaseType!, ignoreBlockErrors);
 
     if (useSharedConnection)
-        return await ExecuteSqlBlocksAtomic(file, targetDal!, dalSettings, migrationId, runMode, startFromBlock);
+        return await ExecuteSqlBlocksAtomic(file, targetDal!, dalSettings, migrationRecordId, runMode, startFromBlock);
 
     for (int blockIndex = startFromBlock; blockIndex < file.SqlBlocks.Count; blockIndex++)
     {
@@ -274,7 +274,7 @@ internal async Task<(int succeededBlocks, int failedBlocks, bool atomicCommitCom
 
         // Update block progress in repository
         await Task.Run(() => _templateExecutor.RepositoryMigrationUpdate(
-            migrationId, MigrationStatus.Executing, blockIndex + 1));
+            migrationRecordId, MigrationStatus.Executing, blockIndex + 1));
     }
 
     return (succeededBlocks, failedBlocks, false);

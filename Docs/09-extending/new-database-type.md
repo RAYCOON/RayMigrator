@@ -137,8 +137,8 @@ For external development (outside the monorepo), replace `ProjectReference` with
 
 ```xml
 <ItemGroup>
-    <PackageReference Include="Raycoon.RayMigrator.Database.Common" Version="0.9.41" />
-    <PackageReference Include="Raycoon.RayMigrator.Shared" Version="0.9.41" />
+    <PackageReference Include="Raycoon.RayMigrator.Database.Common" Version="0.10.3" />
+    <PackageReference Include="Raycoon.RayMigrator.Shared" Version="0.10.3" />
 </ItemGroup>
 ```
 
@@ -308,7 +308,7 @@ SELECT '-1,Error description';
 
 See `Database.SqlServer/Templates/` or `Database.PostgreSQL/Templates/` for reference implementations. All five built-in DALs (`SqlServer`, `PostgreSQL`, `MariaDb`, `MySql`, `Sqlite`) provide complete template sets of 18 files. Each template file in `Database.Example/Templates/` contains a TODO comment pointing to the reference implementations. Note that the extra `Repository_MigrationRecordHistory_Archive.sql` file in `Database.Example/Templates/` is not required by the engine and is silently skipped during loading.
 
-> **Note on `Repository_Product_CheckInsert.sql` and `Repository_Environment_CheckInsert.sql`** (current version `2026-04-17.1`): both templates bind two SQL parameters — `@Name` (original casing) and `@NameLower` (pre-computed lowercase). Lookup must be performed by `NameLower` to remain case-insensitive; the `Product` and `Environment` tables each have a `UNIQUE` index on `NameLower`.
+> **Note on `Repository_Product_CheckInsert.sql` and `Repository_Environment_CheckInsert.sql`**: both templates bind two SQL parameters — `@Name` (original casing) and `@NameLower` (pre-computed lowercase). Lookup must be performed by `NameLower` to remain case-insensitive; the `Product` and `Environment` tables each have a `UNIQUE` index on `NameLower`.
 
 ## Step 4: RetryHelper Integration
 

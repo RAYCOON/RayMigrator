@@ -200,7 +200,7 @@ Baseline uses the same execution order as Migrate-Up. If your target group is co
 
 | Table | Content |
 |---|---|
-| Migration | One record per file+target combination, `MigrationStatusId = Migrated` |
+| MigrationRecord | One record per file+target combination, `MigrationStatusId = Migrated` |
 | MigrationRun | One record, `MigrationRunResultId = Ok` |
 | Target database | **Unchanged** — no tables created, no data inserted |
 

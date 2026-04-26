@@ -150,6 +150,6 @@ See [04-service-layer/block-execution.md](../04-service-layer/block-execution.md
 
 ### [migration-examples/migsettings.txt](migration-examples/migsettings.txt)
 
-Directory-level default settings file. Settings defined here apply to every migration file in the same directory and can be overridden by individual file headers. The `[RayMigrator]` section follows the same TOML format as individual migration file headers. Includes commented-out examples for `MigrationErrorAction`, `RollbackErrorAction`, `StopRollbackOnMissingRollbackFile`, `UseCliToolAlias`, and `TargetGroupMigrationOrder` (the last one is only effective when placed in a release-level directory).
+Directory-level default settings file. Settings defined here apply to every migration file in the same directory and can be overridden by individual file headers. The `[RayMigrator]` section follows the same TOML format as individual migration file headers. Includes commented-out examples for `MigrationErrorAction`, `RollbackErrorAction`, `StopRollbackOnMissingRollbackFile`, `UseCliToolAlias`, and `TargetGroupMigrationOrder`. Note: `StopRollbackOnMissingRollbackFile` is accepted by the parser but has no runtime effect when set in migsettings — configure it in `appsettings.json` instead. `TargetGroupMigrationOrder` is only effective when placed in a release-level directory.
 
 See [07-migration-files/migsettings-files.md](../07-migration-files/migsettings-files.md) for the full specification.

@@ -20,6 +20,8 @@ Repository retry is active. `RepositoryExtensions.GetDalSettings()` builds a `Da
 
 When `TableBaseName` is `null` or omitted, repository tables have no prefix (e.g., `migrations.MigratorMeta`). When set (e.g., `"Ray"`), tables get the prefix (e.g., `migrations.RayMigratorMeta`). See [Table Naming](#table-naming) below.
 
+> **Note**: For `PostgreSQL`, `MariaDb`, and `MySql`, `TableBaseName` must be lowercase. Mixed-case prefixes (e.g., `"Ray"`) are rejected at startup with a `RULE_4_3` validation error. The `"Ray"` example below applies to `SqlServer` only — use a lowercase prefix like `"ray"` for the other engines.
+
 ## Database Types
 
 | Value | Description |
@@ -101,7 +103,7 @@ When `TableBaseName` is `null` or omitted, repository tables have no prefix (e.g
 }
 ```
 
-> **Note**: MariaDB does not support schemas. `SchemaName` can be omitted. If provided, it will be ignored and a warning is logged.
+> **Note**: MariaDB does not support a separate schema concept (the database itself acts as the schema). `SchemaName` can be omitted; if provided, it is not used by the SQL templates.
 
 ### MySQL
 
@@ -116,7 +118,7 @@ When `TableBaseName` is `null` or omitted, repository tables have no prefix (e.g
 }
 ```
 
-> **Note**: MySQL does not support schemas. `SchemaName` can be omitted. If provided, it will be ignored and a warning is logged.
+> **Note**: MySQL does not support a separate schema concept (the database itself acts as the schema). `SchemaName` can be omitted; if provided, it is not used by the SQL templates.
 
 ### SQLite
 
@@ -131,7 +133,7 @@ When `TableBaseName` is `null` or omitted, repository tables have no prefix (e.g
 }
 ```
 
-> **Note**: SQLite does not support schemas. `SchemaName` can be omitted. If provided, it will be ignored and a warning is logged.
+> **Note**: SQLite does not support schemas. `SchemaName` can be omitted. If a non-empty `SchemaName` is provided, the `SchemaRule` validator emits a warning (`RULE_4_1`) at startup.
 
 ## Table Naming
 

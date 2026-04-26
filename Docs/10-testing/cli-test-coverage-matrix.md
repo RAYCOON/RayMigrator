@@ -285,7 +285,7 @@ Also tested as part of:
 | TargetGroupFilter | 5 (x5 DBs) | Backend-only, Frontend-only, multi-group with allowOutOfOrder |
 | TargetGroupMigrationOrder | 5 (x5 DBs) | Custom order, default order, Baseline + MigrateUp |
 | RunningGuard | 5 (x5 DBs) | Concurrent execution detection for MigrateUp, MigrateDown, UpdateHash |
-| ArchiveRetention | 5 (x5 DBs) | Old migration archive deletion |
+| MigrationHistoryTracking | 5 (x5 DBs) | MigrationRecordHistory entries on terminal status transitions (source file: `ArchiveRetentionTests.cs`) |
 | DatabaseLog | 5 (x5 DBs) | Migration logging to database |
 | MigrationRunMeta | 5 (x5 DBs) | Execution metadata, settings JSON, RevealSensitiveData masking (MigrateUp M4, MigrateDown M6, Baseline M7) |
 | OutOfOrderBlocking | 5 (x5 DBs) | O1: blocking when false; O2: allowing when true; O3: data integrity after blocking |
@@ -362,8 +362,8 @@ Also tested as part of:
 | Combinations marked N/A (not testable at engine level) | 7 — `--config-dir` x7 commands |
 | Remaining actionable gap | 1 — Fix `--scope All` |
 | Commands with zero engine tests | 0 |
-| Engine test files total | ~169 |
-| Engine test methods total | ~876 |
+| Engine test files total | ~171 |
+| Engine test methods total | ~888 |
 | New engine tests added (P1-P4) | 150 |
 | Unit test files (CLI-relevant) | ~30 |
 | Database engines tested | 5 (SqlServer, PostgreSQL, MariaDB, MySQL, SQLite) |
@@ -403,15 +403,35 @@ The engine test harness (`ScenarioContext.cs`) exposes these methods:
 ### ScenarioBuilder Capabilities
 
 ```
-.WithMigrationErrorAction(Rollback|ErrorOnly|RollbackRelease|Terminate|Ignore)
+// File mutations
+.InjectError(release, filename)
+.InjectErrorAtBlock(release, filename, blockIndex)   // SqlServer multi-GO files
+.RemoveRollback(release, filename)
+.BreakRollback(release, filename)
+.SetFileToml(release, filename, key, value)
+.SetMigSettings(relativeFilePath, entries)
+.WithFlatLayoutForRelease(release)
+
+// Error handling
+.WithMigrationErrorAction(Rollback|RollbackErrorOnly|RollbackRelease|Terminate|Ignore)
+.WithRollbackErrorAction(Terminate|Ignore)
+.WithRequireRollbackFile(bool)
+.WithStopRollbackOnMissingRollbackFile(bool)
+
+// Execution order
 .WithTargetMigrationOrder(Simultaneously|Successively)
+.WithTargetGroupMigrationOrder(csv)
+
+// Topology
 .WithMultiTarget(secondConnectionString)
-.WithCliTool(alias, execPath, argTemplate, inputMode)
+.WithTargetGroup(alias, dbType, connStr, order?, hashScope?)
+
+// CLI tools
+.WithCliTool(alias, execPath, argTemplate, inputMode, timeoutInSeconds?, successExitCodes?)
 .WithUseCliToolAlias(alias)
 .WithCliToolParameters(Dictionary)
-.WithTargetGroup(alias, dbType, connStr)
-.WithFlatLayoutForRelease(release)
-.WithTargetGroupMigrationOrder(csv)
+
+// Logging & retries
 .WithDatabaseLogging(minLevel)
 .WithTargetMaxRetries(maxRetries, delayMs)
 .WithTargetCommandTimeout(seconds)

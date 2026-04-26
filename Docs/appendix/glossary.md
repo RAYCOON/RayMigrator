@@ -149,7 +149,7 @@ An interface (`IMigrationContextAccessor`) that provides access to the current `
 Registered via `RayMigratorHostMode` during DI setup. Defined in `IMigrationContextAccessor.cs` in the Core project. See also **RayMigratorHostMode**.
 
 ### InterruptedMigrationInfo
-A data class containing details about an interrupted migration that can be resumed. Properties include `MigrationId`, `MigrationRunId`, `ReleaseVersion`, `Filename`, `BlocksMigrated`, `BlocksTotal`, `Environment`, `TargetGroupAlias`, `TargetAlias`. Computed properties: `NextBlockToResume` (1-based next block number) and `ProgressPercent` (completion percentage). Used by `RepositoryMigrationGetInterrupted()` for block-level recovery.
+A data class containing details about an interrupted migration that can be resumed. Properties include `MigrationRecordId`, `MigrationRunId`, `ReleaseVersion`, `Filename`, `BlocksMigrated`, `BlocksTotal`, `Environment`, `EnvironmentId`, `TargetGroupAlias`, `TargetAlias`. Computed properties: `NextBlockToResume` (1-based next block number) and `ProgressPercent` (completion percentage). Used by `RepositoryMigrationGetInterrupted()` for block-level recovery. Defined in `InterruptedMigrationInfo.cs` in the Core project (`Recovery/`).
 
 ## L
 
@@ -221,7 +221,7 @@ How migrations execute across multiple targets (`TargetMigrationOrder` enum):
 - **Successively** (2): All migrations on one target before moving to next
 
 ### MigrationRecoveryException
-An exception thrown during migration recovery operations (e.g., fixing orphaned runs or resuming interrupted migrations). Properties include `MigrationRunId` and `MigrationId`. Defined in `CustomExceptions.cs` in the Shared project.
+An exception thrown during migration recovery operations (e.g., fixing orphaned runs or resuming interrupted migrations). Properties include `MigrationRunId` (nullable `int?`) and `MigrationRecordId` (nullable `int?`). Defined in `CustomExceptions.cs` in the Shared project.
 
 ### Migration Run
 A single execution of the migration process for a product/environment combination.
@@ -292,7 +292,7 @@ The unique identifier for a product, used in configuration and CLI commands.
 A directory name representing a version of migrations (e.g., "Release 1.0", "v2.0.0"). Migrations are organized by release.
 
 ### Repository
-The database structure that tracks migration state, history, and metadata. Contains tables like Product, MigrationRun, Migration, etc.
+The database structure that tracks migration state, history, and metadata. Contains 11 tables (`MigratorMeta`, `Product`, `Environment`, `MigrationRun`, `MigrationRunMeta`, `MigrationRecord`, `MigrationRecordHistory`, plus four lookups). See [Repository Schema](../03-database-layer/repository-schema.md).
 
 ### Rollback
 The process of reversing previously applied migrations using rollback files.

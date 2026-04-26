@@ -54,16 +54,19 @@ RayMigrator SQL Template
 TemplateType   = "Repository_MigrationRecord_Insert"
 DatabaseType   = "SqlServer"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2025-01-29.1"
+Version        = "2026-04-18.1"
 
 [Description]
 Function = """
-Creates a new Migration record to track individual migration file execution.
+Creates a new Migration record or resets an existing archived record
+to track individual migration file execution.
 Supports block-level tracking for recovery from interrupted migrations.
 """
 
 Behaviour = """
-- Return value >= 0: Success (MigrationId returned, logged at Debug level)
+- When @ExistingMigrationRecordId = 0: INSERT a new record (original behaviour)
+- When @ExistingMigrationRecordId > 0: UPDATE the existing record, resetting all fields
+- Return value >= 0: Success (MigrationRecordId returned, logged at Debug level)
 - Return value < 0: Error (logged at Error level, migration aborted)
 - FileUpBlocksMigrated starts at 0, incremented as blocks execute
 - StartedAt timestamp recorded immediately
@@ -76,7 +79,9 @@ TableBaseName = "Table name prefix from Repository configuration (e.g., '' or 'R
 
 [Parameters]
 # SQL parameters bound at runtime
+ExistingMigrationRecordId = "INT | REQUIRED | 0 = INSERT new record, >0 = UPDATE existing record with this ID"
 ProductId           = "INT | REQUIRED | Product ID from Product table"
+EnvironmentId       = "INT | REQUIRED | Environment ID from Environment table"
 MigrationRunId      = "INT | REQUIRED | Parent MigrationRun ID"
 MigrationRunModeId  = "TINYINT | REQUIRED | Run mode: 10=Validate, 20=Simulate, 100=Migrate"
 MigrationOperationId= "TINYINT | REQUIRED | Operation: 5=Rollback, 50=MigrateDown, 100=MigrateUp"
@@ -84,7 +89,8 @@ MigrationOperationId= "TINYINT | REQUIRED | Operation: 5=Rollback, 50=MigrateDow
 
 [ReturnValues]
 # Format: SELECT 'code,message'
-Success_Created = "N (MigrationId),Migration record with Id [N] successfully created for file [Filename]"
+Success_Created = "N (MigrationRecordId),Migration record with Id [N] successfully created for file [Filename]"
+Success_Updated = "N (MigrationRecordId),Migration record with Id [N] successfully reset for file [Filename]"
 
 [ModificationNotes]
 Note1 = "SELECT result format: 'code,message' - DO NOT change this format"
@@ -189,11 +195,11 @@ The `Repository_CheckCreate.sql` template creates all 11 repository tables (Migr
 CREATE  TABLE [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRecord] (
 	Id                   int    IDENTITY(1,1)  NOT NULL,
 	ProductId            int      NOT NULL,
+	EnvironmentId        int      NOT NULL,
 	MigrationRunId       int      NOT NULL,
 	MigrationRunModeId   tinyint      NOT NULL,
 	MigrationOperationId tinyint      NOT NULL,
 	MigrationStatusId    tinyint      NOT NULL,
-	Environment          nvarchar(100)      NOT NULL,
 	ReleaseVersion       nvarchar(100)      NOT NULL,
 	TargetGroupAlias     nvarchar(100)      NOT NULL,
 	TargetAlias          nvarchar(100)      NOT NULL,
@@ -204,16 +210,16 @@ CREATE  TABLE [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRecord] (
 	FileUpBlocksHash     varchar(100)      NOT NULL,
 	FileUpBlocksMigrated int      NOT NULL,
 	FileUpBlocksTotal    int      NOT NULL,
-	FileUpConfigJson     varchar(max)      NULL,
+	FileUpConfigJson     nvarchar(max)     NULL,
 	MigrateDownFileExists bit      NOT NULL,
 	FileDownHash         varchar(100)      NULL,
 	FileDownConfigHash   varchar(100)      NULL,
 	FileDownBlocksHash   varchar(100)      NULL,
 	FileDownBlocksMigrated int      NULL,
 	FileDownBlocksTotal  int      NULL,
-	FileDownConfigJson   varchar(max)      NULL,
-	StartedAt            datetime2      NULL,
-	FinishedAt           datetime2      NULL,
+	FileDownConfigJson   nvarchar(max)     NULL,
+	StartedAt            datetime2(3)   NULL,
+	FinishedAt           datetime2(3)   NULL,
 	DurationInMs         bigint      NULL,
 	CONSTRAINT pk_MigrationRecord PRIMARY KEY  ( Id )
  );
@@ -221,56 +227,67 @@ CREATE  TABLE [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRecord] (
 
 ### DML Operation Template
 
+The current `Repository_MigrationRecord_Insert.sql` template supports both INSERT (when `@ExistingMigrationRecordId = 0`) and UPDATE/reset (when `@ExistingMigrationRecordId > 0`) of an existing archived record.
+
 ```sql
 -- Repository_MigrationRecord_Insert.sql (SQL Server, excerpt)
-INSERT INTO [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRecord]
-(
-    ProductId,
-    MigrationRunId,
-    MigrationRunModeId,
-    MigrationOperationId,
-    MigrationStatusId,
-    Environment,
-    ReleaseVersion,
-    TargetGroupAlias,
-    TargetAlias,
-    Filename,
-    FileOrderId,
-    FileUpHash,
-    FileUpConfigHash,
-    FileUpBlocksHash,
-    FileUpBlocksMigrated,
-    FileUpBlocksTotal,
-    FileUpConfigJson,
-    MigrateDownFileExists,
-    StartedAt
-)
-VALUES
-(
-    @ProductId,
-    @MigrationRunId,
-    @MigrationRunModeId,
-    @MigrationOperationId,
-    @MigrationStatusId,
-    -- ... remaining @Parameters
-    0,  -- FileUpBlocksMigrated starts at 0
-    @FileUpBlocksTotal,
-    @FileUpConfigJson,
-    @MigrateDownFileExists,
-    SYSUTCDATETIME()
-);
+IF @ExistingMigrationRecordId > 0
+BEGIN
+    -- Reset existing archived record (UPDATE path omitted for brevity)
+END
+ELSE
+BEGIN
+    -- Insert new record
+    INSERT INTO [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRecord]
+    (
+        ProductId,
+        EnvironmentId,
+        MigrationRunId,
+        MigrationRunModeId,
+        MigrationOperationId,
+        MigrationStatusId,
+        ReleaseVersion,
+        TargetGroupAlias,
+        TargetAlias,
+        Filename,
+        FileOrderId,
+        FileUpHash,
+        FileUpConfigHash,
+        FileUpBlocksHash,
+        FileUpBlocksMigrated,
+        FileUpBlocksTotal,
+        FileUpConfigJson,
+        MigrateDownFileExists,
+        StartedAt
+    )
+    VALUES
+    (
+        @ProductId,
+        @EnvironmentId,
+        @MigrationRunId,
+        @MigrationRunModeId,
+        @MigrationOperationId,
+        @MigrationStatusId,
+        -- ... remaining @Parameters
+        0,  -- FileUpBlocksMigrated starts at 0
+        @FileUpBlocksTotal,
+        @FileUpConfigJson,
+        @MigrateDownFileExists,
+        SYSUTCDATETIME()
+    );
 
-SET @MigrationRecordId = SCOPE_IDENTITY();
+    SET @MigrationRecordId = SCOPE_IDENTITY();
 
--- Returns: 'code,message' format
-SELECT CAST(@MigrationRecordId AS VARCHAR(10)) + ',Migration record with Id ['
-    + CAST(@MigrationRecordId AS VARCHAR(10)) + '] successfully created for file ['
-    + ISNULL(@Filename, 'NULL') + ']';
+    -- Returns: 'code,message' format
+    SELECT CAST(@MigrationRecordId AS VARCHAR(10)) + ',Migration record with Id ['
+        + CAST(@MigrationRecordId AS VARCHAR(10)) + '] successfully created for file ['
+        + COALESCE(@Filename, 'NULL') + ']';
+END
 ```
 
 ### Case-Insensitive Check-Insert Templates
 
-`Repository_Product_CheckInsert.sql` and `Repository_Environment_CheckInsert.sql` (current version `2026-04-17.1`) follow a two-parameter contract:
+`Repository_Product_CheckInsert.sql` and `Repository_Environment_CheckInsert.sql` follow a two-parameter contract:
 
 - `@Name` -- the name in original casing (e.g., `MyApplication`, `Docker`)
 - `@NameLower` -- the pre-computed lowercase form used for the lookup
@@ -435,32 +452,32 @@ public class TemplateExecutor
     public void RepositoryMigrationRunInsert(string migrationRunSettingsJson) { ... }
     public void RepositoryMigrationRunUpdate(MigrationRunResult runResult) { ... }
     public List<Dictionary<string, object?>> RepositoryMigrationRunSelect(int limit) { ... }
-    public List<Dictionary<string, object?>> RepositoryMigrationRunSelectOrphaned(int productId, string environment) { ... }
+    public List<Dictionary<string, object?>> RepositoryMigrationRunSelectOrphaned(int productId, int environmentId) { ... }
     public void RepositoryMigrationRunFixOrphaned(int migrationRunId) { ... }
 
     // Migration operations
-    public int RepositoryMigrationInsert(int existingMigrationId, string filename, string releaseVersion,
+    public int RepositoryMigrationInsert(int existingMigrationRecordId, string filename, string releaseVersion,
         string targetGroupAlias, string targetAlias, int fileOrderId, string fileUpHash,
         string? fileUpConfigHash, string fileUpBlocksHash, int fileUpBlocksTotal,
-        string? fileUpConfigJson, bool migrateDownFileExists) { ... }   // Returns MigrationId
+        string? fileUpConfigJson, bool migrateDownFileExists) { ... }   // Returns MigrationRecordId
     public List<MigrationRecord> RepositoryMigrationSelect(MigrationRunMode? overrideRunMode = null) { ... }
     public InterruptedMigrationInfo? RepositoryMigrationGetInterrupted() { ... }
-    public int RepositoryMigrationFixOrphaned(int migrationRunId, MigrationStatus status) { ... }
-    public void RepositoryMigrationUpdateHash(int migrationId, string fileUpHash,
+    public int RepositoryMigrationRecordFixOrphaned(int migrationRunId, MigrationStatus status) { ... }
+    public void RepositoryMigrationUpdateHash(int migrationRecordId, string fileUpHash,
         string? fileUpConfigHash, string fileUpBlocksHash) { ... }
 
     // Standard update (DAL manages connection lifecycle)
-    public void RepositoryMigrationUpdate(int migrationId, MigrationStatus migrationStatus,
+    public void RepositoryMigrationUpdate(int migrationRecordId, MigrationStatus migrationStatus,
         int fileUpBlocksMigrated) { ... }
-    public void RepositoryMigrationUpdateRollback(int migrationId, MigrationStatus migrationStatus,
+    public void RepositoryMigrationUpdateRollback(int migrationRecordId, MigrationStatus migrationStatus,
         string fileDownHash, string? fileDownConfigHash, string fileDownBlocksHash,
         int fileDownBlocksMigrated, int fileDownBlocksTotal, string? fileDownConfigJson) { ... }
 
     // Shared-connection update overloads (atomic path: caller provides connection + transaction)
-    public void RepositoryMigrationUpdate(int migrationId, MigrationStatus migrationStatus,
+    public void RepositoryMigrationUpdate(int migrationRecordId, MigrationStatus migrationStatus,
         int fileUpBlocksMigrated, DbConnection connection, DbTransaction transaction,
         int repoCommandTimeoutInSeconds) { ... }
-    public void RepositoryMigrationUpdateRollback(int migrationId, MigrationStatus migrationStatus,
+    public void RepositoryMigrationUpdateRollback(int migrationRecordId, MigrationStatus migrationStatus,
         string fileDownHash, string? fileDownConfigHash, string fileDownBlocksHash,
         int fileDownBlocksMigrated, int fileDownBlocksTotal, string? fileDownConfigJson,
         DbConnection connection, DbTransaction transaction, int repoCommandTimeoutInSeconds) { ... }

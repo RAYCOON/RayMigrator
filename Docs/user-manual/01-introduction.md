@@ -98,7 +98,7 @@ Pre-built binaries for all supported platforms are available from the [GitHub Re
 │  Target Database │    │  Repository Database │
 │  (your app DB)   │    │  (configured schema) │
 │                  │    │  MigrationRun        │
-│  Books, Users,   │    │  Migration           │
+│  Books, Users,   │    │  MigrationRecord     │
 │  Orders, ...     │    │  MigrationRunResult  │
 │                  │    │  MigrationStatus     │
 └──────────────────┘    └──────────────────────┘

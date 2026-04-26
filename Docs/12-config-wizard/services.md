@@ -13,6 +13,10 @@ ConfigurationModel LoadFromJson(string json, string? filePath = null)
 // Serialize to JSON string; optional baseModel enables diff-based serialization
 // (only sections that differ from baseModel are included — used for env/product-env files)
 string ToJson(ConfigurationModel model, ConfigurationModel? baseModel = null, bool indented = true)
+
+// Returns true when the diff JSON is just the empty wrapper {"RayMigrator":{}}.
+// Used by callers to skip writing override files that contain no real overrides.
+bool IsEmptyDiff(string json)
 ```
 
 **Round-trip safety**: `LoadFromJson` stores a deep clone of the full parsed document in `model.PreservedDocument`. When `ToJson` is called, it starts from the preserved document and only replaces the managed sections. The Core serializer manages 6 sections: `Repository`, `DatabaseLogging`, `ProductDefaults`, `Products`, `Serilog`, and `CliTools`. Unknown keys at the `RayMigrator` level (e.g. `AdminDb`, `ApiUrl`) are preserved unchanged.
@@ -88,9 +92,9 @@ WizardValidationResult ValidateUseCliToolAliasReferences(ConfigurationModel mode
 
 **Products validation**: When the file role is `Base` or `Environment` and no products are defined, a warning (not an error) is issued, since products are typically in product-specific files.
 
-**Connection string validation**: Skipped if the value contains `{ENV:`. A regex heuristic is used — requires at least one `key=value` pair. The `AdoNetParsing` capability exists in Core for potential future use but is not passed by the Web wizard.
+**Connection string validation**: Skipped if the value contains `{ENV:`. By default a regex heuristic is used — requires at least one `key=value` pair. When `ValidationCapability.AdoNetParsing` is active, `WizardOnlyChecks.ValidateConnectionString` switches to strict ADO.NET `DbConnectionStringBuilder` parsing. The `AdoNetParsing` capability is not passed by the Web wizard (WASM).
 
-**Directory existence**: When `ValidationCapability.Filesystem` is active, `ValidateProduct` warns if `MigrationFilesRootDirectory` does not exist on disk. The `Filesystem` capability exists in Core for potential future use but is not passed by the Web wizard (WASM).
+**Directory existence**: When `ValidationCapability.Filesystem` is active, `ValidateProduct` warns if `MigrationFilesRootDirectory` does not exist on disk via `FilesystemChecks.ValidateProductDirectory`. The `Filesystem` capability is not passed by the Web wizard (WASM).
 
 ## InheritanceResolver
 
@@ -116,17 +120,27 @@ int GetEffectiveTimeout(TargetModel target, ProductDefaultsModel defaults)
 int GetEffectiveMaxRetries(TargetModel target, ProductDefaultsModel defaults)
 int GetEffectiveWaitTime(TargetModel target, ProductDefaultsModel defaults)
 
-// UseCliToolAlias cascade resolution
+// UseCliToolAlias cascade resolution (4-level: ProductDefaults -> Product -> TargetGroup -> Target)
 string? GetEffectiveUseCliToolAlias(TargetModel target, TargetGroupModel tg, ProductModel product, ProductDefaultsModel defaults)
+
+// CliToolParameters cascade resolution (3-level: Target -> TargetGroup -> Product)
+// Returns the first non-null, non-empty dictionary found, or null.
+Dictionary<string, string>? GetEffectiveCliToolParameters(
+    TargetModel target, TargetGroupModel tg, ProductModel product)
+
+// Returns the source label ("Target", "TargetGroup", or "Product") for the effective CliToolParameters,
+// or null when no level supplies them.
+string? GetCliToolParametersSourceLabel(
+    TargetModel target, TargetGroupModel tg, ProductModel product)
 
 // All effective values for a target with source annotations
 List<EffectiveConfigEntry> GetEffectiveTargetConfig(
     TargetModel target, TargetGroupModel tg, ProductModel product, ProductDefaultsModel defaults)
 ```
 
-`GetEffectiveTargetConfig` includes `UseCliToolAlias`, `StopRollbackOnMissingRollbackFile (TargetGroup)`, and `StopRollbackOnMissingRollbackFile (Product)` in the output with source labels `"override at Target"`, `"override at TargetGroup"`, `"override at Product"`, `"override"`, `"default"`, or `"not set"`.
+`GetEffectiveTargetConfig` includes `UseCliToolAlias`, `CliToolParameters`, `StopRollbackOnMissingRollbackFile (TargetGroup)`, and `StopRollbackOnMissingRollbackFile (Product)` in the output. Source labels include `"override at Target"`, `"override at TargetGroup"`, `"override at Product"`, `"override"`, `"default"`, `"not set"`, `"target"`, and `"target-group"`.
 
-`EffectiveConfigEntry` has `Property`, `Value`, and `Source`.
+`EffectiveConfigEntry` (in `Raycoon.RayMigrator.ConfigWizard.Core.Models`) has read-only `Property`, `Value`, and `Source` string members and a public constructor that takes all three.
 
 ## ContextHelpProvider (Core)
 
@@ -268,7 +282,7 @@ ConfigurationModel ScaffoldCombination(string productAlias, string environmentNa
 - `CliTools` populated from `CliToolPresetProvider` native presets (if `UseCliTools`)
 - `EnvironmentModels` and `ProductEnvironmentModels` in `WizardState` with per-environment connection string overrides
 
-`ScaffoldCombination(productAlias, environmentName, baseModel?)` creates a stand-alone `ConfigurationModel` with `FileRole = ProductEnvironment`, pre-filled with sensible defaults (Repository, DatabaseLogging, ProductDefaults, and one product with one target group and one target). When an optional `baseModel` is provided, the scaffold inherits Repository DatabaseType and SchemaName, DatabaseLogging settings, ProductDefaults, and the product structure from the base. Called by `WizardStateService.StartDetailedConfiguration` when a combination is visited for the first time in the hub-and-spoke flow.
+`ScaffoldCombination(productAlias, environmentName, baseModel?)` creates a stand-alone `ConfigurationModel` with `FileRole = ProductEnvironment`, pre-filled with sensible defaults (Repository, DatabaseLogging, ProductDefaults, Serilog, and one product with one target group and one target). When an optional `baseModel` is provided, the scaffold inherits Repository DatabaseType and SchemaName, DatabaseLogging settings, ProductDefaults, Serilog `MinimumLevelDefault`, and the product structure (TargetGroups and Targets) from the matching base product. Connection strings always become environment-specific `{ENV:..._CONNECTION_STRING_{ENV}}` placeholders. Called by `WizardStateService.StartDetailedConfiguration` (and `AddEnvironment`) when a combination is visited for the first time in the hub-and-spoke flow.
 
 `WizardSetupAnswers` captures: `RepositoryDatabaseType`, `List<ProductSetup> Products` (each with `Alias`, `List<string> Environments`, and `List<TargetGroupSetup> TargetGroups`), `UseDatabaseLogging`, and `UseCliTools`. Each `TargetGroupSetup` has `Alias`, `DatabaseType`, and `List<string> TargetAliases`.
 
@@ -312,21 +326,19 @@ File classification follows the `appsettings` naming convention described in [Fi
 
 After parsing, `Parse` reverse-engineers `WizardSetupAnswers` from the loaded models, creates one `ProductEnvironmentEntry` (with `WizardCompleted = false`) per imported PE model, and merges parent layers (Base → Environment → Product → PE) into each imported PE model using `ConfigFileMerger.MergeChain` on their preserved original JSON. This ensures the stepper shows effective (inherited) values when a user walks through an imported combination. Scaffolded PE models that have no `PreservedDocument` are skipped by the merge step.
 
-## CliToolParameterHelper (Core)
+## WizardCliToolParameterResolver (Core)
 
-`CliToolParameterHelper` (static, Core) extracts and resolves placeholder keys from CLI tool `ArgumentTemplate` strings. Used by validation Rule 3.8 and by the UI when auto-scaffolding `CliToolParameters` on targets.
+`WizardCliToolParameterResolver` (`Raycoon.RayMigrator.ConfigWizard.Core.Services`, static) resolves the list of parameter keys expected by a CLI tool, with fallback to `CliToolPresetProvider` for unknown aliases. Placeholder extraction itself lives in `CliToolPlaceholderExtractor` in the shared `Raycoon.RayMigrator.Validation.Helpers` library.
 
 ```csharp
-// Extract user-editable placeholders from a template ({Server}, {User}, …; excludes {FilePath})
-static List<string> ExtractParameterKeys(string? argumentTemplate)
-
 // Resolve parameter keys for a given CLI tool alias — reads placeholders from the matching
-// CliToolModel's ArgumentTemplate; falls back to CliToolPreset.ExpectedParameterKeys if the
-// alias matches a preset but no parsed placeholders are found
+// CliToolModel's ArgumentTemplate via CliToolPlaceholderExtractor.ExtractParameterKeys; falls
+// back to CliToolPreset.ExpectedParameterKeys when the alias matches a preset but the template
+// has no parsed placeholders.
 static List<string> ResolveParameterKeys(string? cliToolAlias, IReadOnlyList<CliToolModel> cliTools)
 ```
 
-The regex `\{(\w+)\}` matches simple placeholder names. `FilePath` is reserved and excluded from the result because it is resolved by the runtime, not by user-supplied parameters.
+`CliToolPlaceholderExtractor.ExtractParameterKeys(string?)` (in `Raycoon.RayMigrator.Validation.Helpers`) uses the regex `\{(\w+)\}` to extract user-editable placeholders. `FilePath` is reserved (`CliToolPlaceholderExtractor.ReservedKeys`) and excluded from the result because it is resolved by the runtime, not by user-supplied parameters. A companion `ExtractAllPlaceholders` method returns every placeholder including reserved ones.
 
 ## WizardStepId (Web)
 
@@ -394,7 +406,7 @@ The regex `\{(\w+)\}` matches simple placeholder names. `FilePath` is reserved a
 
 | Method | Description |
 |--------|-------------|
-| `ValidateAll()` | Validates `BaseModel` via `ConfigurationValidator.ValidateAll`, caches result in `LastValidationResult` |
+| `ValidateAll()` | Validates `BaseModel` and every populated product-environment model (skips empty PE shells with no Products), prefixes PE issue paths with `[{Product}.{Env}] `, aggregates results, caches in `LastValidationResult`, and notifies state change |
 | `ValidateSection(name)` | Validates a single section of `BaseModel`. Supported names: `Repository`, `DatabaseLogging` (no-op when `BaseModel.DatabaseLogging` is null), `ProductDefaults`, `CliTools` |
 | `ValidateCombination(product, env)` | Validates a specific combination's `ProductEnvironmentModel` (returns an empty result if the key does not exist) |
 | `PromoteDefaults()` | Runs `DefaultsPromoter.PromoteAcrossModels` (cross-model) then `DefaultsPromoter.Promote` (intra-model on `BaseModel`). Sets `BaseModel.IsModified = true` when any promotion was applied |
@@ -442,7 +454,7 @@ The export applies a full hierarchy-pruning pass: base-file properties that are 
 Task DownloadFileAsync(string fileName, string contentType, byte[] content)
 ```
 
-**`JsonHighlightService`** (`Raycoon.RayMigrator.ConfigWizard.Web.Services`) applies CSS-class-based syntax highlighting to a JSON string and returns a `MarkupString` for direct Blazor rendering. Used in the Overview page's JSON preview panel.
+**`JsonHighlightService`** (`Raycoon.RayMigrator.ConfigWizard.Web.Services`) applies inline-style syntax highlighting to a JSON string (HTML-encodes first, then wraps keys, string values, literals, and numbers with `<span style="color:#…">` tags) and returns a `MarkupString` for direct Blazor rendering. Used in the Overview page's JSON preview panel.
 
 ```csharp
 MarkupString Highlight(string json)

@@ -55,8 +55,8 @@ This phase executes whenever the `DatabaseLogging` section is present in the con
    | 100 | CreateAndStartRayMigratorService |
    | 1000 | RayMigratorServiceShutdown |
 3. **`MigrationLog` table** (data) - Stores all log entries with columns:
-   - `Id` (BIGINT IDENTITY), `LogLevelId`, `MigrationEventId`, `RunModeId`, `ProductId`, `MigrationRunId`, `MigrationId`
-   - `Environment`, `ReleaseVersion`, `TargetGroupAlias`, `TargetAlias`
+   - `Id` (BIGINT IDENTITY), `LogLevelId`, `MigrationEventId`, `RunModeId`, `ProductId`, `EnvironmentId`, `MigrationRunId`, `MigrationRecordId`
+   - `ReleaseVersion`, `TargetGroupAlias`, `TargetAlias`
    - `Filename`, `FileOrderId`, `FileBlockId`, `Message`, `CreatedAt`
 
 **Return value:** `1` = newly created, `0` = already existed
@@ -100,19 +100,19 @@ This template is **not executed immediately**. It is first used when the Serilog
    - `MigratorMeta` (`Id` IDENTITY, `RepositoryVersion`, `RepositoryDatabaseType`, `CreatedByRayMigratorVersion`, `CreatedAt`)
    - `Product` (`Id` IDENTITY, `Name`, `NameLower` UNIQUE, `CreatedAt`)
    - `Environment` (`Id` IDENTITY, `Name`, `NameLower` UNIQUE, `CreatedAt`)
-   - `MigrationRun` (`Id` IDENTITY, `MigratorMetaId` FK, `ProductId` FK, `MigrationRunModeId` FK, `MigrationRunResultId` FK, `Environment`, `FromReleaseVersion`, `ToReleaseVersion`, `StartedAt`, `FinishedAt`, `DurationInMs`)
+   - `MigrationRun` (`Id` IDENTITY, `MigratorMetaId` FK, `ProductId` FK, `EnvironmentId` FK, `MigrationRunModeId` FK, `MigrationRunResultId` FK, `FromReleaseVersion`, `ToReleaseVersion`, `StartedAt`, `FinishedAt`, `DurationInMs`)
    - `MigrationRunMeta` (`MigrationRunId` FK, `MigrationRunSettingsJson`, `Description`)
-   - `MigrationRecord` (`Id` IDENTITY, `ProductId` FK, `MigrationRunId` FK, various FKs, `Environment`, `ReleaseVersion`, `TargetGroupAlias`, `TargetAlias`, `Filename`, `FileOrderId`, hash fields, block tracking fields, timestamps)
-   - `MigrationRecordHistory` (mirrors `MigrationRecord` with additional `MigrationRecordId` FK)
+   - `MigrationRecord` (`Id` IDENTITY, `ProductId` FK, `EnvironmentId` FK, `MigrationRunId` FK, various FKs, `ReleaseVersion`, `TargetGroupAlias`, `TargetAlias`, `Filename`, `FileOrderId`, hash fields, block tracking fields, timestamps)
+   - `MigrationRecordHistory` (mirrors `MigrationRecord` with additional `MigrationRecordId` FK and `HistorizedAt`)
 
 4. **Indexes:** Three indexes are created on all engines — shown here in canonical (SQL Server/SQLite) PascalCase; PostgreSQL, MariaDB, and MySQL use the snake_case equivalents: `uix_product_name_lower`, `uix_environment_name_lower`, `ix_migration_record_history_migration_record_id`.
    - `uix_Product_NameLower` on `Product(NameLower)` (unique, case-insensitive deduplication)
    - `uix_Environment_NameLower` on `Environment(NameLower)` (unique, case-insensitive deduplication)
-   - `ix_MigrationRecordHistory_MigrationRecordId` on `MigrationRecordHistory(MigrationRecordId)` (fast lookup by source record)
+   - `ix_MigrationRecordHistory` on `MigrationRecordHistory(MigrationRecordId)` (fast lookup by source record)
 
-   **PostgreSQL only** additionally creates FK-column indexes (snake_case names per DAL-017): `ix_migration_run_migrator_meta_id`, `ix_migration_run_product_id`, `ix_migration_run_migration_run_mode_id`, `ix_migration_run_migration_run_result_id`, `ix_migration_record_product_id`, `ix_migration_record_migration_run_id`, `ix_migration_record_migration_run_mode_id`, `ix_migration_record_migration_operation_id`, `ix_migration_record_migration_status_id`. MySQL/MariaDB InnoDB auto-indexes FK columns; PostgreSQL and SQL Server do not (FK indexing on SQL Server is a candidate for future work).
+   **PostgreSQL only** additionally creates FK-column indexes (snake_case names per DAL-017): `ix_migration_run_migrator_meta_id`, `ix_migration_run_product_id`, `ix_migration_run_environment_id`, `ix_migration_run_migration_run_mode_id`, `ix_migration_run_migration_run_result_id`, `ix_migration_record_product_id`, `ix_migration_record_environment_id`, `ix_migration_record_migration_run_id`, `ix_migration_record_migration_run_mode_id`, `ix_migration_record_migration_operation_id`, `ix_migration_record_migration_status_id`. MySQL/MariaDB InnoDB auto-indexes FK columns; PostgreSQL and SQL Server do not (FK indexing on SQL Server is a candidate for future work).
 
-5. **12 Foreign Keys** between the tables
+5. **15 Foreign Keys** between the tables
 
 6. **Extended Properties** (SQL Server only) - Documents enum values directly in the database
 
@@ -216,13 +216,13 @@ Called immediately after Product registration at all 8 `MigrationService` entry 
 ### Template 4c: `Repository_MigrationRecord_GetInterrupted`
 
 **File:** `DataAccessLayers/{DB}/Repository_MigrationRecord_GetInterrupted.sql`
-**Purpose:** Checks for interrupted migrations (status `Executing`) from a previous aborted run. If an interrupted migration is found, a warning is logged with the MigrationId, filename, and block progress. This is an informational check only; execution continues regardless of the result.
+**Purpose:** Checks for interrupted migrations (status `Executing`) from a previous aborted run. If an interrupted migration is found, a warning is logged with the MigrationRecordId, filename, and block progress. This is an informational check only; execution continues regardless of the result.
 
 **SQL parameters:**
 - `@ProductId` - From `MigrationState.ProductId`
-- `@Environment` - From console options
+- `@EnvironmentId` - From `MigrationState.EnvironmentId`
 
-**Return value:** `0` if no interrupted migration found, otherwise a pipe-separated string with `MigrationId|MigrationRunId|ReleaseVersion|Filename|FileUpBlocksMigrated|FileUpBlocksTotal|Environment|TargetGroupAlias|TargetAlias`, parsed into an `InterruptedMigrationInfo` object.
+**Return value:** `0` if no interrupted migration found, otherwise a pipe-separated string with `MigrationRecordId|MigrationRunId|ReleaseVersion|Filename|FileUpBlocksMigrated|FileUpBlocksTotal|EnvironmentId|TargetGroupAlias|TargetAlias`, parsed into an `InterruptedMigrationInfo` object.
 
 ---
 
@@ -240,7 +240,7 @@ Called immediately after Product registration at all 8 `MigrationService` entry 
 
 **SQL parameters:**
 - `@ProductId` - From `MigrationState.ProductId`
-- `@Environment` - From console options
+- `@EnvironmentId` - From `MigrationState.EnvironmentId`
 - `@MigrationRunModeId` - From console options `RunMode` (cast to byte)
 - `@MigratorMetaId` - From `MigrationState.MigratorMetaId`
 - `@MigrationRunResultId` - Set to `Running` (10) from `MigrationState.MigrationRunResult`
@@ -265,12 +265,12 @@ Called immediately after Product registration at all 8 `MigrationService` entry 
 
 **Flow:**
 1. Serilog emits a `LogEvent`
-2. `MigrationContextEnricher` adds migration-specific properties (`ProductId`, `MigrationRunId`, `Environment`, etc.) from `MigrationLoggingContext.Current`
+2. `MigrationContextEnricher` adds migration-specific properties (`ProductId`, `EnvironmentId`, `MigrationRunId`, etc.) from `MigrationLoggingContext.Current`
 3. `RayMigratorDatabaseSink.Emit()` extracts properties and calls `DatabaseLogWriter.EnqueueLogEntry()`
 4. `DatabaseLoggerQueue` processes the action on a background thread
 5. `DatabaseLogWriter.WriteToDatabase()` executes the `DatabaseLogging_Insert` template via `IDal.ExecuteNonQuery()`
 
-**Parameters per call:** `LogLevelId`, `MigrationEventId`, `RunModeId`, `ProductId`, `MigrationRunId`, `MigrationId`, `Environment`, `ReleaseVersion`, `TargetGroupAlias`, `TargetAlias`, `Filename`, `FileOrderId`, `FileBlockId`, `Message`
+**Parameters per call:** `LogLevelId`, `MigrationEventId`, `RunModeId`, `ProductId`, `EnvironmentId`, `MigrationRunId`, `MigrationRecordId`, `ReleaseVersion`, `TargetGroupAlias`, `TargetAlias`, `Filename`, `FileOrderId`, `FileBlockId`, `Message`
 
 ---
 
@@ -280,7 +280,7 @@ Called immediately after Product registration at all 8 `MigrationService` entry 
 |---|----------|-----------|---------|---------|
 | 1 | `DatabaseLogging_CheckCreate` | Logging DB | `DirectModePipeline.cs` startup (when `DatabaseLogging` configured) | Creates schema + `MigrationEvent` + `MigrationLog` tables |
 | 2 | `DatabaseLogging_Insert` | Logging DB | From startup onward, async (when `DatabaseLogging` configured) | Writes log entries (loaded in Phase 1, executed after `SetWriter`) |
-| 3 | `Repository_CheckCreate` | Repository DB | `MigrateUpAsync` | Creates schema + 11 tables + FKs + master data + VersionId |
+| 3 | `Repository_CheckCreate` | Repository DB | `MigrateUpAsync` | Creates schema + 11 tables + 15 FKs + master data + VersionId |
 | 4 | `Repository_Product_CheckInsert` | Repository DB | `MigrateUpAsync` | Registers the product, returns ProductId |
 | 4b | `Repository_Environment_CheckInsert` | Repository DB | All 8 entry points (after Product check-insert) | Registers the environment, returns EnvironmentId |
 | 4c | `Repository_MigrationRecord_GetInterrupted` | Repository DB | `MigrateUpAsync` | Checks for interrupted migrations (informational) |

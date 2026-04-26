@@ -157,7 +157,7 @@ Context-dependent scope option, used by two commands:
 
 ## Environment Variable Support
 
-String-valued command parameters support environment variable resolution using the `{ENV:VariableName}` placeholder syntax. This applies to options such as `--product`, `--environment`, `--run-mode`, `--to-release`, `--target-group`, `--scope`, `--last-migration-status`, and `--config-dir`. Non-string options (`--older-than`, `--dry-run`, `--allow-out-of-order`, `--startup-info`, `--reveal-sensitive-data`) are parsed directly by System.CommandLine and do not support this syntax.
+String-valued command parameters support environment variable resolution using the `{ENV:VariableName}` placeholder syntax. This applies to options such as `--product`, `--environment`, `--run-mode`, `--to-release`, `--target-group` (per individual alias value), `--scope`, `--last-migration-status`, and `--config-dir`. Options that do NOT support this syntax: non-string options (`--older-than`, `--dry-run`, `--allow-out-of-order`, `--startup-info`, `--reveal-sensitive-data`, `--stop-rollback-on-missing-rollback-file`) are parsed directly by System.CommandLine, and `--TargetGroup-MigrationOrder` is not resolved (use literal alias names).
 
 If the referenced environment variable is not set or is empty, RayMigrator exits with exit code 5 (command-line parsing error).
 

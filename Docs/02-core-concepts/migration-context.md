@@ -93,7 +93,7 @@ public class MigrationState
     public int ProductId { get; set; }
     public int EnvironmentId { get; set; }
     public int MigrationRunId { get; set; }
-    public int MigrationId { get; set; }
+    public int MigrationRecordId { get; set; }
 
     // File metadata
     public string ReleaseVersionFromFileNameWithPath { get; set; }

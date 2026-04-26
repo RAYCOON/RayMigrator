@@ -171,16 +171,18 @@ ORDER BY StartedAt DESC;
 ```
 
 ```sql
--- PostgreSQL equivalent
-SELECT m."MigrationStatusId", COUNT(*) AS "Count"
-FROM ray."MigrationRecord" m
-GROUP BY m."MigrationStatusId";
+-- PostgreSQL equivalent (unquoted snake_case identifiers, per DAL-017)
+SELECT m.migration_status_id, COUNT(*) AS count
+FROM ray.migration_record m
+GROUP BY m.migration_status_id;
 
 SELECT *
-FROM ray."MigrationRun"
-WHERE "MigrationRunResultId" = 10
-  AND "FinishedAt" IS NULL;
+FROM ray.migration_run
+WHERE migration_run_result_id = 10
+  AND finished_at IS NULL;
 ```
+
+> **Note:** MariaDB and MySQL also use unquoted snake_case identifiers (DAL-018). Replace `ray.` with the configured database name (no schema prefix) when querying repository tables on those engines. SQL Server and SQLite retain PascalCase.
 
 > **Tip:** Create a monitoring dashboard that polls these queries periodically, so you are alerted to stuck runs or unexpected statuses.
 

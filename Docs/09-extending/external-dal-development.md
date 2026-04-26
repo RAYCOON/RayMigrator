@@ -62,13 +62,13 @@ Then reference them in your external project:
 
 ```xml
 <ItemGroup>
-    <PackageReference Include="Raycoon.RayMigrator.Database.Common" Version="0.9.41" />
-    <PackageReference Include="Raycoon.RayMigrator.Shared" Version="0.9.41" />
+    <PackageReference Include="Raycoon.RayMigrator.Database.Common" Version="0.10.3" />
+    <PackageReference Include="Raycoon.RayMigrator.Shared" Version="0.10.3" />
     <PackageReference Include="YourDb.AdoNetDriver" Version="..." />
 </ItemGroup>
 ```
 
-The version is controlled centrally via the `RayMigratorVersion` property in `Directory.Build.props` (currently `0.9.41`).
+The version is controlled centrally via the `RayMigratorVersion` property in `Directory.Build.props` (currently `0.10.3`).
 
 ### 3. Multi-Target Frameworks
 
@@ -249,7 +249,7 @@ The `Database.Example` project includes all 19 files as placeholders with TODO c
 | `Repository_MigrationRun_Update.sql` | Update run result |
 | `Repository_Product_CheckInsert.sql` | Lookup product by `NameLower`, insert if not exists; returns `ProductId` |
 
-> **Note on `Repository_Product_CheckInsert.sql` signature** (current version `2026-04-17.1`): the template binds two SQL parameters — `@Name` (original casing) and `@NameLower` (pre-computed lowercase). Lookup must be performed by `NameLower` to remain case-insensitive. See `Database.SqlServer/Templates/Repository_Product_CheckInsert.sql` and `Database.MariaDb/Templates/Repository_Product_CheckInsert.sql` for reference implementations.
+> **Note on `Repository_Product_CheckInsert.sql` signature**: the template binds two SQL parameters — `@Name` (original casing) and `@NameLower` (pre-computed lowercase). Lookup must be performed by `NameLower` to remain case-insensitive. See `Database.SqlServer/Templates/Repository_Product_CheckInsert.sql` and `Database.MariaDb/Templates/Repository_Product_CheckInsert.sql` for reference implementations.
 
 ### Template Placeholders
 

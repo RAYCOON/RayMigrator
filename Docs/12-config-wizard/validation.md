@@ -30,7 +30,7 @@ public static WizardValidationResult ValidateAll(ConfigurationModel model, Valid
 | `Filesystem` | `1` | Rules that need filesystem access (e.g. path existence checks). |
 | `AdoNetParsing` | `2` | Rules that need ADO.NET connection string parsing via `DbConnectionStringBuilder`. |
 
-The `Filesystem` flag gates `MigrationFilesRootDirectory` existence checks in `FilesystemChecks`. The `AdoNetParsing` flag gates strict connection string parsing in `AdoNetChecks` (a regex heuristic is used otherwise).
+The `Filesystem` flag gates `MigrationFilesRootDirectory` existence checks in `FilesystemChecks`. The `AdoNetParsing` flag gates strict connection-string parsing inside `WizardOnlyChecks.ValidateConnectionString` (a regex heuristic is used otherwise).
 
 ## Result Shape
 
@@ -93,8 +93,10 @@ ValidationReport
 ValidationReportToWizardResultMapper    (translates Issue → ValidationEntry)
       │
       ▼
-WizardValidationResult   +   WizardOnlyChecks   +   FilesystemChecks (if capability)   +   AdoNetChecks (if capability)
+WizardValidationResult   +   WizardOnlyChecks   +   FilesystemChecks (if capability)
 ```
+
+`WizardOnlyChecks.ValidateConnectionString` switches its connection-string check between a regex heuristic and `DbConnectionStringBuilder` parsing internally based on the `AdoNetParsing` capability flag.
 
 ## Wizard-Only Checks
 
@@ -110,6 +112,7 @@ A small set of checks lives outside the shared catalog because they are meaningf
 | Target | Same alias pattern; `ConnectionString` required. |
 | Serilog | Warns if `MinimumLevelDefault` is outside the known Serilog set; warns if `WriteTo` is empty. |
 | CliTool | Alias pattern (`^(?=.{1,50}$)[\p{L}\p{N}_\-]+$`). `ExecutablePath` / `ArgumentTemplate` required. `InputMode` must be `File` or `Stdin`. Timeout must be > 0. |
+| CliTools (collection) | When `CliTools.Count == 0` but at least one `UseCliToolAlias` is set anywhere in the cascade (`ProductDefaults`, `Product`, `TargetGroup`, `Target`), an error is raised on the `CliTools` path. |
 | Products | File-role-aware: when no products are defined and the file role is `Base` or `Environment`, this is a warning; otherwise an error. |
 
 Implementation: `Raycoon.RayMigrator.ConfigWizard.Core.Services.WizardOnlyChecks`.

@@ -41,9 +41,11 @@ host = Host.CreateDefaultBuilder(args)
             // JSON mode: bind from configuration section with validation
             services.AddOptions<RayMigratorOptions>()
                 .Configure(options => sourceResult.RayMigratorConfigSection.Bind(options))
-                .ValidateDataAnnotations();
+                .ValidateDataAnnotations()
+                .ValidateOnStart();
             services.AddTransient<IPostConfigureOptions<RayMigratorOptions>,
                 ProductDefaultsPostConfigureOptions>();
+            services.AddSingleton<IValidateOptions<RayMigratorOptions>, RayMigratorOptionsValidator>();
         }
 
         // Console parameters
@@ -129,12 +131,16 @@ Configuration sections are bound to strongly-typed options classes with DataAnno
 // Registration with validation (JSON mode)
 services.AddOptions<RayMigratorOptions>()
     .Configure(options => sourceResult.RayMigratorConfigSection.Bind(options))
-    .ValidateDataAnnotations();
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
 
 // PostConfigure merges defaults (MigrationErrorAction, RollbackErrorAction, encoding, etc.)
 // into product/target options
 services.AddTransient<IPostConfigureOptions<RayMigratorOptions>,
     ProductDefaultsPostConfigureOptions>();
+
+// IValidateOptions implementation that delegates to the shared rule catalog.
+services.AddSingleton<IValidateOptions<RayMigratorOptions>, RayMigratorOptionsValidator>();
 
 // Pre-built mode: pre-built options, no PostConfigure needed
 // (MergeDefaults was already called by the options provider)
@@ -257,9 +263,12 @@ public class MigrationContext
             ? new MigrationState()
             : new MigrationState
             {
+                MigrationEvent = migrationState.MigrationEvent,
+                MigratorMetaId = migrationState.MigratorMetaId,
                 ProductId = migrationState.ProductId,
+                EnvironmentId = migrationState.EnvironmentId,
                 MigrationRunId = migrationState.MigrationRunId,
-                MigrationId = migrationState.MigrationId,
+                MigrationRecordId = migrationState.MigrationRecordId,
                 ReleaseVersionFromFileNameWithPath = migrationState.ReleaseVersionFromFileNameWithPath,
                 FilenameWithRelativePath = migrationState.FilenameWithRelativePath,
                 FileOrderId = migrationState.FileOrderId,

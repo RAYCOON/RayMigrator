@@ -153,7 +153,7 @@ The domain model layer containing configuration, state, and core abstractions.
 - Environment resolution for CLI arguments
 
 **Project References:**
-- Database.Common, Shared
+- Database.Common, Shared, Validation
 
 ### 5. Infrastructure Layer (`Raycoon.RayMigrator.Infrastructure`)
 
@@ -242,6 +242,7 @@ graph LR
     Infrastructure --> Core
     Infrastructure --> Database
     Core --> Database.Common
+    Core --> Validation
     Database --> Database.Common
 
     Console -.-> Shared
@@ -254,7 +255,7 @@ graph LR
 **Solid lines**: Direct project references
 **Dashed lines**: Shared types dependency
 
-> **Note**: `Database.Common` and `Shared` have no project references (leaf nodes).
+> **Note**: `Database.Common`, `Shared`, and `Validation` have no project references (leaf nodes).
 
 ## Build Configuration
 

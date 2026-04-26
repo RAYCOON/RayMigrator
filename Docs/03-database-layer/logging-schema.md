@@ -22,7 +22,7 @@ erDiagram
         int ProductId
         int EnvironmentId
         int MigrationRunId
-        int MigrationId
+        int MigrationRecordId
         nvarchar ReleaseVersion
         nvarchar TargetGroupAlias
         nvarchar TargetAlias
@@ -59,7 +59,7 @@ Main logging table. Types shown are SQL Server canonical types. PostgreSQL store
 | `ProductId` | INT | Product ID (nullable) |
 | `EnvironmentId` | INT | Environment ID (nullable; no FK — logging DB may differ from repository DB) |
 | `MigrationRunId` | INT | Migration run ID (nullable) |
-| `MigrationId` | INT | Migration record ID (nullable) |
+| `MigrationRecordId` | INT | Migration record ID (nullable) |
 | `ReleaseVersion` | NVARCHAR(100) | Release version |
 | `TargetGroupAlias` | NVARCHAR(100) | Target group |
 | `TargetAlias` | NVARCHAR(100) | Target database |
@@ -210,7 +210,7 @@ BEGIN
         ProductId INT NULL,
         EnvironmentId INT NULL,
         MigrationRunId INT NULL,
-        MigrationId INT NULL,
+        MigrationRecordId INT NULL,
         ReleaseVersion NVARCHAR(100) NULL,
         TargetGroupAlias NVARCHAR(100) NULL,
         TargetAlias NVARCHAR(100) NULL,
@@ -251,7 +251,7 @@ INSERT INTO [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationLog]
     [ProductId],
     [EnvironmentId],
     [MigrationRunId],
-    [MigrationId],
+    [MigrationRecordId],
     [ReleaseVersion],
     [TargetGroupAlias],
     [TargetAlias],
@@ -269,7 +269,7 @@ VALUES
     @ProductId,
     @EnvironmentId,
     @MigrationRunId,
-    @MigrationId,
+    @MigrationRecordId,
     @ReleaseVersion,
     @TargetGroupAlias,
     @TargetAlias,
@@ -321,7 +321,7 @@ SELECT
     l.CreatedAt
 FROM logs.MigrationLog l
 LEFT JOIN logs.MigrationEvent e ON l.MigrationEventId = e.Id
-WHERE l.MigrationId = @MigrationId
+WHERE l.MigrationRecordId = @MigrationRecordId
 ORDER BY l.CreatedAt;
 ```
 

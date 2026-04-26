@@ -14,7 +14,7 @@ This chapter walks you through creating a minimal project, writing your first mi
 
   **Windows:** `Expand-Archive RayMigrator-<version>-win-x64.zip -DestinationPath C:\Tools\RayMigrator` and add `C:\Tools\RayMigrator` to your system PATH.
 
-  Verify with `RayMigrator --version`. Alternatively, you can [build from source](../../README.md#building-from-source).
+  Verify with `RayMigrator --version`.
 
 > **Tip:** To start a SQL Server container quickly:
 > ```bash
@@ -243,6 +243,7 @@ ORDER BY TABLE_NAME;
 
 | TABLE_SCHEMA | TABLE_NAME              |
 |--------------|-------------------------|
+| ray          | Environment             |
 | ray          | MigrationOperation      |
 | ray          | MigrationRecord         |
 | ray          | MigrationRecordHistory  |

@@ -19,7 +19,7 @@ Documentation for the Config-Wizard ecosystem, which spans two projects:
 ### Project
 
 - Source (Web): `Raycoon.RayMigrator.ConfigWizard.Web/` — Blazor WASM standalone app (MudBlazor 9, multilingual DE/EN, hub-and-spoke wizard: Welcome → Hub → Detailed Config → Overview)
-- Shared domain library: `Raycoon.RayMigrator.ConfigWizard.Core/` (zero NuGet/project dependencies, multi-target)
+- Shared domain library: `Raycoon.RayMigrator.ConfigWizard.Core/` (zero NuGet dependencies; only one project reference to the WASM-safe `Raycoon.RayMigrator.Validation` shared rule catalog; multi-target)
 - Tests (Core): `Raycoon.RayMigrator.Tests.Unit.ConfigWizard.Core/`
 - Tests (Web): `Raycoon.RayMigrator.Tests.Unit.ConfigWizard.Web/`
 - Target frameworks: `net10.0`, `net9.0`, `net8.0` (Core); `net10.0` (Web)

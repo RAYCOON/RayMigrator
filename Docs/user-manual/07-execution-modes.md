@@ -62,7 +62,7 @@ RayMigrator Migrate-Up -p BookStore -env Staging -rm Simulate
 - No SQL migration blocks are executed on target databases
 - No schema changes are made to target databases
 - No data is inserted, updated, or deleted on targets
-- No repository records are written (no MigrationRun, no Migration records)
+- No repository records are written (no MigrationRun, no MigrationRecord rows)
 - No database log entries are written (DatabaseLogging sink is inactive)
 
 ### When to Use Simulate
