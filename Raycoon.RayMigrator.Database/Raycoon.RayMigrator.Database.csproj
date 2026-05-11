@@ -10,7 +10,9 @@
         <Title>Raycoon RayMigrator Database Access Layer</Title>
         <RepositoryUrl>https://github.com/RAYCOON/RayMigrator-DAL</RepositoryUrl>
         <PackageId>Raycoon.RayMigrator.Database</PackageId>
-        <Description>DAL factory and plugin discovery for RayMigrator</Description>
+        <Description>DAL factory and plugin discovery for RayMigrator. Licensed under BUSL-1.1 with Additional Use Grant — see LICENSE.md.</Description>
+        <IsPackable>true</IsPackable>
+        <PackageTags>$(RayMigratorBaseTags);raymigrator</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 

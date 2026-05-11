@@ -8,6 +8,8 @@ RayMigrator's plugin architecture allows developing database providers (DALs) ou
 
 The `Database.Example` project in the main repository serves as a skeleton template. It contains placeholder implementations for all required methods and 19 SQL template files (the 18 required by the engine plus `Repository_MigrationRecordHistory_Archive.sql`, which is an extra placeholder for archive operations). The recommended workflow is to copy (or fork) this project and replace "Example" with your database type name throughout.
 
+> **License note**: The `Raycoon.RayMigrator.Database.Example` directory is licensed under the **MIT License** (see `Raycoon.RayMigrator.Database.Example/LICENSE.md`), separately from the rest of RayMigrator (which is BUSL-1.1 with Additional Use Grant). You may freely copy the Example skeleton as a starting point for your own DAL plugin without commercial-license obligations on the Example code itself. The plugin source code you write from there is your own. However, **running** your plugin inside a RayMigrator process is governed by RayMigrator's license terms (BUSL-1.1 + AUG, or a commercial license).
+
 ## Alternative: CLI Tool Execution Mode
 
 Before building a full external DAL, consider whether the **CLI tool execution mode** meets your needs. RayMigrator can execute migration SQL files via external CLI tools (e.g., `sqlcmd`, `psql`, `mysql`) instead of the built-in DAL. This is configured via the `CliTools` array at the `RayMigrator` root level and activated via `UseCliToolAlias` at the ProductDefaults, Product, TargetGroup, Target, or migration file level (TOML header or migsettings).

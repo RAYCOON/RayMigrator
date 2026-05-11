@@ -6,8 +6,24 @@
         <Nullable>enable</Nullable>
         <LangVersion>default</LangVersion>
         <RayMigratorDatabaseType>Example</RayMigratorDatabaseType>
+        <!-- IsPackable=false because this skeleton is not published to NuGet — it's meant to be
+             copied as a starting point for external DAL plugin developers. -->
         <IsPackable>false</IsPackable>
     </PropertyGroup>
+
+    <!-- Permissive MIT carve-out for this directory. The MIT-licensed LICENSE.md inside this
+         folder governs anyone who copies the skeleton. Properties below activate only if
+         IsPackable is later flipped to true; otherwise dormant. The Condition guard prevents
+         a NU5048 collision with the global <None Include="$(MSBuildThisFileDirectory)LICENSE.md">
+         from Directory.Build.props (architecture review C1+C2). -->
+    <PropertyGroup Condition="'$(IsPackable)' == 'true'">
+        <PackageLicenseFile>LICENSE.md</PackageLicenseFile>
+    </PropertyGroup>
+
+    <ItemGroup Condition="'$(IsPackable)' == 'true'">
+        <None Remove="$(MSBuildThisFileDirectory)..\LICENSE.md" />
+        <None Include="LICENSE.md" Pack="true" PackagePath="LICENSE.md" Visible="false" />
+    </ItemGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\Raycoon.RayMigrator.Database.Common\Raycoon.RayMigrator.Database.Common.csproj" />

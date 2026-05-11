@@ -6,7 +6,9 @@
         <LangVersion>default</LangVersion>
         <TargetFrameworks>net10.0;net9.0;net8.0</TargetFrameworks>
         <PackageId>Raycoon.RayMigrator.Services.Abstractions</PackageId>
-        <Description>Service interfaces and DTOs for RayMigrator migration operations</Description>
+        <Description>Service interfaces and DTOs for RayMigrator migration operations. Licensed under BUSL-1.1 with Additional Use Grant — see LICENSE.md.</Description>
+        <IsPackable>true</IsPackable>
+        <PackageTags>$(RayMigratorBaseTags);raymigrator</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 

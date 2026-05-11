@@ -162,4 +162,12 @@
               SkipUnchangedFiles="true" />
     </Target>
 
+    <!-- BUSL-1.1 §3 Notices Compliance: ship LICENSE.md + NOTICE.md alongside the binary.
+         Fires for both self-contained and framework-dependent publish (AfterTargets=Publish). -->
+    <Target Name="CopyLicenseToPublishOutput" AfterTargets="Publish">
+        <Copy SourceFiles="$(MSBuildThisFileDirectory)..\LICENSE.md;$(MSBuildThisFileDirectory)..\NOTICE.md"
+              DestinationFolder="$(PublishDir)"
+              SkipUnchangedFiles="true" />
+    </Target>
+
 </Project>

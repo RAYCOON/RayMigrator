@@ -63,6 +63,11 @@ jobs:
           echo "=== Published files ==="
           ls -la publish/${{ matrix.rid }}/
           echo ""
+          echo "=== License files (BUSL-1.1 §3 Notices Compliance) ==="
+          test -f "publish/${{ matrix.rid }}/LICENSE.md" || { echo "ERROR: LICENSE.md missing!"; exit 1; }
+          test -f "publish/${{ matrix.rid }}/NOTICE.md" || { echo "ERROR: NOTICE.md missing!"; exit 1; }
+          echo "OK: LICENSE.md + NOTICE.md present"
+          echo ""
           echo "=== DataAccessLayers ==="
           ls -R publish/${{ matrix.rid }}/DataAccessLayers/ || { echo "ERROR: DataAccessLayers/ missing!"; exit 1; }
           for dal in SqlServer PostgreSQL MariaDb MySql Sqlite; do

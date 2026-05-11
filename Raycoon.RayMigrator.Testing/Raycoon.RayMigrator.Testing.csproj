@@ -8,8 +8,9 @@
         <PackageId>Raycoon.RayMigrator.Testing</PackageId>
         <Version>$(RayMigratorVersion)</Version>
         <Authors>RAYCOON.com GmbH</Authors>
-        <Description>Reusable test infrastructure for RayMigrator integration tests</Description>
-        <PackageTags>raymigrator;testing;integration</PackageTags>
+        <Description>Reusable test infrastructure for RayMigrator integration tests. Licensed under BUSL-1.1 with Additional Use Grant — see LICENSE.md.</Description>
+        <IsPackable>true</IsPackable>
+        <PackageTags>$(RayMigratorBaseTags);raymigrator;testing;integration</PackageTags>
         <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
         <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>

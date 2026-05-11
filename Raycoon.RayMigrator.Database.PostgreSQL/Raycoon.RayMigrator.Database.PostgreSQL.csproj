@@ -7,7 +7,9 @@
         <LangVersion>default</LangVersion>
         <RayMigratorDatabaseType>PostgreSQL</RayMigratorDatabaseType>
         <PackageId>Raycoon.RayMigrator.Database.PostgreSQL</PackageId>
-        <Description>PostgreSQL data access layer plugin for RayMigrator</Description>
+        <Description>PostgreSQL data access layer plugin for RayMigrator. Licensed under BUSL-1.1 with Additional Use Grant — see LICENSE.md.</Description>
+        <IsPackable>true</IsPackable>
+        <PackageTags>$(RayMigratorBaseTags);raymigrator</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 

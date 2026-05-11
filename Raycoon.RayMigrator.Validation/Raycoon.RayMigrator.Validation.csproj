@@ -8,8 +8,9 @@
         <PackageId>Raycoon.RayMigrator.Validation</PackageId>
         <Version>$(RayMigratorVersion)</Version>
         <Authors>RAYCOON.com GmbH</Authors>
-        <Description>Shared validation rule catalog for RayMigrator (WASM-safe, dependency-free).</Description>
-        <PackageTags>raymigrator;validation</PackageTags>
+        <Description>Shared validation rule catalog for RayMigrator (WASM-safe, dependency-free). Licensed under BUSL-1.1 with Additional Use Grant — see LICENSE.md.</Description>
+        <IsPackable>true</IsPackable>
+        <PackageTags>$(RayMigratorBaseTags);raymigrator;validation</PackageTags>
         <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
         <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>

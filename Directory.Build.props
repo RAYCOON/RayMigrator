@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <RayMigratorVersion>0.10.3</RayMigratorVersion>
+    <RayMigratorVersion>0.11.0</RayMigratorVersion>
     <Version>$(RayMigratorVersion)</Version>
     <!-- NuGet Metadata (global for all packages) -->
     <Authors>Daniel Pavic (RAYCOON.com GmbH)</Authors>
@@ -13,6 +13,10 @@
     <DebugType>embedded</DebugType>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+    <!-- Composition property: per-project PackageTags include $(RayMigratorBaseTags). Do NOT set
+         PackageTags directly here — that would shadow the per-project tag overrides (architecture
+         review W2). -->
+    <RayMigratorBaseTags>busl-1.1;source-available;database-migration;dotnet</RayMigratorBaseTags>
   </PropertyGroup>
 
   <ItemGroup>

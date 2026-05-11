@@ -8,8 +8,9 @@
         <PackageId>Raycoon.RayMigrator.Database.Common</PackageId>
         <Version>$(RayMigratorVersion)</Version>
         <Authors>RAYCOON.com GmbH</Authors>
-        <Description>Database abstractions and base classes for RayMigrator DAL plugins</Description>
-        <PackageTags>raymigrator;database;dal;migration</PackageTags>
+        <Description>Database abstractions and base classes for RayMigrator DAL plugins. Licensed under BUSL-1.1 with Additional Use Grant — see LICENSE.md.</Description>
+        <IsPackable>true</IsPackable>
+        <PackageTags>$(RayMigratorBaseTags);raymigrator;database;dal;migration</PackageTags>
         <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
         <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>

@@ -8,8 +8,9 @@
         <PackageId>Raycoon.RayMigrator.Shared</PackageId>
         <Version>$(RayMigratorVersion)</Version>
         <Authors>RAYCOON.com GmbH</Authors>
-        <Description>Shared types, exceptions, and constants for RayMigrator</Description>
-        <PackageTags>raymigrator;shared</PackageTags>
+        <Description>Shared types, exceptions, and constants for RayMigrator. Licensed under BUSL-1.1 with Additional Use Grant — see LICENSE.md.</Description>
+        <IsPackable>true</IsPackable>
+        <PackageTags>$(RayMigratorBaseTags);raymigrator;shared</PackageTags>
         <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
         <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>

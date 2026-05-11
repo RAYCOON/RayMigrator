@@ -30,26 +30,35 @@ We welcome bug reports and feature requests. See [CONTRIBUTING.md](CONTRIBUTING.
 
 ## License (TL;DR)
 
-### ✅ Free to use if:
-- Your organization has **fewer than 20 employees**, OR
-- You are a **governmental entity**, **public institution**, **academic institution**, or **non-profit**
+RayMigrator is licensed under the **Business Source License 1.1 (BUSL-1.1)**
+with a custom Additional Use Grant. Each version automatically converts to
+**Apache License, Version 2.0** four years after its release.
+
+### Free production use if:
+- Your organization (including affiliates) has **fewer than 20 employees**, OR
+- You are a **governmental entity**, **public institution**, **academic
+  institution**, or **non-profit**
 - AND you use RayMigrator **only internally**
 - AND you do **not provide it as a service** (SaaS / hosting / managed service)
 
----
+Non-production use (development, testing, evaluation, QA, research) is free
+for everyone.
 
-### 💼 Commercial license required if:
+### Commercial license required if:
 - Your organization has **20 or more employees**, OR
-- You use RayMigrator **in production outside the free scope**, OR
-- You provide it **to third parties** (e.g. SaaS, hosting, services)
+- You use RayMigrator in production **outside the Additional Use Grant scope**, OR
+- You provide it **to third parties** (SaaS, hosting, services)
+
+### Important rule
+> If there is any reasonable doubt whether the free tier applies, a commercial
+> license is required.
+
+### Database.Example carve-out
+The `Raycoon.RayMigrator.Database.Example` skeleton is licensed under the
+**MIT License** so you can freely copy it as a starting point for your own
+DAL plugin without commercial-license obligations on the Example code.
 
 ---
 
-### 🔒 Important rule
-> If there is any doubt whether free usage applies, a commercial license is required.
-
----
-
-📄 Full license: see [LICENSE.md](LICENSE.md)  
-📧 Contact: raymigrator@raycoon.com
-For commercial licensing inquiries, contact raymigrator@raycoon.com.
+Full license: see [LICENSE.md](LICENSE.md). Commercial licensing inquiries:
+`raymigrator@raycoon.com`.

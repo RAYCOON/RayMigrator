@@ -7,7 +7,9 @@
         <LangVersion>default</LangVersion>
         <RayMigratorDatabaseType>MySql</RayMigratorDatabaseType>
         <PackageId>Raycoon.RayMigrator.Database.MySql</PackageId>
-        <Description>MySQL data access layer plugin for RayMigrator</Description>
+        <Description>MySQL data access layer plugin for RayMigrator. Licensed under BUSL-1.1 with Additional Use Grant — see LICENSE.md.</Description>
+        <IsPackable>true</IsPackable>
+        <PackageTags>$(RayMigratorBaseTags);raymigrator</PackageTags>
         <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 

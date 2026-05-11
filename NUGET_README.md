@@ -8,20 +8,33 @@ We welcome bug reports and feature requests. See [CONTRIBUTING.md](https://githu
 
 ## License (TL;DR)
 
-**Free if:**
-- < 20 employees, OR
-- Government / public / academic / non-profit
-- Internal use only (no SaaS / no third-party access)
+Licensed under **Business Source License 1.1 (BUSL-1.1)** with a custom
+Additional Use Grant. Each version converts to **Apache License, Version 2.0**
+four years after its release.
+
+**Free production use if:**
+- Fewer than 20 employees (including affiliates), OR
+- Governmental / public / academic / non-profit entity
+- AND internal use only (no SaaS / no third-party access)
+
+**Free non-production use** (dev, test, evaluation, QA, research) for
+everyone.
 
 **Commercial license required if:**
-- ≥ 20 employees
-- Production use outside free scope
-- SaaS / hosting / services for others
+- 20 or more employees
+- Production use outside the Additional Use Grant scope
+- SaaS / hosting / managed services for others
 
 > If in doubt: commercial license required.
 
+The `Raycoon.RayMigrator.Database.Example` skeleton is MIT-licensed so external
+DAL plugin authors can copy it as a starting point without commercial-license
+obligations on the Example code.
+
 ## Full License
+
 See `LICENSE.md` in the repository.
 
 ## Contact
+
 raymigrator@raycoon.com

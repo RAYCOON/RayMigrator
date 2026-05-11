@@ -1,212 +1,163 @@
-# RayMigrator Dual License Agreement (RMLA) v1.0
+# RayMigrator License — Business Source License 1.1 with Additional Use Grant
 
-Copyright (c) 2026 RAYCOON.com GmbH  
-Mainzer Str. 16g  
-64331 Weiterstadt  
-Germany  
+Business Source License 1.1
 
-All rights reserved.
+License text copyright © 2017 MariaDB Corporation Ab, All Rights Reserved.
+"Business Source License" is a trademark of MariaDB Corporation Ab.
 
 ---
 
-## 1. Dual Licensing Model
+## Parameters
 
-The Software is provided under a dual licensing model:
+| Field                | Value                                                              |
+|----------------------|--------------------------------------------------------------------|
+| Licensor             | RAYCOON.com GmbH, Mainzer Str. 16g, 64331 Weiterstadt, Germany     |
+| Licensed Work        | RayMigrator 0.11.0 — © 2026 RAYCOON.com GmbH                       |
+| Additional Use Grant | See section below                                                  |
+| Change Date          | `<RELEASE_DATE + 4 years>`                                         |
+| Change License       | Apache License, Version 2.0 (https://www.apache.org/licenses/LICENSE-2.0) |
 
-- Free License (as defined in this Agreement)
-- Commercial License (separate agreement required)
-
-Use of the Software is permitted only under one of these licenses.
-
----
-
-## 2. Definitions
-
-**Software**  
-The project "RayMigrator", including all source code, binaries, documentation, and related materials.
-
-**Licensor**  
-RAYCOON.com GmbH.
-
-**User**  
-Any individual or legal entity using the Software.
-
-**Affiliate**  
-Any entity that directly or indirectly controls, is controlled by, or is under common control with another entity.
-
-**Production Use**  
-Any use of the Software in a live, operational, or revenue-generating environment.
-
-**Governmental Entity**  
-Any national, regional, or local government body or public institution.
-
-**Academic Institution**  
-A publicly funded or non-profit university, college, or research institution.
-
-**Commercial Entity**  
-Any organization operating for commercial advantage, regardless of whether profit is currently generated.
-
-**Employee Count**  
-The total number of persons employed by the User and all Affiliates, including employees and comparable contractors.
+For information about alternative licensing arrangements for the Licensed Work,
+please contact `raymigrator@raycoon.com`.
 
 ---
 
-## 3. Free License
+## Additional Use Grant
 
-### 3.1 Free Non-Production Usage
+<!-- PLACEHOLDER — Phase 0 lawyer output goes here. Final wording must be reviewed
+     and approved by an IT/IP lawyer (German jurisdiction) before this license
+     change is merged to main. The text below is a non-binding draft mirroring
+     the prior RMLA v1.0 free-tier conditions and the architectural decisions
+     in the migration plan. -->
 
-The Software may be used free of charge for:
+You may make production use of the Licensed Work, free of charge, only if all of
+the following conditions are satisfied:
 
-- Development  
-- Testing  
-- Quality Assurance  
-- Evaluation  
-- Research  
+1. **Eligibility (any one of the following):**
+   - Your organization, including all Affiliates, employs fewer than twenty
+     (20) persons (counting employees and comparable contractors); OR
+   - You are a Governmental Entity; OR
+   - You are a 100% publicly owned company; OR
+   - You are an Academic Institution; OR
+   - You are a Non-Profit organization.
 
-This includes use by Commercial Entities, provided that such use:
+2. **Internal use only.** The Licensed Work is used solely for the internal
+   business operations of the eligible entity.
 
-- is strictly non-production, and  
-- does not provide services to third parties  
+3. **No third-party offerings.** The Licensed Work is not made available to
+   any third party as part of, or in support of, a hosted, SaaS, or managed
+   service offering.
 
----
+**Definitions** (mirroring the structure of the prior RayMigrator Dual License
+Agreement):
 
-### 3.2 Free Production Usage
+- *Affiliate*: any entity that directly or indirectly controls, is controlled
+  by, or is under common control with another entity, where "control" means
+  the ownership of more than fifty percent (50%) of voting rights or the
+  power to direct management.
+- *Production Use*: any use of the Licensed Work in a live, operational,
+  or revenue-generating environment.
+- *Internal Operations*: use restricted to the eligible entity's own
+  business processes, not made available to third parties.
 
-Use in Production is permitted free of charge only if the User is:
+**Anti-Circumvention.** The Additional Use Grant does not apply if the
+organizational structure or use of the Licensed Work is designed to avoid the
+licensing obligations of this License, including but not limited to splitting a
+single Commercial Entity into multiple smaller entities to fall below the
+employee threshold, or routing production use through an Affiliate that would
+itself require a commercial license.
 
-- an organization with fewer than **20 employees (including Affiliates)**, OR  
-- a **Governmental Entity**, OR  
-- a **100% publicly owned company**, OR  
-- an **Academic Institution**, OR  
-- a **non-profit organization**
+**Trademark Reservation.** Nothing in this License grants any right to use the
+trademarks "RayMigrator" or "RAYCOON" of RAYCOON.com GmbH, or its affiliates,
+except as required to comply with attribution obligations under this License.
+The trademark "RayMigrator" is registered or pending with the relevant
+trademark offices.
 
-AND
+**Database.Example Carve-Out.** The contents of the directory
+`Raycoon.RayMigrator.Database.Example` (including its skeleton DAL plugin
+template, placeholder SQL templates, and project file) are licensed under the
+**MIT License** (see the `LICENSE.md` file inside that directory). This
+Additional Use Grant and the Business Source License 1.1 do not apply to the
+contents of that directory.
 
-- the Software is used solely for internal operations, and  
-- the Software is not made available to third parties, including as part of a hosted, SaaS, or managed service  
+**Doubt clause.** If there is any reasonable doubt whether your use qualifies
+under this Additional Use Grant, a commercial license is required. Please
+contact `raymigrator@raycoon.com` for commercial licensing terms.
 
-If there is any doubt whether free usage applies, a Commercial License is required.
-
----
-
-## 4. Commercial License Requirement
-
-A Commercial License is REQUIRED if:
-
-- the Software is used in Production, AND  
-- the User has **20 or more employees (including Affiliates)**  
-
-OR
-
-- the conditions of Section 3 are not met  
-
----
-
-## 4.1 Anti-Circumvention
-
-Free usage must not be circumvented.
-
-Free usage is NOT permitted if:
-
-- the Software is used in Production by, for, or on behalf of a Commercial Entity  
-- a Commercial Entity benefits directly or indirectly from Production Use  
-- the Software is made available to third parties (including via SaaS, hosting, or managed services)  
-- organizational structures are designed to avoid licensing obligations  
-- any Affiliate would require a Commercial License  
-
-If there is any doubt whether free usage applies, a Commercial License is required.
-
----
-
-## 4.2 Conflict Rule
-
-In case of any conflict or ambiguity:
-
-**the Commercial License requirement shall prevail.**
+<!-- /PLACEHOLDER -->
 
 ---
 
-## 5. Community Contributions
+## License Text
 
-Users may:
+**Terms**
 
-- Fork the repository  
-- Submit pull requests  
-- Propose improvements  
+The Licensor hereby grants you the right to copy, modify, create derivative
+works, redistribute, and make non-production use of the Licensed Work. The
+Licensor may make an Additional Use Grant, above, permitting limited
+production use.
 
-All contributions:
+Effective on the Change Date, or the fourth anniversary of the first publicly
+available distribution of a specific version of the Licensed Work under this
+License, whichever comes first, the Licensor hereby grants you rights under the
+terms of the Change License, and the rights granted in the paragraph above
+terminate.
 
-- are non-binding  
-- may be used, modified, or rejected by the Licensor  
-- do not grant ownership rights to contributors  
+If your use of the Licensed Work does not comply with the requirements
+currently in effect as described in this License, you must purchase a
+commercial license from the Licensor, its affiliated entities, or authorized
+resellers, or you must refrain from using the Licensed Work.
 
----
+All copies of the original and modified Licensed Work, and derivative works of
+the Licensed Work, are subject to this License. This License applies separately
+for each version of the Licensed Work and the Change Date may vary for each
+version of the Licensed Work released by Licensor.
 
-## 6. Restrictions
+You must conspicuously display this License on each original or modified copy
+of the Licensed Work. If you receive the Licensed Work in original or modified
+form from a third party, the terms and conditions set forth in this License
+apply to your use of that work.
 
-The User may NOT:
+Any use of the Licensed Work in violation of this License will automatically
+terminate your rights under this License for the current and all other versions
+of the Licensed Work.
 
-- Sell or redistribute the Software as a product  
-- Remove licensing notices  
-- Violate this Agreement  
-- Claim ownership of the Software  
+This License does not grant you any right in any trademark or logo of Licensor
+or its affiliates (provided that you may use a trademark or logo of Licensor as
+expressly required by this License).
 
----
+TO THE EXTENT PERMITTED BY APPLICABLE LAW, THE LICENSED WORK IS PROVIDED ON AN
+"AS IS" BASIS. LICENSOR HEREBY DISCLAIMS ALL WARRANTIES AND CONDITIONS, EXPRESS
+OR IMPLIED, INCLUDING (WITHOUT LIMITATION) WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, AND TITLE.
 
-## 7. No Automatic Rights Transfer
+MariaDB hereby grants you permission to use this License's text to license your
+works, and to refer to it using the trademark "Business Source License", as
+long as you comply with the Covenants of Licensor below.
 
-Contributions do not transfer ownership.
+**Covenants of Licensor**
 
-The Licensor may use contributions without restriction.
+In consideration of the right to use this License's text and the "Business
+Source License" name and trademark, Licensor covenants to MariaDB, and to all
+other recipients of the licensed work to be provided by Licensor:
 
----
+1. To specify as the Change License the GPL Version 2.0 or any later version,
+   or a license that is compatible with GPL Version 2.0 or a later version,
+   where "compatible" means that software provided under the Change License
+   can be included in a program with software provided under GPL Version 2.0
+   or a later version. Licensor may specify additional Change Licenses without
+   limitation.
 
-## 8. Termination
+2. To either: (a) specify an additional grant of rights to use that does not
+   impose any additional restriction on the right granted in this License, as
+   the Additional Use Grant; or (b) insert the text "None".
 
-This license terminates automatically upon violation.
+3. To specify a Change Date.
 
-All usage must cease immediately and all copies must be deleted.
+4. Not to modify this License in any other way.
 
----
+**Notice**
 
-## 9. Warranty Disclaimer
-
-To the maximum extent permitted by applicable law, the Software is provided "AS IS" and "AS AVAILABLE", without warranties of any kind, whether express or implied, including but not limited to warranties of merchantability, fitness for a particular purpose, and non-infringement.
-
-Nothing in this Agreement shall exclude or limit any warranty that cannot be excluded under applicable law.
-
----
-
-## 10. Limitation of Liability
-
-Nothing in this Agreement excludes or limits liability for:
-
-- injury to life, body, or health  
-- intent or gross negligence  
-
-To the maximum extent permitted by applicable law, the Licensor shall not be liable for:
-
-- loss of profits  
-- loss of data  
-- business interruption  
-- indirect, incidental, special, or consequential damages  
-
-arising out of or in connection with the use of the Software.
-
-In all other cases, the Licensor’s total liability shall be limited to the amount paid for the Software, if any.
-
----
-
-## 11. Governing Law
-
-This Agreement is governed by the laws of Germany.
-
----
-
-## 12. Commercial License
-
-Commercial licenses are available separately.
-
-Contact:
-
-raymigrator@raycoon.com
+The Business Source License (this document, or the "License") is not an Open
+Source license. However, the Licensed Work will eventually be made available
+under an Open Source License, as stated in this License.
