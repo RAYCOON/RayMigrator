@@ -14,8 +14,13 @@ License text copyright © 2017 MariaDB Corporation Ab, All Rights Reserved.
 | Licensor             | RAYCOON.com GmbH, Mainzer Str. 16g, 64331 Weiterstadt, Germany     |
 | Licensed Work        | RayMigrator 0.11.0 — © 2026 RAYCOON.com GmbH                       |
 | Additional Use Grant | See section below                                                  |
-| Change Date          | `<RELEASE_DATE + 4 years>`                                         |
-| Change License       | Apache License, Version 2.0 (https://www.apache.org/licenses/LICENSE-2.0) |
+| Change Date          | Four (4) years after the first publicly available distribution of each version of the Licensed Work (per-version; see License Text below) |
+| Change License       | Apache License, Version 2.0 (https://www.apache.org/licenses/LICENSE-2.0) [^1] |
+
+[^1]: Apache License 2.0 is GPLv3-compatible. Under BSL 1.1 Covenant 1
+    ("compatible with GPL Version 2.0 or a later version"), GPLv3
+    compatibility satisfies the covenant — consistent with the
+    interpretation adopted by other BSL 1.1 adopters (e.g., CockroachDB).
 
 For information about alternative licensing arrangements for the Licensed Work,
 please contact `raymigrator@raycoon.com`.
@@ -23,12 +28,6 @@ please contact `raymigrator@raycoon.com`.
 ---
 
 ## Additional Use Grant
-
-<!-- PLACEHOLDER — Phase 0 lawyer output goes here. Final wording must be reviewed
-     and approved by an IT/IP lawyer (German jurisdiction) before this license
-     change is merged to main. The text below is a non-binding draft mirroring
-     the prior RMLA v1.0 free-tier conditions and the architectural decisions
-     in the migration plan. -->
 
 **Eligible Licensees.** This Additional Use Grant is offered exclusively to:
 
@@ -114,8 +113,7 @@ obligation to obtain a commercial license shall prevail.
 
 **Trademark Reservation.** The names "RayMigrator" and "RAYCOON", together
 with all associated logos, word marks, and visual identities (collectively the
-"Marks"), are trademarks of RAYCOON.com GmbH. The trademark "RayMigrator" is
-registered or pending registration with the relevant trademark offices.
+"Marks"), are claimed as unregistered trademarks of RAYCOON.com GmbH.
 
 Nothing in this License — including the BSL grant of redistribution rights —
 grants any right to use the Marks. In particular, redistributed, modified, or
@@ -146,18 +144,9 @@ contents of that directory.
 under this Additional Use Grant, a commercial license is required. Please
 contact `raymigrator@raycoon.com` for commercial licensing terms.
 
-<!-- /PLACEHOLDER -->
-
 ---
 
 ## Supplemental Terms
-
-<!-- PLACEHOLDER — Phase 0 lawyer output goes here. Final wording must be
-     reviewed and approved by an IT/IP lawyer (German jurisdiction) before
-     this license change is merged to main. The text below is a non-binding
-     draft intended to ensure compliance with mandatory provisions of German
-     law (in particular §§ 305 ff. BGB) without modifying the BSL 1.1
-     License Text itself (BSL 1.1 Covenant 4). -->
 
 ### Precedence
 
@@ -212,9 +201,8 @@ for ordinary negligence is excluded.
 #### 4. Liability cap and data-loss limitation
 
 (a) Liability under section 2 is capped at:
-    - for free use under the Additional Use Grant: **`<CAP_AMOUNT>` EUR**
-      per contract year (final amount to be set following counsel review;
-      target range: EUR 10,000 to EUR 100,000);
+    - for free use under the Additional Use Grant: **EUR 10,000** per
+      contract year;
     - for paid use under a commercial license: the fees paid by the
       Licensee for the Licensed Work in the twelve (12) months preceding
       the event causing the damage,
@@ -249,8 +237,6 @@ Upon termination of rights under the BSL License Text or these Supplemental
 Terms, all Production Use must cease immediately and all copies of the
 Licensed Work in the Licensee's possession or control must be deleted,
 except where retention is required by mandatory law.
-
-<!-- /PLACEHOLDER -->
 
 ---
 

@@ -79,9 +79,9 @@ a commercial RayMigrator license, even when their DAL plugin is their own.
 ## Trademarks
 
 "RayMigrator" and "RAYCOON" — including all associated logos, word marks, and
-visual identities — are trademarks of RAYCOON.com GmbH, registered or pending
-with the relevant trademark offices. Nothing in BUSL-1.1 or the BSL grant of
-redistribution rights conveys any right to use these trademarks.
+visual identities — are claimed as unregistered trademarks of RAYCOON.com GmbH.
+Nothing in BUSL-1.1 or the BSL grant of redistribution rights conveys any right
+to use these trademarks.
 
 In particular, redistributed or derivative versions of RayMigrator must not
 be distributed under the names "RayMigrator" or "RAYCOON" and must adopt a
