@@ -35,19 +35,24 @@ with a custom Additional Use Grant. Each version automatically converts to
 **Apache License, Version 2.0** four years after its release.
 
 ### Free production use if:
-- Your organization (including affiliates) has **fewer than 20 employees**, OR
+- You are an **entrepreneur** (§ 14 BGB) or a **legal entity** — the
+  Additional Use Grant is not available to consumers (§ 13 BGB), AND
+- Your organization (including affiliates) has **fewer than 20 persons**
+  (counting employees and comparable contractors), OR
 - You are a **governmental entity**, **public institution**, **academic
   institution**, or **non-profit**
 - AND you use RayMigrator **only internally**
 - AND you do **not provide it as a service** (SaaS / hosting / managed service)
 
 Non-production use (development, testing, evaluation, QA, research) is free
-for everyone.
+for everyone — including consumers.
 
 ### Commercial license required if:
-- Your organization has **20 or more employees**, OR
+- Your organization has **20 or more persons** (employees + comparable
+  contractors), OR
 - You use RayMigrator in production **outside the Additional Use Grant scope**, OR
-- You provide it **to third parties** (SaaS, hosting, services)
+- You provide it **to third parties** (SaaS, hosting, services), OR
+- You are a **consumer** (§ 13 BGB) and intend to use RayMigrator in production
 
 ### Important rule
 > If there is any reasonable doubt whether the free tier applies, a commercial

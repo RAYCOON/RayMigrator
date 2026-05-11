@@ -9,11 +9,15 @@ full terms.
 You need a commercial license whenever your production use of RayMigrator
 falls outside the scope of the Additional Use Grant. Most commonly:
 
-- Your organization (including affiliates) has **20 or more employees**, OR
+- Your organization (including affiliates) has **20 or more persons**
+  (counting employees and comparable contractors), OR
 - You provide RayMigrator to third parties as part of a hosted, SaaS, or
   managed service offering, OR
 - You combine RayMigrator with a commercial offering in a way the
-  Additional Use Grant does not permit
+  Additional Use Grant does not permit, OR
+- You are a **consumer** (Verbraucher within the meaning of § 13 BGB) and
+  intend to use RayMigrator for production purposes. The Additional Use
+  Grant is offered to entrepreneurs (§ 14 BGB) and legal entities only.
 
 If there is any reasonable doubt whether your use qualifies under the
 Additional Use Grant, a commercial license is required.
@@ -31,14 +35,22 @@ charge for everyone:
   redistribute (subject to BUSL-1.1 terms)
 
 The Additional Use Grant in [LICENSE.md](LICENSE.md) extends free
-**production** use to:
+**production** use to entrepreneurs (§ 14 BGB) and legal entities that
+additionally fall into one of the following categories:
 
-- Organizations with fewer than 20 employees (including affiliates), OR
-- Governmental Entities, 100% publicly owned companies, Academic
-  Institutions, or Non-Profit organizations
+- Organizations with fewer than 20 persons (counting employees and
+  comparable contractors, across all affiliates), OR
+- Governmental Entities, 100 % Publicly Owned Companies, Academic
+  Institutions, or Non-Profit Organizations
 
 …provided the use is for internal operations only and not made available
 to third parties.
+
+> For the binding definitions of these terms (Affiliate, Production Use,
+> Governmental Entity, Academic Institution, Commercial Entity,
+> Non-Profit Organization, 100 % Publicly Owned Company, Software), see
+> the *Definitions* block in [LICENSE.md](LICENSE.md). The summaries in
+> this document are informative only.
 
 ---
 
@@ -48,6 +60,35 @@ to third parties.
 - Indirect commercial exploitation through affiliates
 - Organizational structures designed to avoid licensing obligations
   (anti-circumvention)
+- Production use by consumers (§ 13 BGB) — the Additional Use Grant is
+  available only to entrepreneurs (§ 14 BGB) and legal entities
+
+---
+
+## Redistribution and Sublicensing
+
+The Business Source License 1.1 explicitly permits **redistribution** of
+RayMigrator (Section "Terms" of the BSL grants the right to "copy,
+modify, create derivative works, redistribute, and make non-production
+use of the Licensed Work").
+
+However, the following limits apply automatically and cannot be
+overridden by a redistributor:
+
+- **Sticky license.** Redistributed copies remain subject to BSL 1.1 with
+  this Additional Use Grant. A redistributor cannot relicense RayMigrator
+  under different terms.
+- **No commercial sublicensing.** A redistributor cannot grant commercial
+  production rights to its own customers. Recipients who exceed the
+  Additional Use Grant must obtain a commercial license directly from
+  RAYCOON.com GmbH.
+- **No use of the Marks.** Redistributed or derivative versions must not
+  be distributed under the names "RayMigrator" or "RAYCOON" — see the
+  Trademark Reservation in [LICENSE.md](LICENSE.md).
+
+If you intend to bundle, embed, or redistribute RayMigrator as part of a
+commercial offering, please contact **raymigrator@raycoon.com** for an
+OEM or distribution agreement.
 
 ---
 

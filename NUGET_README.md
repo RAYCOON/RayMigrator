@@ -13,17 +13,22 @@ Additional Use Grant. Each version converts to **Apache License, Version 2.0**
 four years after its release.
 
 **Free production use if:**
-- Fewer than 20 employees (including affiliates), OR
+- You are an entrepreneur (§ 14 BGB) or a legal entity (consumers per
+  § 13 BGB are not eligible for production use under the Additional Use
+  Grant), AND
+- Fewer than 20 persons (counting employees and comparable contractors,
+  including affiliates), OR
 - Governmental / public / academic / non-profit entity
 - AND internal use only (no SaaS / no third-party access)
 
 **Free non-production use** (dev, test, evaluation, QA, research) for
-everyone.
+everyone — including consumers.
 
 **Commercial license required if:**
-- 20 or more employees
+- 20 or more persons (employees + comparable contractors)
 - Production use outside the Additional Use Grant scope
 - SaaS / hosting / managed services for others
+- Consumer (§ 13 BGB) intending production use
 
 > If in doubt: commercial license required.
 

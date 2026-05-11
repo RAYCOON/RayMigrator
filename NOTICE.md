@@ -14,16 +14,22 @@ available under the Apache License, Version 2.0.
 You may use RayMigrator in production at no cost if **all** of the following
 apply:
 
-- You qualify under the Additional Use Grant in `LICENSE.md`:
-  - Your organization (including affiliates) employs **fewer than 20** people, OR
-  - You are a Governmental Entity, 100% publicly owned company, Academic
-    Institution, or Non-Profit organization
+- You qualify as an Eligible Licensee under `LICENSE.md`:
+  - You are an entrepreneur within the meaning of § 14 BGB, or a legal
+    entity (consumers per § 13 BGB are not eligible for production use
+    under the Additional Use Grant), AND
+- You qualify under one of the eligibility categories of the Additional
+  Use Grant:
+  - Your organization (including affiliates) employs **fewer than 20**
+    persons (counting employees and comparable contractors), OR
+  - You are a Governmental Entity, 100 % Publicly Owned Company, Academic
+    Institution, or Non-Profit Organization
 - You use it **only for internal operations**
 - You do **not** make it available to third parties (no SaaS, no hosting,
   no managed services)
 
 Non-production use (development, testing, evaluation, QA, research) is free
-for everyone.
+for everyone — including consumers.
 
 ---
 
@@ -32,9 +38,11 @@ for everyone.
 A commercial license is required if any of the conditions for free production
 use are not met. Common triggers:
 
-- 20 or more employees (including affiliates)
+- 20 or more persons (employees + comparable contractors, including
+  affiliates)
 - Production use outside the Additional Use Grant scope
 - Providing the software to third parties (SaaS, hosting, managed services)
+- Consumer (§ 13 BGB) intending production use
 
 Contact `raymigrator@raycoon.com` for commercial licensing terms.
 
@@ -70,10 +78,19 @@ a commercial RayMigrator license, even when their DAL plugin is their own.
 
 ## Trademarks
 
-"RayMigrator" and "RAYCOON" are trademarks of RAYCOON.com GmbH, registered or
-pending with the relevant trademark offices. Nothing in BUSL-1.1 grants any
-right to use these trademarks, except as required to comply with attribution
-obligations under the License.
+"RayMigrator" and "RAYCOON" — including all associated logos, word marks, and
+visual identities — are trademarks of RAYCOON.com GmbH, registered or pending
+with the relevant trademark offices. Nothing in BUSL-1.1 or the BSL grant of
+redistribution rights conveys any right to use these trademarks.
+
+In particular, redistributed or derivative versions of RayMigrator must not
+be distributed under the names "RayMigrator" or "RAYCOON" and must adopt a
+distinct name not derived from these Marks. Nominative reference (e.g.,
+"compatible with RayMigrator") is permitted only to the extent necessary
+for accurate technical description.
+
+For the binding Trademark Reservation see the corresponding section in
+`LICENSE.md`.
 
 ---
 
