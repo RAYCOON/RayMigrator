@@ -1,4 +1,4 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Raycoon.RayMigrator.Core.Configuration.Enums;
 using Raycoon.RayMigrator.Services;
 using Raycoon.RayMigrator.Shared.Exceptions;

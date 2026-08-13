@@ -21,6 +21,14 @@
             @Body
         </div>
     </MudMainContent>
+    <footer class="pa-4" style="text-align: center;">
+        <MudText Typo="Typo.caption" Style="opacity: 0.7;">
+            © 2023–@DateTime.UtcNow.Year RAYCOON.com GmbH ·
+            <MudLink Href="https://github.com/RAYCOON/RayMigrator/blob/main/LICENSE.md"
+                     Target="_blank" Typo="Typo.caption">BUSL-1.1</MudLink> ·
+            <MudLink Href="https://raymigrator.com" Target="_blank" Typo="Typo.caption">raymigrator.com</MudLink>
+        </MudText>
+    </footer>
 </MudLayout>
 
 @code {

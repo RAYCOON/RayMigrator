@@ -1,4 +1,4 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Raycoon.RayMigrator.ConfigWizard.Core.Models;
 using Raycoon.RayMigrator.ConfigWizard.Core.Services;
 using Xunit;

@@ -1,5 +1,5 @@
 using System.Data.Common;
-using FluentAssertions;
+using AwesomeAssertions;
 using Microsoft.Data.SqlClient;
 using Microsoft.Data.Sqlite;
 using MySqlConnector;

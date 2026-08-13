@@ -2,6 +2,19 @@
 
 Professional cross platform database migration framework for versioned and release-based schema migrations across multiple database engines.
 
+> **Maturity notice — 0.11.x**
+>
+> RayMigrator 0.11.x is a pre-1.0 release. Its behaviour has not yet been proven
+> across a broad range of real-world production workloads.
+>
+> Database migrations are inherently irreversible: a failed or partially applied
+> migration can cause data loss, schema corruption, or extended downtime.
+>
+> Deploy this version only in environments where a failed migration would not have
+> far-reaching consequences for your organization or your projects — and only with
+> a verified, restorable backup of every affected database taken immediately before
+> each run.
+
 ## Features
 
 - **Multi-Database Support** — SQL Server, PostgreSQL, MariaDB, MySQL, SQLite
@@ -34,36 +47,34 @@ RayMigrator is licensed under the **Business Source License 1.1 (BUSL-1.1)**
 with a custom Additional Use Grant. Each version automatically converts to
 **Apache License, Version 2.0** four years after its release.
 
-### Free production use if:
-- You are an **entrepreneur** (§ 14 BGB) or a **legal entity** — the
-  Additional Use Grant is not available to consumers (§ 13 BGB), AND
-- Your organization (including affiliates) has **fewer than 20 persons**
-  (counting employees and comparable contractors), OR
-- You are a **governmental entity**, **public institution**, **academic
-  institution**, or **non-profit**
-- AND you use RayMigrator **only internally**
-- AND you do **not provide it as a service** (SaaS / hosting / managed service)
+### This version is free — with no conditions attached
 
-Non-production use (development, testing, evaluation, QA, research) is free
-for everyone — including consumers.
+Production use of RayMigrator 0.11.x costs nothing, for anyone, for any
+purpose. The Additional Use Grant sets no organization-size threshold, no
+restriction by legal form or sector, no internal-use requirement, and no
+restriction on offering RayMigrator to third parties as a hosted, SaaS, or
+managed service.
 
-### Commercial license required if:
-- Your organization has **20 or more persons** (employees + comparable
-  contractors), OR
-- You use RayMigrator in production **outside the Additional Use Grant scope**, OR
-- You provide it **to third parties** (SaaS, hosting, services), OR
-- You are a **consumer** (§ 13 BGB) and intend to use RayMigrator in production
+Non-production use — development, testing, evaluation, QA, research — is free
+under the BSL grant itself.
 
-### Important rule
-> If there is any reasonable doubt whether the free tier applies, a commercial
-> license is required.
+You may also copy, modify, create derivative works from, and redistribute the
+source. Derivative works remain under this license and may not carry the
+RayMigrator or RAYCOON marks — see the Trademark Reservation in
+[LICENSE.md](LICENSE.md).
+
+### One thing worth knowing
+
+BUSL-1.1 applies separately to each version. The grant above is the one shipped
+with this version; every release carries its own `LICENSE.md`.
 
 ### Database.Example carve-out
+
 The `Raycoon.RayMigrator.Database.Example` skeleton is licensed under the
 **MIT License** so you can freely copy it as a starting point for your own
-DAL plugin without commercial-license obligations on the Example code.
+DAL plugin.
 
 ---
 
-Full license: see [LICENSE.md](LICENSE.md). Commercial licensing inquiries:
-`raymigrator@raycoon.com`.
+Full license: see [LICENSE.md](LICENSE.md). Questions about licensing, support,
+or partnerships: `raymigrator@raycoon.com`.

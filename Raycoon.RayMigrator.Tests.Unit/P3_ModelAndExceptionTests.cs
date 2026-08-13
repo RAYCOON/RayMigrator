@@ -1,4 +1,4 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Raycoon.RayMigrator.Core.Models;
 using Raycoon.RayMigrator.Shared.Exceptions;
 

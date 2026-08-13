@@ -44,6 +44,9 @@ jobs:
         env:
           TAG: ${{ github.event.workflow_run.head_branch }}
 
+      - name: Verify licence version binding
+        run: .github/scripts/check-license-version.sh . "${{ steps.version.outputs.VERSION }}"
+
       - name: Publish framework-dependent binary
         run: >
           dotnet publish Raycoon.RayMigrator.Console/Raycoon.RayMigrator.Console.csproj
@@ -66,7 +69,8 @@ jobs:
           echo "=== License files (BUSL-1.1 §3 Notices Compliance) ==="
           test -f "publish/${{ matrix.rid }}/LICENSE.md" || { echo "ERROR: LICENSE.md missing!"; exit 1; }
           test -f "publish/${{ matrix.rid }}/NOTICE.md" || { echo "ERROR: NOTICE.md missing!"; exit 1; }
-          echo "OK: LICENSE.md + NOTICE.md present"
+          test -f "publish/${{ matrix.rid }}/THIRD-PARTY-NOTICES.md" || { echo "ERROR: THIRD-PARTY-NOTICES.md missing!"; exit 1; }
+          echo "OK: LICENSE.md + NOTICE.md + THIRD-PARTY-NOTICES.md present"
           echo ""
           echo "=== DataAccessLayers ==="
           ls -R publish/${{ matrix.rid }}/DataAccessLayers/ || { echo "ERROR: DataAccessLayers/ missing!"; exit 1; }

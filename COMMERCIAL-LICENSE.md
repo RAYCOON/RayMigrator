@@ -1,121 +1,94 @@
-# RayMigrator Commercial License
+# RayMigrator Licensing
 
 RayMigrator is licensed under the **Business Source License 1.1 (BUSL-1.1)**
 with a custom Additional Use Grant — see [LICENSE.md](LICENSE.md) for the
-full terms.
+full terms. This document is informative; `LICENSE.md` is what binds.
 
-## When do I need a commercial license?
+## Do I need a commercial license?
 
-You need a commercial license whenever your production use of RayMigrator
-falls outside the scope of the Additional Use Grant. Most commonly:
+For this version: **no.**
 
-- Your organization (including affiliates) has **20 or more persons**
-  (counting employees and comparable contractors), OR
-- You provide RayMigrator to third parties as part of a hosted, SaaS, or
-  managed service offering, OR
-- You combine RayMigrator with a commercial offering in a way the
-  Additional Use Grant does not permit, OR
-- You are a **consumer** (Verbraucher within the meaning of § 13 BGB) and
-  intend to use RayMigrator for production purposes. The Additional Use
-  Grant is offered to entrepreneurs (§ 14 BGB) and legal entities only.
+The Additional Use Grant shipped with RayMigrator 0.11.x permits production
+use free of charge, for anyone, for any purpose. There is no organization-size
+threshold, no restriction by legal form or sector, no internal-use
+requirement, and no restriction on offering RayMigrator to third parties as a
+hosted, SaaS, or managed service.
 
-If there is any reasonable doubt whether your use qualifies under the
-Additional Use Grant, a commercial license is required.
+There is consequently nothing to buy and nothing to apply for.
 
 ---
 
-## What is always free?
+## What is free
 
-The Business Source License 1.1 itself permits the following free of
-charge for everyone:
-
-- **Non-production use** — development, testing, quality assurance,
-  evaluation, research
-- **Source code access** — copy, modify, create derivative works,
-  redistribute (subject to BUSL-1.1 terms)
-
-The Additional Use Grant in [LICENSE.md](LICENSE.md) extends free
-**production** use to entrepreneurs (§ 14 BGB) and legal entities that
-additionally fall into one of the following categories:
-
-- Organizations with fewer than 20 persons (counting employees and
-  comparable contractors, across all affiliates), OR
-- Governmental Entities, 100 % Publicly Owned Companies, Academic
-  Institutions, or Non-Profit Organizations
-
-…provided the use is for internal operations only and not made available
-to third parties.
-
-> For the binding definitions of these terms (Affiliate, Production Use,
-> Governmental Entity, Academic Institution, Commercial Entity,
-> Non-Profit Organization, 100 % Publicly Owned Company, Software), see
-> the *Definitions* block in [LICENSE.md](LICENSE.md). The summaries in
-> this document are informative only.
+- **Production use** — unconditionally, under the Additional Use Grant
+- **Non-production use** — development, testing, QA, evaluation, research;
+  free under the BSL grant itself
+- **Source access** — copy, modify, create derivative works, redistribute,
+  subject to the BUSL-1.1 terms below
 
 ---
 
-## What is not allowed under free use?
+## The limits that do remain
 
-- SaaS / hosting / managed-service offerings to third parties
-- Indirect commercial exploitation through affiliates
-- Organizational structures designed to avoid licensing obligations
-  (anti-circumvention)
-- Production use by consumers (§ 13 BGB) — the Additional Use Grant is
-  available only to entrepreneurs (§ 14 BGB) and legal entities
+These follow from BUSL-1.1 itself and are not conditions of the Additional
+Use Grant:
+
+- **Sticky license.** Redistributed and derivative copies remain subject to
+  BUSL-1.1 with the Additional Use Grant they were distributed under. A
+  redistributor cannot relicense RayMigrator under different terms.
+- **No use of the Marks.** Redistributed, modified, or derivative versions
+  must not be distributed under the names "RayMigrator" or "RAYCOON" and must
+  adopt a distinct name — see the Trademark Reservation in
+  [LICENSE.md](LICENSE.md).
+- **Notices.** Each original or modified copy must conspicuously display the
+  license.
 
 ---
 
-## Redistribution and Sublicensing
+## Per-version scope
 
-The Business Source License 1.1 explicitly permits **redistribution** of
-RayMigrator (Section "Terms" of the BSL grants the right to "copy,
-modify, create derivative works, redistribute, and make non-production
-use of the Licensed Work").
+BUSL-1.1 applies separately to each version of the Licensed Work. The
+Additional Use Grant described here is the one distributed with this version.
+Future versions carry their own `LICENSE.md` and may grant different terms.
 
-However, the following limits apply automatically and cannot be
-overridden by a redistributor:
+Nothing here revokes a grant you already received: a version distributed under
+these terms stays under them, and converts to Apache License 2.0 four years
+after its first publicly available distribution.
 
-- **Sticky license.** Redistributed copies remain subject to BSL 1.1 with
-  this Additional Use Grant. A redistributor cannot relicense RayMigrator
-  under different terms.
-- **No commercial sublicensing.** A redistributor cannot grant commercial
-  production rights to its own customers. Recipients who exceed the
-  Additional Use Grant must obtain a commercial license directly from
-  RAYCOON.com GmbH.
-- **No use of the Marks.** Redistributed or derivative versions must not
-  be distributed under the names "RayMigrator" or "RAYCOON" — see the
-  Trademark Reservation in [LICENSE.md](LICENSE.md).
+---
 
-If you intend to bundle, embed, or redistribute RayMigrator as part of a
-commercial offering, please contact **raymigrator@raycoon.com** for an
-OEM or distribution agreement.
+## RayMigrator Studio
+
+**RayMigrator Studio** — the management platform built on this engine (API
+server, management CLI, admin database) — is a separate product under its own
+commercial license. The free grant described in this document covers the
+engine only.
+
+For Studio pricing and terms: **raymigrator@raycoon.com**
 
 ---
 
 ## Auto-conversion to Apache 2.0
 
-Each version of RayMigrator automatically converts to the **Apache License,
-Version 2.0** four years after its release date (the BUSL "Change Date").
-At that point the version becomes fully OSI-approved open source.
-
-Versions released earlier convert earlier; versions released later convert
-later. The current commercial license terms only apply during the BUSL
-period.
+Each version of RayMigrator converts to the **Apache License, Version 2.0**
+four years after its release date (the BUSL "Change Date"). At that point the
+version becomes fully OSI-approved open source. Versions released earlier
+convert earlier; versions released later convert later.
 
 ---
 
 ## Database.Example carve-out
 
 The `Raycoon.RayMigrator.Database.Example` directory is licensed under the
-**MIT License**, regardless of your organization size or use case. You may
-freely copy that skeleton project as a starting point for your own DAL
-plugin implementation. See
+**MIT License**. You may freely copy that skeleton project as a starting point
+for your own DAL plugin implementation. See
 [`Raycoon.RayMigrator.Database.Example/LICENSE.md`](Raycoon.RayMigrator.Database.Example/LICENSE.md).
 
 ---
 
 ## Contact
 
-For pricing, licensing terms, evaluation extensions, or partnership inquiries:
+For support agreements, OEM and distribution arrangements, Studio licensing,
+or partnership inquiries:
 
 **raymigrator@raycoon.com**

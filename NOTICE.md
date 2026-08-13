@@ -1,5 +1,18 @@
 # RayMigrator License Notice
 
+> **Maturity notice — 0.11.x**
+>
+> RayMigrator 0.11.x is a pre-1.0 release. Its behaviour has not yet been proven
+> across a broad range of real-world production workloads.
+>
+> Database migrations are inherently irreversible: a failed or partially applied
+> migration can cause data loss, schema corruption, or extended downtime.
+>
+> Deploy this version only in environments where a failed migration would not have
+> far-reaching consequences for your organization or your projects — and only with
+> a verified, restorable backup of every affected database taken immediately before
+> each run.
+
 RayMigrator is **source-available** under the Business Source License 1.1
 (BUSL-1.1) with a custom Additional Use Grant. It is **not OSI-approved
 open source** until the Change Date specified in `LICENSE.md`.
@@ -11,40 +24,19 @@ available under the Apache License, Version 2.0.
 
 ## Free usage
 
-You may use RayMigrator in production at no cost if **all** of the following
-apply:
+This version of RayMigrator is free of charge for everyone, for any purpose.
 
-- You qualify as an Eligible Licensee under `LICENSE.md`:
-  - You are an entrepreneur within the meaning of § 14 BGB, or a legal
-    entity (consumers per § 13 BGB are not eligible for production use
-    under the Additional Use Grant), AND
-- You qualify under one of the eligibility categories of the Additional
-  Use Grant:
-  - Your organization (including affiliates) employs **fewer than 20**
-    persons (counting employees and comparable contractors), OR
-  - You are a Governmental Entity, 100 % Publicly Owned Company, Academic
-    Institution, or Non-Profit Organization
-- You use it **only for internal operations**
-- You do **not** make it available to third parties (no SaaS, no hosting,
-  no managed services)
+The Additional Use Grant in `LICENSE.md` places no conditions on production
+use — no organization-size threshold, no restriction by legal form or sector,
+no internal-use requirement, and no restriction on offering the Licensed Work
+to third parties as a hosted, SaaS, or managed service.
 
 Non-production use (development, testing, evaluation, QA, research) is free
-for everyone — including consumers.
+under the BSL grant itself, independently of the Additional Use Grant.
 
----
-
-## Commercial license required
-
-A commercial license is required if any of the conditions for free production
-use are not met. Common triggers:
-
-- 20 or more persons (employees + comparable contractors, including
-  affiliates)
-- Production use outside the Additional Use Grant scope
-- Providing the software to third parties (SaaS, hosting, managed services)
-- Consumer (§ 13 BGB) intending production use
-
-Contact `raymigrator@raycoon.com` for commercial licensing terms.
+Note that the Business Source License applies separately to each version of
+the Licensed Work. The Additional Use Grant above is the one distributed with
+this version; other versions carry their own `LICENSE.md`.
 
 ---
 
@@ -52,9 +44,8 @@ Contact `raymigrator@raycoon.com` for commercial licensing terms.
 
 The directory `Raycoon.RayMigrator.Database.Example` is licensed under the
 **MIT License** so external developers can copy it as a starting point for
-their own DAL plugin implementations without commercial-license obligations
-on the Example code itself. See `Raycoon.RayMigrator.Database.Example/LICENSE.md`
-for the MIT terms.
+their own DAL plugin implementations. See
+`Raycoon.RayMigrator.Database.Example/LICENSE.md` for the MIT terms.
 
 The MIT carve-out applies **only** to that directory. The rest of the
 RayMigrator repository is governed by `LICENSE.md` at the repository root.
@@ -68,11 +59,8 @@ If you write your own DAL plugin that loads into a RayMigrator process:
 - **Your plugin source code** is your property under your chosen license —
   RayMigrator's license does not extend to it.
 - **Running your plugin in a RayMigrator process** is a use of the Licensed
-  Work and must therefore comply with the BUSL-1.1 + Additional Use Grant
-  conditions in `LICENSE.md` (or a commercial license).
-
-In short: an organization that wouldn't qualify for the free tier still needs
-a commercial RayMigrator license, even when their DAL plugin is their own.
+  Work and is therefore governed by `LICENSE.md`. For this version that use
+  is free of charge, whatever the size or nature of your organization.
 
 ---
 
@@ -91,6 +79,12 @@ for accurate technical description.
 
 For the binding Trademark Reservation see the corresponding section in
 `LICENSE.md`.
+
+---
+
+## Contact
+
+Questions about licensing, support, or partnerships: `raymigrator@raycoon.com`
 
 ---
 

@@ -1,5 +1,5 @@
 using System.Data;
-using FluentAssertions;
+using AwesomeAssertions;
 using Microsoft.Data.SqlClient;
 using Raycoon.RayMigrator.Database.Common;
 using Raycoon.RayMigrator.Database.SqlServer;

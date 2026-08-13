@@ -1,4 +1,4 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Raycoon.RayMigrator.Services;
 using Raycoon.RayMigrator.Tests.Unit.Helpers;
 

@@ -1,4 +1,4 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using MySqlConnector;
 using Raycoon.RayMigrator.Database.MariaDb;
 using Raycoon.RayMigrator.Database.MySql;

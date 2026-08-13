@@ -1,5 +1,5 @@
 using System.ComponentModel.DataAnnotations;
-using FluentAssertions;
+using AwesomeAssertions;
 using Raycoon.RayMigrator.Core.Configuration.Enums;
 using Raycoon.RayMigrator.Core.Configuration.Options;
 using Raycoon.RayMigrator.Core.Configuration.Validation.RayAttributes;

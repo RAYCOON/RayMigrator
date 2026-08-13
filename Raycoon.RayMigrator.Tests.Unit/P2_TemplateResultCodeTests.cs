@@ -1,4 +1,4 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Raycoon.RayMigrator.Core;
 using Raycoon.RayMigrator.Core.Templates;
 using Raycoon.RayMigrator.Shared.Constants;

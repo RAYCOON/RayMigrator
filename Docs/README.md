@@ -238,6 +238,7 @@ RayMigrator Validate-Hash -p RayMigratorTests -env Docker
 ## Related Files
 
 - **CLAUDE.md** - Project guidance for Claude Code (architecture overview, build commands, development guidelines)
+- **[license-change-dates.md](license-change-dates.md)** - Per-version Change Date register. BUSL-1.1 applies separately to each version; this file records when each version was first publicly distributed and when it converts to Apache 2.0. Must be updated on every release.
 - **Examples/** - Two complete example migration products (`MySimpleApplication`, `MyComplexApplication`) with Docker infrastructure (SQL Server + PostgreSQL). See [Examples/README.md](../Examples/README.md).
 - **Testing/MigrationFiles/Tests_SqlServer/** (and `Tests_PostgreSQL/`, `Tests_MariaDb/`, `Tests_MySql/`) - Example migrations (additional active test sets: `Tests_Success_*` for success-only scenarios and `Tests_SqlCmdDemo` for CLI tool execution)
 - **Built-in DAL plugin projects** (`Database.SqlServer/`, `Database.PostgreSQL/`, `Database.MariaDb/`, `Database.MySql/`, `Database.Sqlite/`) — each contains SQL templates copied to `DataAccessLayers/` at build time

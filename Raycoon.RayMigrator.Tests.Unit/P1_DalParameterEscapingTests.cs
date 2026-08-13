@@ -1,4 +1,4 @@
-using FluentAssertions;
+using AwesomeAssertions;
 using Raycoon.RayMigrator.Database.Common;
 using Raycoon.RayMigrator.Database.PostgreSQL;
 using Raycoon.RayMigrator.Database.MariaDb;

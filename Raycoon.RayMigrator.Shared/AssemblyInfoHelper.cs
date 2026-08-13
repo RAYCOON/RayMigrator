@@ -21,7 +21,7 @@ public static class AssemblyInfoHelper
     }
 
     /// <summary>
-    /// Returns the ASCII logo lines with version, site URL, and tagline.
+    /// Returns the ASCII logo lines with version, site URL, tagline, and the pre-1.0 maturity notice.
     /// </summary>
     public static string[] GetAsciiLogoLines(string version)
     {
@@ -34,7 +34,9 @@ public static class AssemblyInfoHelper
             $@"              |_____|            |_____|    Version {version}",
             "",
             " RayMigrator.com",
-            " Pro Database Migration Framework"
+            " Pro Database Migration Framework",
+            " Pre-1.0 - not yet proven in production.",
+            " Back up before every run."
         };
     }
 

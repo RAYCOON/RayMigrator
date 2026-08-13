@@ -29,87 +29,17 @@ please contact `raymigrator@raycoon.com`.
 
 ## Additional Use Grant
 
-**Eligible Licensees.** This Additional Use Grant is offered exclusively to:
+You may make production use of the Licensed Work free of charge, for any
+purpose, without restriction as to organization size, legal form, sector, or
+field of endeavour. This includes making the Licensed Work available to third
+parties as part of a hosted, SaaS, or managed service offering.
 
-(i)  legal entities (juristische Personen), and
-(ii) entrepreneurs (Unternehmer) within the meaning of § 14 of the
-     German Civil Code (BGB) — i.e., natural persons acting in the
-     exercise of their commercial or self-employed professional activity.
+**Definitions** (these definitions apply throughout this License):
 
-Consumers (Verbraucher) within the meaning of § 13 BGB are not eligible for
-production use under this Additional Use Grant. Consumers retain the right
-to non-production use of the Licensed Work under the BSL grant below. For
-production use, consumers must obtain a commercial license — please contact
-`raymigrator@raycoon.com`.
-
-You may make production use of the Licensed Work, free of charge, only if you
-qualify as an Eligible Licensee under the clause above AND all of the following
-conditions are satisfied:
-
-1. **Eligibility (any one of the following):**
-   - Your organization, including all Affiliates, employs fewer than twenty
-     (20) persons (counting employees and comparable contractors); OR
-   - You are a Governmental Entity; OR
-   - You are a 100 % Publicly Owned Company; OR
-   - You are an Academic Institution; OR
-   - You are a Non-Profit Organization.
-
-2. **Internal use only.** The Licensed Work is used solely for the internal
-   business operations of the eligible entity.
-
-3. **No third-party offerings.** The Licensed Work is not made available to
-   any third party as part of, or in support of, a hosted, SaaS, or managed
-   service offering.
-
-**Definitions** (mirroring the structure of the prior RayMigrator Dual License
-Agreement; these definitions apply throughout this License):
-
-- *Affiliate*: any entity that directly or indirectly controls, is controlled
-  by, or is under common control with another entity, where "control" means
-  the ownership of more than fifty percent (50 %) of voting rights or the
-  power to direct management.
 - *Production Use*: any use of the Licensed Work in a live, operational,
   or revenue-generating environment.
-- *Internal Operations*: use restricted to the eligible entity's own
-  business processes, not made available to third parties.
-- *Governmental Entity*: any national, regional, or local government body
-  or public institution.
-- *Academic Institution*: a publicly funded or non-profit university,
-  college, or research institution.
-- *Commercial Entity*: any organization operating for commercial advantage,
-  regardless of whether profit is currently generated.
-- *Non-Profit Organization*: an organization recognized as non-profit under
-  applicable national law, operating without distribution of profits to
-  owners or members.
-- *100 % Publicly Owned Company*: a company in which all shares or ownership
-  interests are directly or indirectly held by one or more Governmental
-  Entities.
 - *Software*: where used in any communication or documentation referring
   to this License, equivalent to the BSL term *Licensed Work*.
-
-All eligibility categories above apply **in addition to** — not instead of —
-the Eligible Licensees clause.
-
-**Anti-Circumvention.** The Additional Use Grant does not apply if the
-organizational structure or use of the Licensed Work is designed to avoid the
-licensing obligations of this License. In particular, the Additional Use Grant
-is unavailable where:
-
-1. the Licensed Work is used in Production Use by, for, or on behalf of a
-   Commercial Entity that would not itself qualify under this Additional
-   Use Grant;
-2. a Commercial Entity benefits directly or indirectly from such Production
-   Use;
-3. any Affiliate of the user would itself require a commercial license for
-   the same use;
-4. a single Commercial Entity is split into multiple smaller entities to
-   fall below the employee threshold; or
-5. production use is routed through an Affiliate that would itself require
-   a commercial license.
-
-**Conflict Rule.** In case of any conflict or ambiguity between this
-Additional Use Grant and any other communication or documentation, the
-obligation to obtain a commercial license shall prevail.
 
 **Trademark Reservation.** The names "RayMigrator" and "RAYCOON", together
 with all associated logos, word marks, and visual identities (collectively the
@@ -139,10 +69,6 @@ template, placeholder SQL templates, and project file) are licensed under the
 **MIT License** (see the `LICENSE.md` file inside that directory). This
 Additional Use Grant and the Business Source License 1.1 do not apply to the
 contents of that directory.
-
-**Doubt clause.** If there is any reasonable doubt whether your use qualifies
-under this Additional Use Grant, a commercial license is required. Please
-contact `raymigrator@raycoon.com` for commercial licensing terms.
 
 ---
 
@@ -200,28 +126,21 @@ for ordinary negligence is excluded.
 
 #### 4. Liability cap and data-loss limitation
 
-(a) Liability under section 2 is capped at:
-    - for free use under the Additional Use Grant: **EUR 10,000** per
-      contract year;
-    - for paid use under a commercial license: the fees paid by the
-      Licensee for the Licensed Work in the twelve (12) months preceding
-      the event causing the damage,
-
-    whichever is higher.
+(a) Liability under section 2 is capped at **EUR 10,000** per contract year.
 
 (b) Liability for loss of data is limited to the cost of restoring the
     data from a backup that the Licensee maintains, or would have
     maintained, in accordance with state-of-the-art data backup practices
     appropriate to the criticality of the affected systems.
 
-#### 5. Mandatory backup obligation of the Licensee
+#### 5. Backup obligation of the Licensee
 
 The Licensee acknowledges that database migrations carry an inherent risk
 of data loss and undertakes to maintain a current, restorable backup of all
 data affected by any operation performed with the Licensed Work prior to
-running such operation. Failure to maintain such backup constitutes
-contributory fault within the meaning of § 254 of the German Civil Code
-(BGB).
+running such operation. Where a failure to maintain such backup has
+contributed to a damage, the statutory rules on contributory fault (§ 254
+of the German Civil Code, BGB) apply.
 
 #### 6. Limitation period
 
@@ -230,6 +149,12 @@ Claims for damages against the Licensor become time-barred after twelve
 aware without gross negligence, of the damage and the person liable, except
 in the cases of section 1, which remain subject to the statutory limitation
 period.
+
+#### 7. Consumers
+
+Where the Licensee is a consumer within the meaning of § 13 of the German
+Civil Code (BGB), the statutory rules on liability and on limitation periods
+apply in place of sections 4 and 6 above.
 
 ### Termination Details
 

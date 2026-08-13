@@ -1,5 +1,5 @@
 using System.Data.Common;
-using FluentAssertions;
+using AwesomeAssertions;
 using Raycoon.RayMigrator.Database.Common;
 
 namespace Raycoon.RayMigrator.Tests.Unit;

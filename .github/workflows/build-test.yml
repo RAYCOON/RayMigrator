@@ -21,6 +21,9 @@ jobs:
             9.0.x
             10.0.x
 
+      - name: Verify licence version binding
+        run: .github/scripts/check-license-version.sh
+
       - name: Restore dependencies
         run: dotnet restore
 
