@@ -106,6 +106,21 @@ RayMigrator follows Semantic Versioning where applicable.
   counterpart from 10.0.5 to 10.0.11. Config Wizard only; the CLI and the
   Engine packages are unaffected. Building the wizard now expects an SDK
   from the 10.0.400 band (runtime 10.0.11) so the WASM runtime pack matches.
+- Bumped `System.CommandLine` from 2.0.5 to 2.0.11 (six servicing releases).
+  Parse edge cases, option-parsing consistency, error-message wording and
+  help formatting changed; the API additions (`HelpAction.MaxWidth`,
+  `SetAction(Task<int>)`, `ArgumentResult.Implicit`) are unused so far. The
+  one documented migration item for this range — custom help and version
+  actions must set `ClearsParseErrors` — was already satisfied by
+  `LogoHelpAction`, so no source change was required.
+- Bumped `MySqlConnector` from 2.5.0 to 2.6.2, affecting both the MariaDb
+  and the MySql DAL. Two behaviour changes are worth knowing about even
+  though neither reaches RayMigrator's own schema, which uses `TIMESTAMP`
+  exclusively: `BINARY` columns are no longer auto-detected as `Guid`, and
+  negative `DATETIME` ticks are now rejected. Migration authors relying on
+  either behaviour in their own scripts should re-check them. Parameter
+  parsing and argument validation are also stricter, and
+  `EnableResultSetHeaderEvent` is now opt-in.
 
 ### NuGet
 

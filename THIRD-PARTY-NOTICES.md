@@ -88,8 +88,8 @@ SQLite itself is in the public domain — <https://www.sqlite.org/copyright.html
 - Microsoft.IdentityModel.Protocols.OpenIdConnect 8.16.0
 - Microsoft.IdentityModel.Tokens 8.16.0
 - Microsoft.SqlServer.Server 1.0.0
-- MySqlConnector 2.5.0
-- System.CommandLine 2.0.5
+- MySqlConnector 2.6.2
+- System.CommandLine 2.0.11
 - System.Configuration.ConfigurationManager 9.0.13
 - System.Diagnostics.EventLog 10.0.11
 - System.IdentityModel.Tokens.Jwt 8.16.0
