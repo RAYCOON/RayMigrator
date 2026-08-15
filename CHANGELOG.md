@@ -132,6 +132,13 @@ RayMigrator follows Semantic Versioning where applicable.
   remaining breaking changes are unreachable here: no `Class` is passed to
   any `MudSwitch` or to the one adorned `MudTextField`, and `OnPaste` is
   unused.
+- Bumped `Microsoft.NET.Test.Sdk` from 18.3.0 to 18.9.0 and
+  `coverlet.collector` from 8.0.1 to 10.0.1. Test infrastructure only,
+  redistributed in nothing. Coverlet 10 declares no breaking changes, adds
+  .NET 10 support, and fixes an 8.0.1 defect that could produce an empty
+  coverage report without failing; a collection run now yields 5566 of
+  11624 lines across 18 assemblies. Coverlet skipped its 9.x line, so the
+  two-major jump is smaller than it looks.
 
 ### NuGet
 
