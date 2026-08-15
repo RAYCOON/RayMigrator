@@ -76,6 +76,18 @@ RayMigrator follows Semantic Versioning where applicable.
   `dotnet list package --vulnerable --include-transitive` now reports no
   vulnerable packages across the solution.
 
+### Dependencies
+
+- Bumped `Raycoon.Serilog.Sinks.SQLite` from 1.2.1 to 1.2.2. The release only
+  raises the sink's own dependency floors (`Microsoft.Data.Sqlite` >= 10.0.11
+  for the CVE above, `Serilog` >= 4.4.0); no API or behaviour changes.
+- Bumped `Serilog` from 4.3.1 to 4.4.0, required by the sink above. A lower
+  direct pin fails restore with NU1605 (package downgrade). This also raises
+  the floor declared by the published `Raycoon.RayMigrator.Core` and
+  `Raycoon.RayMigrator.Infrastructure` packages: consumers that pin Serilog
+  4.3.x directly must move to 4.4.0 as well. `Database.Common` and `Shared`
+  carry no Serilog dependency, so external DAL plugins are unaffected.
+
 ### NuGet
 
 - Package version bumped to 0.11.0.

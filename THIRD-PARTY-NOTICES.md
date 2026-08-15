@@ -20,8 +20,8 @@ each section, and are included in the respective NuGet packages.
 
 <https://www.apache.org/licenses/LICENSE-2.0>
 
-- Raycoon.Serilog.Sinks.SQLite 1.2.1
-- Serilog 4.3.1
+- Raycoon.Serilog.Sinks.SQLite 1.2.2
+- Serilog 4.4.0
 - Serilog.Enrichers.Environment 3.0.1
 - Serilog.Enrichers.Thread 4.0.0
 - Serilog.Extensions.Hosting 10.0.0
