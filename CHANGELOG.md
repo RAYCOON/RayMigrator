@@ -87,6 +87,25 @@ RayMigrator follows Semantic Versioning where applicable.
   `Raycoon.RayMigrator.Infrastructure` packages: consumers that pin Serilog
   4.3.x directly must move to 4.4.0 as well. `Database.Common` and `Shared`
   carry no Serilog dependency, so external DAL plugins are unaffected.
+- Bumped the 13 `Microsoft.Extensions.*` packages from 10.0.5 to 10.0.11
+  (.NET 10 servicing). This raises the floor declared by every published
+  RayMigrator package that carries one of them; consumers pinning 10.0.5
+  directly must move up as well. `Serilog.Extensions.Hosting` only requires
+  >= 10.0.0, so no downgrade conflict arises.
+- Bumped `Microsoft.Data.SqlClient` from 7.0.0 to 7.0.2. Fixes a
+  `NullReferenceException` in `SqlCommand.Cancel()` when the connection has
+  already been torn down — reachable from command timeouts. 7.0.2 also
+  aligns the companion packages onto a single version, so the transitive
+  `Microsoft.Data.SqlClient.Extensions.Abstractions` and
+  `Microsoft.Data.SqlClient.Internal.Logging` move from 1.0.0 to 7.0.2. The
+  accompanying `AssemblyVersion` change on those two is .NET Framework only
+  and does not affect RayMigrator.
+- Bumped `Npgsql` from 10.0.2 to 10.0.3 and `Serilog.Settings.Configuration`
+  from 10.0.0 to 10.0.1; both are routine servicing releases.
+- Bumped `Microsoft.AspNetCore.Components.WebAssembly` and its `DevServer`
+  counterpart from 10.0.5 to 10.0.11. Config Wizard only; the CLI and the
+  Engine packages are unaffected. Building the wizard now expects an SDK
+  from the 10.0.400 band (runtime 10.0.11) so the WASM runtime pack matches.
 
 ### NuGet
 
