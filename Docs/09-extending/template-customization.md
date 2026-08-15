@@ -549,7 +549,7 @@ If any `{CFG:*}` placeholders remain unreplaced after substitution, `TemplateCac
 
 ### Integration Tests
 
-The project uses xUnit and FluentAssertions for testing:
+The project uses xUnit and AwesomeAssertions for testing:
 
 ```csharp
 [Fact]

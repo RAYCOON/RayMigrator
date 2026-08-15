@@ -394,7 +394,7 @@ public class TemplateCache
 
 ## Testing with DI
 
-The unit test project (`Raycoon.RayMigrator.Tests.Unit`) uses xUnit, FluentAssertions, and NSubstitute. `InternalsVisibleTo` is configured in Services and Core `.csproj` files to allow testing of internal methods.
+The unit test project (`Raycoon.RayMigrator.Tests.Unit`) uses xUnit, AwesomeAssertions, and NSubstitute. `InternalsVisibleTo` is configured in Services and Core `.csproj` files to allow testing of internal methods.
 
 ### Unit Test Approach
 

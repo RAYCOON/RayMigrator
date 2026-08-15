@@ -298,7 +298,7 @@ private async Task<int> ExecuteMigrateStatusAsync()
 ### Unit Tests
 
 ```csharp
-// Using xUnit, FluentAssertions, NSubstitute (project test stack)
+// Using xUnit, AwesomeAssertions, NSubstitute (project test stack)
 public class MigrateStatusTests
 {
     [Fact]
