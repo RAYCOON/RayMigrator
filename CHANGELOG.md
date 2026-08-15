@@ -139,6 +139,12 @@ RayMigrator follows Semantic Versioning where applicable.
   coverage report without failing; a collection run now yields 5566 of
   11624 lines across 18 assemblies. Coverlet skipped its 9.x line, so the
   two-major jump is smaller than it looks.
+- Bumped `NSubstitute` from 5.3.0 to 6.2.0. Test infrastructure only. The
+  breaking changes are a target-framework floor of .NET 8 / netstandard2.0,
+  removal of legacy obsolete APIs, and nullable annotations on the public
+  API. None of them bite: all three consuming test projects target
+  `net10.0`, no legacy or `CompatArg` API is used, and the build stays at
+  zero warnings, so the nullable annotations required no source change.
 
 ### NuGet
 

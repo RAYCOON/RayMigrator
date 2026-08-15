@@ -356,7 +356,7 @@ Static factory in `Helpers/TestFactories.cs` for creating test objects without f
 | xunit.v3 3.2.2 | Test framework (xUnit v3) |
 | xunit.runner.visualstudio 3.1.5 | Visual Studio test runner integration |
 | AwesomeAssertions 9.5.0 | Fluent assertion syntax |
-| NSubstitute 5.3.0 | Mocking framework |
+| NSubstitute 6.2.0 | Mocking framework |
 | Microsoft.NET.Test.Sdk 18.9.0 | Test runner integration |
 | Microsoft.Extensions.Configuration 10.0.11 | Configuration support |
 | Microsoft.Extensions.Configuration.Json 10.0.11 | JSON configuration file support |

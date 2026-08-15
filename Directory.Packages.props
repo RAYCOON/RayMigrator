@@ -48,7 +48,7 @@
     <!-- AwesomeAssertions: community fork of the last permissively licensed FluentAssertions.
          FluentAssertions 8.x ships the Xceed Community License (non-commercial use only). -->
     <PackageVersion Include="AwesomeAssertions" Version="9.5.0" />
-    <PackageVersion Include="NSubstitute" Version="5.3.0" />
+    <PackageVersion Include="NSubstitute" Version="6.2.0" />
     <PackageVersion Include="coverlet.collector" Version="10.0.1" />
   </ItemGroup>
 </Project>
