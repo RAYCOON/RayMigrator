@@ -38,7 +38,7 @@
     <PackageVersion Include="Raycoon.Serilog.Sinks.SQLite" Version="1.2.2" />
     <!-- CLI & UI -->
     <PackageVersion Include="System.CommandLine" Version="2.0.11" />
-    <PackageVersion Include="MudBlazor" Version="9.2.0" />
+    <PackageVersion Include="MudBlazor" Version="9.8.0" />
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.11" />
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.11" />
     <!-- Testing -->

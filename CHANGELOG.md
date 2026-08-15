@@ -121,6 +121,17 @@ RayMigrator follows Semantic Versioning where applicable.
   either behaviour in their own scripts should re-check them. Parameter
   parsing and argument validation are also stricter, and
   `EnableResultSetHeaderEvent` is now opt-in.
+- Bumped `MudBlazor` from 9.2.0 to 9.8.0 (six minor releases, four of them
+  carrying breaking changes). Config Wizard only. Of the changes that touch
+  components the wizard uses, only two can manifest: `MudNumericField` no
+  longer steps on mouse wheel (the spinner arrows and keyboard still work),
+  and `MudAppBar` no longer compensates for the scrollbar during a dialog's
+  scroll lock, so content anchored to the right of the app bar shifts by the
+  scrollbar width while a dialog is open — in the wizard that is the language
+  selector, measured at 11 px. Cosmetic and self-reverting on close. The
+  remaining breaking changes are unreachable here: no `Class` is passed to
+  any `MudSwitch` or to the one adorned `MudTextField`, and `OnPaste` is
+  unused.
 
 ### NuGet
 

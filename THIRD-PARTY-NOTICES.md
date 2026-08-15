@@ -131,7 +131,7 @@ redistributed in any release artifact:
 - xunit.v3 3.2.2, xunit.runner.visualstudio 3.1.5 — Apache License 2.0
 - NSubstitute 5.3.0 — BSD 3-Clause
 - Microsoft.NET.Test.Sdk 18.3.0, coverlet.collector 8.0.1 — MIT
-- MudBlazor 9.2.0, Microsoft.AspNetCore.Components.WebAssembly 10.0.11 — MIT
+- MudBlazor 9.8.0, Microsoft.AspNetCore.Components.WebAssembly 10.0.11 — MIT
   (used by the Config Wizard web app, deployed separately from the CLI)
 
 ---
