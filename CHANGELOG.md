@@ -54,8 +54,6 @@ RayMigrator follows Semantic Versioning where applicable.
 - The `Raycoon.RayMigrator.Database.Example` skeleton project is licensed
   permissively under the MIT License (see its own `LICENSE.md`) so external
   developers can copy it as a starting point for their own DAL plugins.
-- The 0.11.0 license framework was prepared without external counsel
-  review; associated legal risks are accepted by RAYCOON.com GmbH.
 - Liability cap for non-consumer licensees set to a flat **EUR 10,000 per
   calendar year** (see `LICENSE.md` Supplemental Terms § Liability § 4). The
   previous two-branch cap referencing fees paid under a commercial license was
