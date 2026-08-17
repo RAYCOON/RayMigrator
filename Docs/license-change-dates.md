@@ -21,8 +21,8 @@ each version states the rule; this register states the resulting dates.
 **0.11.0** — the first version published under BUSL-1.1. Its Additional Use Grant
 permits production use free of charge, without conditions. First public
 distribution was the **source**, when the GitHub repository was made public on
-2026-08-17; the binary release and NuGet listing followed later and do not
-move the date (the register records the earliest channel).
+2026-08-17; the GitHub binary release (tag `v0.11.0`) and the NuGet listing
+followed the same day. The register records the earliest channel.
 
 **≤ 0.10.3** — `v0.10.3` was tagged in the repository on 2026-04-23 but was not
 publicly distributed. These versions carry RMLA v1.0, which has no Change Date
