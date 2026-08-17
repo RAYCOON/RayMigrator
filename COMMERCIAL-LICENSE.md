@@ -36,7 +36,8 @@ Use Grant:
 - **Sticky license.** Redistributed and derivative copies remain subject to
   BUSL-1.1 with the Additional Use Grant they were distributed under. A
   redistributor cannot relicense RayMigrator under different terms.
-- **No use of the Marks.** Redistributed, modified, or derivative versions
+- **No use of the Marks in forks.** Unmodified copies may be redistributed
+  under the original name and identifiers. **Modified or derivative** versions
   must not be distributed under the names "RayMigrator" or "RAYCOON" and must
   adopt a distinct name — see the Trademark Reservation in
   [LICENSE.md](LICENSE.md).

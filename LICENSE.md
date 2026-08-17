@@ -34,20 +34,66 @@ purpose, without restriction as to organization size, legal form, sector, or
 field of endeavour. This includes making the Licensed Work available to third
 parties as part of a hosted, SaaS, or managed service offering.
 
-**Definitions** (these definitions apply throughout this License):
+---
+
+## Supplemental Terms
+
+### Precedence
+
+These Supplemental Terms **supplement**, but do not modify, the BSL 1.1
+License Text below. To the extent mandatory provisions of German law render
+any clause of the BSL 1.1 License Text inapplicable, ineffective, or
+otherwise modified as applied to licensees domiciled in or governed by the
+laws of the Federal Republic of Germany, these Supplemental Terms govern the
+resulting legal framework. The BSL 1.1 License Text itself remains unmodified
+in compliance with BSL 1.1 Covenant 4.
+
+### Precedence over Accompanying Materials
+
+This License is the sole and exclusive statement of the terms on which the
+Licensed Work is made available. Statements about the Licensed Work in any
+other material — including the project website, `README` files, package
+metadata, changelogs, technical documentation, release notes, issue trackers,
+presentations, and marketing communications — are informative only. They do
+not form part of this License, do not modify it, and do not constitute a
+guarantee or an agreement on the quality or characteristics of the Licensed
+Work. Section 1(d) of the Liability section below remains unaffected.
+
+In case of any conflict between this License and any such material, this
+License prevails.
+
+### Definitions
+
+These definitions apply throughout this License:
 
 - *Production Use*: any use of the Licensed Work in a live, operational,
   or revenue-generating environment.
 - *Software*: where used in any communication or documentation referring
   to this License, equivalent to the BSL term *Licensed Work*.
 
-**Trademark Reservation.** The names "RayMigrator" and "RAYCOON", together
-with all associated logos, word marks, and visual identities (collectively the
-"Marks"), are claimed as unregistered trademarks of RAYCOON.com GmbH.
+### Scope of the Licensed Work
+
+**Database.Example Carve-Out.** The contents of the directory
+`Raycoon.RayMigrator.Database.Example` (including its skeleton DAL plugin
+template, placeholder SQL templates, and project file) are licensed under the
+**MIT License** (see the `LICENSE.md` file inside that directory). They are not
+part of the Licensed Work; neither the Additional Use Grant nor the Business
+Source License 1.1 applies to the contents of that directory.
+
+### Trademark Reservation
+
+The names "RayMigrator" and "RAYCOON", together with all associated logos,
+word marks, and visual identities (collectively the "Marks"), are claimed as
+unregistered trademarks of RAYCOON.com GmbH.
 
 Nothing in this License — including the BSL grant of redistribution rights —
-grants any right to use the Marks. In particular, redistributed, modified, or
-derivative versions of the Licensed Work:
+grants any right to use the Marks.
+
+Verbatim redistribution of unmodified copies of the Licensed Work under its
+original name, package identifiers, binary names, configuration keys, and CLI
+command names is expressly permitted and is not restricted by this section.
+
+In particular, modified or derivative versions of the Licensed Work:
 
 1. must not be distributed under the name "RayMigrator" or any confusingly
    similar name;
@@ -62,27 +108,6 @@ Use of the Marks for nominative reference (e.g., "compatible with
 RayMigrator", "based on RayMigrator") is permitted only to the extent
 necessary for accurate technical description and must not suggest
 endorsement by RAYCOON.com GmbH.
-
-**Database.Example Carve-Out.** The contents of the directory
-`Raycoon.RayMigrator.Database.Example` (including its skeleton DAL plugin
-template, placeholder SQL templates, and project file) are licensed under the
-**MIT License** (see the `LICENSE.md` file inside that directory). This
-Additional Use Grant and the Business Source License 1.1 do not apply to the
-contents of that directory.
-
----
-
-## Supplemental Terms
-
-### Precedence
-
-These Supplemental Terms **supplement**, but do not modify, the BSL 1.1
-License Text below. To the extent mandatory provisions of German law render
-any clause of the BSL 1.1 License Text inapplicable, ineffective, or
-otherwise modified as applied to licensees domiciled in or governed by the
-laws of the Federal Republic of Germany, these Supplemental Terms govern the
-resulting legal framework. The BSL 1.1 License Text itself remains unmodified
-in compliance with BSL 1.1 Covenant 4.
 
 ### Governing Law and Jurisdiction
 
@@ -126,7 +151,7 @@ for ordinary negligence is excluded.
 
 #### 4. Liability cap and data-loss limitation
 
-(a) Liability under section 2 is capped at **EUR 10,000** per contract year.
+(a) Liability under section 2 is capped at **EUR 10,000** per calendar year.
 
 (b) Liability for loss of data is limited to the cost of restoring the
     data from a backup that the Licensee maintains, or would have
@@ -154,7 +179,26 @@ period.
 
 Where the Licensee is a consumer within the meaning of § 13 of the German
 Civil Code (BGB), the statutory rules on liability and on limitation periods
-apply in place of sections 4 and 6 above.
+apply in place of sections 4, 5 and 6 above.
+
+### Contractual Penalty
+
+For each culpable breach of the Trademark Reservation above, or of the
+obligation under the BSL 1.1 License Text to conspicuously display this
+License on each original or modified copy, the Licensee shall pay a
+contractual penalty to the Licensor.
+
+The amount of the penalty is determined by the Licensor at its reasonable
+discretion (§ 315 of the German Civil Code, BGB), taking into account the
+nature, duration, and severity of the breach, the degree of fault, and any
+commercial benefit derived from it. Its appropriateness is subject to review
+by the competent court. A continuing breach counts as a single breach.
+
+Any contractual penalty paid is credited against a claim for damages arising
+from the same breach (§ 341 (2) BGB).
+
+This section does not apply where the Licensee is a consumer within the
+meaning of § 13 BGB.
 
 ### Termination Details
 

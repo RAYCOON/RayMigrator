@@ -28,16 +28,25 @@ RayMigrator follows Semantic Versioning where applicable.
   Conflict Rule, the Doubt clause, and seven now-unused definitions.
 - Consumers (§ 13 BGB) are no longer excluded from production use. Added a
   Supplemental Terms clause under which the statutory rules on liability and
-  limitation periods apply to consumers in place of the liability cap and
-  the shortened limitation period.
+  limitation periods apply to consumers in place of the liability cap, the
+  backup obligation and the shortened limitation period (§ Liability
+  §§ 4, 5 and 6).
 - Reworded the backup obligation (Supplemental Terms § Liability § 5) to
   refer declaratorily to § 254 BGB rather than fixing the legal consequence.
 - Added Supplemental Terms (governing law, liability, termination details)
   to align the license with mandatory provisions of German law without
   modifying the BSL 1.1 License Text itself (BSL 1.1 Covenant 4).
-- Tightened Trademark Reservation: redistributed or derivative versions
-  must adopt a distinct name not derived from the "RayMigrator" /
-  "RAYCOON" Marks.
+- Tightened Trademark Reservation: **modified or derivative** versions must
+  adopt a distinct name not derived from the "RayMigrator" / "RAYCOON" Marks.
+  Verbatim redistribution of unmodified copies under the original name,
+  package identifiers, binary names, configuration keys, and CLI command
+  names is expressly permitted — the reservation does not restrict the
+  redistribution right the BSL grants.
+- Moved the Definitions, the Database.Example carve-out and the Trademark
+  Reservation out of the Additional Use Grant into the Supplemental Terms.
+  The Additional Use Grant now consists of the grant itself and nothing
+  else, so it cannot be read as imposing an additional restriction on the
+  rights granted by BSL 1.1 (BSL 1.1 Covenant 2(a)).
 - Change Date: four (4) years after each version's first publicly available
   distribution — per-version, see `LICENSE.md` Parameters. First
   publication dates are tracked in `Docs/license-change-dates.md`.
@@ -48,12 +57,25 @@ RayMigrator follows Semantic Versioning where applicable.
 - The 0.11.0 license framework was prepared without external counsel
   review; associated legal risks are accepted by RAYCOON.com GmbH.
 - Liability cap for non-consumer licensees set to a flat **EUR 10,000 per
-  contract year** (see `LICENSE.md` Supplemental Terms § Liability § 4). The
+  calendar year** (see `LICENSE.md` Supplemental Terms § Liability § 4). The
   previous two-branch cap referencing fees paid under a commercial license was
-  removed along with the paid tier.
+  removed along with the paid tier. The reference period is the calendar year
+  rather than a "contract year", because the grant is perpetual, unconditional
+  and free of charge and therefore has no contract term to count from.
 - Trademark status: the names "RayMigrator" and "RAYCOON" are claimed
-  as **unregistered** trademarks; no DPMA/EUIPO filing has been made
-  or is currently planned.
+  as **unregistered** trademarks; no DPMA/EUIPO filing has been made.
+- Added a **Precedence over Accompanying Materials** clause to the
+  Supplemental Terms: `LICENSE.md` is the sole statement of the licensing
+  terms, and statements in the website, README files, package metadata,
+  changelogs, documentation or marketing are informative only and are not
+  guarantees. This replaces the Conflict Rule that was removed with the
+  conditional Additional Use Grant and closes the gap it left.
+- Added a **Contractual Penalty** clause to the Supplemental Terms, covering
+  breaches of the Trademark Reservation and of the BSL notice obligation.
+  The amount is set by the Licensor at reasonable discretion under § 315 BGB
+  and is reviewable by the court, rather than being a flat figure — a single
+  flat penalty applied to breaches of differing weight is unenforceable in
+  German standard business terms. The clause does not apply to consumers.
 
 ### Documentation
 

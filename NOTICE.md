@@ -71,11 +71,12 @@ visual identities — are claimed as unregistered trademarks of RAYCOON.com GmbH
 Nothing in BUSL-1.1 or the BSL grant of redistribution rights conveys any right
 to use these trademarks.
 
-In particular, redistributed or derivative versions of RayMigrator must not
-be distributed under the names "RayMigrator" or "RAYCOON" and must adopt a
-distinct name not derived from these Marks. Nominative reference (e.g.,
-"compatible with RayMigrator") is permitted only to the extent necessary
-for accurate technical description.
+Verbatim redistribution of unmodified copies under the original name and
+identifiers is expressly permitted. **Modified or derivative** versions of
+RayMigrator, by contrast, must not be distributed under the names
+"RayMigrator" or "RAYCOON" and must adopt a distinct name not derived from
+these Marks. Nominative reference (e.g., "compatible with RayMigrator") is
+permitted only to the extent necessary for accurate technical description.
 
 For the binding Trademark Reservation see the corresponding section in
 `LICENSE.md`.
