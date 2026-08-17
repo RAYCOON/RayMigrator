@@ -1,0 +1,63 @@
+
+@* Click-wrap consent dialog shown before the first configuration export of a
+   session. The wizard's Terms of Use govern the SERVICE (draft character of
+   the output, review and backup duties) — distinct from LICENSE.md, which
+   governs the RayMigrator software itself. The confirm button stays disabled
+   until the user affirmatively ticks the acceptance checkbox. *@
+
+@using Raycoon.RayMigrator.ConfigWizard.Web.Services
+
+<MudDialog>
+    <TitleContent>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.Gavel" Color="Color.Primary" />
+            <MudText Typo="Typo.h6">@L.Get("Terms.DialogTitle")</MudText>
+        </MudStack>
+    </TitleContent>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudText Typo="Typo.body2">@L.Get("Terms.DialogIntro")</MudText>
+
+            <MudList T="string" Dense="true" ReadOnly="true">
+                <MudListItem T="string" Icon="@Icons.Material.Filled.EditNote">
+                    <MudText Typo="Typo.body2">@L.Get("Terms.PointDraft")</MudText>
+                </MudListItem>
+                <MudListItem T="string" Icon="@Icons.Material.Filled.FactCheck">
+                    <MudText Typo="Typo.body2">@L.Get("Terms.PointReview")</MudText>
+                </MudListItem>
+                <MudListItem T="string" Icon="@Icons.Material.Filled.Backup">
+                    <MudText Typo="Typo.body2">@L.Get("Terms.PointBackup")</MudText>
+                </MudListItem>
+            </MudList>
+
+            <MudLink Href="@L.Get("Footer.TermsUrl")" Target="_blank" Typo="Typo.body2">
+                @L.Get("Terms.ReadFull")
+            </MudLink>
+
+            <MudCheckBox T="bool" @bind-Value="_accepted" Color="Color.Primary"
+                         Label="@L.Get("Terms.AcceptCheckbox")" />
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel" Variant="Variant.Text">
+            @L.Get("Common.Cancel")
+        </MudButton>
+        <MudButton OnClick="Confirm" Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Download"
+                   Disabled="@(!_accepted)">
+            @L.Get("Terms.AcceptAndDownload")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Inject] private LocalizationService L { get; set; } = default!;
+
+    private bool _accepted;
+
+    private void Confirm() => MudDialog.Close(DialogResult.Ok(true));
+
+    private void Cancel() => MudDialog.Cancel();
+}

@@ -75,6 +75,8 @@
     [Inject] private LocalizationService L { get; set; } = default!;
     [Inject] private ZipExportService ZipExport { get; set; } = default!;
     [Inject] private ISnackbar Snackbar { get; set; } = default!;
+    [Inject] private IDialogService DialogService { get; set; } = default!;
+    [Inject] private TermsAcceptanceService Terms { get; set; } = default!;
 
     protected override void OnInitialized()
     {
@@ -96,6 +98,21 @@
 
     private async Task DownloadZip()
     {
+        // Click-wrap: the first export of a session requires affirmative
+        // acceptance of the service's Terms of Use (see TermsConsentDialog).
+        if (!Terms.IsAccepted)
+        {
+            var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true };
+            var dialog = await DialogService.ShowAsync<TermsConsentDialog>(
+                L.Get("Terms.DialogTitle"), options);
+            var result = await dialog.Result;
+
+            if (result is null || result.Canceled)
+                return;
+
+            Terms.Accept();
+        }
+
         await ZipExport.ExportAsync(Wizard.State);
         Snackbar.Add(L.Get("Export.Success"), Severity.Success);
     }

@@ -14,6 +14,7 @@ builder.Services.AddScoped<WizardStateService>();
 builder.Services.AddScoped<LocalizationService>();
 builder.Services.AddScoped<FileInteropService>();
 builder.Services.AddScoped<ZipExportService>();
+builder.Services.AddScoped<TermsAcceptanceService>();
 builder.Services.AddScoped<JsonHighlightService>();
 
 var host = builder.Build();

@@ -107,6 +107,9 @@ public class LocalizationServiceTests
     [InlineData("Footer.ImprintUrl", "https://raymigrator.com/en/legal-notice")]
     [InlineData("Footer.PrivacyUrl", "https://raymigrator.com/en/privacy")]
     [InlineData("Footer.TermsUrl", "https://raymigrator.com/en/terms-of-use")]
+    [InlineData("Terms.DialogTitle", "Terms of Use")]
+    [InlineData("Terms.AcceptCheckbox", "I have read and accept the Terms of Use.")]
+    [InlineData("Terms.AcceptAndDownload", "Accept & download")]
     public void Get_EnglishKeys_ReturnExpectedEnglishStrings(string key, string expected)
     {
         var svc = new LocalizationService();
@@ -142,6 +145,9 @@ public class LocalizationServiceTests
     [InlineData("Footer.ImprintUrl", "https://raymigrator.com/impressum")]
     [InlineData("Footer.PrivacyUrl", "https://raymigrator.com/datenschutz")]
     [InlineData("Footer.TermsUrl", "https://raymigrator.com/nutzungsbedingungen")]
+    [InlineData("Terms.DialogTitle", "Nutzungsbedingungen")]
+    [InlineData("Terms.AcceptCheckbox", "Ich habe die Nutzungsbedingungen gelesen und akzeptiere sie.")]
+    [InlineData("Terms.AcceptAndDownload", "Akzeptieren & herunterladen")]
     public void Get_GermanKeys_ReturnExpectedGermanStrings(string key, string expected)
     {
         var svc = new LocalizationService();
@@ -412,6 +418,8 @@ public class LocalizationServiceTests
             "Phase3.Title", "Phase3.Subtitle", "Phase3.Download", "Phase3.ExportWarning",
             "Welcome.MaturityNotice", "Footer.Imprint", "Footer.Privacy", "Footer.Terms",
             "Footer.ImprintUrl", "Footer.PrivacyUrl", "Footer.TermsUrl",
+            "Terms.DialogTitle", "Terms.DialogIntro", "Terms.PointDraft", "Terms.PointReview",
+            "Terms.PointBackup", "Terms.ReadFull", "Terms.AcceptCheckbox", "Terms.AcceptAndDownload",
             "Section.Repository", "Section.DatabaseLogging", "Section.CliTools",
             "Section.ProductDefaults", "Section.ProductSettings", "Section.Serilog",
             "Common.Next", "Common.Back", "Common.Save", "Common.Cancel", "Common.Add", "Common.Remove",
