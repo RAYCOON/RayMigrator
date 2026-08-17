@@ -14,6 +14,11 @@
         </MudButton>
     </MudStack>
 
+    @* The exported configuration drives real migrations — warn at the point of export. *@
+    <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-2">
+        @L.Get("Phase3.ExportWarning")
+    </MudAlert>
+
     @if (Wizard.LastValidationResult != null)
     {
         <MudAlert Severity="@(Wizard.LastValidationResult.IsValid ? Severity.Success : Severity.Error)"

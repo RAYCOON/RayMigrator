@@ -8,6 +8,10 @@
         <MudText Typo="Typo.body1" Align="Align.Center">
             @L.Get("Welcome.Subtitle")
         </MudText>
+        @* Pre-1.0 maturity notice — mirrors README.md, NOTICE.md, and the CLI banner. *@
+        <MudAlert Severity="Severity.Warning" Dense="true">
+            @L.Get("Welcome.MaturityNotice")
+        </MudAlert>
     </MudStack>
 
     <MudGrid Spacing="4" Justify="Justify.Center">

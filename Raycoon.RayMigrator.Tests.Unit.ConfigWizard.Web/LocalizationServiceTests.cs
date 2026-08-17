@@ -101,6 +101,9 @@ public class LocalizationServiceTests
     [InlineData("Phase3.Download", "Download ZIP")]
     [InlineData("Section.Repository", "Repository")]
     [InlineData("Section.Serilog", "Serilog")]
+    [InlineData("Footer.Imprint", "Legal Notice")]
+    [InlineData("Footer.Privacy", "Privacy")]
+    [InlineData("Footer.Terms", "Terms of Use")]
     public void Get_EnglishKeys_ReturnExpectedEnglishStrings(string key, string expected)
     {
         var svc = new LocalizationService();
@@ -130,6 +133,9 @@ public class LocalizationServiceTests
     [InlineData("Summary.Enabled", "Aktiviert")]
     [InlineData("Summary.Disabled", "Deaktiviert")]
     [InlineData("Phase3.Download", "ZIP herunterladen")]
+    [InlineData("Footer.Imprint", "Impressum")]
+    [InlineData("Footer.Privacy", "Datenschutz")]
+    [InlineData("Footer.Terms", "Nutzungsbedingungen")]
     public void Get_GermanKeys_ReturnExpectedGermanStrings(string key, string expected)
     {
         var svc = new LocalizationService();
@@ -397,7 +403,8 @@ public class LocalizationServiceTests
             "Summary.Repository", "Summary.DatabaseLogging", "Summary.CliTools",
             "Summary.Enabled", "Summary.Disabled",
             "Phase2.Title", "Phase2.Subtitle", "Phase2.BackToStart", "Phase2.Completed", "Phase2.GoToOverview",
-            "Phase3.Title", "Phase3.Subtitle", "Phase3.Download",
+            "Phase3.Title", "Phase3.Subtitle", "Phase3.Download", "Phase3.ExportWarning",
+            "Welcome.MaturityNotice", "Footer.Imprint", "Footer.Privacy", "Footer.Terms",
             "Section.Repository", "Section.DatabaseLogging", "Section.CliTools",
             "Section.ProductDefaults", "Section.ProductSettings", "Section.Serilog",
             "Common.Next", "Common.Back", "Common.Save", "Common.Cancel", "Common.Add", "Common.Remove",
