@@ -3,11 +3,28 @@ name: Publish NuGet
 on:
   workflow_dispatch:
 
+# NuGet Trusted Publishing: the job authenticates to nuget.org via GitHub's
+# OIDC token instead of a stored API key. NuGet/login exchanges the OIDC
+# token for a short-lived API key, scoped by the Trusted Publishing policy
+# configured on nuget.org (repository owner RAYCOON, repository RayMigrator,
+# workflow file publish-nuget.yml). No long-lived secret exists to leak.
+# https://learn.microsoft.com/nuget/nuget-org/trusted-publishing
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+
+      - name: Verify NUGET_USER is configured
+        run: |
+          if [ -z "${{ vars.NUGET_USER }}" ]; then
+            echo "::error::Repository variable NUGET_USER is not set. It must contain the nuget.org profile name that owns the Trusted Publishing policy for this repository."
+            exit 1
+          fi
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
@@ -32,6 +49,12 @@ jobs:
       - name: Pack NuGet packages
         run: dotnet pack -c Release --no-build -p:Version=${{ steps.version.outputs.VERSION }}
 
+      - name: NuGet login (Trusted Publishing, OIDC)
+        id: nuget-login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ vars.NUGET_USER }}
+
       - name: Push to NuGet.org
         run: |
           FAILED_PACKAGES=""
@@ -39,8 +62,9 @@ jobs:
             BASENAME=$(basename "$pkg")
             echo "::group::Pushing $BASENAME ($(dirname "$pkg"))"
             if dotnet nuget push "$pkg" \
-              --api-key ${{ secrets.NUGET_RAYCOON_APIKEY }} \
-              --source https://api.nuget.org/v3/index.json; then
+              --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} \
+              --source https://api.nuget.org/v3/index.json \
+              --skip-duplicate; then
               echo "✓ Push accepted: $BASENAME"
             else
               echo "::error::Push failed: $BASENAME"
