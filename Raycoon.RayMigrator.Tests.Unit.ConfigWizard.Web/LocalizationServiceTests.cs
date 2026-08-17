@@ -420,6 +420,7 @@ public class LocalizationServiceTests
             "Footer.ImprintUrl", "Footer.PrivacyUrl", "Footer.TermsUrl",
             "Terms.DialogTitle", "Terms.DialogIntro", "Terms.PointDraft", "Terms.PointReview",
             "Terms.PointBackup", "Terms.ReadFull", "Terms.AcceptCheckbox", "Terms.AcceptAndDownload",
+            "Terms.NoteIncluded",
             "Section.Repository", "Section.DatabaseLogging", "Section.CliTools",
             "Section.ProductDefaults", "Section.ProductSettings", "Section.Serilog",
             "Common.Next", "Common.Back", "Common.Save", "Common.Cancel", "Common.Add", "Common.Remove",

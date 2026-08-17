@@ -43,4 +43,48 @@ public class TermsAcceptanceServiceTests
         svc.IsAccepted.Should().BeTrue();
         svc.AcceptedAtUtc.Should().Be(first);
     }
+
+    // ── Acceptance note ───────────────────────────────────────────
+
+    [Fact]
+    public void BuildAcceptanceNote_WithoutAcceptance_Throws()
+    {
+        var svc = new TermsAcceptanceService();
+
+        var act = () => svc.BuildAcceptanceNote();
+
+        act.Should().Throw<InvalidOperationException>(
+            "the note documents a fact and must never fabricate one");
+    }
+
+    [Fact]
+    public void BuildAcceptanceNote_AfterAcceptance_ContainsAllEvidenceFields()
+    {
+        var svc = new TermsAcceptanceService();
+        svc.Accept();
+
+        var note = svc.BuildAcceptanceNote();
+
+        note.Should().Contain(TermsAcceptanceService.TermsVersion);
+        note.Should().Contain(TermsAcceptanceService.TermsUrlDe);
+        note.Should().Contain(TermsAcceptanceService.TermsUrlEn);
+        note.Should().Contain(
+            svc.AcceptedAtUtc!.Value.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'"));
+        // Bilingual — German is the authoritative language of the terms.
+        note.Should().Contain("Annahmevermerk");
+        note.Should().Contain("Acceptance Note");
+        note.Should().Contain("The German version prevails.");
+    }
+
+    [Theory]
+    [InlineData("de", TermsAcceptanceService.TermsUrlDe)]
+    [InlineData("en", TermsAcceptanceService.TermsUrlEn)]
+    public void TermsUrls_StayInSyncWithFooterLocalization(string language, string expectedUrl)
+    {
+        // Drift guard: the URLs baked into the acceptance note must be the
+        // same ones the footer links to in the respective UI language.
+        var localization = new LocalizationService { Language = language };
+
+        localization.Get("Footer.TermsUrl").Should().Be(expectedUrl);
+    }
 }

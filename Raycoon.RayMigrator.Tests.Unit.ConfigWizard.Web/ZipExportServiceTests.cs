@@ -44,11 +44,14 @@ public class ZipExportServiceTests
 
     // ── Helpers ───────────────────────────────────────────────────
 
-    private static (ZipExportService service, FakeJsRuntime js) CreateService()
+    private static (ZipExportService service, FakeJsRuntime js) CreateService(
+        TermsAcceptanceService? terms = null)
     {
         var js = new FakeJsRuntime();
         var fileInterop = new FileInteropService(js);
-        var zipService = new ZipExportService(fileInterop);
+        // Default: terms not accepted — the acceptance note only documents a
+        // fact, so plain export tests run without it.
+        var zipService = new ZipExportService(fileInterop, terms ?? new TermsAcceptanceService());
         return (zipService, js);
     }
 
@@ -1094,5 +1097,56 @@ public class ZipExportServiceTests
             "scaffolded env models override Repository.ConnectionString for every environment");
         // DatabaseType is NOT overridden → stays
         baseRay["Repository"]!["DatabaseType"]!.GetValue<string>().Should().Be("SqlServer");
+    }
+
+    // ── Terms acceptance note ─────────────────────────────────────
+
+    [Fact]
+    public async Task ExportAsync_TermsNotAccepted_ZipContainsNoAcceptanceNote()
+    {
+        var (service, js) = CreateService();
+        var state = BuildMinimalState();
+
+        await service.ExportAsync(state);
+
+        var entries = ReadZipEntries(GetDownload(js).content);
+        entries.Should().NotContainKey(ZipExportService.AcceptanceNoteFileName,
+            "the note documents a fact and must never fabricate one");
+    }
+
+    [Fact]
+    public async Task ExportAsync_TermsAccepted_ZipContainsAcceptanceNote()
+    {
+        var terms = new TermsAcceptanceService();
+        terms.Accept();
+        var (service, js) = CreateService(terms);
+        var state = BuildMinimalState();
+
+        await service.ExportAsync(state);
+
+        var entries = ReadZipEntries(GetDownload(js).content);
+        entries.Should().ContainKey(ZipExportService.AcceptanceNoteFileName);
+
+        var note = entries[ZipExportService.AcceptanceNoteFileName];
+        note.Should().Contain(TermsAcceptanceService.TermsVersion);
+        note.Should().Contain(TermsAcceptanceService.TermsUrlDe);
+        note.Should().Contain(TermsAcceptanceService.TermsUrlEn);
+        note.Should().Contain(
+            terms.AcceptedAtUtc!.Value.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'"));
+    }
+
+    [Fact]
+    public async Task ExportAsync_TermsAccepted_ConfigFilesStillPresent()
+    {
+        var terms = new TermsAcceptanceService();
+        terms.Accept();
+        var (service, js) = CreateService(terms);
+        var state = BuildMinimalState();
+
+        await service.ExportAsync(state);
+
+        var entries = ReadZipEntries(GetDownload(js).content);
+        entries.Should().ContainKey("appsettings.json");
+        entries.Should().ContainKey("example.env");
     }
 }

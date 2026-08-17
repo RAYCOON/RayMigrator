@@ -14,11 +14,16 @@ public class ZipExportService
 {
     private static readonly JsonSerializerOptions IndentedOptions = new() { WriteIndented = true };
 
-    private readonly FileInteropService _fileInterop;
+    /// <summary>File name of the terms acceptance note inside the exported ZIP.</summary>
+    public const string AcceptanceNoteFileName = "TERMS-ACCEPTANCE.txt";
 
-    public ZipExportService(FileInteropService fileInterop)
+    private readonly FileInteropService _fileInterop;
+    private readonly TermsAcceptanceService _terms;
+
+    public ZipExportService(FileInteropService fileInterop, TermsAcceptanceService terms)
     {
         _fileInterop = fileInterop;
+        _terms = terms;
     }
 
     /// <summary>
@@ -37,6 +42,13 @@ public class ZipExportService
             // example.env -- scan ALL exported files for {ENV:} variables (not just base)
             string envExample = EnvFileGenerator.GenerateFromExportedJsons(exportJsons, _ => null);
             AddEntry(archive, "example.env", envExample);
+
+            // Terms acceptance note — the privacy-compatible record of the
+            // click-wrap consent (nothing is transmitted; the note stays with
+            // the user). Only written when acceptance actually happened: the
+            // note documents a fact and must never fabricate one.
+            if (_terms.IsAccepted)
+                AddEntry(archive, AcceptanceNoteFileName, _terms.BuildAcceptanceNote());
         }
 
         memoryStream.Position = 0;
