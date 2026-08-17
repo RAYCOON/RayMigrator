@@ -36,7 +36,10 @@ public static class AssemblyInfoHelper
             " RayMigrator.com",
             " Pro Database Migration Framework",
             " Pre-1.0 - not yet proven in production.",
-            " Back up before every run."
+            " Back up before every run.",
+            "",
+            " Licensed under BUSL-1.1 - see LICENSE.md.",
+            " Using this software constitutes acceptance of its terms."
         };
     }
 
