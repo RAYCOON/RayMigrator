@@ -199,8 +199,8 @@
       "commandLineArgs": "Migrate-Up --product RayMigratorTests --environment Staging --run-mode Migrate",
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "Staging",
-        "ConnectionString_Backend1": "Server=staging-server;Initial Catalog=Backend_1;TrustServerCertificate=true;MultiSubnetFailover=True;User Id=sa;Password=StagingPassword!",
-        "ConnectionString_Backend2": "Server=staging-server;Initial Catalog=Backend_2;TrustServerCertificate=true;MultiSubnetFailover=True;User Id=sa;Password=StagingPassword!"
+        "ConnectionString_Backend1": "Server=YOUR-STAGING-SERVER;Initial Catalog=Backend_1;TrustServerCertificate=true;MultiSubnetFailover=True;User Id=YOUR-USER;Password=YOUR-PASSWORD",
+        "ConnectionString_Backend2": "Server=YOUR-STAGING-SERVER;Initial Catalog=Backend_2;TrustServerCertificate=true;MultiSubnetFailover=True;User Id=YOUR-USER;Password=YOUR-PASSWORD"
       }
     },
     "Production": {
@@ -209,8 +209,8 @@
       "commandLineArgs": "Migrate-Up --product RayMigratorTests --environment Production --run-mode Migrate",
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "Production",
-        "ConnectionString_Backend1": "Server=production-server;Initial Catalog=Backend_1;TrustServerCertificate=true;MultiSubnetFailover=True;User Id=sa;Password=ProductionPassword!",
-        "ConnectionString_Backend2": "Server=production-server;Initial Catalog=Backend_2;TrustServerCertificate=true;MultiSubnetFailover=True;User Id=sa;Password=ProductionPassword!"
+        "ConnectionString_Backend1": "Server=YOUR-PRODUCTION-SERVER;Initial Catalog=Backend_1;TrustServerCertificate=true;MultiSubnetFailover=True;User Id=YOUR-USER;Password=YOUR-PASSWORD",
+        "ConnectionString_Backend2": "Server=YOUR-PRODUCTION-SERVER;Initial Catalog=Backend_2;TrustServerCertificate=true;MultiSubnetFailover=True;User Id=YOUR-USER;Password=YOUR-PASSWORD"
       }
     }
   }

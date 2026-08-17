@@ -99,7 +99,7 @@ Description = "Insert production defaults only"
 
 -- Only system account for production
 INSERT INTO Users (Username, Email) VALUES
-    ('system', 'system@company.com');
+    ('system', 'system@example.com');
 ```
 
 ### 3. Performance Tuning

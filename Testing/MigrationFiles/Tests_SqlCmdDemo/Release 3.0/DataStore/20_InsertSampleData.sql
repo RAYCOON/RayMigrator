@@ -13,10 +13,10 @@ BEGIN
     SET IDENTITY_INSERT [$(SchemaName)].[Supplier] ON;
 
     INSERT INTO [$(SchemaName)].[Supplier] ([Id], [Name], [ContactEmail], [Phone], [Country]) VALUES
-    (1, 'TechParts GmbH',      'orders@techparts.de',    '+49-30-555-0100', '$(DefaultCountry)'),
-    (2, 'Global Raw Materials', 'sales@globalraw.com',    '+1-555-0200',     'United States'),
-    (3, 'PackRight Ltd',        'info@packright.co.uk',   '+44-20-555-0300', 'United Kingdom'),
-    (4, 'SafetyFirst AG',       'contact@safetyfirst.ch', '+41-44-555-0400', 'Switzerland');
+    (1, 'TechParts GmbH',      'orders@techparts.example.com',    '+49-30-555-0100', '$(DefaultCountry)'),
+    (2, 'Global Raw Materials', 'sales@globalraw.example.com',    '+1-555-0200',     'United States'),
+    (3, 'PackRight Ltd',        'info@packright.example.com',   '+44-20-555-0300', 'United Kingdom'),
+    (4, 'SafetyFirst AG',       'contact@safetyfirst.example.com', '+41-44-555-0400', 'Switzerland');
 
     SET IDENTITY_INSERT [$(SchemaName)].[Supplier] OFF;
 END
