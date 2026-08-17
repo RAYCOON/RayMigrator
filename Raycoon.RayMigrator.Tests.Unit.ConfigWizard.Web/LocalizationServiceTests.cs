@@ -104,6 +104,9 @@ public class LocalizationServiceTests
     [InlineData("Footer.Imprint", "Legal Notice")]
     [InlineData("Footer.Privacy", "Privacy")]
     [InlineData("Footer.Terms", "Terms of Use")]
+    [InlineData("Footer.ImprintUrl", "https://raymigrator.com/en/legal-notice")]
+    [InlineData("Footer.PrivacyUrl", "https://raymigrator.com/en/privacy")]
+    [InlineData("Footer.TermsUrl", "https://raymigrator.com/en/terms-of-use")]
     public void Get_EnglishKeys_ReturnExpectedEnglishStrings(string key, string expected)
     {
         var svc = new LocalizationService();
@@ -136,6 +139,9 @@ public class LocalizationServiceTests
     [InlineData("Footer.Imprint", "Impressum")]
     [InlineData("Footer.Privacy", "Datenschutz")]
     [InlineData("Footer.Terms", "Nutzungsbedingungen")]
+    [InlineData("Footer.ImprintUrl", "https://raymigrator.com/impressum")]
+    [InlineData("Footer.PrivacyUrl", "https://raymigrator.com/datenschutz")]
+    [InlineData("Footer.TermsUrl", "https://raymigrator.com/nutzungsbedingungen")]
     public void Get_GermanKeys_ReturnExpectedGermanStrings(string key, string expected)
     {
         var svc = new LocalizationService();
@@ -405,6 +411,7 @@ public class LocalizationServiceTests
             "Phase2.Title", "Phase2.Subtitle", "Phase2.BackToStart", "Phase2.Completed", "Phase2.GoToOverview",
             "Phase3.Title", "Phase3.Subtitle", "Phase3.Download", "Phase3.ExportWarning",
             "Welcome.MaturityNotice", "Footer.Imprint", "Footer.Privacy", "Footer.Terms",
+            "Footer.ImprintUrl", "Footer.PrivacyUrl", "Footer.TermsUrl",
             "Section.Repository", "Section.DatabaseLogging", "Section.CliTools",
             "Section.ProductDefaults", "Section.ProductSettings", "Section.Serilog",
             "Common.Next", "Common.Back", "Common.Save", "Common.Cancel", "Common.Add", "Common.Remove",
