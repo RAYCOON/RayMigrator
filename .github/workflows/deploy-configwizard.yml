@@ -31,6 +31,9 @@ jobs:
             9.0.x
             10.0.x
 
+      - name: Verify legal pages are live (§ 5 DDG / terms incorporation)
+        run: .github/scripts/check-legal-pages.sh
+
       - name: Publish ConfigWizard.Web
         run: >
           dotnet publish
