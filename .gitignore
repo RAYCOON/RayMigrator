@@ -174,3 +174,6 @@ Docs/todo/**
 
 # Handle files with Windows-style paths that might be created on Linux
 Raycoon.RayMigrator.Console/C:*
+
+# Internal legal review material — kept in the private raycoon-stuff repository
+Docs/legal-review-*
