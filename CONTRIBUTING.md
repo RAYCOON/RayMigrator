@@ -11,9 +11,10 @@ By submitting contributions (code, ideas, documentation):
 - You confirm you have the legal right to submit the contribution and that
   it is your original work or otherwise free of third-party rights that
   would prevent the grant below.
-- You grant **RAYCOON.com GmbH** an unrestricted, perpetual, worldwide,
-  royalty-free license to use, modify, sublicense, and **relicense** your
-  contribution.
+- You grant **RAYCOON.com GmbH** a perpetual, worldwide, non-exclusive,
+  royalty-free, irrevocable license to use, reproduce, modify, publish,
+  distribute, sublicense, and **relicense** your contribution — the same
+  grant as in [`CLA.md`](CLA.md), which is the binding text.
 - You explicitly authorize relicensing under both the project's current
   license (Business Source License 1.1 with Additional Use Grant) **and**
   the future Change License (Apache License, Version 2.0). Without this
