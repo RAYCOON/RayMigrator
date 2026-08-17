@@ -21,7 +21,7 @@ public class TermsAcceptanceService
     public const string TermsVersion = "2026-08-17";
 
     /// <summary>Authoritative German terms URL. Keep in sync with Footer.TermsUrl (de).</summary>
-    public const string TermsUrlDe = "https://raymigrator.com/nutzungsbedingungen";
+    public const string TermsUrlDe = "https://raymigrator.com/de/nutzungsbedingungen";
 
     /// <summary>English translation URL. Keep in sync with Footer.TermsUrl (en).</summary>
     public const string TermsUrlEn = "https://raymigrator.com/en/terms-of-use";
