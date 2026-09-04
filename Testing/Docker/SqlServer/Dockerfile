@@ -1,10 +1,10 @@
 ARG SOURCE_MICROSOFT=mcr.microsoft.com
 FROM ${SOURCE_MICROSOFT}/mssql/server:2022-latest
 
-# Umgebungskonfiguration
+# Umgebungskonfiguration (nur nicht-geheime Werte)
+# MSSQL_SA_PASSWORD, MSSQL_PID und RM_LOGIN_PASSWORD kommen zur Laufzeit
+# ueber docker-compose.yml aus der env-Datei. Keine Passwoerter im Image hinterlegen!
 ENV ACCEPT_EULA=Y
-ENV MSSQL_SA_PASSWORD="P@ssw0rd!"
-ENV MSSQL_PID="Developer"
 ENV MSSQL_AGENT_ENABLED=True
 ENV TZ=Europe/Berlin
 ENV MSSQL_COLLATION=Latin1_General_CI_AS

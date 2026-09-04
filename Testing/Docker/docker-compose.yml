@@ -8,6 +8,10 @@ services:
       dockerfile: Dockerfile
       args:
         SOURCE_MICROSOFT: ${SOURCE_MICROSOFT}
+    environment:
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?MSSQL_SA_PASSWORD fehlt in der env-Datei}
+      MSSQL_PID: ${MSSQL_PID:-Developer}
+      RM_LOGIN_PASSWORD: ${RM_LOGIN_PASSWORD:?RM_LOGIN_PASSWORD fehlt in der env-Datei}
     restart: always
     ports:
       - 1433:1433
@@ -28,10 +32,10 @@ services:
       dockerfile: Dockerfile
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-root123}
-      MYSQL_DATABASE: ${MARIADB_DATABASE:-raydb}
-      MYSQL_USER: ${MARIADB_USER:-rayuser}
-      MYSQL_PASSWORD: ${MARIADB_PASSWORD:-raypass123}
+      MYSQL_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:?MARIADB_ROOT_PASSWORD fehlt in der env-Datei}
+      MYSQL_DATABASE: ${MARIADB_DATABASE:?MARIADB_DATABASE fehlt in der env-Datei}
+      MYSQL_USER: ${MARIADB_USER:?MARIADB_USER fehlt in der env-Datei}
+      MYSQL_PASSWORD: ${MARIADB_PASSWORD:?MARIADB_PASSWORD fehlt in der env-Datei}
     ports:
       - 3306:3306
     expose:
@@ -45,7 +49,7 @@ services:
       - all
       - mariadb
     healthcheck:
-      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost", "-u", "root", "-p${MARIADB_ROOT_PASSWORD:-root123}"]
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 10s
       timeout: 10s
       retries: 5
@@ -59,10 +63,10 @@ services:
       dockerfile: Dockerfile
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root123}
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-raydb}
-      MYSQL_USER: ${MYSQL_USER:-rayuser}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-raypass123}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD fehlt in der env-Datei}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:?MYSQL_DATABASE fehlt in der env-Datei}
+      MYSQL_USER: ${MYSQL_USER:?MYSQL_USER fehlt in der env-Datei}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD fehlt in der env-Datei}
     ports:
       - 3307:3306
     expose:
@@ -76,7 +80,7 @@ services:
       - all
       - mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-root123}"]
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p\"$$MYSQL_ROOT_PASSWORD\""]
       timeout: 20s
       retries: 5
 
@@ -89,9 +93,9 @@ services:
       dockerfile: Dockerfile
     restart: always
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER fehlt in der env-Datei}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD fehlt in der env-Datei}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB fehlt in der env-Datei}
     ports:
       - 5432:5432
     expose:

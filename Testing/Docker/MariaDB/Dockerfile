@@ -1,10 +1,8 @@
 FROM mariadb:11.6
 
-# Setze das Root-Passwort und andere Umgebungsvariablen
-ENV MYSQL_ROOT_PASSWORD=root123
-ENV MYSQL_DATABASE=raydb
-ENV MYSQL_USER=rayuser
-ENV MYSQL_PASSWORD=raypass123
+# Zugangsdaten (MYSQL_ROOT_PASSWORD, MYSQL_DATABASE, MYSQL_USER, MYSQL_PASSWORD)
+# werden zur Laufzeit ueber docker-compose.yml aus der env-Datei gesetzt.
+# Keine Passwoerter im Image hinterlegen!
 
 # Kopiere Konfigurationsdateien
 COPY config/my.cnf /etc/mysql/conf.d/

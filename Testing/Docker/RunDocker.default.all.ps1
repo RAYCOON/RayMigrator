@@ -22,7 +22,10 @@ if ($scriptName -match "RunDocker\.([^.]+)\.([^.]+)\.ps1") {
         WaitTimeInSeconds = 3
         TimeoutInSeconds = 20
         RequiredVars = @(
-            "SOURCE_MICROSOFT"
+            "SOURCE_MICROSOFT", "MSSQL_SA_PASSWORD", "RM_LOGIN_PASSWORD",
+            "MARIADB_ROOT_PASSWORD", "MARIADB_DATABASE", "MARIADB_USER", "MARIADB_PASSWORD",
+            "MYSQL_ROOT_PASSWORD", "MYSQL_DATABASE", "MYSQL_USER", "MYSQL_PASSWORD",
+            "POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB"
         )
     }
 

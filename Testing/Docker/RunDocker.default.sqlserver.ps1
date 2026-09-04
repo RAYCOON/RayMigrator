@@ -22,7 +22,7 @@ if ($scriptName -match "RunDocker\.([^.]+)\.([^.]+)\.ps1") {
         WaitTimeInSeconds = 3
         TimeoutInSeconds = 20
         RequiredVars = @(
-            "SOURCE_MICROSOFT"
+            "SOURCE_MICROSOFT", "MSSQL_SA_PASSWORD", "RM_LOGIN_PASSWORD"
         )
     }
 

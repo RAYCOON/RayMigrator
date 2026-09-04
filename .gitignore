@@ -177,3 +177,8 @@ Raycoon.RayMigrator.Console/C:*
 
 # Internal legal review material — kept in the private raycoon-stuff repository
 Docs/legal-review-*
+
+# Docker-Testumgebung: nur default.env (Wegwerf-Zugangsdaten) ist versioniert,
+# alle anderen <environment>.env-Dateien enthalten echte Zugangsdaten und bleiben lokal.
+Testing/Docker/*.env
+!Testing/Docker/default.env
