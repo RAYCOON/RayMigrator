@@ -16,6 +16,8 @@ This chapter walks you through creating a minimal project, writing your first mi
 
   Verify with `RayMigrator --version`.
 
+> **Tip:** Tired of typing the full name? You can define a short shell alias such as `raymig` — see [Shortening the Command with a Shell Alias](06-cli-commands.md#shortening-the-command-with-a-shell-alias) in Chapter 6.
+
 > **Tip:** To start a SQL Server container quickly:
 > ```bash
 > docker run -e "ACCEPT_EULA=Y" -e "MSSQL_SA_PASSWORD=YourStr0ngP@ssword" \

@@ -28,6 +28,40 @@ Most commands require `--product` (`-p`) and `--environment` (`-env`). For globa
 
 ---
 
+## Shortening the Command with a Shell Alias
+
+`RayMigrator` is a long name to type. If you run it interactively rather than from a pipeline, define a short shell alias. `raymig` is the suggested short form:
+
+**bash / zsh** -- add to `~/.bashrc` or `~/.zshrc`:
+
+```bash
+alias raymig=RayMigrator
+```
+
+**PowerShell** -- add to your profile (open it with `notepad $PROFILE`):
+
+```powershell
+Set-Alias raymig RayMigrator
+```
+
+**Windows CMD** -- valid for the current session; put it in a `doskey` AutoRun script to persist:
+
+```bat
+doskey raymig=RayMigrator $*
+```
+
+Reload the shell (or `source ~/.bashrc` / `. $PROFILE`), then verify:
+
+```bash
+raymig --version
+```
+
+The alias passes every argument through unchanged, so `raymig Migrate-Up -p BookStore -env Production -rm Migrate` behaves exactly like the full command.
+
+> **Note:** The alias is a local convenience that you create yourself -- it is **not** shipped with RayMigrator, and it exists only in the shell where you defined it. Use the full name in CI pipelines, scripts, and container entrypoints, where the alias is not present and the explicit name keeps the command portable and reviewable. All examples in this manual use the full name.
+
+---
+
 ## Migrate-Up -- Apply Pending Migrations
 
 Discover and execute pending migration files on target databases.

@@ -16,7 +16,7 @@ This manual guides new users from zero to productive with RayMigrator. It comple
 | [03](03-concepts.md) | Core Concepts | Product/TargetGroup/Target hierarchy, releases, repository, migration lifecycle |
 | [04](04-configuration.md) | Configuration Guide | appsettings.json structure, environment variables, inheritance chain |
 | [05](05-migration-files.md) | Writing Migration Files | TOML metadata, SQL conventions, rollback files, naming and ordering |
-| [06](06-cli-commands.md) | CLI Command Reference | Migrate-Up, Migrate-Down, Validate-Hash, Update-Hash, Info, Baseline, Fix |
+| [06](06-cli-commands.md) | CLI Command Reference | Migrate-Up, Migrate-Down, Validate-Hash, Update-Hash, Info, Baseline, Fix, shell alias |
 | [07](07-execution-modes.md) | Execution Modes | Validate, Simulate, Migrate workflow and CI/CD integration |
 | [08](08-error-handling.md) | Error Handling | MigrationErrorAction strategies (Terminate, Rollback, RollbackErrorOnly, RollbackRelease, Ignore), RollbackErrorAction (Terminate, Ignore) |
 | [09](09-rollback-guide.md) | Rolling Back Migrations | Migrate-Down, writing rollback files, non-reversible operations |
