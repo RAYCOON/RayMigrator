@@ -3,7 +3,8 @@ namespace Raycoon.RayMigrator.Tests.Engine.Infrastructure;
 /// <summary>
 /// Provides pre-built CLI tool configurations per database type for engine tests.
 /// Stdin mode uses 'docker exec -i' to pipe content into the container.
-/// File mode uses '/bin/bash -c "cat ... | docker exec -i ..."' as a host-to-container bridge.
+/// File mode uses a platform-specific shell pipe ('cat ... | docker exec -i ...' via bash, or 'type ... | docker exec -i ...' via cmd.exe)
+/// as a host-to-container bridge.
 /// </summary>
 public static class CliToolConfigHelper
 {
@@ -79,8 +80,9 @@ public static class CliToolConfigHelper
     }
 
     /// <summary>
-    /// Returns a CLI tool config that uses File mode (bash wrapper reads host file and pipes into docker exec).
-    /// From CliToolExecutor's perspective this IS File mode (no stdin redirect). The bash command handles host-to-container bridging.
+    /// Returns a CLI tool config that uses File mode (a shell wrapper reads the host file and pipes it into docker exec).
+    /// From CliToolExecutor's perspective this IS File mode (no stdin redirect). The shell command handles host-to-container bridging.
+    /// The shell is platform-specific: /bin/bash + cat on Linux/macOS, cmd.exe + type on Windows (see <see cref="FileModeShell"/>).
     /// </summary>
     public static CliToolConfig GetFileConfig(string databaseType, string connectionString)
     {
@@ -90,8 +92,8 @@ public static class CliToolConfigHelper
         {
             "PostgreSQL" => new CliToolConfig(
                 Alias: "psql-file",
-                ExecutablePath: "/bin/bash",
-                ArgumentTemplate: "-c \"cat '{FilePath}' | docker exec -i rm_db_postgresql psql --set ON_ERROR_STOP=1 -U {User} -d {Database}\"",
+                ExecutablePath: FileModeShell.Executable,
+                ArgumentTemplate: FileModeShell.Wrap("docker exec -i rm_db_postgresql psql --set ON_ERROR_STOP=1 -U {User} -d {Database}"),
                 InputMode: "File",
                 TimeoutInSeconds: 30,
                 Parameters: new Dictionary<string, string>
@@ -102,8 +104,8 @@ public static class CliToolConfigHelper
 
             "MariaDb" => new CliToolConfig(
                 Alias: "mariadb-file",
-                ExecutablePath: "/bin/bash",
-                ArgumentTemplate: "-c \"cat '{FilePath}' | docker exec -i rm_db_mariadb mariadb -u {User} -p{Password} {Database}\"",
+                ExecutablePath: FileModeShell.Executable,
+                ArgumentTemplate: FileModeShell.Wrap("docker exec -i rm_db_mariadb mariadb -u {User} -p{Password} {Database}"),
                 InputMode: "File",
                 TimeoutInSeconds: 30,
                 Parameters: new Dictionary<string, string>
@@ -115,8 +117,8 @@ public static class CliToolConfigHelper
 
             "MySql" => new CliToolConfig(
                 Alias: "mysql-file",
-                ExecutablePath: "/bin/bash",
-                ArgumentTemplate: "-c \"cat '{FilePath}' | docker exec -i rm_db_mysql mysql -u {User} -p{Password} {Database}\"",
+                ExecutablePath: FileModeShell.Executable,
+                ArgumentTemplate: FileModeShell.Wrap("docker exec -i rm_db_mysql mysql -u {User} -p{Password} {Database}"),
                 InputMode: "File",
                 TimeoutInSeconds: 30,
                 Parameters: new Dictionary<string, string>
@@ -128,8 +130,8 @@ public static class CliToolConfigHelper
 
             "SqlServer" => new CliToolConfig(
                 Alias: "sqlcmd-file",
-                ExecutablePath: "/bin/bash",
-                ArgumentTemplate: "-c \"cat '{FilePath}' | docker exec -i rm_db_sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P {Password} -C -d {Database} -b\"",
+                ExecutablePath: FileModeShell.Executable,
+                ArgumentTemplate: FileModeShell.Wrap("docker exec -i rm_db_sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P {Password} -C -d {Database} -b"),
                 InputMode: "File",
                 TimeoutInSeconds: 30,
                 Parameters: new Dictionary<string, string>
@@ -140,6 +142,20 @@ public static class CliToolConfigHelper
 
             _ => throw new ArgumentException($"Unsupported database type: {databaseType}")
         };
+    }
+
+    /// <summary>
+    /// Platform-specific shell wrapper for File mode: reads the migration file on the host and pipes it into 'docker exec -i'.
+    /// Linux/macOS: /bin/bash -c "cat '{FilePath}' | docker ..."
+    /// Windows:     cmd.exe /c type "{FilePath}" | docker ...   (cmd.exe /c returns the exit code of the last command in the pipe)
+    /// </summary>
+    private static class FileModeShell
+    {
+        public static string Executable => OperatingSystem.IsWindows() ? "cmd.exe" : "/bin/bash";
+
+        public static string Wrap(string dockerCommand) => OperatingSystem.IsWindows()
+            ? $"/c type \"{{FilePath}}\" | {dockerCommand}"
+            : $"-c \"cat '{{FilePath}}' | {dockerCommand}\"";
     }
 
     private static Dictionary<string, string> ParseConnectionString(string connectionString)
