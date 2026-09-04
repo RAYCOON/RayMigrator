@@ -182,3 +182,6 @@ Docs/legal-review-*
 # alle anderen <environment>.env-Dateien enthalten echte Zugangsdaten und bleiben lokal.
 Testing/Docker/*.env
 !Testing/Docker/default.env
+
+# Claude Code MCP server configuration (local, per developer)
+.mcp.json
