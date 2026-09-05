@@ -1,12 +1,14 @@
 using AwesomeAssertions;
 using Raycoon.RayMigrator.Core.Configuration.Enums;
 using Raycoon.RayMigrator.Core.Configuration.Options;
+using Raycoon.RayMigrator.Shared.Exceptions;
 
 namespace Raycoon.RayMigrator.Tests.Unit;
 
 /// <summary>
 /// P2-4: Lazy-caching enum property tests on Options classes.
-/// Tests the pattern: string property -> Enum.TryParse -> cached enum property with Undefined fallback.
+/// Tests the pattern: string property -> case-insensitive parse -> cached enum property. Null falls back to
+/// Undefined, an unparseable value throws (see OptionsEnumCaseInsensitivityTests for the full matrix).
 /// </summary>
 public class OptionsEnumPropertyTests
 {
@@ -21,11 +23,14 @@ public class OptionsEnumPropertyTests
     }
 
     [Fact]
-    public void TargetMigrationOrderEnum_InvalidString_ReturnsUndefined()
+    public void TargetMigrationOrderEnum_InvalidString_Throws()
     {
         var options = new TargetGroupOptions { TargetMigrationOrder = "InvalidValue" };
 
-        options.TargetMigrationOrderEnum.Should().Be(TargetMigrationOrder.Undefined);
+        var act = () => options.TargetMigrationOrderEnum;
+
+        act.Should().Throw<ConfigurationValidationException>()
+            .WithMessage("*Invalid value [InvalidValue] for property [TargetMigrationOrder]. Allowed values: [Simultaneously, Successively].*");
     }
 
     [Fact]
@@ -61,11 +66,14 @@ public class OptionsEnumPropertyTests
     }
 
     [Fact]
-    public void HashValidationScopeEnum_InvalidString_ReturnsUndefined()
+    public void HashValidationScopeEnum_InvalidString_Throws()
     {
         var options = new TargetGroupOptions { HashValidationScope = "NotAScope" };
 
-        options.HashValidationScopeEnum.Should().Be(HashValidationScope.Undefined);
+        var act = () => options.HashValidationScopeEnum;
+
+        act.Should().Throw<ConfigurationValidationException>()
+            .WithMessage("*Invalid value [NotAScope] for property [HashValidationScope]. Allowed values: [File, SqlBlocks, Disabled].*");
     }
 
     #endregion

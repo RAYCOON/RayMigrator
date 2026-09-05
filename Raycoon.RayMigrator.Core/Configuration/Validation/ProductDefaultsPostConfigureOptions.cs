@@ -11,6 +11,88 @@ public class ProductDefaultsPostConfigureOptions : IPostConfigureOptions<RayMigr
     public void PostConfigure(string? name, RayMigratorOptions options)
     {
         MergeDefaults(options);
+        EnsureEnumValuesAreParsable(options);
+    }
+
+    /// <summary>
+    /// Reads every enum-typed getter once so that an unparseable configuration value fails here, after the
+    /// defaults have been merged and before <c>.ValidateDataAnnotations()</c> runs.
+    /// </summary>
+    /// <remarks>
+    /// The getters throw <see cref="ConfigurationValidationException"/> for a non-empty value that is not an
+    /// allowed enum member. <c>DataAnnotationValidateOptions</c> reflects over all public properties of the
+    /// options graph — the getters included — and would surface only the first such failure, wrapped in a
+    /// <see cref="System.Reflection.TargetInvocationException"/>. Probing here reports all invalid values in
+    /// one message with their location, mirroring the wording of <c>RayEnumAttribute</c>.
+    /// </remarks>
+    /// <exception cref="ConfigurationValidationException">At least one enum-typed value cannot be parsed.</exception>
+    public static void EnsureEnumValuesAreParsable(RayMigratorOptions options)
+    {
+        var errors = new List<string>();
+
+        if (options.ProductDefaults != null)
+        {
+            Probe(errors, "ProductDefaults", () => options.ProductDefaults.MigrationErrorActionEnum);
+            Probe(errors, "ProductDefaults", () => options.ProductDefaults.RollbackErrorActionEnum);
+
+            if (options.ProductDefaults.TargetGroupDefaults != null)
+            {
+                Probe(errors, "ProductDefaults.TargetGroupDefaults", () => options.ProductDefaults.TargetGroupDefaults.TargetMigrationOrderEnum);
+                Probe(errors, "ProductDefaults.TargetGroupDefaults", () => options.ProductDefaults.TargetGroupDefaults.HashValidationScopeEnum);
+            }
+        }
+
+        if (options.Products != null)
+        {
+            for (var p = 0; p < options.Products.Count; p++)
+            {
+                var product = options.Products[p];
+                var productPath = $"Products[{p}] (Alias '{product.Alias}')";
+                Probe(errors, productPath, () => product.MigrationErrorActionEnum);
+                Probe(errors, productPath, () => product.RollbackErrorActionEnum);
+
+                if (product.TargetGroups == null) continue;
+
+                for (var t = 0; t < product.TargetGroups.Count; t++)
+                {
+                    var targetGroup = product.TargetGroups[t];
+                    var targetGroupPath = $"Products[{p}].TargetGroups[{t}] (Alias '{targetGroup.Alias}')";
+                    Probe(errors, targetGroupPath, () => targetGroup.TargetMigrationOrderEnum);
+                    Probe(errors, targetGroupPath, () => targetGroup.HashValidationScopeEnum);
+                }
+            }
+        }
+
+        if (options.CliTools != null)
+        {
+            for (var c = 0; c < options.CliTools.Count; c++)
+            {
+                var cliTool = options.CliTools[c];
+                Probe(errors, $"CliTools[{c}] (Alias '{cliTool.Alias}')", () => cliTool.InputModeEnum);
+            }
+        }
+
+        if (errors.Count > 0)
+        {
+            throw new ConfigurationValidationException(
+                $"{errors.Count} enum-typed configuration value(s) could not be parsed:" +
+                string.Concat(errors.Select(e => Environment.NewLine + "  - " + e)));
+        }
+    }
+
+    private static void Probe(List<string> errors, string path, Func<Enum> getter)
+    {
+        try
+        {
+            getter();
+        }
+        catch (ConfigurationValidationException ex)
+        {
+            var message = ex.Message.StartsWith(ConfigurationValidationException.AbortMessage, StringComparison.Ordinal)
+                ? ex.Message[ConfigurationValidationException.AbortMessage.Length..]
+                : ex.Message;
+            errors.Add($"{path}: {message}");
+        }
     }
 
     /// <summary>

@@ -8,8 +8,8 @@ Target groups organize related databases that receive the same migrations.
 |----------|------|----------|---------|-------------|
 | `Alias` | string | Yes | - | Unique identifier within product (Unicode letters, numbers, underscores; max 50 characters) |
 | `DatabaseType` | string | Yes | - | Database type for all targets in this group |
-| `TargetMigrationOrder` | string | No | Inherited from `TargetGroupDefaults` | Execution order: `Simultaneously` or `Successively` |
-| `HashValidationScope` | string | No | Inherited from `TargetGroupDefaults` | Hash validation mode: `File`, `SqlBlocks`, or `Disabled` |
+| `TargetMigrationOrder` | string | No | Inherited from `TargetGroupDefaults` | Execution order: `Simultaneously` or `Successively`. Matching is case-insensitive: `Successively`, `successively` and `SUCCESSIVELY` are equivalent. |
+| `HashValidationScope` | string | No | Inherited from `TargetGroupDefaults` | Hash validation mode: `File`, `SqlBlocks`, or `Disabled`. Matching is case-insensitive: `SqlBlocks`, `sqlblocks` and `SQLBLOCKS` are equivalent. |
 | `StopRollbackOnMissingRollbackFile` | bool? | No | Inherited from `TargetGroupDefaults` | When `RequireRollbackFile=false`, controls whether an error-recovery rollback chain stops (`true`) or continues (`false`) when a rollback file is missing. Overrides the Product-level value for this TargetGroup. No effect on migrate-down. |
 | `UseCliToolAlias` | string | No | Inherited from `Product` | CLI tool alias for migration execution instead of the DAL. References a `CliTools[].Alias` defined at the `RayMigrator` root level. Can be overridden per Target. |
 | `Targets` | array | Yes | - | Target database configurations |

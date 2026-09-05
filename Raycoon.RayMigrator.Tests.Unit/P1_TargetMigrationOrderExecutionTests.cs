@@ -1,6 +1,7 @@
 using AwesomeAssertions;
 using Raycoon.RayMigrator.Core.Configuration.Enums;
 using Raycoon.RayMigrator.Core.Configuration.Options;
+using Raycoon.RayMigrator.Shared.Exceptions;
 using Raycoon.RayMigrator.Core.Models;
 using Raycoon.RayMigrator.Services;
 
@@ -138,21 +139,17 @@ public class TargetMigrationOrderExecutionTests
     #region Undefined / Defaults
 
     [Fact]
-    public void UndefinedTargetMigrationOrder_DefaultsToSuccessively()
+    public void UndefinedTargetMigrationOrderString_IsRejectedByGetter()
     {
-        // Arrange
+        // "Undefined" is the "not set" sentinel, not a configurable value: the getter refuses it
+        // instead of silently treating it like Successively. The Undefined-enum path itself is
+        // covered by NullTargetMigrationOrder_DefaultsToSuccessively.
         var files = new List<MigrationFileInfo> { CreateFile(1), CreateFile(2) };
         var targetGroup = CreateTargetGroup("Undefined", ["T1", "T2"]);
 
-        // Act
-        var order = MigrationService.GetExecutionOrder(files, targetGroup);
+        var act = () => MigrationService.GetExecutionOrder(files, targetGroup);
 
-        // Assert — same as Successively (target → file)
-        order.Should().HaveCount(4);
-        order[0].Should().Be((1, "T1"));
-        order[1].Should().Be((2, "T1"));
-        order[2].Should().Be((1, "T2"));
-        order[3].Should().Be((2, "T2"));
+        act.Should().Throw<ConfigurationValidationException>();
     }
 
     [Fact]

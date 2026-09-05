@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Raycoon.RayMigrator.Core.Configuration.Enums;
 using Raycoon.RayMigrator.Core.Configuration.Options;
 using Raycoon.RayMigrator.Core.Configuration.Validation;
 using Raycoon.RayMigrator.Shared.Exceptions;
@@ -14,7 +15,7 @@ public class ProductDefaultsPostConfigureOptionsTests
     private static RayMigratorOptions CreateOptionsWithDefaults(
         string? migrationErrorAction = "Terminate",
         string? targetMigrationOrder = "Successively",
-        string? hashValidationScope = "FileHash",
+        string? hashValidationScope = "File",
         int? dbTimeout = 30)
     {
         return new RayMigratorOptions
@@ -165,12 +166,41 @@ public class ProductDefaultsPostConfigureOptionsTests
     public void InvalidDefaultEnum_IsNotCopied()
     {
         var options = CreateOptionsWithDefaults(migrationErrorAction: "InvalidAction");
+
+        ProductDefaultsPostConfigureOptions.MergeDefaults(options);
+
+        // The invalid default should not be copied; the product keeps its null/empty value
+        options.Products!.First().MigrationErrorAction.Should().BeNullOrEmpty();
+    }
+
+    [Fact]
+    public void InvalidDefaultEnum_PostConfigure_FailsFastWithLocation()
+    {
+        // After merging, PostConfigure probes every enum getter so that DataAnnotation validation never
+        // reflects over a getter that throws (#3).
+        var options = CreateOptionsWithDefaults(migrationErrorAction: "InvalidAction");
+        var postConfigure = new ProductDefaultsPostConfigureOptions();
+
+        var act = () => postConfigure.PostConfigure(null, options);
+
+        act.Should().Throw<ConfigurationValidationException>()
+            .WithMessage("*ProductDefaults: Invalid value [InvalidAction] for property [MigrationErrorAction]*");
+    }
+
+    [Fact]
+    public void CaseVariantDefaultEnum_IsCopiedAndParses()
+    {
+        var options = CreateOptionsWithDefaults(migrationErrorAction: "rollback", targetMigrationOrder: "SIMULTANEOUSLY", hashValidationScope: "sqlblocks");
         var postConfigure = new ProductDefaultsPostConfigureOptions();
 
         postConfigure.PostConfigure(null, options);
 
-        // The invalid default should not be copied; the product keeps its null/empty value
-        options.Products!.First().MigrationErrorAction.Should().BeNullOrEmpty();
+        var product = options.Products!.First();
+        product.MigrationErrorAction.Should().Be("rollback", "the raw string is copied verbatim");
+        product.MigrationErrorActionEnum.Should().Be(MigrationErrorAction.Rollback);
+        var targetGroup = product.TargetGroups!.First();
+        targetGroup.TargetMigrationOrderEnum.Should().Be(TargetMigrationOrder.Simultaneously);
+        targetGroup.HashValidationScopeEnum.Should().Be(HashValidationScope.SqlBlocks);
     }
 
     [Fact]
@@ -185,7 +215,7 @@ public class ProductDefaultsPostConfigureOptionsTests
                 TargetGroupDefaults = new TargetGroupDefaultOptions
                 {
                     TargetMigrationOrder = "Successively",
-                    HashValidationScope = "FileHash",
+                    HashValidationScope = "File",
                     TargetDefaults = new TargetDefaultsOptions()
                 }
             },
@@ -218,7 +248,7 @@ public class ProductDefaultsPostConfigureOptionsTests
                 TargetGroupDefaults = new TargetGroupDefaultOptions
                 {
                     TargetMigrationOrder = "Successively",
-                    HashValidationScope = "FileHash",
+                    HashValidationScope = "File",
                     TargetDefaults = new TargetDefaultsOptions()
                 }
             },
@@ -252,7 +282,7 @@ public class ProductDefaultsPostConfigureOptionsTests
                 TargetGroupDefaults = new TargetGroupDefaultOptions
                 {
                     TargetMigrationOrder = "Successively",
-                    HashValidationScope = "FileHash",
+                    HashValidationScope = "File",
                     TargetDefaults = new TargetDefaultsOptions()
                 }
             },
@@ -285,7 +315,7 @@ public class ProductDefaultsPostConfigureOptionsTests
                 TargetGroupDefaults = new TargetGroupDefaultOptions
                 {
                     TargetMigrationOrder = "Successively",
-                    HashValidationScope = "FileHash",
+                    HashValidationScope = "File",
                     TargetDefaults = new TargetDefaultsOptions()
                 }
             },
@@ -318,7 +348,7 @@ public class ProductDefaultsPostConfigureOptionsTests
                 TargetGroupDefaults = new TargetGroupDefaultOptions
                 {
                     TargetMigrationOrder = "Successively",
-                    HashValidationScope = "FileHash",
+                    HashValidationScope = "File",
                     TargetDefaults = new TargetDefaultsOptions()
                 }
             },
@@ -351,7 +381,7 @@ public class ProductDefaultsPostConfigureOptionsTests
                 TargetGroupDefaults = new TargetGroupDefaultOptions
                 {
                     TargetMigrationOrder = "Successively",
-                    HashValidationScope = "FileHash",
+                    HashValidationScope = "File",
                     StopRollbackOnMissingRollbackFile = false,
                     TargetDefaults = new TargetDefaultsOptions()
                 }
@@ -393,7 +423,7 @@ public class ProductDefaultsPostConfigureOptionsTests
                 TargetGroupDefaults = new TargetGroupDefaultOptions
                 {
                     TargetMigrationOrder = "Successively",
-                    HashValidationScope = "FileHash",
+                    HashValidationScope = "File",
                     TargetDefaults = new TargetDefaultsOptions()
                 }
             },

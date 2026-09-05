@@ -4,8 +4,36 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Raycoon.RayMigrator.Core.Configuration.Enums;
 using Raycoon.RayMigrator.Core.Configuration.Validation.RayAttributes;
+using Raycoon.RayMigrator.Core.Extensions;
+using Raycoon.RayMigrator.Shared.Exceptions;
 
 namespace Raycoon.RayMigrator.Core.Configuration.Options;
+
+/// <summary>
+/// Converts the validated string representation of an enum-typed option into the enum member.
+/// Matching is case-insensitive and mirrors the contract of <see cref="RayEnumAttribute"/>: the
+/// allowed names are the enum members without the first (<c>Undefined</c>) sentinel. A non-empty
+/// value that does not match any allowed name fails fast instead of silently degrading to
+/// <c>Undefined</c>, which downstream code treats like a real member.
+/// </summary>
+internal static class OptionsEnumParser
+{
+    internal static TEnum ParseOrThrow<TEnum>(string raw, string propertyName) where TEnum : struct, Enum
+    {
+        var allowedValues = typeof(TEnum).AllowedValues();
+        var trimmed = raw.Trim();
+        var match = allowedValues.FirstOrDefault(name => name.Equals(trimmed, StringComparison.OrdinalIgnoreCase));
+
+        if (match is not null)
+        {
+            return Enum.Parse<TEnum>(match);
+        }
+
+        throw new ConfigurationValidationException(
+            $"Invalid value [{raw}] for property [{propertyName}]. " +
+            $"Allowed values: [{string.Join(", ", allowedValues)}].");
+    }
+}
 
 /// <summary>
 /// 
@@ -139,13 +167,14 @@ public class ProductDefaultOptions
                 return _migrationErrorAction;
             }
 
-            if (Enum.TryParse(MigrationErrorAction!, out _migrationErrorAction))
+            if (string.IsNullOrWhiteSpace(MigrationErrorAction))
             {
-                _isMigrationErrorActionInitialized = true;
-                return _migrationErrorAction;
+                return Enums.MigrationErrorAction.Undefined;
             }
 
-            return Enums.MigrationErrorAction.Undefined;
+            _migrationErrorAction = OptionsEnumParser.ParseOrThrow<Enums.MigrationErrorAction>(MigrationErrorAction, nameof(MigrationErrorAction));
+            _isMigrationErrorActionInitialized = true;
+            return _migrationErrorAction;
         }
     }
     
@@ -169,13 +198,14 @@ public class ProductDefaultOptions
                 return _rollbackErrorAction;
             }
 
-            if (Enum.TryParse(RollbackErrorAction!, out _rollbackErrorAction))
+            if (string.IsNullOrWhiteSpace(RollbackErrorAction))
             {
-                _isRollbackErrorActionInitialized = true;
-                return _rollbackErrorAction;
+                return Enums.RollbackErrorAction.Undefined;
             }
 
-            return Enums.RollbackErrorAction.Undefined;
+            _rollbackErrorAction = OptionsEnumParser.ParseOrThrow<Enums.RollbackErrorAction>(RollbackErrorAction, nameof(RollbackErrorAction));
+            _isRollbackErrorActionInitialized = true;
+            return _rollbackErrorAction;
         }
     }
 
@@ -233,13 +263,14 @@ public class TargetGroupDefaultOptions
                 return _targetMigrationOrder;
             }
 
-            if (Enum.TryParse(TargetMigrationOrder!, out _targetMigrationOrder))
+            if (string.IsNullOrWhiteSpace(TargetMigrationOrder))
             {
-                _isTargetMigrationOrderInitialized = true;
-                return _targetMigrationOrder;
+                return Enums.TargetMigrationOrder.Undefined;
             }
 
-            return Enums.TargetMigrationOrder.Undefined;
+            _targetMigrationOrder = OptionsEnumParser.ParseOrThrow<Enums.TargetMigrationOrder>(TargetMigrationOrder, nameof(TargetMigrationOrder));
+            _isTargetMigrationOrderInitialized = true;
+            return _targetMigrationOrder;
         }
     }
 
@@ -261,13 +292,14 @@ public class TargetGroupDefaultOptions
                 return _HashValidationScope;
             }
 
-            if (Enum.TryParse(HashValidationScope!, out _HashValidationScope))
+            if (string.IsNullOrWhiteSpace(HashValidationScope))
             {
-                _isHashValidationScopeInitialized = true;
-                return _HashValidationScope;
+                return Enums.HashValidationScope.Undefined;
             }
 
-            return Enums.HashValidationScope.Undefined;
+            _HashValidationScope = OptionsEnumParser.ParseOrThrow<Enums.HashValidationScope>(HashValidationScope, nameof(HashValidationScope));
+            _isHashValidationScopeInitialized = true;
+            return _HashValidationScope;
         }
     }
 
@@ -340,13 +372,14 @@ public class ProductOptions
                 return _migrationErrorAction;
             }
 
-            if (Enum.TryParse(MigrationErrorAction!, out _migrationErrorAction))
+            if (string.IsNullOrWhiteSpace(MigrationErrorAction))
             {
-                _isMigrationErrorActionInitialized = true;
-                return _migrationErrorAction;
+                return Enums.MigrationErrorAction.Undefined;
             }
 
-            return Enums.MigrationErrorAction.Undefined;
+            _migrationErrorAction = OptionsEnumParser.ParseOrThrow<Enums.MigrationErrorAction>(MigrationErrorAction, nameof(MigrationErrorAction));
+            _isMigrationErrorActionInitialized = true;
+            return _migrationErrorAction;
         }
     }
     
@@ -370,13 +403,14 @@ public class ProductOptions
                 return _rollbackErrorAction;
             }
 
-            if (Enum.TryParse(RollbackErrorAction!, out _rollbackErrorAction))
+            if (string.IsNullOrWhiteSpace(RollbackErrorAction))
             {
-                _isRollbackErrorActionInitialized = true;
-                return _rollbackErrorAction;
+                return Enums.RollbackErrorAction.Undefined;
             }
 
-            return Enums.RollbackErrorAction.Undefined;
+            _rollbackErrorAction = OptionsEnumParser.ParseOrThrow<Enums.RollbackErrorAction>(RollbackErrorAction, nameof(RollbackErrorAction));
+            _isRollbackErrorActionInitialized = true;
+            return _rollbackErrorAction;
         }
     }
 
@@ -453,13 +487,14 @@ public class TargetGroupOptions
                 return _targetMigrationOrder;
             }
 
-            if (Enum.TryParse(TargetMigrationOrder!, out _targetMigrationOrder))
+            if (string.IsNullOrWhiteSpace(TargetMigrationOrder))
             {
-                _isTargetMigrationOrderInitialized = true;
-                return _targetMigrationOrder;
+                return Enums.TargetMigrationOrder.Undefined;
             }
 
-            return Enums.TargetMigrationOrder.Undefined;
+            _targetMigrationOrder = OptionsEnumParser.ParseOrThrow<Enums.TargetMigrationOrder>(TargetMigrationOrder, nameof(TargetMigrationOrder));
+            _isTargetMigrationOrderInitialized = true;
+            return _targetMigrationOrder;
         }
     }
 
@@ -481,13 +516,14 @@ public class TargetGroupOptions
                 return _HashValidationScope;
             }
 
-            if (Enum.TryParse(HashValidationScope!, out _HashValidationScope))
+            if (string.IsNullOrWhiteSpace(HashValidationScope))
             {
-                _isHashValidationScopeInitialized = true;
-                return _HashValidationScope;
+                return Enums.HashValidationScope.Undefined;
             }
 
-            return Enums.HashValidationScope.Undefined;
+            _HashValidationScope = OptionsEnumParser.ParseOrThrow<Enums.HashValidationScope>(HashValidationScope, nameof(HashValidationScope));
+            _isHashValidationScopeInitialized = true;
+            return _HashValidationScope;
         }
     }
 
@@ -600,13 +636,14 @@ public class CliToolOptions
             if (_isInputModeInitialized)
                 return _inputMode;
 
-            if (Enum.TryParse(InputMode!, out _inputMode))
+            if (string.IsNullOrWhiteSpace(InputMode))
             {
-                _isInputModeInitialized = true;
-                return _inputMode;
+                return Enums.CliToolInputMode.File;
             }
 
-            return Enums.CliToolInputMode.File; // Default to File
+            _inputMode = OptionsEnumParser.ParseOrThrow<Enums.CliToolInputMode>(InputMode, nameof(InputMode));
+            _isInputModeInitialized = true;
+            return _inputMode;
         }
     }
 

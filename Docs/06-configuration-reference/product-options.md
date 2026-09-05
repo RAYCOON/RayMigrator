@@ -8,8 +8,8 @@ Products represent separate applications or systems with their own migration set
 |----------|------|----------|---------|-------------|
 | `Alias` | string | Yes | - | Unique product identifier (Unicode letters, numbers, underscores, max 50 chars) |
 | `MigrationFilesRootDirectory` | string | Yes | - | Root path for migration files (must exist) |
-| `MigrationErrorAction` | string | Yes* | - | Error handling mode (*inherited from `ProductDefaults`) |
-| `RollbackErrorAction` | string | No | - | Error handling during rollback (inherited from `ProductDefaults`) |
+| `MigrationErrorAction` | string | Yes* | - | Error handling mode (*inherited from `ProductDefaults`). Matching is case-insensitive: `Rollback`, `rollback` and `ROLLBACK` are equivalent. |
+| `RollbackErrorAction` | string | No | - | Error handling during rollback (inherited from `ProductDefaults`). Matching is case-insensitive: `Terminate`, `terminate` and `TERMINATE` are equivalent. |
 | `MigrationFilesExtension` | string | No | - | Migration file extension (inherited from `ProductDefaults`) |
 | `MigrationRollbackFilesPreExtension` | string | No | - | Rollback file naming (inherited from `ProductDefaults`) |
 | `MigrationFilesEncoding` | string | No | - | File encoding (inherited from `ProductDefaults`) |

@@ -33,7 +33,7 @@ CLI tools are defined at the `RayMigrator` root level in the `CliTools` array, a
 | `Alias` | string | Yes | - | Unique identifier (letters, numbers, underscores, hyphens; max 50 chars). Referenced by `UseCliToolAlias` on Products, TargetGroups, Targets, migsettings, and TOML headers. |
 | `ExecutablePath` | string | Yes | - | Path to the CLI tool executable. Can be an absolute path or a command name found in the system PATH. |
 | `ArgumentTemplate` | string | Yes | - | Command-line argument template with placeholders. `{FilePath}` is replaced with the migration file path (when `InputMode` is `File`). Custom placeholders (e.g., `{Server}`, `{User}`) are resolved from `CliToolParameters` on the Target. |
-| `InputMode` | string | No | `File` | How the SQL file is passed to the CLI tool: `File` (as argument via `{FilePath}`) or `Stdin` (piped via standard input). |
+| `InputMode` | string | No | `File` | How the SQL file is passed to the CLI tool: `File` (as argument via `{FilePath}`) or `Stdin` (piped via standard input). Matching is case-insensitive: `Stdin`, `stdin` and `STDIN` are equivalent. |
 | `SuccessExitCodes` | string[] | No | `["0"]` | Exit code whitelist. Supports single values (`"0"`), closed ranges (`"1..5"`), open-ended up (`"10.."`), and open-ended down (`"..-1"`). Any exit code not matched is treated as failure. |
 | `CliToolTimeoutInSeconds` | int | No | `120` | Maximum time in seconds to wait for the CLI tool to complete. Minimum: 1. |
 

@@ -562,8 +562,9 @@ public class RollbackErrorActionDefaultsCopyTests
             }
         };
 
-        var postConfigure = new Raycoon.RayMigrator.Core.Configuration.Validation.ProductDefaultsPostConfigureOptions();
-        postConfigure.PostConfigure(null, options);
+        // MergeDefaults alone: the invalid default is not copied. (PostConfigure would additionally
+        // fail fast on the invalid ProductDefaults value itself — see ProductDefaultsPostConfigureOptionsTests.)
+        Raycoon.RayMigrator.Core.Configuration.Validation.ProductDefaultsPostConfigureOptions.MergeDefaults(options);
 
         // Invalid default should not be copied
         options.Products!.First().RollbackErrorAction.Should().BeNull();

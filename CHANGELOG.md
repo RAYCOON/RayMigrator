@@ -31,6 +31,30 @@ RayMigrator follows Semantic Versioning where applicable.
   validation messages and documentation now show them in lowercase.
   Every pipeline invoking the CLI must be updated in the same deployment.
   (#2)
+- An enum-typed configuration value (`MigrationErrorAction`,
+  `RollbackErrorAction`, `TargetMigrationOrder`, `HashValidationScope`,
+  `InputMode`) that cannot be parsed now fails with a
+  `ConfigurationValidationException` instead of silently falling back to
+  `Undefined` / `File`. In JSON mode such values were already rejected at
+  startup; the report now comes from `ProductDefaultsPostConfigureOptions`
+  (one message listing every invalid value with its location, same wording
+  as `RayEnumAttribute`) rather than from the `OptionsValidationException`
+  of the data-annotation step, because that step reflects over the `*Enum`
+  getters and would otherwise surface only the first failure. For pre-built
+  options (Admin-DB mode) the getter itself throws on first use. The literal
+  value `Undefined` is rejected like any other invalid value. (#3)
+
+### Fixed
+
+- Configuration enum values are now parsed case-insensitively, matching
+  what `[RayEnum]` validation has always accepted. A case variant such as
+  `"MigrationErrorAction": "rollback"` no longer passes validation and then
+  silently degrades to `Undefined` at runtime (which behaved like
+  `Terminate`, skipped the pre-flight rollback checks, kept hash validation
+  on for `"disabled"`, ran target groups serially for `"simultaneously"`
+  and passed a file path to a CLI tool configured with `"stdin"`). The
+  shipped examples and the ConfigWizard keep emitting canonical PascalCase;
+  lowercase is tolerated, not preferred. (#3)
 
 ## [0.11.0] — 2026-08-17
 
