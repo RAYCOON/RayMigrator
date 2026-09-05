@@ -5,7 +5,7 @@
 .idea/*.xml
 *.DotSettings.user
 
-# Visual Studio specific (falls mal benötigt)
+# Visual Studio specific (in case it is ever needed)
 .vs/
 *.suo
 *.user
@@ -17,7 +17,7 @@ CLAUDE.local.md
 CLAUDE.md
 Claude-Code-Commands-Skills-Agents.md
 
-# Claude (gesamtes Verzeichnis, außer GitHub-Actions-Workflows)
+# Claude (entire directory, except GitHub Actions workflows)
 .claude/
 .claude-backup
 
@@ -52,7 +52,7 @@ _ReSharper.*/
 # Git bundles (never commit backups)
 *.bundle
 
-# Python tooling (falls mal ein Skript dazukommt)
+# Python tooling (in case a script is ever added)
 __pycache__/
 *.pyc
 

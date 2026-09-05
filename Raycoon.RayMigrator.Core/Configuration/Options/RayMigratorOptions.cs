@@ -290,7 +290,7 @@ public class TargetGroupDefaultOptions
 /// </summary>
 public class TargetDefaultsOptions
 {
-    // Hier sind die Werte als string definiert, da im JSON auch Umgebungsvariablen (z.B. "{ENV:DbConnectionTimeoutInSeconds}") vorkommen.
+    // The values are defined as string here because the JSON may also contain environment variables (e.g. "{ENV:DbConnectionTimeoutInSeconds}").
     [RayRangeInt(0, int.MaxValue, 20)]
     public int? DbCommandTimeoutInSeconds { get; set; } // int must be nullable, otherwise defaultValue is not applied!
 

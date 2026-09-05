@@ -20,7 +20,7 @@
         <IsPackable>false</IsPackable>
     </PropertyGroup>
 
-    <!-- Editions für verschiedene Environments -->
+    <!-- Editions for different environments -->
     <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
         <DefineConstants>DEBUG;TRACE;DEVELOPMENT_EDITION</DefineConstants>
         <Edition>Development Edition</Edition>
