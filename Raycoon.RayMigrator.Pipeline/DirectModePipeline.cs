@@ -149,6 +149,9 @@ public static class DirectModePipeline
                             // Admin-DB mode: IValidateOptions is NOT invoked here — pre-built Options from
                             // AdminDbOptionsSource are trusted. If future Studio needs validation, run
                             // RayMigratorOptionsValidator.Validate(null, preBuilt) explicitly at that layer.
+                            // Enum-typed values are the exception: the *Enum getters throw on an unparseable
+                            // value (#3), so report those at startup instead of mid-run on first use.
+                            ProductDefaultsPostConfigureOptions.EnsureEnumValuesAreParsable(sourceResult.PreBuiltOptions);
                             services.AddSingleton(Options.Create(sourceResult.PreBuiltOptions));
                         }
                         else

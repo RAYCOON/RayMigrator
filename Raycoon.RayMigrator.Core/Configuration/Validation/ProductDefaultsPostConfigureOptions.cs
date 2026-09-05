@@ -19,11 +19,14 @@ public class ProductDefaultsPostConfigureOptions : IPostConfigureOptions<RayMigr
     /// defaults have been merged and before <c>.ValidateDataAnnotations()</c> runs.
     /// </summary>
     /// <remarks>
-    /// The getters throw <see cref="ConfigurationValidationException"/> for a non-empty value that is not an
-    /// allowed enum member. <c>DataAnnotationValidateOptions</c> reflects over all public properties of the
-    /// options graph — the getters included — and would surface only the first such failure, wrapped in a
-    /// <see cref="System.Reflection.TargetInvocationException"/>. Probing here reports all invalid values in
-    /// one message with their location, mirroring the wording of <c>RayEnumAttribute</c>.
+    /// The <c>*Enum</c> getters throw <see cref="ConfigurationValidationException"/> for a non-empty value that is
+    /// not an allowed enum member. <c>DataAnnotationValidateOptions.TryValidateOptions</c> calls
+    /// <c>PropertyInfo.GetValue</c> on every public instance property of the options graph (not only on
+    /// attributed ones) while looking for <c>[ValidateObjectMembers]</c> / <c>[ValidateEnumeratedItems]</c>, so
+    /// without this probe the first invalid value would escape as a <see cref="System.Reflection.TargetInvocationException"/>
+    /// and the remaining ones would go unreported. Probing the raw strings here reports all invalid enum values
+    /// in one message with their location, in the wording of <c>RayEnumAttribute</c>. Trade-off: other
+    /// data-annotation and rule-catalog findings are only reported once the enum values are fixed.
     /// </remarks>
     /// <exception cref="ConfigurationValidationException">At least one enum-typed value cannot be parsed.</exception>
     public static void EnsureEnumValuesAreParsable(RayMigratorOptions options)
@@ -32,13 +35,13 @@ public class ProductDefaultsPostConfigureOptions : IPostConfigureOptions<RayMigr
 
         if (options.ProductDefaults != null)
         {
-            Probe(errors, "ProductDefaults", () => options.ProductDefaults.MigrationErrorActionEnum);
-            Probe(errors, "ProductDefaults", () => options.ProductDefaults.RollbackErrorActionEnum);
+            Probe<MigrationErrorAction>(errors, "ProductDefaults", options.ProductDefaults.MigrationErrorAction, nameof(ProductDefaultOptions.MigrationErrorAction));
+            Probe<RollbackErrorAction>(errors, "ProductDefaults", options.ProductDefaults.RollbackErrorAction, nameof(ProductDefaultOptions.RollbackErrorAction));
 
             if (options.ProductDefaults.TargetGroupDefaults != null)
             {
-                Probe(errors, "ProductDefaults.TargetGroupDefaults", () => options.ProductDefaults.TargetGroupDefaults.TargetMigrationOrderEnum);
-                Probe(errors, "ProductDefaults.TargetGroupDefaults", () => options.ProductDefaults.TargetGroupDefaults.HashValidationScopeEnum);
+                Probe<TargetMigrationOrder>(errors, "ProductDefaults.TargetGroupDefaults", options.ProductDefaults.TargetGroupDefaults.TargetMigrationOrder, nameof(TargetGroupDefaultOptions.TargetMigrationOrder));
+                Probe<HashValidationScope>(errors, "ProductDefaults.TargetGroupDefaults", options.ProductDefaults.TargetGroupDefaults.HashValidationScope, nameof(TargetGroupDefaultOptions.HashValidationScope));
             }
         }
 
@@ -48,8 +51,8 @@ public class ProductDefaultsPostConfigureOptions : IPostConfigureOptions<RayMigr
             {
                 var product = options.Products[p];
                 var productPath = $"Products[{p}] (Alias '{product.Alias}')";
-                Probe(errors, productPath, () => product.MigrationErrorActionEnum);
-                Probe(errors, productPath, () => product.RollbackErrorActionEnum);
+                Probe<MigrationErrorAction>(errors, productPath, product.MigrationErrorAction, nameof(ProductOptions.MigrationErrorAction));
+                Probe<RollbackErrorAction>(errors, productPath, product.RollbackErrorAction, nameof(ProductOptions.RollbackErrorAction));
 
                 if (product.TargetGroups == null) continue;
 
@@ -57,8 +60,8 @@ public class ProductDefaultsPostConfigureOptions : IPostConfigureOptions<RayMigr
                 {
                     var targetGroup = product.TargetGroups[t];
                     var targetGroupPath = $"Products[{p}].TargetGroups[{t}] (Alias '{targetGroup.Alias}')";
-                    Probe(errors, targetGroupPath, () => targetGroup.TargetMigrationOrderEnum);
-                    Probe(errors, targetGroupPath, () => targetGroup.HashValidationScopeEnum);
+                    Probe<TargetMigrationOrder>(errors, targetGroupPath, targetGroup.TargetMigrationOrder, nameof(TargetGroupOptions.TargetMigrationOrder));
+                    Probe<HashValidationScope>(errors, targetGroupPath, targetGroup.HashValidationScope, nameof(TargetGroupOptions.HashValidationScope));
                 }
             }
         }
@@ -68,7 +71,7 @@ public class ProductDefaultsPostConfigureOptions : IPostConfigureOptions<RayMigr
             for (var c = 0; c < options.CliTools.Count; c++)
             {
                 var cliTool = options.CliTools[c];
-                Probe(errors, $"CliTools[{c}] (Alias '{cliTool.Alias}')", () => cliTool.InputModeEnum);
+                Probe<CliToolInputMode>(errors, $"CliTools[{c}] (Alias '{cliTool.Alias}')", cliTool.InputMode, nameof(CliToolOptions.InputMode));
             }
         }
 
@@ -80,18 +83,18 @@ public class ProductDefaultsPostConfigureOptions : IPostConfigureOptions<RayMigr
         }
     }
 
-    private static void Probe(List<string> errors, string path, Func<Enum> getter)
+    /// <summary>
+    /// Applies the same rule as the <c>*Enum</c> getters to a raw string value. Null / whitespace is the
+    /// "not set" sentinel and is never an error here; a required-but-missing value is reported by
+    /// <c>RayEnumAttribute</c> in the data-annotation step.
+    /// </summary>
+    private static void Probe<TEnum>(List<string> errors, string path, string? raw, string propertyName) where TEnum : struct, Enum
     {
-        try
+        if (string.IsNullOrWhiteSpace(raw)) return;
+
+        if (!OptionsEnumParser.TryParse<TEnum>(raw, propertyName, out _, out var error))
         {
-            getter();
-        }
-        catch (ConfigurationValidationException ex)
-        {
-            var message = ex.Message.StartsWith(ConfigurationValidationException.AbortMessage, StringComparison.Ordinal)
-                ? ex.Message[ConfigurationValidationException.AbortMessage.Length..]
-                : ex.Message;
-            errors.Add($"{path}: {message}");
+            errors.Add($"{path}: {error}");
         }
     }
 
@@ -212,7 +215,7 @@ public class ProductDefaultsPostConfigureOptions : IPostConfigureOptions<RayMigr
     /// <returns></returns>
     private static bool DefaultMigrationErrorActionIsValid(string? migrationErrorAction)
     {
-        return Enum.TryParse(migrationErrorAction, true, out MigrationErrorAction _);
+        return OptionsEnumParser.TryParse<MigrationErrorAction>(migrationErrorAction, nameof(ProductDefaultOptions.MigrationErrorAction), out _, out _);
     }
 
     /// <summary>
@@ -222,12 +225,12 @@ public class ProductDefaultsPostConfigureOptions : IPostConfigureOptions<RayMigr
     /// <returns></returns>
     private static bool DefaultRollbackErrorActionIsValid(string? rollbackErrorAction)
     {
-        return Enum.TryParse(rollbackErrorAction, true, out RollbackErrorAction _);
+        return OptionsEnumParser.TryParse<RollbackErrorAction>(rollbackErrorAction, nameof(ProductDefaultOptions.RollbackErrorAction), out _, out _);
     }
 
     private static bool DefaultTargetMigrationOrderIsValid(string? targetMigrationOrder)
     {
-        return Enum.TryParse(targetMigrationOrder, true, out TargetMigrationOrder _);
+        return OptionsEnumParser.TryParse<TargetMigrationOrder>(targetMigrationOrder, nameof(TargetGroupDefaultOptions.TargetMigrationOrder), out _, out _);
     }
 
     /// <summary>
@@ -237,6 +240,6 @@ public class ProductDefaultsPostConfigureOptions : IPostConfigureOptions<RayMigr
     /// <returns></returns>
     private static bool DefaultHashValidationScopeIsValid(string? HashValidationScope)
     {
-        return Enum.TryParse(HashValidationScope, true, out HashValidationScope _);
+        return OptionsEnumParser.TryParse<HashValidationScope>(HashValidationScope, nameof(TargetGroupDefaultOptions.HashValidationScope), out _, out _);
     }
 }

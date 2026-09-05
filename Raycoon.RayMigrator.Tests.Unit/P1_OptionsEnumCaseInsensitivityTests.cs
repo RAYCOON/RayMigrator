@@ -108,9 +108,12 @@ public class OptionsEnumCaseInsensitivityTests
     }
 
     [Fact]
-    public void SurroundingWhitespace_IsTrimmed()
+    public void SurroundingWhitespace_IsNotTrimmed_LikeRayEnumAttribute()
     {
-        new ProductOptions { MigrationErrorAction = " Rollback " }.MigrationErrorActionEnum.Should().Be(MigrationErrorAction.Rollback);
+        // ConfigurationBinder does not trim and RayEnumAttribute compares the raw string; the getter must not be more lenient.
+        var act = () => new ProductOptions { MigrationErrorAction = " Rollback " }.MigrationErrorActionEnum;
+
+        act.Should().Throw<ConfigurationValidationException>();
     }
 
     #endregion

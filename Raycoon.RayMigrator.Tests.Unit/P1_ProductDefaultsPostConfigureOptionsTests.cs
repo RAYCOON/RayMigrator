@@ -187,6 +187,25 @@ public class ProductDefaultsPostConfigureOptionsTests
             .WithMessage("*ProductDefaults: Invalid value [InvalidAction] for property [MigrationErrorAction]*");
     }
 
+    [Theory]
+    [InlineData("Undefined")]
+    [InlineData("1")]
+    [InlineData("Rollback,Ignore")]
+    public void SentinelNumericOrFlagsDefault_IsNotCopied_AndReportedOnce(string value)
+    {
+        // Enum.TryParse(ignoreCase: true) would accept these; the merge gate must apply the same rule as the
+        // getters, otherwise the invalid default is fanned out to every product and reported N+1 times.
+        var options = CreateOptionsWithDefaults(migrationErrorAction: value);
+        var postConfigure = new ProductDefaultsPostConfigureOptions();
+
+        var act = () => postConfigure.PostConfigure(null, options);
+
+        var message = act.Should().Throw<ConfigurationValidationException>().Which.Message;
+        message.Should().Contain("1 enum-typed configuration value(s) could not be parsed");
+        message.Should().Contain($"ProductDefaults: Invalid value [{value}] for property [MigrationErrorAction]");
+        options.Products!.First().MigrationErrorAction.Should().BeNullOrEmpty();
+    }
+
     [Fact]
     public void CaseVariantDefaultEnum_IsCopiedAndParses()
     {

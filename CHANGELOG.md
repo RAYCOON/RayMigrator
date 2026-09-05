@@ -40,9 +40,11 @@ RayMigrator follows Semantic Versioning where applicable.
   (one message listing every invalid value with its location, same wording
   as `RayEnumAttribute`) rather than from the `OptionsValidationException`
   of the data-annotation step, because that step reflects over the `*Enum`
-  getters and would otherwise surface only the first failure. For pre-built
-  options (Admin-DB mode) the getter itself throws on first use. The literal
-  value `Undefined` is rejected like any other invalid value. (#3)
+  getters and would otherwise surface only the first failure. Pre-built
+  options (Admin-DB mode) are probed the same way before the host starts.
+  The defaults merge applies the same rule, so `Undefined`, numeric strings
+  and comma lists are neither copied to products nor accepted. The
+  ConfigWizard's own enum checks are now case-insensitive as well. (#3)
 
 ### Fixed
 

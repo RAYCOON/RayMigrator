@@ -18,20 +18,48 @@ namespace Raycoon.RayMigrator.Core.Configuration.Options;
 /// </summary>
 internal static class OptionsEnumParser
 {
-    internal static TEnum ParseOrThrow<TEnum>(string raw, string propertyName) where TEnum : struct, Enum
+    /// <summary>
+    /// Tries to convert <paramref name="raw"/> into an allowed member of <typeparamref name="TEnum"/>.
+    /// Only the member names after the <c>Undefined</c> sentinel are accepted, compared with
+    /// <see cref="StringComparison.OrdinalIgnoreCase"/> and without trimming — exactly what
+    /// <see cref="RayEnumAttribute"/> accepts. Numeric strings, comma-separated lists and the literal
+    /// <c>Undefined</c> are rejected even though <see cref="Enum.TryParse{TEnum}(string, bool, out TEnum)"/>
+    /// would accept them.
+    /// </summary>
+    /// <returns><c>true</c> when <paramref name="value"/> holds the member; otherwise <c>false</c> and
+    /// <paramref name="error"/> carries the message in the wording of <see cref="RayEnumAttribute"/>.</returns>
+    internal static bool TryParse<TEnum>(string? raw, string propertyName, out TEnum value, out string? error)
+        where TEnum : struct, Enum
     {
         var allowedValues = typeof(TEnum).AllowedValues();
-        var trimmed = raw.Trim();
-        var match = allowedValues.FirstOrDefault(name => name.Equals(trimmed, StringComparison.OrdinalIgnoreCase));
+        var match = raw is null
+            ? null
+            : allowedValues.FirstOrDefault(name => name.Equals(raw, StringComparison.OrdinalIgnoreCase));
 
         if (match is not null)
         {
-            return Enum.Parse<TEnum>(match);
+            value = Enum.Parse<TEnum>(match);
+            error = null;
+            return true;
         }
 
-        throw new ConfigurationValidationException(
-            $"Invalid value [{raw}] for property [{propertyName}]. " +
-            $"Allowed values: [{string.Join(", ", allowedValues)}].");
+        value = default;
+        error = $"Invalid value [{raw}] for property [{propertyName}]. Allowed values: [{string.Join(", ", allowedValues)}].";
+        return false;
+    }
+
+    /// <summary>
+    /// Same as <see cref="TryParse{TEnum}"/>, but throws <see cref="ConfigurationValidationException"/> for a value
+    /// that is not an allowed member.
+    /// </summary>
+    internal static TEnum ParseOrThrow<TEnum>(string raw, string propertyName) where TEnum : struct, Enum
+    {
+        if (TryParse<TEnum>(raw, propertyName, out var value, out var error))
+        {
+            return value;
+        }
+
+        throw new ConfigurationValidationException(error!);
     }
 }
 

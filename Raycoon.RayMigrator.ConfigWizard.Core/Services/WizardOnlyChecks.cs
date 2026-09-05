@@ -71,12 +71,12 @@ internal static class WizardOnlyChecks
     public static void RunProductDefaultsChecks(ProductDefaultsModel defaults, WizardValidationResult result)
     {
         if (!string.IsNullOrWhiteSpace(defaults.MigrationErrorAction)
-            && !ValidMigrationErrorActions.Contains(defaults.MigrationErrorAction))
+            && !ValidMigrationErrorActions.Contains(defaults.MigrationErrorAction, StringComparer.OrdinalIgnoreCase))
             result.AddError("ProductDefaults > MigrationErrorAction",
                 $"Invalid value '{defaults.MigrationErrorAction}'.");
 
         if (!string.IsNullOrWhiteSpace(defaults.RollbackErrorAction)
-            && !ValidRollbackErrorActions.Contains(defaults.RollbackErrorAction))
+            && !ValidRollbackErrorActions.Contains(defaults.RollbackErrorAction, StringComparer.OrdinalIgnoreCase))
             result.AddError("ProductDefaults > RollbackErrorAction",
                 $"Invalid value '{defaults.RollbackErrorAction}'.");
 
@@ -85,11 +85,11 @@ internal static class WizardOnlyChecks
         ValidateEncoding(defaults.MigrationFilesEncoding, "ProductDefaults > MigrationFilesEncoding", result);
 
         var tgd = defaults.TargetGroupDefaults;
-        if (!string.IsNullOrWhiteSpace(tgd.TargetMigrationOrder) && !ValidTargetMigrationOrders.Contains(tgd.TargetMigrationOrder))
+        if (!string.IsNullOrWhiteSpace(tgd.TargetMigrationOrder) && !ValidTargetMigrationOrders.Contains(tgd.TargetMigrationOrder, StringComparer.OrdinalIgnoreCase))
             result.AddError("ProductDefaults > TargetGroupDefaults > TargetMigrationOrder",
                 $"Invalid value '{tgd.TargetMigrationOrder}'.");
 
-        if (!string.IsNullOrWhiteSpace(tgd.HashValidationScope) && !ValidHashValidationScopes.Contains(tgd.HashValidationScope))
+        if (!string.IsNullOrWhiteSpace(tgd.HashValidationScope) && !ValidHashValidationScopes.Contains(tgd.HashValidationScope, StringComparer.OrdinalIgnoreCase))
             result.AddError("ProductDefaults > TargetGroupDefaults > HashValidationScope",
                 $"Invalid value '{tgd.HashValidationScope}'.");
 
@@ -113,7 +113,7 @@ internal static class WizardOnlyChecks
         if (string.IsNullOrWhiteSpace(tool.ArgumentTemplate))
             result.AddError($"{prefix} > ArgumentTemplate", "ArgumentTemplate is required.");
 
-        if (!string.IsNullOrWhiteSpace(tool.InputMode) && !ValidCliToolInputModes.Contains(tool.InputMode))
+        if (!string.IsNullOrWhiteSpace(tool.InputMode) && !ValidCliToolInputModes.Contains(tool.InputMode, StringComparer.OrdinalIgnoreCase))
             result.AddError($"{prefix} > InputMode",
                 $"Invalid InputMode '{tool.InputMode}'. Valid: {string.Join(", ", ValidCliToolInputModes)}");
 
