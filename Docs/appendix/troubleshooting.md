@@ -17,7 +17,7 @@ Common issues and solutions for RayMigrator.
 
 1. **Verify connection string**
    ```bash
-   raymigrator Migrate-Up -p MyProduct -env Dev -rm Simulate --reveal-sensitive-data true
+   raymigrator migrate-up -p MyProduct -env Dev -rm simulate --reveal-sensitive-data true
    ```
    Check the logged connection string is correct.
 
@@ -142,7 +142,7 @@ docker exec rm_db_mysql mysql -u rayuser -praypass123 raydb -e "SELECT 1"
    ORDER BY StartedAt DESC;
    ```
 
-3. **Fix stuck run** (use the `Fix` command, or manual SQL below)
+3. **Fix stuck run** (use the `fix` command, or manual SQL below)
 
    > **Note**: Table names in the SQL examples below use simplified names (e.g., `MigrationRun`). Your actual table names include the configured `SchemaName` and `TableBaseName` prefix (e.g., `[ray].[RayMigrationRun]` for SQL Server with SchemaName=`ray` and TableBaseName=`Ray`). Adjust the schema and prefix to match your configuration.
 
@@ -221,7 +221,7 @@ docker exec rm_db_mysql mysql -u rayuser -praypass123 raydb -e "SELECT 1"
 
 2. **Update hash if change is valid**
    ```bash
-   raymigrator Update-Hash -p MyProduct -env Prod
+   raymigrator update-hash -p MyProduct -env Prod
    ```
 
 3. **Restore original file**
@@ -250,19 +250,19 @@ docker exec rm_db_mysql mysql -u rayuser -praypass123 raydb -e "SELECT 1"
 
 1. **Use `--config-dir` to point to the correct directory**
    ```bash
-   raymigrator Migrate-Up -p MyProduct -env Dev --config-dir /path/to/config
+   raymigrator migrate-up -p MyProduct -env Dev --config-dir /path/to/config
    ```
    The `--config-dir` (`-cd`) global option overrides the directory where RayMigrator searches for all configuration files (`appsettings.json`, `appsettings.{Environment}.json`, `appsettings.{Product}.json`, and `appsettings.{Product}.{Environment}.json`). When omitted, the current working directory is used.
 
 2. **Run from the correct directory**
    ```bash
    cd /path/containing/appsettings
-   raymigrator Migrate-Up -p MyProduct -env Dev
+   raymigrator migrate-up -p MyProduct -env Dev
    ```
 
 3. **Use an environment variable for the config path**
    ```bash
-   raymigrator Migrate-Up -p MyProduct -env Dev --config-dir "{ENV:CONFIG_DIR}"
+   raymigrator migrate-up -p MyProduct -env Dev --config-dir "{ENV:CONFIG_DIR}"
    ```
 
 ### Product Not Found
@@ -279,7 +279,7 @@ docker exec rm_db_mysql mysql -u rayuser -praypass123 raydb -e "SELECT 1"
 
 2. **Verify configuration loaded**
    ```bash
-   raymigrator Migrate-Up -p MyProduct -env Dev -rm Simulate --startup-info true
+   raymigrator migrate-up -p MyProduct -env Dev -rm simulate --startup-info true
    ```
 
 3. **Check appsettings hierarchy**
@@ -336,7 +336,7 @@ docker exec rm_db_mysql mysql -u rayuser -praypass123 raydb -e "SELECT 1"
 3. **Set variable before running**
    ```bash
    export VARIABLE_NAME="value"
-   raymigrator Migrate-Up ...
+   raymigrator migrate-up ...
    ```
 
 4. **Check for unresolved placeholders**
@@ -436,7 +436,7 @@ The `Repository_Product_CheckInsert` template rejects a `NULL`/empty `Name` para
      }
    }
    ```
-   This can also be overridden at runtime via the CLI option `--stop-rollback-on-missing-rollback-file false` (`-sromrf false`) on the `Migrate-Up` command. Note: this setting only affects error-recovery rollback (triggered by `MigrationErrorAction`); it has no effect on explicit `Migrate-Down` execution.
+   This can also be overridden at runtime via the CLI option `--stop-rollback-on-missing-rollback-file false` (`-sromrf false`) on the `migrate-up` command. Note: this setting only affects error-recovery rollback (triggered by `MigrationErrorAction`); it has no effect on explicit `migrate-down` execution.
 
 ### Rollback Failed
 
@@ -580,7 +580,7 @@ The `Repository_Product_CheckInsert` template rejects a `NULL`/empty `Name` para
 1. **Resume from last block**
    ```bash
    # Default behavior - resumes from last successful block
-   raymigrator Migrate-Up -p MyProduct -env Prod -rm Migrate
+   raymigrator migrate-up -p MyProduct -env Prod -rm migrate
    ```
 
 2. **Check interrupted migration details**
@@ -595,19 +595,19 @@ The `Repository_Product_CheckInsert` template rejects a `NULL`/empty `Name` para
      AND m.FinishedAt IS NULL;
    ```
 
-3. **Cleanup** via `Fix` command:
+3. **Cleanup** via `fix` command:
    ```bash
    # Preview what would be fixed (no changes applied)
-   raymigrator Fix -p MyProduct -env Production --scope OrphanedRuns --dry-run
+   raymigrator fix -p MyProduct -env Production --scope orphanedruns --dry-run
 
    # Fix orphaned runs (default: only runs older than 60 minutes)
-   raymigrator Fix -p MyProduct -env Production --scope OrphanedRuns
+   raymigrator fix -p MyProduct -env Production --scope orphanedruns
 
    # Fix runs older than 10 minutes
-   raymigrator Fix -p MyProduct -env Production --scope OrphanedRuns --older-than 10
+   raymigrator fix -p MyProduct -env Production --scope orphanedruns --older-than 10
 
    # Fix and mark orphaned migrations as "migrated" (skip next time) instead of "not-migrated" (re-execute next time)
-   raymigrator Fix -p MyProduct -env Production --scope OrphanedRuns --last-migration-status migrated
+   raymigrator fix -p MyProduct -env Production --scope orphanedruns --last-migration-status migrated
    ```
    - Or use direct SQL to update repository state (see Orphaned Migration Run section below)
 
@@ -643,7 +643,7 @@ The `Repository_Product_CheckInsert` template rejects a `NULL`/empty `Name` para
 
 3. **Also fix orphaned MigrationRecord rows**
 
-   > **Note**: The `Fix` command sets orphaned migrations to status `50` (NotMigrated) by default, or `100` (Migrated) when `--last-migration-status migrated` is specified. The manual SQL below marks them as `30` (Failed), which is also valid for manual DBA cleanup.
+   > **Note**: The `fix` command sets orphaned migrations to status `50` (NotMigrated) by default, or `100` (Migrated) when `--last-migration-status migrated` is specified. The manual SQL below marks them as `30` (Failed), which is also valid for manual DBA cleanup.
 
    ```sql
    UPDATE MigrationRecord
@@ -664,7 +664,7 @@ The `Repository_Product_CheckInsert` template rejects a `NULL`/empty `Name` para
 
 When RayMigrator detects a parallel-run conflict (another migration appears to be running), it checks if the existing run is orphaned (older than 10 minutes). If so, it automatically marks the orphaned run as Error and proceeds with the new migration. This threshold is controlled by the internal constant `AutoFixOrphanedRunsThresholdMinutes` (default: 10 minutes).
 
-If the orphaned run is younger than 10 minutes, RayMigrator aborts with a `MigrationAlreadyRunningException`. Use the `Fix` command with `--older-than 0` for immediate manual cleanup.
+If the orphaned run is younger than 10 minutes, RayMigrator aborts with a `MigrationAlreadyRunningException`. Use the `fix` command with `--older-than 0` for immediate manual cleanup.
 
 ### Transient Database Error After Retries
 
@@ -930,20 +930,20 @@ If the orphaned run is younger than 10 minutes, RayMigrator aborts with a `Migra
 1. **Specify the `--framework` flag**
    All RayMigrator projects target `net10.0;net9.0;net8.0`. When using `dotnet run`, you must specify the target framework:
    ```bash
-   dotnet run --framework net10.0 -- Migrate-Up -p MyProduct -env Dev -rm Migrate
+   dotnet run --framework net10.0 -- migrate-up -p MyProduct -env Dev -rm migrate
    ```
 
 2. **Run from the Console project directory**
    ```bash
    cd Raycoon.RayMigrator.Console
-   dotnet run --framework net10.0 -- Migrate-Up -p MyProduct -env Dev -rm Migrate
+   dotnet run --framework net10.0 -- migrate-up -p MyProduct -env Dev -rm migrate
    ```
 
 3. **Use the compiled executable instead**
    After building, run the executable directly (no `--framework` needed):
    ```bash
    dotnet build -c Release
-   ./bin/Release/net10.0/raymigrator Migrate-Up -p MyProduct -env Dev -rm Migrate
+   ./bin/Release/net10.0/raymigrator migrate-up -p MyProduct -env Dev -rm migrate
    ```
 
 ## Known Behaviors and Limitations
@@ -964,7 +964,7 @@ When using `{ENV:VARIABLE_NAME}` placeholders in configuration, if the reference
 
 **How to debug:**
 ```bash
-raymigrator Migrate-Up -p MyProduct -env Dev -rm Simulate --reveal-sensitive-data true --startup-info true
+raymigrator migrate-up -p MyProduct -env Dev -rm simulate --reveal-sensitive-data true --startup-info true
 ```
 Check the logged connection strings and configuration values for unexpected empty values.
 
@@ -1053,7 +1053,7 @@ If these solutions don't resolve your issue:
 
 2. **Run in simulate mode first**
    ```bash
-   raymigrator Migrate-Up -p MyProduct -env Dev -rm Simulate
+   raymigrator migrate-up -p MyProduct -env Dev -rm simulate
    ```
 
 3. **Check GitHub issues**

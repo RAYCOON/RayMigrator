@@ -190,15 +190,15 @@ docker exec bookstore-db /opt/mssql-tools18/bin/sqlcmd \
 Navigate to the `BookStore/` directory and execute:
 
 ```bash
-raymigrator Migrate-Up --product BookStore --environment Development --run-mode Migrate
+raymigrator migrate-up --product BookStore --environment Development --run-mode migrate
 ```
 
 | Flag | Purpose |
 |------|---------|
-| `Migrate-Up` | Apply pending migrations forward |
+| `migrate-up` | Apply pending migrations forward |
 | `--product BookStore` | Match the `Alias` in configuration |
 | `--environment Development` | Used for environment-based filtering (Chapter 5) |
-| `--run-mode Migrate` | Actually execute the SQL (`Simulate` previews, `Validate` checks files only) |
+| `--run-mode migrate` | Actually execute the SQL (`Simulate` previews, `Validate` checks files only) |
 
 You should see output similar to:
 
@@ -209,9 +209,9 @@ You should see output similar to:
 [INF] Migration run completed. Result: Ok
 ```
 
-> **Tip:** Run with `--run-mode Simulate` first to preview what would be executed without making any changes, or use `--run-mode Validate` to check files and configuration without connecting to any database:
+> **Tip:** Run with `--run-mode simulate` first to preview what would be executed without making any changes, or use `--run-mode validate` to check files and configuration without connecting to any database:
 > ```bash
-> raymigrator Migrate-Up --product BookStore --environment Development --run-mode Simulate
+> raymigrator migrate-up --product BookStore --environment Development --run-mode simulate
 > ```
 
 ## Step 6 — Verify the Result
@@ -261,10 +261,10 @@ The `MigrationRun` table contains one record for the run you just executed. The 
 
 ### Hash Integrity
 
-The file's SHA-256 hash is now stored in the repository. If anyone modifies `001_CreateBooks.sql` after execution, the `Validate-Hash` command will detect the tampering:
+The file's SHA-256 hash is now stored in the repository. If anyone modifies `001_CreateBooks.sql` after execution, the `validate-hash` command will detect the tampering:
 
 ```bash
-raymigrator Validate-Hash --product BookStore --environment Development
+raymigrator validate-hash --product BookStore --environment Development
 ```
 
 ## What Just Happened?

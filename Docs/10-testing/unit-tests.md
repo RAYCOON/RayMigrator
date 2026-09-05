@@ -309,7 +309,7 @@ Raycoon.RayMigrator.Tests.Unit/
 |-----------|---------|-------------|
 | `P2_EnsureConnectionStringOptionsTests` | `EnsureConnectionStringOptionsTests` | `EnsureConnectionStringOptions` in `DalMariaDb` and `DalMySql` — verifies that `AllowUserVariables=true` is injected into connection strings |
 | `P2_EnvironmentIdLoggingPipelineTests` | `EnvironmentIdLoggingPipelineTests` | EnvironmentId propagation through the logging pipeline: `MigrationContextEnricher` emits both `EnvironmentId` (int) and `Environment` (text) properties; `DatabaseLogWriter.EnqueueLogEntry` null-guards (passes null when `environmentId == 0`, the actual int otherwise) |
-| `P2_FixCommandTests` | `FixIssuesRequestModelTests`, `FixIssuesResultModelTests`, `OrphanedRunInfoModelTests`, `FixIssuesEnumTests`, `FixCommandTemplateTypeTests`, `FixCommandSqlTemplateStructureTests`, `FixCommandConsoleOptionsTests` | `Fix` command logic (orphaned run detection and repair) |
+| `P2_FixCommandTests` | `FixIssuesRequestModelTests`, `FixIssuesResultModelTests`, `OrphanedRunInfoModelTests`, `FixIssuesEnumTests`, `FixCommandTemplateTypeTests`, `FixCommandSqlTemplateStructureTests`, `FixCommandConsoleOptionsTests` | `fix` command logic (orphaned run detection and repair) |
 | `P2_MigrationAlreadyRunningTests` | `MigrationAlreadyRunningTests` | Running migration run guard (prevents concurrent executions) |
 | `P2_MigrationFileSqlLoggingTests` | `MigrationFileSqlLoggingTests` | SQL content logging during migration execution |
 | `P2_MigrationIdLoggingPipelineTests` | `MigrationRecordIdLoggingPipelineTests` | MigrationRecordId enrichment in Serilog log context |

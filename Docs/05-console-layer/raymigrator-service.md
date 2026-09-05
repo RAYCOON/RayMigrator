@@ -123,7 +123,7 @@ public async Task<int> DoWorkAsync(IHost host)
         _logger.LogInformation(
             "To resolve this issue, either wait for the running migration to complete, " +
             "or use the Fix command to clean up orphaned runs: " +
-            "raymigrator Fix --product {Product} --environment {Environment} --scope OrphanedRuns",
+            "raymigrator fix --product {Product} --environment {Environment} --scope orphanedruns",
             _consoleOptions.Product, _consoleOptions.Environment);
         return 1;
     }

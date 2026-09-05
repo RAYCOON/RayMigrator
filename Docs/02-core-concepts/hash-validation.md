@@ -10,7 +10,7 @@ Hash validation ensures migration file integrity by detecting unauthorized modif
 
 ## Hash Validation Scope
 
-Configure via `HashValidationScope` on TargetGroup. This setting affects all commands: **Migrate-Up** (determines which hash is compared when checking if already-migrated files have changed), **Baseline**, and **Validate-Hash**.
+Configure via `HashValidationScope` on TargetGroup. This setting affects all commands: **migrate-up** (determines which hash is compared when checking if already-migrated files have changed), **Baseline**, and **validate-hash**.
 
 | Scope | Value | Validates | Use Case |
 |-------|-------|-----------|----------|
@@ -124,20 +124,20 @@ flowchart TD
     H -->|No| J[Modified - Hash Mismatch]
 ```
 
-## Hash Mismatch Behavior During Migrate-Up
+## Hash Mismatch Behavior During migrate-up
 
-Hash comparison during `Migrate-Up` is performed by `FilterAlreadyMigratedFiles` in `MigrationService`. The behavior depends on the file's current status:
+Hash comparison during `migrate-up` is performed by `FilterAlreadyMigratedFiles` in `MigrationService`. The behavior depends on the file's current status:
 
 - **Status `Migrated` (100), hash matches**: File is **skipped** (already applied). No log output at info level.
 - **Status `Migrated` (100), hash does NOT match**: File is **re-executed** with a warning log:
   ```
   Migration file {Filename} has changed since last execution (hash mismatch, scope: {Scope}). Re-executing.
   ```
-  The file runs again from block 1 and the hashes in the repository are updated on success. This can cause errors (e.g., duplicate `CREATE TABLE`). Never modify an already-migrated file without running `Migrate-Down` first or using `Update-Hash` to acknowledge the change.
+  The file runs again from block 1 and the hashes in the repository are updated on success. This can cause errors (e.g., duplicate `CREATE TABLE`). Never modify an already-migrated file without running `migrate-down` first or using `update-hash` to acknowledge the change.
 - **Status `Migrated` (100), `Disabled` scope**: File is always **skipped** regardless of content.
 - **Status `Failed` (30) or `NotMigrated` (50)**: File is always included in the execution list (hash is not checked for filtering purposes).
 
-> **Important**: `Validate-Hash` and `Update-Hash` commands use the same hash comparison but do not re-execute SQL. For `Migrate-Up`, a mismatch on an already-migrated file causes re-execution, not an abort. If you want to reject mismatches rather than re-execute, use `Validate-Hash` before running `Migrate-Up`.
+> **Important**: `validate-hash` and `update-hash` commands use the same hash comparison but do not re-execute SQL. For `migrate-up`, a mismatch on an already-migrated file causes re-execution, not an abort. If you want to reject mismatches rather than re-execute, use `validate-hash` before running `migrate-up`.
 
 ## Repository Storage
 
@@ -159,19 +159,19 @@ FileDownBlocksMigrated INT          NULL,      -- Down blocks executed
 FileDownBlocksTotal    INT          NULL,      -- Total down blocks
 ```
 
-## Validate-Hash Command
+## validate-hash Command
 
 Check file integrity without executing migrations:
 
 ```bash
 # Validate using per-TargetGroup configured scope (no --scope override)
-raymigrator Validate-Hash -p MyProduct -env Production
+raymigrator validate-hash -p MyProduct -env Production
 
 # Override scope to SqlBlocks for all TargetGroups
-raymigrator Validate-Hash -p MyProduct -env Production -s SqlBlocks
+raymigrator validate-hash -p MyProduct -env Production -s sqlblocks
 ```
 
-When `--scope` is omitted, each file is validated using its TargetGroup's configured `HashValidationScope`. When `--scope` is provided, it overrides the configuration for all TargetGroups. See [Validate-Hash Command](../08-cli-reference/validate-hash.md) for all options.
+When `--scope` is omitted, each file is validated using its TargetGroup's configured `HashValidationScope`. When `--scope` is provided, it overrides the configuration for all TargetGroups. See [validate-hash Command](../08-cli-reference/validate-hash.md) for all options.
 
 **Output categories**:
 - **Valid**: File hash matches the stored hash in the repository
@@ -183,15 +183,15 @@ When `--scope` is omitted, each file is validated using its TargetGroup's config
 Validation completed: 2 valid, 1 modified, 0 missing, 1 new (not yet migrated)
 ```
 
-## Update-Hash Command
+## update-hash Command
 
 Update stored hashes after approved changes:
 
 ```bash
-raymigrator Update-Hash -p MyProduct -env Production
+raymigrator update-hash -p MyProduct -env Production
 ```
 
-Update-Hash always recalculates and updates all three hashes (FileUpHash, FileUpConfigHash, FileUpBlocksHash) for every migrated file where any hash has changed. It does not use HashValidationScope -- all hashes are updated regardless.
+update-hash always recalculates and updates all three hashes (FileUpHash, FileUpConfigHash, FileUpBlocksHash) for every migrated file where any hash has changed. It does not use HashValidationScope -- all hashes are updated regardless.
 
 **Use Cases**:
 1. Legitimate bug fix in executed migration
@@ -232,7 +232,7 @@ git checkout HEAD -- migrations/003_UpdateSchema.sql
 
 **Option B**: Accept change and update hash
 ```bash
-raymigrator Update-Hash -p MyProduct -env Production
+raymigrator update-hash -p MyProduct -env Production
 ```
 
 ## Block-Level Tracking
@@ -255,12 +255,12 @@ This enables:
 2. **Use `SqlBlocks` in development** - Flexibility for metadata changes
 3. **Never use `Disabled` in production** - No protection against tampering
 4. **Version control all migrations** - Enable recovery of original files
-5. **Review before Update-Hash** - Ensure changes are intentional
+5. **Review before update-hash** - Ensure changes are intentional
 
 ## Related Documentation
 
 - [Migration State Machine](migration-state-machine.md) - How hash validation affects state
-- [Validate-Hash Command](../08-cli-reference/validate-hash.md)
-- [Update-Hash Command](../08-cli-reference/update-hash.md)
+- [validate-hash Command](../08-cli-reference/validate-hash.md)
+- [update-hash Command](../08-cli-reference/update-hash.md)
 - [Target Group Options](../06-configuration-reference/target-group-options.md) - `HashValidationScope` configuration
 - [Resilience and Recovery](resilience.md) - Block-level tracking used alongside hash validation

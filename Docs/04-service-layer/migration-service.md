@@ -753,7 +753,7 @@ Updates stored hashes in the repository to match current file contents (after ap
 
 ### GetStatusAsync Flow
 
-Returns the current migration status overview for a product (used by the `Info` command).
+Returns the current migration status overview for a product (used by the `info` command).
 
 1. **Phase 1**: Repository initialization (`RepositoryCheckCreate`, `RepositoryProductCheckInsert`, `RepositoryEnvironmentCheckInsert`)
 2. **Phase 2**: Query existing migration records
@@ -861,7 +861,7 @@ internal static List<(int FileOrderId, string TargetGroupAlias, string TargetAli
 
 The order is resolved per-release via `ResolveTargetGroupMigrationOrder` using the following priority chain (highest to lowest):
 
-1. **CLI**: `request.TargetGroupMigrationOrder` (e.g., `--TargetGroup-MigrationOrder Backend,Frontend`)
+1. **CLI**: `request.TargetGroupMigrationOrder` (e.g., `--target-group-migration-order Backend,Frontend`)
 2. **migsettings**: `TargetGroupMigrationOrder` key in the release-level `migsettings.txt` (TOML array, e.g. `["Backend", "Frontend"]`)
 3. **appsettings**: `ProductOptions.TargetGroupMigrationOrder` (comma-separated string in configuration)
 4. **null**: use the configuration array order (no override)
@@ -1148,7 +1148,7 @@ For each migration record to rollback:
 1. Locates the rollback file on disk
 2. If missing and `RequireRollbackFile=true`: aborts the entire rollback chain (marks record as Failed)
 3. If missing and `RequireRollbackFile=false` during **error-recovery rollback** (`MigrationErrorAction=Rollback/RollbackRelease/RollbackErrorOnly`): checks `StopRollbackOnMissingRollbackFile` (CLI > TargetGroup > Product, default `true`). If `true`, stops the chain (adds warning, returns without marking Failed). If `false`, logs a warning and continues to the next record without updating the migration status.
-4. If missing and `RequireRollbackFile=false` during **explicit Migrate-Down**: always logs a warning and continues the chain (skips the record, does not update status)
+4. If missing and `RequireRollbackFile=false` during **explicit migrate-down**: always logs a warning and continues the chain (skips the record, does not update status)
 5. Parses rollback file and resolves `RollbackErrorAction` (file-level override -> product-level -> default `Terminate`)
 6. Updates migration record with rollback metadata (`RepositoryMigrationUpdateRollback`)
 7. Resolves CLI tool alias via `ResolveUseCliToolAlias(rollbackFileInfo, targetOptions)`

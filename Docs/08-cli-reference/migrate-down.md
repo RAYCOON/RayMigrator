@@ -1,16 +1,16 @@
-# Migrate-Down Command
+# migrate-down Command
 
 Executes database migrations in reverse (down) direction using rollback files.
 
 ## Synopsis
 
 ```bash
-raymigrator Migrate-Down --product <ProductAlias> --environment <Environment> --to-release <ReleaseVersion> [options]
+raymigrator migrate-down --product <ProductAlias> --environment <Environment> --to-release <ReleaseVersion> [options]
 ```
 
 ## Description
 
-The `Migrate-Down` command reverses previously applied migrations by executing their corresponding rollback files. Migrations are rolled back in reverse order from the current state to the specified target release version.
+The `migrate-down` command reverses previously applied migrations by executing their corresponding rollback files. Migrations are rolled back in reverse order from the current state to the specified target release version.
 
 ## Required Parameters
 
@@ -34,9 +34,9 @@ The `Migrate-Down` command reverses previously applied migrations by executing t
 
 | Mode | Description |
 |------|-------------|
-| `Validate` | Validates rollback file existence and parseability without any database connections |
-| `Simulate` | Validates and processes everything, reads repository records, but does not write repository records or execute rollback SQL on targets |
-| `Migrate` | Validates, then performs actual rollback against target databases |
+| `validate` | Validates rollback file existence and parseability without any database connections |
+| `simulate` | Validates and processes everything, reads repository records, but does not write repository records or execute rollback SQL on targets |
+| `migrate` | Validates, then performs actual rollback against target databases |
 
 See [Execution Modes — Run Mode](../02-core-concepts/execution-modes.md#run-mode) for detailed behavior.
 
@@ -46,38 +46,38 @@ See [Execution Modes — Run Mode](../02-core-concepts/execution-modes.md#run-mo
 
 ```bash
 # Rollback to Release 1.0
-raymigrator Migrate-Down --product MyProduct --environment Production --to-release "Release 1.0"
+raymigrator migrate-down --product MyProduct --environment Production --to-release "Release 1.0"
 ```
 
 ### Simulate Rollback
 
 ```bash
 # Test what would be rolled back
-raymigrator Migrate-Down -p MyProduct -env Staging -rm Simulate -tr "Release 1.0"
+raymigrator migrate-down -p MyProduct -env Staging -rm simulate -tr "Release 1.0"
 ```
 
 ### Development Rollback
 
 ```bash
 # Rollback in development environment
-raymigrator Migrate-Down -p MyProduct -env Development -rm Migrate -tr "Release 2.0"
+raymigrator migrate-down -p MyProduct -env Development -rm migrate -tr "Release 2.0"
 ```
 
 ### Rollback Specific Target Groups
 
 ```bash
 # Rollback only Backend target group
-raymigrator Migrate-Down -p MyProduct -env Production -tr "Release 1.0" -tg Backend
+raymigrator migrate-down -p MyProduct -env Production -tr "Release 1.0" -tg Backend
 
 # Rollback Backend and Frontend, leave Analytics untouched
-raymigrator Migrate-Down -p MyProduct -env Production -tr "Release 1.0" -tg Backend -tg Frontend
+raymigrator migrate-down -p MyProduct -env Production -tr "Release 1.0" -tg Backend -tg Frontend
 ```
 
 ## Execution Flow
 
 ```mermaid
 flowchart TD
-    A[Start Migrate-Down] --> B[Load Configuration]
+    A[Start migrate-down] --> B[Load Configuration]
     B --> C[Validate Parameters]
     C --> D[Repository CheckCreate + Product CheckInsert]
     D --> E[Create MigrationRun]
@@ -107,7 +107,7 @@ flowchart TD
 
 ## Rollback Order
 
-The query filters for migration records that are either in `Migrated` status or in `Failed` status with partial rollback progress (i.e., a previous rollback was interrupted partway through). This enables **rollback resumption** -- if a rollback was partially completed and then aborted, a subsequent Migrate-Down will resume from where it left off rather than re-executing already-completed rollback blocks.
+The query filters for migration records that are either in `Migrated` status or in `Failed` status with partial rollback progress (i.e., a previous rollback was interrupted partway through). This enables **rollback resumption** -- if a rollback was partially completed and then aborted, a subsequent migrate-down will resume from where it left off rather than re-executing already-completed rollback blocks.
 
 Migrations are rolled back in **reverse** order of their original execution:
 
@@ -248,7 +248,7 @@ If rollback file is missing with `RequireRollbackFile=false`:
 
 1. **Always test in non-production first**
    ```bash
-   raymigrator Migrate-Down -p MyProduct -env Development -rm Simulate -tr "Release 1.0"
+   raymigrator migrate-down -p MyProduct -env Development -rm simulate -tr "Release 1.0"
    ```
 
 2. **Backup before rollback in production**
@@ -261,7 +261,7 @@ If rollback file is missing with `RequireRollbackFile=false`:
 
 ## Related Commands
 
-- [Migrate-Up](migrate-up.md) - Forward migrations
+- [migrate-up](migrate-up.md) - Forward migrations
 - [Global Options](global-options.md) - Common options
 
 ## Related Documentation

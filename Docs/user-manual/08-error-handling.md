@@ -243,7 +243,7 @@ In your `appsettings.json`, set the error handling strategy to `Rollback`:
 ### Step 3: Run the Migration
 
 ```bash
-raymigrator Migrate-Up -p BookStore -env Development -rm Migrate
+raymigrator migrate-up -p BookStore -env Development -rm migrate
 ```
 
 **Expected result:** Migration 002 fails because the table `NonExistentTable` does not exist. With `Rollback` strategy, RayMigrator automatically rolls back Migration 001 (Categories), leaving the database unchanged from before the run.
@@ -251,7 +251,7 @@ raymigrator Migrate-Up -p BookStore -env Development -rm Migrate
 ### Step 4: Check the Result
 
 ```bash
-raymigrator Info -p BookStore -env Development
+raymigrator info -p BookStore -env Development
 ```
 
 You will see that:
@@ -274,7 +274,7 @@ ALTER TABLE [dbo].[Books] ADD [CategoryId] INT NULL;
 ```
 
 ```bash
-raymigrator Migrate-Up -p BookStore -env Development -rm Migrate
+raymigrator migrate-up -p BookStore -env Development -rm migrate
 ```
 
 Both migrations now succeed, and all records show status `Migrated` (100).
@@ -316,21 +316,21 @@ RayMigrator aborted because another migration is already running.
 This can happen in two scenarios:
 
 1. **Legitimate concurrent access**: Another process is genuinely running migrations for the same product. Wait for it to finish before starting a new run.
-2. **Recently orphaned run**: A previous migration was interrupted less than 10 minutes ago and the `MigrationRun` record was never closed. The run still appears as `Running` in the repository even though no process is executing it. Wait for the 10-minute threshold to pass, or use the `Fix` command.
+2. **Recently orphaned run**: A previous migration was interrupted less than 10 minutes ago and the `MigrationRun` record was never closed. The run still appears as `Running` in the repository even though no process is executing it. Wait for the 10-minute threshold to pass, or use the `fix` command.
 
 RayMigrator also provides a guidance message:
 
 ```
 To resolve this issue, either wait for the running migration to complete,
 or use the Fix command to clean up orphaned runs:
-raymigrator Fix --product <Product> --environment <Environment> --scope OrphanedRuns
+raymigrator fix --product <Product> --environment <Environment> --scope orphanedruns
 ```
 
 ---
 
 ## The Fix Command
 
-When a migration run is interrupted unexpectedly, it may leave "orphaned" runs -- `MigrationRun` entries stuck in `Running` state with no process behind them. These orphaned runs block all future migration attempts for the same product (see above). The `Fix` command detects and cleans up these orphaned runs.
+When a migration run is interrupted unexpectedly, it may leave "orphaned" runs -- `MigrationRun` entries stuck in `Running` state with no process behind them. These orphaned runs block all future migration attempts for the same product (see above). The `fix` command detects and cleans up these orphaned runs.
 
 See [Fix Reference](../08-cli-reference/command-reference.md#fix) for all options.
 
@@ -338,10 +338,10 @@ See [Fix Reference](../08-cli-reference/command-reference.md#fix) for all option
 
 ```bash
 # Always preview before fixing
-raymigrator Fix -p BookStore -env Production --dry-run
+raymigrator fix -p BookStore -env Production --dry-run
 
 # Fix orphaned runs older than 60 minutes (default)
-raymigrator Fix -p BookStore -env Production
+raymigrator fix -p BookStore -env Production
 ```
 
 ### Key Options
@@ -387,7 +387,7 @@ Key takeaways:
 - Choose your `RollbackErrorAction` based on whether you prefer a safe abort or a best-effort rollback when rollback scripts fail.
 - Always write rollback files, especially for MariaDB and MySQL where DDL cannot be transactionally rolled back.
 - Use `Simulate` run mode to preview what will happen before committing to a real migration run.
-- Use the `Fix` command to clean up after unexpected interruptions.
+- Use the `fix` command to clean up after unexpected interruptions.
 
 ---
 

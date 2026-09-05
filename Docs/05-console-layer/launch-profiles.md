@@ -62,7 +62,7 @@ The project includes profiles for each supported database type, with Mac/Win var
 
 **Notes:**
 - Docker profiles use `-env {ENV:DOTNET_ENVIRONMENT}` to read the environment from the profile's environment variables.
-- The `_Validate` and `_Simulate` variants (e.g. `Docker_Mac_SqlServer_Validate`) use `--run-mode Validate` / `--run-mode Simulate` with the same product alias.
+- The `_Validate` and `_Simulate` variants (e.g. `Docker_Mac_SqlServer_Validate`) use `--run-mode validate` / `--run-mode simulate` with the same product alias.
 - The "Success" profiles use separate product aliases (e.g. `RM_Tests_Mac_Success_SqlServer`) for success-only test scenarios.
 - Staging and Production profiles hardcode `--environment Staging` / `--environment Production` directly in the command-line arguments.
 - MariaDB profiles use port 3306, while MySQL profiles use port 3307.
@@ -77,7 +77,7 @@ The project includes profiles for each supported database type, with Mac/Win var
     "Docker_Mac_SqlServer": {
       "commandName": "Project",
       "dotnetRunMessages": true,
-      "commandLineArgs": "Migrate-Up --product RM_Tests_Mac_SqlServer -env {ENV:DOTNET_ENVIRONMENT} --run-mode Migrate",
+      "commandLineArgs": "migrate-up --product RM_Tests_Mac_SqlServer -env {ENV:DOTNET_ENVIRONMENT} --run-mode migrate",
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "Docker",
         "ConnectionString_Backend1": "Server=localhost;Initial Catalog=Backend_1;TrustServerCertificate=true;MultiSubnetFailover=True;User Id=sa;Password=P@ssw0rd!",
@@ -88,7 +88,7 @@ The project includes profiles for each supported database type, with Mac/Win var
     "Docker_Mac_MariaDb": {
       "commandName": "Project",
       "dotnetRunMessages": true,
-      "commandLineArgs": "Migrate-Up --product RM_Tests_Mac_MariaDb -env {ENV:DOTNET_ENVIRONMENT} --run-mode Migrate",
+      "commandLineArgs": "migrate-up --product RM_Tests_Mac_MariaDb -env {ENV:DOTNET_ENVIRONMENT} --run-mode migrate",
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "Docker",
         "ConnectionString_Backend1": "Server=localhost;Port=3306;Database=raydb;User Id=rayuser;Password=raypass123",
@@ -100,7 +100,7 @@ The project includes profiles for each supported database type, with Mac/Win var
     "Docker_Mac_MySql": {
       "commandName": "Project",
       "dotnetRunMessages": true,
-      "commandLineArgs": "Migrate-Up --product RM_Tests_Mac_MySql -env {ENV:DOTNET_ENVIRONMENT} --run-mode Migrate",
+      "commandLineArgs": "migrate-up --product RM_Tests_Mac_MySql -env {ENV:DOTNET_ENVIRONMENT} --run-mode migrate",
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "Docker",
         "ConnectionString_Backend1": "Server=localhost;Port=3307;Database=raydb;User Id=rayuser;Password=raypass123",
@@ -112,7 +112,7 @@ The project includes profiles for each supported database type, with Mac/Win var
     "Docker_Mac_PostgreSQL": {
       "commandName": "Project",
       "dotnetRunMessages": true,
-      "commandLineArgs": "Migrate-Up --product RM_Tests_Mac_PostgreSQL -env {ENV:DOTNET_ENVIRONMENT} --run-mode Migrate",
+      "commandLineArgs": "migrate-up --product RM_Tests_Mac_PostgreSQL -env {ENV:DOTNET_ENVIRONMENT} --run-mode migrate",
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "Docker",
         "ConnectionString_Backend1": "Host=localhost;Port=5432;Database=raydb;Username=postgres;Password=postgres123",
@@ -124,7 +124,7 @@ The project includes profiles for each supported database type, with Mac/Win var
     "Production": {
       "commandName": "Project",
       "dotnetRunMessages": true,
-      "commandLineArgs": "Migrate-Up --product RayMigratorTests --environment Production --run-mode Migrate",
+      "commandLineArgs": "migrate-up --product RayMigratorTests --environment Production --run-mode migrate",
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "Production",
         "ConnectionString_Backend1": "Server=production-server;Initial Catalog=Backend_1;TrustServerCertificate=true;MultiSubnetFailover=True;User Id=sa;Password=ProductionPassword!",
@@ -202,7 +202,7 @@ Connection strings from launch profile environment variables are referenced in `
       "type": "coreclr",
       "request": "launch",
       "program": "${workspaceFolder}/Raycoon.RayMigrator.Console/bin/Debug/net10.0/raymigrator.dll",
-      "args": ["Migrate-Up", "--product", "RM_Tests_Mac_SqlServer", "-env", "Docker", "--run-mode", "Migrate"],
+      "args": ["migrate-up", "--product", "RM_Tests_Mac_SqlServer", "-env", "Docker", "--run-mode", "Migrate"],
       "env": {
         "DOTNET_ENVIRONMENT": "Docker",
         "ConnectionString_Backend1": "Server=localhost;Initial Catalog=Backend_1;TrustServerCertificate=true;User Id=sa;Password=P@ssw0rd!",

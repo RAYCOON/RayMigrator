@@ -36,11 +36,11 @@ TargetGroup 1 → TargetGroup 2 → ...
 
 By default, TargetGroups are processed in their configuration array order. This order can be overridden via:
 
-1. **CLI**: `--TargetGroup-MigrationOrder "Frontend, Backend"` / `-tgmo` (highest priority)
+1. **CLI**: `--target-group-migration-order "Frontend, Backend"` / `-tgmo` (highest priority)
 2. **migsettings TOML** (release-level): `TargetGroupMigrationOrder = ["Frontend", "Backend"]`
 3. **appsettings JSON** (product-level): `"TargetGroupMigrationOrder": "Frontend, Backend"`
 
-The override applies to `Migrate-Up` and `Baseline`. `Migrate-Down` always derives order from repository records and is not affected. See [Product Options — TargetGroupMigrationOrder](../06-configuration-reference/product-options.md#targetgroupmigrationorder) for validation rules and the full configuration reference.
+The override applies to `migrate-up` and `baseline`. `migrate-down` always derives order from repository records and is not affected. See [Product Options — TargetGroupMigrationOrder](../06-configuration-reference/product-options.md#targetgroupmigrationorder) for validation rules and the full configuration reference.
 
 **Within each TargetGroup** (controlled by `TargetMigrationOrder`):
 - **Simultaneously**: file → target
@@ -270,9 +270,9 @@ The behavior of each mode is determined by extension methods on `MigrationRunMod
 Execute actual database changes.
 
 ```bash
-raymigrator Migrate-Up --product MyProduct --environment Production
+raymigrator migrate-up --product MyProduct --environment Production
 # or explicitly:
-raymigrator Migrate-Up --product MyProduct --environment Production --run-mode Migrate
+raymigrator migrate-up --product MyProduct --environment Production --run-mode migrate
 ```
 
 ### Simulate
@@ -280,7 +280,7 @@ raymigrator Migrate-Up --product MyProduct --environment Production --run-mode M
 Validate and process everything, connect to target databases for connectivity validation, but do not execute SQL on target databases.
 
 ```bash
-raymigrator Migrate-Up --product MyProduct --environment Production --run-mode Simulate
+raymigrator migrate-up --product MyProduct --environment Production --run-mode simulate
 ```
 
 **Simulate Mode**:
@@ -304,15 +304,15 @@ raymigrator Migrate-Up --product MyProduct --environment Production --run-mode S
 Validate configuration, migration files, and rollback files without any database operations.
 
 ```bash
-raymigrator Migrate-Up --product MyProduct --environment Production --run-mode Validate
-raymigrator Migrate-Down --product MyProduct --environment Production --to-release "Release 1.0" --run-mode Validate
+raymigrator migrate-up --product MyProduct --environment Production --run-mode validate
+raymigrator migrate-down --product MyProduct --environment Production --to-release "Release 1.0" --run-mode validate
 ```
 
 **Validate Mode**:
 - Parses all migration files (TOML metadata, SQL blocks)
 - Checks environment/target filters
 - Calculates file hashes
-- For Migrate-Down: validates rollback file existence and parseability
+- For migrate-down: validates rollback file existence and parseability
 - Does NOT connect to target databases
 - Does NOT connect to repository database
 - Does NOT execute SQL
@@ -325,7 +325,7 @@ raymigrator Migrate-Down --product MyProduct --environment Production --to-relea
 - Checking rollback file completeness
 - Environments where database access is not available
 
-> **Note**: The `Validate-Hash` command is a separate command that validates file hashes against repository records. The `--run-mode Validate` option for `Migrate-Up`/`Migrate-Down` is a different feature that validates file structure without any database access.
+> **Note**: The `validate-hash` command is a separate command that validates file hashes against repository records. The `--run-mode validate` option for `migrate-up`/`migrate-down` is a different feature that validates file structure without any database access.
 
 ## Execution Flow Comparison
 
@@ -457,7 +457,7 @@ Out-of-Order Migration is controlled via the CLI parameter:
 
 ```bash
 # One-time opt-in for a specific migration run
-raymigrator Migrate-Up -p MyProduct -env Production -rm Migrate --allow-out-of-order
+raymigrator migrate-up -p MyProduct -env Production -rm migrate --allow-out-of-order
 ```
 
 | Parameter | Short | Default | Description |
@@ -521,7 +521,7 @@ The main migration loop in `MigrateUpAsync` dispatches to the appropriate method
 
 ```
 foreach release in orderedReleases:
-    orderedTargetGroups = resolve from: CLI --TargetGroup-MigrationOrder
+    orderedTargetGroups = resolve from: CLI --target-group-migration-order
                                       → release migsettings TargetGroupMigrationOrder
                                       → product appsettings TargetGroupMigrationOrder
                                       → productOptions.TargetGroups (config array order)

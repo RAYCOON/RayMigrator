@@ -97,7 +97,7 @@ public interface IMigrationService
 }
 ```
 
-> **Note**: Existing methods like `GetStatusAsync` and `GetHistoryAsync` take simple parameters (not request objects) because they were designed for the `Info` command. New commands should follow the request/response pattern used by `MigrateUpAsync`, `MigrateDownAsync`, etc. All request classes should include `ShowInfo` and `RevealSensitiveData` properties. Most migration requests also include `TargetGroupAliases` (`string[]?`) for target group filtering (exception: `FixIssuesRequest` does not include `TargetGroupAliases`). `MigrateUpRequest` also includes `AllowOutOfOrder` (`bool`) for out-of-order migration execution and `TargetGroupMigrationOrder` (`string[]?`) for explicit target group ordering — both specific to that command. `BaselineRequest` also includes `TargetGroupMigrationOrder`. `FixIssuesRequest` includes `OlderThanMinutes`, `DryRun`, `AssumedMigrationStatus`, and `Scope` properties, which are populated from `_consoleOptions` in `ExecuteFixIssuesAsync()`. Some CLI options are not propagated via request classes but are read directly from `RayMigratorConsoleOptions` by the service (e.g., `StopRollbackOnMissingRollbackFile` for `Migrate-Up`); these options are typically also configurable in `appsettings.json` and the CLI value acts as an override.
+> **Note**: Existing methods like `GetStatusAsync` and `GetHistoryAsync` take simple parameters (not request objects) because they were designed for the `info` command. New commands should follow the request/response pattern used by `MigrateUpAsync`, `MigrateDownAsync`, etc. All request classes should include `ShowInfo` and `RevealSensitiveData` properties. Most migration requests also include `TargetGroupAliases` (`string[]?`) for target group filtering (exception: `FixIssuesRequest` does not include `TargetGroupAliases`). `MigrateUpRequest` also includes `AllowOutOfOrder` (`bool`) for out-of-order migration execution and `TargetGroupMigrationOrder` (`string[]?`) for explicit target group ordering — both specific to that command. `BaselineRequest` also includes `TargetGroupMigrationOrder`. `FixIssuesRequest` includes `OlderThanMinutes`, `DryRun`, `AssumedMigrationStatus`, and `Scope` properties, which are populated from `_consoleOptions` in `ExecuteFixIssuesAsync()`. Some CLI options are not propagated via request classes but are read directly from `RayMigratorConsoleOptions` by the service (e.g., `StopRollbackOnMissingRollbackFile` for `migrate-up`); these options are typically also configurable in `appsettings.json` and the CLI value acts as an override.
 
 ## Step 3: Implement the Service Method
 
@@ -337,7 +337,7 @@ Shows the current migration status for a product.
 
 ## Synopsis
 
-raymigrator Migrate-Status --product <ProductAlias> --environment <Environment> [options]
+raymigrator migrate-status --product <ProductAlias> --environment <Environment> [options]
 
 ## Options
 
@@ -364,7 +364,7 @@ CLI args → CommandLineConfiguration.SetAction() → ParsedOptions
          → exit code 0 (success) or 1 (failure)
 ```
 
-All migration commands (Migrate-Up, Migrate-Down, Validate-Hash, Update-Hash, Info, Baseline, Fix) go through `DoWorkAsync()`. The CLI command name for the FixIssues enum value is `Fix` (not `Fix-Issues`).
+All migration commands (migrate-up, migrate-down, validate-hash, update-hash, info, baseline, fix) go through `DoWorkAsync()`. The CLI command name for the FixIssues enum value is `fix` (not `Fix-Issues`).
 
 ## Checklist
 

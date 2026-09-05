@@ -6,10 +6,10 @@ RayMigrator uses System.CommandLine for its CLI interface.
 
 ```mermaid
 graph TD
-    A[RayMigrator CLI] --> B[Migrate-Up]
-    A --> C[Migrate-Down]
-    A --> D[Validate-Hash]
-    A --> E[Update-Hash]
+    A[RayMigrator CLI] --> B[migrate-up]
+    A --> C[migrate-down]
+    A --> D[validate-hash]
+    A --> E[update-hash]
     A --> H[Info]
     A --> I[Baseline]
     A --> J[Fix]
@@ -29,13 +29,13 @@ graph TD
 
 | Command | Purpose |
 |---------|---------|
-| `Migrate-Up` | Apply pending migrations forward |
-| `Migrate-Down` | Rollback to previous version |
-| `Validate-Hash` | Verify migration file integrity |
-| `Update-Hash` | Update repository hashes after approved changes |
-| `Info` | Display migration status information |
-| `Baseline` | Mark existing database as migrated (all releases, or up to a specific release) |
-| `Fix` | Fix repository inconsistencies (orphaned runs) |
+| `migrate-up` | Apply pending migrations forward |
+| `migrate-down` | Rollback to previous version |
+| `validate-hash` | Verify migration file integrity |
+| `update-hash` | Update repository hashes after approved changes |
+| `info` | Display migration status information |
+| `baseline` | Mark existing database as migrated (all releases, or up to a specific release) |
+| `fix` | Fix repository inconsistencies (orphaned runs) |
 
 ## Command Definition
 
@@ -89,7 +89,7 @@ Each command is built by a `Create*Command()` method that defines its options, a
 ```csharp
 private Command CreateMigrateUpCommand()
 {
-    var command = new Command("Migrate-Up", "Apply pending migrations forward");
+    var command = new Command("migrate-up", "Apply pending migrations forward");
 
     var productOption = new Option<string>("--product", "-p")
     {
@@ -139,7 +139,7 @@ private Command CreateMigrateUpCommand()
         Arity = ArgumentArity.ZeroOrMore
     };
 
-    var targetGroupMigrationOrderOption = new Option<string?>("--TargetGroup-MigrationOrder", "-tgmo")
+    var targetGroupMigrationOrderOption = new Option<string?>("--target-group-migration-order", "-tgmo")
     {
         Description = "Explicit TargetGroup migration order (comma-separated aliases, e.g. \"Frontend,Backend\")",
         Arity = ArgumentArity.ZeroOrOne
@@ -172,7 +172,7 @@ private void SetupMigrateUpHandler(Command command, Option<bool> showInfoOption,
         var runMode = ParseRunMode(runModeString);
         var allowOutOfOrder = parseResult.GetValue(command.Options.OfType<Option<bool>>().First(o => o.Name == "--allow-out-of-order"));
 
-        var tgeoRaw = parseResult.GetValue(command.Options.OfType<Option<string?>>().First(o => o.Name == "--TargetGroup-MigrationOrder"));
+        var tgeoRaw = parseResult.GetValue(command.Options.OfType<Option<string?>>().First(o => o.Name == "--target-group-migration-order"));
         var tgeoArray = ParseCommaSeparatedToArray(tgeoRaw);
 
         var stopRollbackOnMissingRollbackFile = parseResult.GetValue(
@@ -205,7 +205,7 @@ All string option values support `{ENV:VAR}` environment variable substitution v
 
 ### Required Options (Migration Commands)
 
-These options are required for all migration commands (Migrate-Up, Migrate-Down, Validate-Hash, Update-Hash, Info, Baseline, Fix).
+These options are required for all migration commands (migrate-up, migrate-down, validate-hash, update-hash, info, baseline, fix).
 
 | Option | Short | Type | Description |
 |--------|-------|------|-------------|
@@ -228,43 +228,43 @@ These options are defined on specific commands (not global).
 
 | Option | Short | Type | Default | Used By | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--run-mode` | `-rm` | string | Migrate | Migrate-Up, Migrate-Down | Migrate, Simulate, or Validate |
-| `--to-release` | `-tr` | string | (latest) | Migrate-Up, Migrate-Down, Baseline | Target release version (optional for Migrate-Up and Baseline; **required** for Migrate-Down) |
-| `--target-group` | `-tg` | string[] | (all) | Migrate-Up, Migrate-Down, Validate-Hash, Update-Hash, Baseline | Filter to specific target groups (repeatable) |
-| `--allow-out-of-order` | `-ooo` | bool | false | Migrate-Up | Allow out-of-order migration execution |
-| `--TargetGroup-MigrationOrder` | `-tgmo` | string | (config order) | Migrate-Up, Baseline | Explicit TargetGroup migration order (comma-separated aliases, e.g. `"Frontend,Backend"`) |
-| `--stop-rollback-on-missing-rollback-file` | `-sromrf` | bool? | (config default: true) | Migrate-Up | CLI override: stop error-recovery rollback chain when a rollback file is missing |
-| `--scope` | `-s` | string | (varies) | Validate-Hash, Fix | Validation or fix scope (Validate-Hash: `File`/`SqlBlock`/`Disabled`; Fix: `OrphanedRuns`/`All`) |
+| `--run-mode` | `-rm` | string | Migrate | migrate-up, migrate-down | Migrate, Simulate, or Validate |
+| `--to-release` | `-tr` | string | (latest) | migrate-up, migrate-down, baseline | Target release version (optional for migrate-up and Baseline; **required** for migrate-down) |
+| `--target-group` | `-tg` | string[] | (all) | migrate-up, migrate-down, validate-hash, update-hash, baseline | Filter to specific target groups (repeatable) |
+| `--allow-out-of-order` | `-ooo` | bool | false | migrate-up | Allow out-of-order migration execution |
+| `--target-group-migration-order` | `-tgmo` | string | (config order) | migrate-up, baseline | Explicit TargetGroup migration order (comma-separated aliases, e.g. `"Frontend,Backend"`) |
+| `--stop-rollback-on-missing-rollback-file` | `-sromrf` | bool? | (config default: true) | migrate-up | CLI override: stop error-recovery rollback chain when a rollback file is missing |
+| `--scope` | `-s` | string | (varies) | validate-hash, fix | Validation or fix scope (validate-hash: `File`/`SqlBlock`/`Disabled`; Fix: `OrphanedRuns`/`All`) |
 | `--older-than` | `-ot` | int | 60 | Fix | Only fix runs older than N minutes (0 = immediate) |
 | `--dry-run` | (none) | bool | false | Fix | Preview what would be fixed without applying changes |
 | `--last-migration-status` | `-lms` | string | not-migrated | Fix | Status for orphaned migrations (`migrated` or `not-migrated`) |
 
 ### Command-Specific Options
 
-**Migrate-Up**:
+**migrate-up**:
 - `--run-mode` (`-rm`): string, default `"Migrate"` — Migrate, Simulate, or Validate
 - `--to-release` (`-tr`): string, optional — Target release version
 - `--allow-out-of-order` (`-ooo`): bool, default `false` — Allow out-of-order migration execution
 - `--target-group` (`-tg`): string[], repeatable — Filter to specific target groups
-- `--TargetGroup-MigrationOrder` (`-tgmo`): string, optional — Comma-separated list of TargetGroup aliases that overrides the default migration order (e.g. `"Frontend,Backend"`)
+- `--target-group-migration-order` (`-tgmo`): string, optional — Comma-separated list of TargetGroup aliases that overrides the default migration order (e.g. `"Frontend,Backend"`)
 - `--stop-rollback-on-missing-rollback-file` (`-sromrf`): bool?, optional — CLI override for `StopRollbackOnMissingRollbackFile` configuration; when `true`, the error-recovery rollback chain stops if a rollback file is missing
 
-**Migrate-Down**:
+**migrate-down**:
 - `--to-release` (`-tr`): string, **required** — Must specify rollback target
 - `--run-mode` (`-rm`): string, default `"Migrate"` — Migrate, Simulate, or Validate
 - `--target-group` (`-tg`): string[], repeatable — Filter to specific target groups
 
-**Validate-Hash**:
+**validate-hash**:
 - `--scope` (`-s`): string, optional (no default) — Maps to `HashValidationScope` enum (values: `File`, `SqlBlock`/`SqlBlocks`, `Disabled`). If omitted, uses per-TargetGroup config.
 - `--target-group` (`-tg`): string[], repeatable — Filter to specific target groups
 
-**Update-Hash**:
+**update-hash**:
 - `--target-group` (`-tg`): string[], repeatable — Filter to specific target groups
 
 **Baseline**:
 - `--to-release` (`-tr`): string, optional — Omit to baseline all releases; specify to baseline up to a specific release
 - `--target-group` (`-tg`): string[], repeatable — Filter to specific target groups
-- `--TargetGroup-MigrationOrder` (`-tgmo`): string, optional — Comma-separated list of TargetGroup aliases that overrides the default migration order (e.g. `"Frontend,Backend"`)
+- `--target-group-migration-order` (`-tgmo`): string, optional — Comma-separated list of TargetGroup aliases that overrides the default migration order (e.g. `"Frontend,Backend"`)
 
 **Info**:
 - No command-specific options (only `--product` and `--environment`)
@@ -288,20 +288,20 @@ System.CommandLine handles:
 
 ```bash
 # Basic usage
-raymigrator Migrate-Up --product MyProduct --environment Production
+raymigrator migrate-up --product MyProduct --environment Production
 
 # Short form
-raymigrator Migrate-Up -p MyProduct -env Production
+raymigrator migrate-up -p MyProduct -env Production
 
 # With optional parameters
-raymigrator Migrate-Up -p MyProduct -env Production -rm Simulate -tr "Release 1.0"
+raymigrator migrate-up -p MyProduct -env Production -rm simulate -tr "Release 1.0"
 
 # With environment variable substitution
-raymigrator Migrate-Up -p "{ENV:PRODUCT_NAME}" -env "{ENV:TARGET_ENV}"
+raymigrator migrate-up -p "{ENV:PRODUCT_NAME}" -env "{ENV:TARGET_ENV}"
 
 # Show help
 raymigrator --help
-raymigrator Migrate-Up --help
+raymigrator migrate-up --help
 ```
 
 ## Help Output
@@ -322,16 +322,16 @@ Options:
   -?, -h, --help                  Show help and usage information
 
 Commands:
-  Migrate-Up     Apply pending migrations forward
-  Migrate-Down   Rollback to previous version
-  Validate-Hash  Verify migration file integrity
-  Update-Hash    Update repository hashes after approved changes
-  Info           Display migration status information
-  Baseline       Mark existing database as migrated (all releases, or up to a specific release)
-  Fix            Fix repository inconsistencies (orphaned runs)
+  migrate-up     Apply pending migrations forward
+  migrate-down   Rollback to previous version
+  validate-hash  Verify migration file integrity
+  update-hash    Update repository hashes after approved changes
+  info           Display migration status information
+  baseline       Mark existing database as migrated (all releases, or up to a specific release)
+  fix            Fix repository inconsistencies (orphaned runs)
 ```
 
-For subcommands (`raymigrator Migrate-Up --help`), the default help renderer is used without the logo banner.
+For subcommands (`raymigrator migrate-up --help`), the default help renderer is used without the logo banner.
 
 ## Exit Codes
 
@@ -349,7 +349,7 @@ sequenceDiagram
     participant Svc as RayMigratorService
     participant Mig as IMigrationService
 
-    User->>CLI: raymigrator Migrate-Up -p X -env Y
+    User->>CLI: raymigrator migrate-up -p X -env Y
     CLI->>CLI: Parse arguments into RayMigratorConsoleOptions
     CLI->>CLI: Validate options
 

@@ -19,6 +19,18 @@ RayMigrator follows Semantic Versioning where applicable.
   working because `PATH` resolution is case-insensitive. Release archive
   names (`RayMigrator-<version>-<rid>.*`) are unchanged. All documentation
   and the ConfigWizard field help use the new name. (#1)
+- **Breaking (all platforms):** the seven CLI command verbs are now
+  kebab-lowercase: `migrate-up`, `migrate-down`, `validate-hash`,
+  `update-hash`, `info`, `baseline`, `fix`. `System.CommandLine` matches
+  command names case-sensitively and no aliases for the old PascalCase
+  spelling are registered, so `Migrate-Up` etc. are rejected on Windows
+  too. The `--TargetGroup-MigrationOrder` option on `migrate-up` and
+  `baseline` is renamed to `--target-group-migration-order` (the `-tgmo`
+  short alias is unchanged). Option values such as `--run-mode migrate`
+  and `--scope sqlblock` were already accepted in any case; help text,
+  validation messages and documentation now show them in lowercase.
+  Every pipeline invoking the CLI must be updated in the same deployment.
+  (#2)
 
 ## [0.11.0] — 2026-08-17
 

@@ -114,7 +114,7 @@ When `true`, this migration is executed on every migration run, even if it was s
 RunAlways = true
 ```
 
-During Migrate-Up, RunAlways files bypass the hash-based skip logic entirely and are always included in the execution list. The `Validate-Hash` command still checks RunAlways files for hash changes, so you can detect unintended modifications before deploying.
+During migrate-up, RunAlways files bypass the hash-based skip logic entirely and are always included in the execution list. The `validate-hash` command still checks RunAlways files for hash changes, so you can detect unintended modifications before deploying.
 
 ### RequireRollbackFile
 
@@ -182,7 +182,7 @@ Valid values:
 - `true` (default) — The error-recovery rollback chain stops at this migration if its rollback file is missing. A warning is logged and the record status is left unchanged.
 - `false` — The error-recovery rollback chain continues past this migration if its rollback file is missing. A warning is logged and the record status is left unchanged.
 
-> **Note:** This setting is parsed from the TOML header but is not stored in the migration file metadata. The runtime rollback decision uses only the appsettings-level value (`ProductDefaults`, `Product`, `TargetGroup`) and the CLI `--stop-rollback-on-missing-rollback-file` option. The per-file TOML value is not consulted at rollback execution time. To control this behavior, set it in `appsettings.json` or via the CLI option. This setting has no effect on explicit `Migrate-Down` operations.
+> **Note:** This setting is parsed from the TOML header but is not stored in the migration file metadata. The runtime rollback decision uses only the appsettings-level value (`ProductDefaults`, `Product`, `TargetGroup`) and the CLI `--stop-rollback-on-missing-rollback-file` option. The per-file TOML value is not consulted at rollback execution time. To control this behavior, set it in `appsettings.json` or via the CLI option. This setting has no effect on explicit `migrate-down` operations.
 
 ### TargetGroupMigrationOrder
 
@@ -192,9 +192,9 @@ Overrides the execution order of target groups for this release directory. The v
 TargetGroupMigrationOrder = ["Frontend", "Backend"]
 ```
 
-This TOML key is only meaningful in release-level migsettings files (applied per-release), not in individual migration file headers. If omitted, the value is inherited from the nearest `migsettings.txt` / `migsettings.{Environment}.txt` file in the directory hierarchy, from the `TargetGroupMigrationOrder` property in the product's `appsettings.json`, or from the `--TargetGroup-MigrationOrder` CLI option. When no order is set anywhere, target groups are processed in the order they appear in configuration.
+This TOML key is only meaningful in release-level migsettings files (applied per-release), not in individual migration file headers. If omitted, the value is inherited from the nearest `migsettings.txt` / `migsettings.{Environment}.txt` file in the directory hierarchy, from the `TargetGroupMigrationOrder` property in the product's `appsettings.json`, or from the `--target-group-migration-order` CLI option. When no order is set anywhere, target groups are processed in the order they appear in configuration.
 
-This parameter is only applicable when the product has more than one target group. Applies to `Migrate-Up` and `Baseline` commands.
+This parameter is only applicable when the product has more than one target group. Applies to `migrate-up` and `baseline` commands.
 
 ---
 
@@ -335,7 +335,7 @@ MigrationFilesRootDirectory/
 
 ## Rollback Files
 
-Rollback files contain SQL that undoes a migration. They are executed during `Migrate-Down` operations.
+Rollback files contain SQL that undoes a migration. They are executed during `migrate-down` operations.
 
 ### Naming Convention
 
@@ -426,7 +426,7 @@ WHERE [LastName] IN ('Herbert', 'Asimov', 'Le Guin');
 - **Always use `IF EXISTS`** in DROP and ALTER statements to make rollbacks idempotent.
 - **Handle foreign keys first.** Drop dependent constraints before dropping referenced tables.
 - **Reverse the order.** If migration 003 added a FK and a column, the rollback should drop the FK first, then the column.
-- **Test rollbacks.** Run `Migrate-Up` followed by `Migrate-Down` in development to verify rollbacks work correctly.
+- **Test rollbacks.** Run `migrate-up` followed by `migrate-down` in development to verify rollbacks work correctly.
 
 ---
 
@@ -616,7 +616,7 @@ LEFT JOIN [dbo].[Authors] a ON b.[AuthorId] = a.[Id];
 GO
 ```
 
-**Hash validation:** During Migrate-Up, RunAlways files bypass the hash-based skip logic and are always re-executed regardless of whether their content has changed. To detect unintended changes to RunAlways files, use the `Validate-Hash` command, which compares current file hashes against the repository records.
+**Hash validation:** During migrate-up, RunAlways files bypass the hash-based skip logic and are always re-executed regardless of whether their content has changed. To detect unintended changes to RunAlways files, use the `validate-hash` command, which compares current file hashes against the repository records.
 
 > **Tip:** Place RunAlways files at the end of your sequence (e.g., `900_RecreateViews.sql`) so they execute after all schema changes are applied.
 
@@ -624,7 +624,7 @@ GO
 
 ## Next Steps
 
-With migration files written and organized, the next chapter covers running migrations: executing `Migrate-Up`, simulating runs, and handling errors.
+With migration files written and organized, the next chapter covers running migrations: executing `migrate-up`, simulating runs, and handling errors.
 
 See [Migration File Specification](../07-migration-files/directory-structure.md) for the full migration file specification including advanced TOML options.
 

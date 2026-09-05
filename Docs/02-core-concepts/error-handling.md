@@ -296,7 +296,7 @@ Missing rollback files during an error-recovery rollback chain are controlled by
 
 `StopRollbackOnMissingRollbackFile` is configured at `ProductDefaults`, `Product`, and `TargetGroup` levels (lowest to highest priority) and can also be overridden per-run via the CLI option `--stop-rollback-on-missing-rollback-file` / `-sromrf` (highest priority). It can also be set in migsettings files and per-file TOML metadata, though those values are parsed but not used in the runtime rollback resolution (only appsettings and CLI levels are consulted).
 
-This setting **only applies to error-recovery rollback** (triggered by `MigrationErrorAction = Rollback`, `RollbackRelease`, or `RollbackErrorOnly`). It does **not** affect explicit `Migrate-Down` operations.
+This setting **only applies to error-recovery rollback** (triggered by `MigrationErrorAction = Rollback`, `RollbackRelease`, or `RollbackErrorOnly`). It does **not** affect explicit `migrate-down` operations.
 
 **Important**: `StopRollbackOnMissingRollbackFile` does **not** override `RequireRollbackFile = true`. A required but missing rollback file is a structural configuration error that always aborts the chain.
 
@@ -473,7 +473,7 @@ When the Repository and a migration Target share the **same ConnectionString** (
 
 Without this feature, each SQL block executes on its own connection, and each repository status write uses a separate connection. If a crash occurs after a target SQL block commits but before the corresponding repository status write completes, the system is left in an inconsistent state: the database has the DDL/DML changes, but the repository does not reflect this.
 
-Existing recovery mechanisms (`TryFinalizeCompletedMigration`, `FindResumableBlock`, `Fix` command) mitigate this gap but cannot eliminate it entirely.
+Existing recovery mechanisms (`TryFinalizeCompletedMigration`, `FindResumableBlock`, `fix` command) mitigate this gap but cannot eliminate it entirely.
 
 ### How It Works
 
@@ -532,7 +532,7 @@ This is safe because database transactions guarantee that a rolled-back transact
 
 ### Rollback Atomicity
 
-The same atomic behavior applies to rollback operations (Migrate-Down, error-triggered rollback via `MigrationErrorAction.Rollback`):
+The same atomic behavior applies to rollback operations (migrate-down, error-triggered rollback via `MigrationErrorAction.Rollback`):
 
 - All rollback blocks + the repository status (`NotMigrated`) are committed in a single transaction
 - File-level retry applies to rollback as well
@@ -680,20 +680,20 @@ If a previous migration was interrupted (e.g., process crash), the migration run
 
 ```bash
 # Dry run — see what would be fixed
-raymigrator Fix --product MyProduct --environment Production --scope OrphanedRuns --dry-run
+raymigrator fix --product MyProduct --environment Production --scope orphanedruns --dry-run
 
 # Fix orphaned runs older than 60 minutes (default)
-raymigrator Fix --product MyProduct --environment Production --scope OrphanedRuns
+raymigrator fix --product MyProduct --environment Production --scope orphanedruns
 ```
 
 ### 5. Resume or Restart
 
 ```bash
 # Continue from where it stopped
-raymigrator Migrate-Up --product MyProduct --environment Production
+raymigrator migrate-up --product MyProduct --environment Production
 
 # Or update hashes if manual fix was applied
-raymigrator Update-Hash --product MyProduct --environment Production
+raymigrator update-hash --product MyProduct --environment Production
 ```
 
 ## Best Practices

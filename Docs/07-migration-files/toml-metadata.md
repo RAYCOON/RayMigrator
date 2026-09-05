@@ -158,7 +158,7 @@ GO
 > **Note**: `UseTransaction` has no effect when a CLI tool executes the migration (via `UseCliToolAlias`).
 > The external tool (psql, sqlcmd, etc.) controls its own transaction behavior.
 > If `UseTransaction` is explicitly set in the TOML header while `UseCliToolAlias` is also configured,
-> a safety warning is logged during Migrate-Up.
+> a safety warning is logged during migrate-up.
 
 ## Run Always
 

@@ -280,7 +280,7 @@ public class ConfigDirTests
         var config = new CommandLineConfiguration("RayMigrator Test");
 
         await config.RootCommand.Parse(
-            new[] { "Info", "-p", "TestProduct", "-env", "Dev", "--config-dir", tempDir }
+            new[] { "info", "-p", "TestProduct", "-env", "Dev", "--config-dir", tempDir }
         ).InvokeAsync(null, TestContext.Current.CancellationToken);
 
         config.ParsedOptions.Should().NotBeNull();
@@ -296,7 +296,7 @@ public class ConfigDirTests
         var config = new CommandLineConfiguration("RayMigrator Test");
 
         await config.RootCommand.Parse(
-            new[] { "Info", "-p", "TestProduct", "-env", "Dev", "-cd", tempDir }
+            new[] { "info", "-p", "TestProduct", "-env", "Dev", "-cd", tempDir }
         ).InvokeAsync(null, TestContext.Current.CancellationToken);
 
         config.ParsedOptions.Should().NotBeNull();
@@ -310,7 +310,7 @@ public class ConfigDirTests
         var config = new CommandLineConfiguration("RayMigrator Test");
 
         await config.RootCommand.Parse(
-            new[] { "Info", "-p", "TestProduct", "-env", "Dev" }
+            new[] { "info", "-p", "TestProduct", "-env", "Dev" }
         ).InvokeAsync(null, TestContext.Current.CancellationToken);
 
         config.ParsedOptions.Should().NotBeNull();
@@ -324,7 +324,7 @@ public class ConfigDirTests
         var config = new CommandLineConfiguration("RayMigrator Test");
 
         await config.RootCommand.Parse(
-            new[] { "Migrate-Up", "-p", "TestProduct", "-env", "Dev", "--config-dir", tempDir }
+            new[] { "migrate-up", "-p", "TestProduct", "-env", "Dev", "--config-dir", tempDir }
         ).InvokeAsync(null, TestContext.Current.CancellationToken);
 
         config.ParsedOptions.Should().NotBeNull();
@@ -338,7 +338,7 @@ public class ConfigDirTests
         var config = new CommandLineConfiguration("RayMigrator Test");
 
         await config.RootCommand.Parse(
-            new[] { "Migrate-Down", "-p", "TestProduct", "-env", "Dev", "-tr", "1.0", "--config-dir", tempDir }
+            new[] { "migrate-down", "-p", "TestProduct", "-env", "Dev", "-tr", "1.0", "--config-dir", tempDir }
         ).InvokeAsync(null, TestContext.Current.CancellationToken);
 
         config.ParsedOptions.Should().NotBeNull();
@@ -352,7 +352,7 @@ public class ConfigDirTests
         var config = new CommandLineConfiguration("RayMigrator Test");
 
         await config.RootCommand.Parse(
-            new[] { "Validate-Hash", "-p", "TestProduct", "-env", "Dev", "--config-dir", tempDir }
+            new[] { "validate-hash", "-p", "TestProduct", "-env", "Dev", "--config-dir", tempDir }
         ).InvokeAsync(null, TestContext.Current.CancellationToken);
 
         config.ParsedOptions.Should().NotBeNull();
@@ -366,7 +366,7 @@ public class ConfigDirTests
         var config = new CommandLineConfiguration("RayMigrator Test");
 
         await config.RootCommand.Parse(
-            new[] { "Update-Hash", "-p", "TestProduct", "-env", "Dev", "--config-dir", tempDir }
+            new[] { "update-hash", "-p", "TestProduct", "-env", "Dev", "--config-dir", tempDir }
         ).InvokeAsync(null, TestContext.Current.CancellationToken);
 
         config.ParsedOptions.Should().NotBeNull();
@@ -380,7 +380,7 @@ public class ConfigDirTests
         var config = new CommandLineConfiguration("RayMigrator Test");
 
         await config.RootCommand.Parse(
-            new[] { "Baseline", "-p", "TestProduct", "-env", "Dev", "--config-dir", tempDir }
+            new[] { "baseline", "-p", "TestProduct", "-env", "Dev", "--config-dir", tempDir }
         ).InvokeAsync(null, TestContext.Current.CancellationToken);
 
         config.ParsedOptions.Should().NotBeNull();
@@ -394,7 +394,7 @@ public class ConfigDirTests
         var config = new CommandLineConfiguration("RayMigrator Test");
 
         await config.RootCommand.Parse(
-            new[] { "Fix", "-p", "TestProduct", "-env", "Dev", "--config-dir", tempDir }
+            new[] { "fix", "-p", "TestProduct", "-env", "Dev", "--config-dir", tempDir }
         ).InvokeAsync(null, TestContext.Current.CancellationToken);
 
         config.ParsedOptions.Should().NotBeNull();
@@ -416,7 +416,7 @@ public class ConfigDirTests
             var config = new CommandLineConfiguration("RayMigrator Test");
 
             await config.RootCommand.Parse(
-                new[] { "Info", "-p", "TestProduct", "-env", "Dev", "--config-dir", $"{{ENV:{envVarName}}}" }
+                new[] { "info", "-p", "TestProduct", "-env", "Dev", "--config-dir", $"{{ENV:{envVarName}}}" }
             ).InvokeAsync(null, TestContext.Current.CancellationToken);
 
             config.ParsedOptions.Should().NotBeNull();
@@ -439,7 +439,7 @@ public class ConfigDirTests
         var config = new CommandLineConfiguration("RayMigrator Test");
 
         var exitCode = await config.RootCommand.Parse(
-            new[] { "Info", "-p", "TestProduct", "-env", "Dev", "--config-dir", $"{{ENV:{envVarName}}}" }
+            new[] { "info", "-p", "TestProduct", "-env", "Dev", "--config-dir", $"{{ENV:{envVarName}}}" }
         ).InvokeAsync(null, TestContext.Current.CancellationToken);
 
         // System.CommandLine swallows exceptions from handlers and returns non-zero exit code

@@ -18,7 +18,7 @@ Understanding these five rules is essential for interpreting the scenario matrix
 
 ### 1. Failed Files Are Auto-Retried
 
-When `Migrate-Up` runs again after a failure, files with status `Failed` (30) or `NotMigrated` (50) are automatically re-executed. **No manual status change is needed.** Simply fix the root cause (SQL error, missing dependency, etc.) and re-run `Migrate-Up`.
+When `migrate-up` runs again after a failure, files with status `Failed` (30) or `NotMigrated` (50) are automatically re-executed. **No manual status change is needed.** Simply fix the root cause (SQL error, missing dependency, etc.) and re-run `migrate-up`.
 
 ### 2. Resume Mechanism (FindResumableBlock)
 
@@ -30,15 +30,15 @@ Two distinct cases:
 
 - **Failed file modified and re-run**: RayMigrator detects the hash mismatch, logs a warning, but **proceeds with re-execution** from block 1. The hash is updated after successful completion. This is the normal fix-and-retry workflow.
 
-- **Already-Migrated file modified**: If a file with status `Migrated` (100) has its content changed, it will be **re-executed** on the next `Migrate-Up`. This can cause errors (e.g., duplicate `CREATE TABLE`). **Never modify an already-migrated file without running `Migrate-Down` first** or using `Update-Hash` to acknowledge the change.
+- **Already-Migrated file modified**: If a file with status `Migrated` (100) has its content changed, it will be **re-executed** on the next `migrate-up`. This can cause errors (e.g., duplicate `CREATE TABLE`). **Never modify an already-migrated file without running `migrate-down` first** or using `update-hash` to acknowledge the change.
 
 ### 4. Fix Command Scope
 
-The `Fix` command only handles **orphaned runs** — `MigrationRun` entries stuck in `Running` (10) status with no process behind them. It does **not** change individual `Migration` statuses from `Failed` to `NotMigrated`. That is not needed because failed files are auto-retried (see rule 1).
+The `fix` command only handles **orphaned runs** — `MigrationRun` entries stuck in `Running` (10) status with no process behind them. It does **not** change individual `Migration` statuses from `Failed` to `NotMigrated`. That is not needed because failed files are auto-retried (see rule 1).
 
 ### 5. MigrateDown Only Rolls Back Migrated Files
 
-The `Migrate-Down` command only processes files with status `Migrated` (100). Files with status `Failed` (30), `NotMigrated` (50), or `NoRecord` (-1) are skipped. This means `Migrate-Down` cannot be used to "clean up" after a failed run — it is designed for intentional rollbacks of successfully applied migrations.
+The `migrate-down` command only processes files with status `Migrated` (100). Files with status `Failed` (30), `NotMigrated` (50), or `NoRecord` (-1) are skipped. This means `migrate-down` cannot be used to "clean up" after a failed run — it is designed for intentional rollbacks of successfully applied migrations.
 
 ---
 
@@ -56,13 +56,13 @@ The repository status does not reflect the actual database state. For example, a
 
 The target database is in a partial state — some changes from a migration file were applied but not all (e.g., table created but data insert failed when `UseTransaction = false`).
 
-**Resolution**: Manually complete or revert the partial changes in the database, then re-run `Migrate-Up` or use `Update-Hash`.
+**Resolution**: Manually complete or revert the partial changes in the database, then re-run `migrate-up` or use `update-hash`.
 
 ### Logical Inconsistency
 
 The repository status is technically correct but the system is in an undesirable state. For example, after `Ignore`, a file is correctly marked as `Failed` while later files are `Migrated` — the repository is accurate, but the database may have dependent data without the prerequisite schema.
 
-**Resolution**: Fix the failed file and re-run `Migrate-Up`, or manually apply the missing changes and use `Update-Hash`.
+**Resolution**: Fix the failed file and re-run `migrate-up`, or manually apply the missing changes and use `update-hash`.
 
 ---
 
@@ -129,7 +129,7 @@ All scenarios use a standard 3-release, 9-file migration set unless otherwise no
 
 **Inconsistency**: None — repository and database are aligned.
 
-**Recovery**: Fix the SQL error in `01_CreateTableA.sql`, then re-run `Migrate-Up`. The failed file is auto-retried.
+**Recovery**: Fix the SQL error in `01_CreateTableA.sql`, then re-run `migrate-up`. The failed file is auto-retried.
 
 #### S03 — Error in Middle (R2F2)
 
@@ -152,7 +152,7 @@ All scenarios use a standard 3-release, 9-file migration set unless otherwise no
 
 **Inconsistency**: None — repository and database are aligned. The `Failed` file prevented data insertion, but the transaction ensured no partial data.
 
-**Recovery**: Fix `02_InsertDataB.sql`, re-run `Migrate-Up`. Files R1F1–R2F1 are skipped (already `Migrated`), R2F2 is retried, R2F3–R3F3 execute normally.
+**Recovery**: Fix `02_InsertDataB.sql`, re-run `migrate-up`. Files R1F1–R2F1 are skipped (already `Migrated`), R2F2 is retried, R2F3–R3F3 execute normally.
 
 #### S04 — Error in Last File (R3F3)
 
@@ -171,7 +171,7 @@ All scenarios use a standard 3-release, 9-file migration set unless otherwise no
 
 **Inconsistency**: None.
 
-**Recovery**: Fix `03_InsertDataD.sql`, re-run `Migrate-Up`.
+**Recovery**: Fix `03_InsertDataD.sql`, re-run `migrate-up`.
 
 #### S05 — Error with UseTransaction=false (R2F2)
 
@@ -195,7 +195,7 @@ All scenarios use a standard 3-release, 9-file migration set unless otherwise no
 **Recovery**:
 1. Manually clean up the partial data: `DELETE FROM TableB WHERE ...`
 2. Fix the SQL error in block 2 of `02_InsertDataB.sql`
-3. Re-run `Migrate-Up`
+3. Re-run `migrate-up`
 
 > **Important**: This scenario demonstrates why `UseTransaction = true` (the default) is strongly recommended. Without transactions, partial block execution creates database inconsistencies that require manual cleanup.
 
@@ -220,7 +220,7 @@ All scenarios use a standard 3-release, 9-file migration set unless otherwise no
 
 **Inconsistency**: None — clean rollback.
 
-**Recovery**: Fix `03_InsertDataD.sql`, re-run `Migrate-Up`. All files re-execute from scratch.
+**Recovery**: Fix `03_InsertDataD.sql`, re-run `migrate-up`. All files re-execute from scratch.
 
 #### S07 — Error in R2F2, All Rollbacks Succeed
 
@@ -240,7 +240,7 @@ All scenarios use a standard 3-release, 9-file migration set unless otherwise no
 
 **Inconsistency**: None.
 
-**Recovery**: Fix `02_InsertDataB.sql`, re-run `Migrate-Up`.
+**Recovery**: Fix `02_InsertDataB.sql`, re-run `migrate-up`.
 
 #### S08 — Error in R1F1 (Degenerate Case)
 
@@ -259,7 +259,7 @@ All scenarios use a standard 3-release, 9-file migration set unless otherwise no
 
 **Inconsistency**: None.
 
-**Recovery**: Fix `01_CreateTableA.sql`, re-run `Migrate-Up`.
+**Recovery**: Fix `01_CreateTableA.sql`, re-run `migrate-up`.
 
 #### S09 — R2F2 Fails, R2F2 Rollback Also Fails (RollbackErrorAction=Terminate)
 
@@ -285,7 +285,7 @@ All scenarios use a standard 3-release, 9-file migration set unless otherwise no
 1. Manually fix the database state for R2F2 if needed
 2. Fix the rollback file for R2F2 if the issue is in the rollback SQL
 3. Fix the forward migration `02_InsertDataB.sql`
-4. Re-run `Migrate-Up` — R2F2 is retried, R2F3–R3F3 execute normally
+4. Re-run `migrate-up` — R2F2 is retried, R2F3–R3F3 execute normally
 
 #### S10 — R2F2 Fails, R2F2 Rollback OK, R2F1 Rollback Fails (RollbackErrorAction=Terminate)
 
@@ -310,7 +310,7 @@ All scenarios use a standard 3-release, 9-file migration set unless otherwise no
 **Recovery**:
 1. Manually drop TableC or fix the rollback SQL for R2F1
 2. Fix `02_InsertDataB.sql` (the original error)
-3. Re-run `Migrate-Up` — R2F1 (Failed) and R2F2 (NotMigrated) are retried
+3. Re-run `migrate-up` — R2F1 (Failed) and R2F2 (NotMigrated) are retried
 
 #### S11 — R2F2 Fails, R2F1 Rollback Fails with RollbackErrorAction=Ignore
 
@@ -336,7 +336,7 @@ All scenarios use a standard 3-release, 9-file migration set unless otherwise no
 1. Manually drop TableC
 2. Fix `02_InsertDataB.sql`
 3. Fix the R2F1 rollback file if needed
-4. Re-run `Migrate-Up` — all files with `Failed` or `NotMigrated` are retried
+4. Re-run `migrate-up` — all files with `Failed` or `NotMigrated` are retried
 
 ---
 
@@ -361,7 +361,7 @@ All scenarios use a standard 3-release, 9-file migration set unless otherwise no
 
 **Inconsistency**: None — repository and database are aligned. Only the failed file was rolled back as intended.
 
-**Recovery**: Fix `02_InsertDataB.sql`, re-run `Migrate-Up`. R2F2 is retried, R2F3–R3F3 execute normally.
+**Recovery**: Fix `02_InsertDataB.sql`, re-run `migrate-up`. R2F2 is retried, R2F3–R3F3 execute normally.
 
 #### S13 — Rollback of Failed File Also Fails
 
@@ -382,7 +382,7 @@ All scenarios use a standard 3-release, 9-file migration set unless otherwise no
 
 **Inconsistency**: Depends on what R2F2 did before failing. If `UseTransaction = true`, the database is clean. If `UseTransaction = false`, partial data may exist.
 
-**Recovery**: Fix `02_InsertDataB.sql`, re-run `Migrate-Up`.
+**Recovery**: Fix `02_InsertDataB.sql`, re-run `migrate-up`.
 
 ---
 
@@ -407,7 +407,7 @@ All scenarios use a standard 3-release, 9-file migration set unless otherwise no
 
 **Inconsistency**: None — Release 1.0 is fully intact, Release 2.0 is cleanly rolled back.
 
-**Recovery**: Fix `02_InsertDataB.sql`, re-run `Migrate-Up`. R1 is skipped, R2–R3 execute from scratch.
+**Recovery**: Fix `02_InsertDataB.sql`, re-run `migrate-up`. R1 is skipped, R2–R3 execute from scratch.
 
 #### S16 — Error in R3, R1+R2 Stay Intact
 
@@ -428,7 +428,7 @@ All scenarios use a standard 3-release, 9-file migration set unless otherwise no
 
 **Inconsistency**: None.
 
-**Recovery**: Fix `03_InsertDataD.sql`, re-run `Migrate-Up`.
+**Recovery**: Fix `03_InsertDataD.sql`, re-run `migrate-up`.
 
 #### S17 — Error in R1F3 (Equivalent to Full Rollback)
 
@@ -449,7 +449,7 @@ All scenarios use a standard 3-release, 9-file migration set unless otherwise no
 
 **Inconsistency**: None.
 
-**Recovery**: Fix `03_InsertDataA.sql`, re-run `Migrate-Up`.
+**Recovery**: Fix `03_InsertDataA.sql`, re-run `migrate-up`.
 
 #### S18 — R2F3 Fails, R2F1 Rollback Fails (RollbackErrorAction=Terminate)
 
@@ -475,7 +475,7 @@ All scenarios use a standard 3-release, 9-file migration set unless otherwise no
 **Recovery**:
 1. Manually drop TableC or fix R2F1's rollback file
 2. Fix `03_AddColumnA.sql` (original error)
-3. Re-run `Migrate-Up`
+3. Re-run `migrate-up`
 
 ---
 
@@ -501,7 +501,7 @@ All scenarios use a standard 3-release, 9-file migration set unless otherwise no
 
 **Inconsistency**: **Logical inconsistency** — R2F2 failed but later files that may depend on R2F2's data executed successfully. The `MigrationRunResult` is `Error` (90) even though most files succeeded.
 
-**Recovery**: Fix `02_InsertDataB.sql`, re-run `Migrate-Up`. Only the `Failed` file is retried; all `Migrated` files are skipped.
+**Recovery**: Fix `02_InsertDataB.sql`, re-run `migrate-up`. Only the `Failed` file is retried; all `Migrated` files are skipped.
 
 > **Note**: With `Ignore`, the `MigrationRunResult` is always `Error` (90) when any file failed, even though execution continued and completed for all other files.
 
@@ -526,7 +526,7 @@ All scenarios use a standard 3-release, 9-file migration set unless otherwise no
 
 **Inconsistency**: None — the run was prevented entirely.
 
-**Recovery**: Create the missing rollback file `01_CreateTableC.rollback.sql`, re-run `Migrate-Up`.
+**Recovery**: Create the missing rollback file `01_CreateTableC.rollback.sql`, re-run `migrate-up`.
 
 > **Important**: With `RequireRollbackFile = true`, missing rollback files are caught during the file classification phase (before any SQL execution). This is a structural validation, not a runtime error.
 
@@ -555,7 +555,7 @@ All scenarios use a standard 3-release, 9-file migration set unless otherwise no
 1. Manually drop TableC
 2. Create the missing rollback file for R2F1
 3. Fix `02_InsertDataB.sql`
-4. Re-run `Migrate-Up`
+4. Re-run `migrate-up`
 
 > **Note**: With the default `StopRollbackOnMissingRollbackFile = true`, the rollback chain would have stopped at R2F1 (R1 files would remain `Migrated`). Set `StopRollbackOnMissingRollbackFile = false` explicitly to get the chain-continues behavior shown here.
 
@@ -589,7 +589,7 @@ All scenarios use a standard 3-release, 9-file migration set unless otherwise no
 1. Manually drop TableA, TableC, TableD
 2. Create the missing rollback files
 3. Fix `03_InsertDataD.sql`
-4. Re-run `Migrate-Up`
+4. Re-run `migrate-up`
 
 ---
 
@@ -674,7 +674,7 @@ In `Simultaneously` mode (file → target loop), each file is executed on all ta
 
 **Inconsistency**: **Logical inconsistency** — Target2 has no record for R2F2, and the file was never attempted there.
 
-**Recovery**: Fix `02_InsertDataB.sql`, re-run `Migrate-Up`. R2F2 is retried on Target1 (Failed → retry) and executed for the first time on Target2 (NoRecord → new execution).
+**Recovery**: Fix `02_InsertDataB.sql`, re-run `migrate-up`. R2F2 is retried on Target1 (Failed → retry) and executed for the first time on Target2 (NoRecord → new execution).
 
 #### S32 — Simultaneously + Rollback
 
@@ -695,7 +695,7 @@ In `Simultaneously` mode (file → target loop), each file is executed on all ta
 
 **Inconsistency**: None — full rollback on both targets succeeded. Note that R2F2 on Target2 is `NoRecord` (never executed), while on Target1 it is `NotMigrated` (executed, then rolled back).
 
-**Recovery**: Fix `02_InsertDataB.sql`, re-run `Migrate-Up`.
+**Recovery**: Fix `02_InsertDataB.sql`, re-run `migrate-up`.
 
 ---
 
@@ -723,7 +723,7 @@ In `Successively` mode (target → file loop), all files are executed on Target1
 
 **Inconsistency**: **Logical inconsistency** — targets are at different migration levels. Target1 has R2F1 applied, Target2 does not.
 
-**Recovery**: Fix `02_InsertDataB.sql`, re-run `Migrate-Up`. Target1 retries R2F2, Target2 starts R2 from R2F1.
+**Recovery**: Fix `02_InsertDataB.sql`, re-run `migrate-up`. Target1 retries R2F2, Target2 starts R2 from R2F1.
 
 #### S34 — Successively + Ignore
 
@@ -745,7 +745,7 @@ In `Successively` mode (target → file loop), all files are executed on Target1
 
 **Inconsistency**: **Logical inconsistency** — same as S19 but on both targets.
 
-**Recovery**: Fix `02_InsertDataB.sql`, re-run `Migrate-Up`. R2F2 is retried on both targets.
+**Recovery**: Fix `02_InsertDataB.sql`, re-run `migrate-up`. R2F2 is retried on both targets.
 
 #### S35 — Successively + Rollback
 
@@ -766,7 +766,7 @@ In `Successively` mode (target → file loop), all files are executed on Target1
 
 **Inconsistency**: None.
 
-**Recovery**: Fix `02_InsertDataB.sql`, re-run `Migrate-Up`.
+**Recovery**: Fix `02_InsertDataB.sql`, re-run `migrate-up`.
 
 ---
 
@@ -785,7 +785,7 @@ In `Successively` mode (target → file loop), all files are executed on Target1
 
 **DB State**: Unchanged between runs. Two `MigrationRun` entries, both Ok (100).
 
-**Inconsistency**: None — this verifies that `Migrate-Up` is safe to run repeatedly.
+**Inconsistency**: None — this verifies that `migrate-up` is safe to run repeatedly.
 
 #### S43 — Single File Fails with Rollback
 
@@ -823,7 +823,7 @@ In `Successively` mode (target → file loop), all files are executed on Target1
 
 **Inconsistency**: None.
 
-**Recovery**: Fix `01_CreateTableC.sql`, re-run `Migrate-Up`. R1 is skipped, R2–R3 execute.
+**Recovery**: Fix `01_CreateTableC.sql`, re-run `migrate-up`. R1 is skipped, R2–R3 execute.
 
 ---
 
@@ -857,7 +857,7 @@ These scenarios test what happens when `RequireRollbackFile = false` and specifi
 1. Manually drop TableA
 2. Create the missing rollback file for R1F1
 3. Fix `03_InsertDataD.sql`
-4. Re-run `Migrate-Up`
+4. Re-run `migrate-up`
 
 #### S46 — Chain Breaks in Middle (R2F1 Rollback Missing, Default StopRollbackOnMissingRollbackFile=true)
 
@@ -885,7 +885,7 @@ These scenarios test what happens when `RequireRollbackFile = false` and specifi
 1. Manually drop TableC
 2. Create the missing rollback file for R2F1
 3. Fix `03_InsertDataD.sql`
-4. Re-run `Migrate-Up`
+4. Re-run `migrate-up`
 
 ---
 
@@ -912,7 +912,7 @@ These scenarios test what happens when `RequireRollbackFile = false` and specifi
 
 **Inconsistency**: **Logical inconsistency** — R1F3 is `Failed` while R1F1 and R1F2 are `NotMigrated` (they were rolled back). The database has no R1 tables, but R1F3's data was never successfully applied anyway.
 
-**Recovery**: Fix both `03_InsertDataA.sql` (R1F3) and `02_InsertDataB.sql` (R2F2), re-run `Migrate-Up`. All `Failed` and `NotMigrated` files are retried.
+**Recovery**: Fix both `03_InsertDataA.sql` (R1F3) and `02_InsertDataB.sql` (R2F2), re-run `migrate-up`. All `Failed` and `NotMigrated` files are retried.
 
 ---
 
@@ -920,12 +920,12 @@ These scenarios test what happens when `RequireRollbackFile = false` and specifi
 
 | Inconsistency Type | Auto-Recovery? | Action Required |
 |--------------------|----------------|-----------------|
-| None (clean Terminate/Rollback) | Yes | Fix the SQL error, re-run `Migrate-Up` |
+| None (clean Terminate/Rollback) | Yes | Fix the SQL error, re-run `migrate-up` |
 | Database (partial data, `UseTransaction=false`) | No | Manually clean up partial data, then re-run |
 | Repository (rollback failed, status ≠ DB state) | Partial | May need manual SQL to align DB with desired state, then re-run |
-| Logical (Ignore left Failed + Migrated mix) | Yes | Fix the failed file, re-run `Migrate-Up` |
+| Logical (Ignore left Failed + Migrated mix) | Yes | Fix the failed file, re-run `migrate-up` |
 | Missing rollback files | No | Create the rollback files, manually fix DB if needed, then re-run |
-| Orphaned run (stuck `Running`) | Yes | Wait 10 min (auto-fix) or run `Fix` command |
+| Orphaned run (stuck `Running`) | Yes | Wait 10 min (auto-fix) or run `fix` command |
 
 ---
 
@@ -935,16 +935,16 @@ When a migration run fails, follow these steps in order:
 
 1. **Read the logs** — Identify which file failed and why (SQL error, timeout, connection issue, etc.)
 
-2. **Check the `MigrationRunResult`** — Use `Info` command or query the repository:
+2. **Check the `MigrationRunResult`** — Use `info` command or query the repository:
    ```bash
-   raymigrator Info -p MyProduct -env Production
+   raymigrator info -p MyProduct -env Production
    ```
 
 3. **Identify the inconsistency type** — Use the scenario matrix above to find your exact scenario and inconsistency type
 
 4. **Check for orphaned runs** — If the process crashed:
    ```bash
-   raymigrator Fix -p MyProduct -env Production --dry-run
+   raymigrator fix -p MyProduct -env Production --dry-run
    ```
 
 5. **Fix the root cause** — Correct the SQL error in the migration file
@@ -957,20 +957,20 @@ When a migration run fails, follow these steps in order:
    DROP TABLE IF EXISTS TableC;
    ```
 
-7. **Re-run `Migrate-Up`** — Failed and NotMigrated files are auto-retried:
+7. **Re-run `migrate-up`** — Failed and NotMigrated files are auto-retried:
    ```bash
-   raymigrator Migrate-Up -p MyProduct -env Production -rm Migrate
+   raymigrator migrate-up -p MyProduct -env Production -rm migrate
    ```
 
 8. **Verify** — Check that all files are now `Migrated`:
    ```bash
-   raymigrator Info -p MyProduct -env Production
-   raymigrator Validate-Hash -p MyProduct -env Production
+   raymigrator info -p MyProduct -env Production
+   raymigrator validate-hash -p MyProduct -env Production
    ```
 
 9. **Update hashes if needed** — If you modified a previously executed migration file:
    ```bash
-   raymigrator Update-Hash -p MyProduct -env Production
+   raymigrator update-hash -p MyProduct -env Production
    ```
 
 ---
@@ -1004,12 +1004,12 @@ When a migration run fails, follow these steps in order:
 
 | Command | When to Use |
 |---------|-------------|
-| `Migrate-Up` | After fixing a failed migration — retries all Failed/NotMigrated files |
-| `Migrate-Down` | Intentional rollback of Migrated files to a specific release |
-| `Fix` | Clean up orphaned runs (stuck in Running status) |
-| `Info` | Check current migration status per file |
-| `Validate-Hash` | Verify file integrity after manual changes |
-| `Update-Hash` | Update repository hashes after intentional file modifications |
+| `migrate-up` | After fixing a failed migration — retries all Failed/NotMigrated files |
+| `migrate-down` | Intentional rollback of Migrated files to a specific release |
+| `fix` | Clean up orphaned runs (stuck in Running status) |
+| `info` | Check current migration status per file |
+| `validate-hash` | Verify file integrity after manual changes |
+| `update-hash` | Update repository hashes after intentional file modifications |
 
 ---
 

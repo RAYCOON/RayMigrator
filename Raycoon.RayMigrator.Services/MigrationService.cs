@@ -237,7 +237,7 @@ public class MigrationService : IMigrationService
                 var tgExecutionOrder = ResolveTargetGroupMigrationOrder(
                     releaseDir, productOptions, migSettingsForOrder, request.TargetGroupMigrationOrder);
                 var orderedTargetGroups = tgExecutionOrder != null
-                    ? ValidateAndReorderTargetGroups(tgExecutionOrder, productOptions.TargetGroups!, "Migrate-Up")
+                    ? ValidateAndReorderTargetGroups(tgExecutionOrder, productOptions.TargetGroups!, "migrate-up")
                     : productOptions.TargetGroups!;
 
                 foreach (var targetGroup in orderedTargetGroups)
@@ -1304,7 +1304,7 @@ public class MigrationService : IMigrationService
                 var baselineTgOrder = ResolveTargetGroupMigrationOrder(
                     baselineReleaseDir, productOptions, baselineMigSettings, request.TargetGroupMigrationOrder);
                 var baselineOrderedTGs = baselineTgOrder != null
-                    ? ValidateAndReorderTargetGroups(baselineTgOrder, productOptions.TargetGroups!, "Baseline")
+                    ? ValidateAndReorderTargetGroups(baselineTgOrder, productOptions.TargetGroups!, "baseline")
                     : productOptions.TargetGroups!;
 
                 foreach (var targetGroup in baselineOrderedTGs)

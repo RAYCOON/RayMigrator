@@ -22,7 +22,7 @@ All configuration settings are documented in the [Configuration Reference](../06
 
 - **[Command Reference](../08-cli-reference/command-reference.md)** — Complete command matrix, per-command options, property mappings, and enum reference
 - [Global Options](../08-cli-reference/global-options.md) — Options available across all commands (`--startup-info`, `--reveal-sensitive-data`, `--config-dir`)
-- Per-command details: [Migrate-Up](../08-cli-reference/migrate-up.md) | [Migrate-Down](../08-cli-reference/migrate-down.md) | [Validate-Hash](../08-cli-reference/validate-hash.md) | [Update-Hash](../08-cli-reference/update-hash.md)
+- Per-command details: [migrate-up](../08-cli-reference/migrate-up.md) | [migrate-down](../08-cli-reference/migrate-down.md) | [validate-hash](../08-cli-reference/validate-hash.md) | [update-hash](../08-cli-reference/update-hash.md)
 - Additional commands: [Info](../08-cli-reference/command-reference.md#info) | [Baseline](../08-cli-reference/command-reference.md#baseline) | [Fix](../08-cli-reference/command-reference.md#fix)
 
 ---
@@ -31,7 +31,7 @@ All configuration settings are documented in the [Configuration Reference](../06
 
 All CLI-relevant enums are documented in the [Enum Reference](../08-cli-reference/command-reference.md#enum-reference) section of the Command Reference:
 
-- **MigrationCommand** — CLI commands (`None` = 0, `MigrateUp` = 1, `MigrateDown` = 2, `ValidateHash` = 3, `UpdateHash` = 4, `Info` = 5, `Baseline` = 6, `FixIssues` = 7)
+- **MigrationCommand** — CLI commands (`None` = 0, `MigrateUp` = 1, `MigrateDown` = 2, `ValidateHash` = 3, `UpdateHash` = 4, `info` = 5, `baseline` = 6, `FixIssues` = 7)
 - **MigrationRunMode** — Execution modes (`Undefined` = 0, `Validate` = 10, `Simulate` = 20, `Migrate` = 100)
 - **MigrationErrorAction** — Error handling (`Undefined` = 0, `Terminate` = 10, `Rollback` = 20, `RollbackErrorOnly` = 21, `RollbackRelease` = 22, `Ignore` = 30)
 - **RollbackErrorAction** — Rollback error handling (`Undefined` = 0, `Terminate` = 10, `Ignore` = 30). See [Error Handling](../02-core-concepts/error-handling.md#rollback-error-handling)

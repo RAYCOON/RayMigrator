@@ -145,7 +145,7 @@ Two additional validations run inside `DiscoverAndPrepareMigrationFiles` before 
 
 ```bash
 # Only migrate up to Release 1.0
-raymigrator Migrate-Up -p X -env Y --to-release "Release 1.0"
+raymigrator migrate-up -p X -env Y --to-release "Release 1.0"
 ```
 
 ### By Target Groups
@@ -154,7 +154,7 @@ raymigrator Migrate-Up -p X -env Y --to-release "Release 1.0"
 
 ```bash
 # Only migrate the Backend target group
-raymigrator Migrate-Up -p X -env Y --target-group Backend
+raymigrator migrate-up -p X -env Y --target-group Backend
 ```
 
 ### Out-of-Order Detection
@@ -250,7 +250,7 @@ Properties set in TOML take highest priority; unset properties inherit from the 
 
 Inheritable properties (file-level): `UseTransaction`, `RunAlways`, `RequireRollbackFile`, `StopRollbackOnMissingRollbackFile`, `Environments`, `Targets`, `MigrationErrorAction`, `RollbackErrorAction`, `UseCliToolAlias`.
 
-`TargetGroupMigrationOrder` is also a recognized key in migsettings files. When set in a release-level `migsettings.txt`, it overrides the TargetGroup execution order for that release (applies to `MigrateUp` and `Baseline` only). It is not applied per-file and is not stored in `MigrationFileInfo`; see [TargetGroupMigrationOrder](migration-service.md#targetgroupmigrationorder) for the full resolution chain.
+`TargetGroupMigrationOrder` is also a recognized key in migsettings files. When set in a release-level `migsettings.txt`, it overrides the TargetGroup execution order for that release (applies to `MigrateUp` and `baseline` only). It is not applied per-file and is not stored in `MigrationFileInfo`; see [TargetGroupMigrationOrder](migration-service.md#targetgroupmigrationorder) for the full resolution chain.
 
 Hierarchy (lowest to highest priority):
 

@@ -1,16 +1,16 @@
-# Migrate-Up Command
+# migrate-up Command
 
 Executes database migrations in forward (up) direction.
 
 ## Synopsis
 
 ```bash
-raymigrator Migrate-Up --product <ProductAlias> --environment <Environment> [--run-mode <mode>] [--stop-rollback-on-missing-rollback-file <bool>] [options]
+raymigrator migrate-up --product <ProductAlias> --environment <Environment> [--run-mode <mode>] [--stop-rollback-on-missing-rollback-file <bool>] [options]
 ```
 
 ## Description
 
-The `Migrate-Up` command executes all pending migration files against configured target databases. It processes migrations in order from the current state to the target release version.
+The `migrate-up` command executes all pending migration files against configured target databases. It processes migrations in order from the current state to the target release version.
 
 ## Required Parameters
 
@@ -28,7 +28,7 @@ The `Migrate-Up` command executes all pending migration files against configured
 | `--target-group` | `-tg` | (all) | Filter to specific target groups (can be specified multiple times) |
 | `--allow-out-of-order` | `-ooo` | `false` | Allow execution of migrations that precede already-executed files |
 | `--stop-rollback-on-missing-rollback-file` | `-sromrf` | `null` (uses configuration value) | Override whether the error-recovery rollback chain stops when a rollback file is missing. Only applies when `RequireRollbackFile=false`. |
-| `--TargetGroup-MigrationOrder` | `-tgmo` | (config/migsettings order) | Comma-separated list of TargetGroup aliases defining execution order for this run |
+| `--target-group-migration-order` | `-tgmo` | (config/migsettings order) | Comma-separated list of TargetGroup aliases defining execution order for this run |
 | `--startup-info` | `-si` | `true` | Show application info at startup |
 | `--reveal-sensitive-data` | `-rsd` | `false` | Log sensitive data (passwords) |
 | `--config-dir` | `-cd` | (current directory) | Override directory where RayMigrator searches for configuration files |
@@ -55,24 +55,24 @@ See [Execution Modes — Run Mode](../02-core-concepts/execution-modes.md#run-mo
 |-----------|-------|---------|-------------|
 | `--stop-rollback-on-missing-rollback-file` | `-sromrf` | `null` (uses configuration value) | Override whether the error-recovery rollback chain stops when a rollback file is missing. Only applies when `RequireRollbackFile=false`. |
 
-When omitted, the value from configuration is used. When `true`, the error-recovery rollback chain stops at the first missing rollback file. A warning is logged and the record status is left unchanged. When `false`, the chain continues past missing rollback files with a warning per skipped file. This option has no effect on Migrate-Down.
+When omitted, the value from configuration is used. When `true`, the error-recovery rollback chain stops at the first missing rollback file. A warning is logged and the record status is left unchanged. When `false`, the chain continues past missing rollback files with a warning per skipped file. This option has no effect on migrate-down.
 
 ```bash
 # Allow error-recovery rollback to continue past missing rollback files
-raymigrator Migrate-Up -p MyProduct -env Production -rm Migrate -sromrf false
+raymigrator migrate-up -p MyProduct -env Production -rm migrate -sromrf false
 ```
 
-### TargetGroup-MigrationOrder Parameter
+### --target-group-migration-order Parameter
 
 | Parameter | Short | Default | Description |
 |-----------|-------|---------|-------------|
-| `--TargetGroup-MigrationOrder` | `-tgmo` | (config/migsettings order) | Comma-separated list of all TargetGroup aliases. Sets the execution order for this run; overrides product-level appsettings and release-level migsettings values. |
+| `--target-group-migration-order` | `-tgmo` | (config/migsettings order) | Comma-separated list of all TargetGroup aliases. Sets the execution order for this run; overrides product-level appsettings and release-level migsettings values. |
 
 The value is a single string with alias names separated by commas. Whitespace around each alias is trimmed. All TargetGroup aliases of the product must be listed. The option is only meaningful when the product has more than one TargetGroup, and matching is case-sensitive.
 
 ```bash
 # Execute Frontend before Backend for this run
-raymigrator Migrate-Up -p MyProduct -env Production -rm Migrate -tgmo "Frontend, Backend"
+raymigrator migrate-up -p MyProduct -env Production -rm migrate -tgmo "Frontend, Backend"
 ```
 
 ## Environment Variable Support
@@ -80,7 +80,7 @@ raymigrator Migrate-Up -p MyProduct -env Production -rm Migrate -tgmo "Frontend,
 All parameter values can be loaded from environment variables:
 
 ```bash
-raymigrator Migrate-Up --product {ENV:PRODUCT_NAME} --environment {ENV:TARGET_ENV} --run-mode Migrate
+raymigrator migrate-up --product {ENV:PRODUCT_NAME} --environment {ENV:TARGET_ENV} --run-mode migrate
 ```
 
 ## Examples
@@ -89,52 +89,52 @@ raymigrator Migrate-Up --product {ENV:PRODUCT_NAME} --environment {ENV:TARGET_EN
 
 ```bash
 # Migrate to latest version in Development
-raymigrator Migrate-Up --product MyProduct --environment Development --run-mode Migrate
+raymigrator migrate-up --product MyProduct --environment Development --run-mode migrate
 ```
 
 ### Simulate Migration
 
 ```bash
 # Test what would be migrated without executing
-raymigrator Migrate-Up -p MyProduct -env Staging -rm Simulate
+raymigrator migrate-up -p MyProduct -env Staging -rm simulate
 ```
 
 ### Migrate to Specific Release
 
 ```bash
 # Migrate only up to Release 2.0
-raymigrator Migrate-Up --product MyProduct --environment Production --run-mode Migrate --to-release "Release 2.0"
+raymigrator migrate-up --product MyProduct --environment Production --run-mode migrate --to-release "Release 2.0"
 ```
 
 ### Migrate Specific Target Groups
 
 ```bash
 # Migrate only Backend target group
-raymigrator Migrate-Up -p MyProduct -env Production -rm Migrate -tg Backend
+raymigrator migrate-up -p MyProduct -env Production -rm migrate -tg Backend
 
 # Migrate Backend and Analytics target groups
-raymigrator Migrate-Up -p MyProduct -env Production -rm Migrate -tg Backend -tg Analytics
+raymigrator migrate-up -p MyProduct -env Production -rm migrate -tg Backend -tg Analytics
 ```
 
 ### Control TargetGroup Execution Order
 
 ```bash
 # Execute Frontend before Backend (overrides config array order)
-raymigrator Migrate-Up -p MyProduct -env Production -rm Migrate -tgmo "Frontend, Backend"
+raymigrator migrate-up -p MyProduct -env Production -rm migrate -tgmo "Frontend, Backend"
 ```
 
 ### Debug Mode
 
 ```bash
 # Show sensitive data in logs for debugging
-raymigrator Migrate-Up -p MyProduct -env Development -rm Migrate --reveal-sensitive-data true
+raymigrator migrate-up -p MyProduct -env Development -rm migrate --reveal-sensitive-data true
 ```
 
 ## Execution Flow
 
 ```mermaid
 flowchart TD
-    A[Start Migrate-Up] --> B[Load Configuration]
+    A[Start migrate-up] --> B[Load Configuration]
     B --> C[Validate Parameters]
     C --> C2{Simulate or Migrate?}
     C2 -->|Yes| D[Repository CheckCreate + Product CheckInsert]
@@ -210,12 +210,12 @@ For all actions except `Ignore`, an error aborts the entire migration run. The `
 RayMigrator prevents concurrent migrations for the same Product, Environment, and RunMode combination. If a migration is already running for the given combination (identified by ProductId + Environment + MigrationRunModeId):
 
 - New migration attempts are blocked with a `MigrationAlreadyRunningException`
-- Use the `Fix` command to recover from stuck runs
+- Use the `fix` command to recover from stuck runs
 
 ## Related Commands
 
-- [Migrate-Down](migrate-down.md) - Rollback migrations
-- [Validate-Hash](validate-hash.md) - Check file integrity
+- [migrate-down](migrate-down.md) - Rollback migrations
+- [validate-hash](validate-hash.md) - Check file integrity
 - [Global Options](global-options.md) - Common options
 
 ## Related Documentation

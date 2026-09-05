@@ -79,15 +79,15 @@ These settings exist only as command-line arguments and control execution behavi
 
 | Setting | Short | Type | Default | Commands | Description |
 |---------|-------|------|---------|----------|-------------|
-| `--product` | `-p` | string | *(required)* | Migrate-Up, Migrate-Down, Validate-Hash, Update-Hash, Info, Baseline, Fix | Product alias to operate on |
-| `--environment` | `-env` | string | *(required)* | Migrate-Up, Migrate-Down, Validate-Hash, Update-Hash, Info, Baseline, Fix | Target environment name |
-| `--run-mode` | `-rm` | string | `Migrate` | Migrate-Up, Migrate-Down | `Migrate`, `Simulate`, or `Validate` |
-| `--to-release` | `-tr` | string | `null` | Migrate-Up (opt), Migrate-Down (req), Baseline (opt) | Target release version |
-| `--allow-out-of-order` | `-ooo` | bool | `false` | Migrate-Up | Allow out-of-order execution |
-| `--stop-rollback-on-missing-rollback-file` | `-sromrf` | bool? | `null` (uses config) | Migrate-Up | Override `StopRollbackOnMissingRollbackFile` for this run. Only applies to error-recovery rollback when `RequireRollbackFile=false`. |
-| `--target-group` | `-tg` | string[] | `null` | Migrate-Up, Migrate-Down, Validate-Hash, Update-Hash, Baseline | Filter execution to specific target groups |
-| `--TargetGroup-MigrationOrder` | `-tgmo` | string | `null` | Migrate-Up, Baseline | Comma-separated TargetGroup aliases defining execution order (e.g. `"Frontend,Backend"`). Overrides product config and migsettings. |
-| `--scope` | `-s` | string | *(none)* | Validate-Hash | Hash scope override: `File`, `SqlBlocks` (also accepts `SqlBlock`), or `Disabled`. If omitted, uses per-TargetGroup config. |
+| `--product` | `-p` | string | *(required)* | migrate-up, migrate-down, validate-hash, update-hash, info, baseline, fix | Product alias to operate on |
+| `--environment` | `-env` | string | *(required)* | migrate-up, migrate-down, validate-hash, update-hash, info, baseline, fix | Target environment name |
+| `--run-mode` | `-rm` | string | `Migrate` | migrate-up, migrate-down | `Migrate`, `Simulate`, or `Validate` |
+| `--to-release` | `-tr` | string | `null` | migrate-up (opt), migrate-down (req), baseline (opt) | Target release version |
+| `--allow-out-of-order` | `-ooo` | bool | `false` | migrate-up | Allow out-of-order execution |
+| `--stop-rollback-on-missing-rollback-file` | `-sromrf` | bool? | `null` (uses config) | migrate-up | Override `StopRollbackOnMissingRollbackFile` for this run. Only applies to error-recovery rollback when `RequireRollbackFile=false`. |
+| `--target-group` | `-tg` | string[] | `null` | migrate-up, migrate-down, validate-hash, update-hash, baseline | Filter execution to specific target groups |
+| `--target-group-migration-order` | `-tgmo` | string | `null` | migrate-up, baseline | Comma-separated TargetGroup aliases defining execution order (e.g. `"Frontend,Backend"`). Overrides product config and migsettings. |
+| `--scope` | `-s` | string | *(none)* | validate-hash | Hash scope override: `File`, `SqlBlocks` (also accepts `SqlBlock`), or `Disabled`. If omitted, uses per-TargetGroup config. |
 | `--scope` | `-s` | string | `OrphanedRuns` | Fix | Fix scope: `OrphanedRuns` or `All` |
 | `--older-than` | `-ot` | int | `60` | Fix | Only fix runs older than N minutes (0 = immediate) |
 | `--dry-run` | - | bool | `false` | Fix | Show what would be fixed without applying changes |
@@ -264,9 +264,9 @@ ProductDefaults.StopRollbackOnMissingRollbackFile              (appsettings)
                     ← Migration file TOML                     (parsed only)
 ```
 
-Controls whether an error-recovery rollback chain stops when a rollback file is missing. Only applies when `RequireRollbackFile=false`; has no effect on Migrate-Down. When `true` (default), the chain stops with a warning and the record status is left unchanged. When `false`, the chain continues past missing rollback files.
+Controls whether an error-recovery rollback chain stops when a rollback file is missing. Only applies when `RequireRollbackFile=false`; has no effect on migrate-down. When `true` (default), the chain stops with a warning and the record status is left unchanged. When `false`, the chain continues past missing rollback files.
 
-The setting can be declared in migsettings files and per-file TOML — the parser accepts the key (avoiding an "unknown key" error) — but the value is not propagated to file metadata and has no effect on the rollback chain. The rollback execution code resolves the effective value from the appsettings levels and CLI only. Can be set at run time via the `--stop-rollback-on-missing-rollback-file` / `-sromrf` CLI option on the `Migrate-Up` command.
+The setting can be declared in migsettings files and per-file TOML — the parser accepts the key (avoiding an "unknown key" error) — but the value is not propagated to file metadata and has no effect on the rollback chain. The rollback execution code resolves the effective value from the appsettings levels and CLI only. Can be set at run time via the `--stop-rollback-on-missing-rollback-file` / `-sromrf` CLI option on the `migrate-up` command.
 
 ### MigrationErrorAction
 
@@ -384,10 +384,10 @@ Default: null (config array order)
   ← Product.TargetGroupMigrationOrder           (appsettings — comma-separated string)
     ← Release/migsettings.txt                   (migsettings — TOML array, release-level only)
       ← Release/migsettings.{Env}.txt           (migsettings — TOML array, release-level only)
-        ← CLI --TargetGroup-MigrationOrder (-tgmo) (highest priority)
+        ← CLI --target-group-migration-order (-tgmo) (highest priority)
 ```
 
-`TargetGroupMigrationOrder` defines the execution order of target groups within each release for `Migrate-Up` and `Baseline`. The CLI option takes precedence over all other sources. The migsettings setting is only effective at the release directory level (levels 3–4); setting it at product or target group level has no effect. See [Product Options — TargetGroupMigrationOrder](product-options.md#targetgroupmigrationorder) for validation rules.
+`TargetGroupMigrationOrder` defines the execution order of target groups within each release for `migrate-up` and `baseline`. The CLI option takes precedence over all other sources. The migsettings setting is only effective at the release directory level (levels 3–4); setting it at product or target group level has no effect. See [Product Options — TargetGroupMigrationOrder](product-options.md#targetgroupmigrationorder) for validation rules.
 
 ---
 
@@ -492,7 +492,7 @@ See [migsettings Files](../07-migration-files/migsettings-files.md) for full doc
 | Set the execution order for a target group | `appsettings.json` → `TargetGroup.TargetMigrationOrder` | Structural setting |
 | Set default TargetGroup execution order for a product | `appsettings.json` → `Product.TargetGroupMigrationOrder` | Product-level default (comma-separated) |
 | Override TargetGroup execution order for a specific release | Release-level `migsettings.txt`: `TargetGroupMigrationOrder = ["Frontend", "Backend"]` | Release-specific override |
-| Override TargetGroup execution order at run time | CLI `--TargetGroup-MigrationOrder` / `-tgmo` | Highest-priority override |
+| Override TargetGroup execution order at run time | CLI `--target-group-migration-order` / `-tgmo` | Highest-priority override |
 | Document what a migration does | TOML metadata: `Description = "..."` | TOML-only setting |
 | Use an external CLI tool for all targets | `appsettings.json` -> `ProductDefaults.UseCliToolAlias` | Inherited by all levels |
 | Use an external CLI tool for one target group | `appsettings.json` -> `TargetGroup.UseCliToolAlias` | Overrides product-level default |
@@ -590,7 +590,7 @@ Environments = ["Docker", "Development"]
 
 9. **TargetMigrationOrder**: See [Execution Modes](../02-core-concepts/execution-modes.md#target-migration-order) for values and behavior.
 
-10. **TargetGroupMigrationOrder**: Only applies to products with more than one target group, and only to `Migrate-Up` and `Baseline` commands. The CLI option (`--TargetGroup-MigrationOrder` / `-tgmo`) applies to all releases in the run. The migsettings override applies per release. All target group aliases must be listed exactly once. See [Product Options — TargetGroupMigrationOrder](product-options.md#targetgroupmigrationorder).
+10. **TargetGroupMigrationOrder**: Only applies to products with more than one target group, and only to `migrate-up` and `baseline` commands. The CLI option (`--target-group-migration-order` / `-tgmo`) applies to all releases in the run. The migsettings override applies per release. All target group aliases must be listed exactly once. See [Product Options — TargetGroupMigrationOrder](product-options.md#targetgroupmigrationorder).
 
 ---
 

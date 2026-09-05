@@ -1,15 +1,15 @@
 # Chapter 9: Rolling Back Migrations
 
-The previous chapter covered automatic rollback triggered by errors. This chapter covers explicit, intentional rollbacks using the `Migrate-Down` command -- the controlled way to undo migrations when you need to revert your database to an earlier state.
+The previous chapter covered automatic rollback triggered by errors. This chapter covers explicit, intentional rollbacks using the `migrate-down` command -- the controlled way to undo migrations when you need to revert your database to an earlier state.
 
 ---
 
-## Explicit Rollback with Migrate-Down
+## Explicit Rollback with migrate-down
 
-The `Migrate-Down` command rolls back migrations to a specified release:
+The `migrate-down` command rolls back migrations to a specified release:
 
 ```bash
-raymigrator Migrate-Down -p BookStore -env Development --to-release "Release 1.0" -rm Migrate
+raymigrator migrate-down -p BookStore -env Development --to-release "Release 1.0" -rm migrate
 ```
 
 **Important:** `--to-release "Release 1.0"` means "roll back TO Release 1.0" -- Release 1.0 stays applied. Everything after Release 1.0 is rolled back.
@@ -37,7 +37,7 @@ The rollback process follows these steps:
 ```
 Current state: Release 1.0 (3 files) + Release 1.1 (2 files) applied
 
-Migrate-Down --to-release "Release 1.0":
+migrate-down --to-release "Release 1.0":
   Rollback Release 1.1/002 ← executed in reverse order
   Rollback Release 1.1/001
 
@@ -49,14 +49,14 @@ Result: Only Release 1.0 migrations remain applied
 When a rollback file is not found, the behavior depends on two settings: `RequireRollbackFile` (pre-validation gate) and `StopRollbackOnMissingRollbackFile` (error-recovery chain behavior).
 
 - `RequireRollbackFile` answers: "Do I need rollback files to START the migration?" It is checked during file discovery before any SQL is executed.
-- `StopRollbackOnMissingRollbackFile` answers: "During error-recovery rollback, should the chain stop when a rollback file is missing?" It has no effect on Migrate-Down.
+- `StopRollbackOnMissingRollbackFile` answers: "During error-recovery rollback, should the chain stop when a rollback file is missing?" It has no effect on migrate-down.
 
 | `RequireRollbackFile` | `StopRollbackOnMissingRollbackFile` | Flow | Behavior | Record Status |
 |-----------------------|-------------------------------------|------|----------|---------------|
 | `true` | N/A | Any | Rollback chain **aborted immediately** | `Failed` (30) |
 | `false` | `true` (default) | Error-recovery Rollback | Chain **stopped** with Warning | Unchanged |
 | `false` | `false` | Error-recovery Rollback | Chain **continues** with Warning | Unchanged |
-| `false` | N/A | Migrate-Down | Chain **continues** with Warning | Unchanged |
+| `false` | N/A | migrate-down | Chain **continues** with Warning | Unchanged |
 
 > **Warning:** When `RequireRollbackFile=true` and a rollback file is missing, the entire rollback chain stops -- even if subsequent files have valid rollback files. This is treated as a structural error that always aborts regardless of the `RollbackErrorAction` setting.
 
@@ -64,11 +64,11 @@ When a rollback file is not found, the behavior depends on two settings: `Requir
 
 RayMigrator tracks rollback progress at the SQL block level. Each rollback file is split into blocks (separated by the database engine's statement separator, e.g., `GO` for SQL Server, `;` for PostgreSQL). As each block executes successfully, the repository records `FileDownBlocksMigrated` and `FileDownBlocksTotal`.
 
-If a rollback is interrupted (e.g., by a block error with `RollbackErrorAction=Terminate`), the partially-rolled-back record retains its block progress. A subsequent `Migrate-Down` command will detect this record and **resume from the last successful block**, rather than re-executing blocks that already completed.
+If a rollback is interrupted (e.g., by a block error with `RollbackErrorAction=Terminate`), the partially-rolled-back record retains its block progress. A subsequent `migrate-down` command will detect this record and **resume from the last successful block**, rather than re-executing blocks that already completed.
 
-### RollbackErrorAction During Migrate-Down
+### RollbackErrorAction During migrate-down
 
-When a rollback SQL block fails during Migrate-Down execution, the `RollbackErrorAction` setting controls the response:
+When a rollback SQL block fails during migrate-down execution, the `RollbackErrorAction` setting controls the response:
 
 | `RollbackErrorAction` | Behavior |
 |-----------------------|----------|
@@ -88,13 +88,13 @@ Continuing from the previous chapter, assume BookStore has both Release 1.0 and 
 First, validate that all required rollback files exist and are parseable (no database connectivity needed):
 
 ```bash
-raymigrator Migrate-Down -p BookStore -env Development -tr "Release 1.0" -rm Validate
+raymigrator migrate-down -p BookStore -env Development -tr "Release 1.0" -rm validate
 ```
 
 Then simulate to preview the rollback with repository interaction but without executing SQL on targets:
 
 ```bash
-raymigrator Migrate-Down -p BookStore -env Development -tr "Release 1.0" -rm Simulate
+raymigrator migrate-down -p BookStore -env Development -tr "Release 1.0" -rm simulate
 ```
 
 Review the output carefully before proceeding.
@@ -102,7 +102,7 @@ Review the output carefully before proceeding.
 ### Step 2: Execute the Rollback
 
 ```bash
-raymigrator Migrate-Down -p BookStore -env Development -tr "Release 1.0" -rm Migrate
+raymigrator migrate-down -p BookStore -env Development -tr "Release 1.0" -rm migrate
 ```
 
 RayMigrator processes the rollback files in reverse order:
@@ -112,7 +112,7 @@ RayMigrator processes the rollback files in reverse order:
 ### Step 3: Verify the Result
 
 ```bash
-raymigrator Info -p BookStore -env Development
+raymigrator info -p BookStore -env Development
 ```
 
 You will see:
@@ -120,7 +120,7 @@ You will see:
 - All Release 1.1 migrations that had rollback files show status `NotMigrated` (50)
 - Migrations without rollback files (when `RequireRollbackFile=false`) retain their previous status (e.g., `Migrated` if they were previously applied)
 
-> **Tip:** Always verify with `Info` after a rollback to confirm the expected state.
+> **Tip:** Always verify with `info` after a rollback to confirm the expected state.
 
 ---
 
@@ -171,13 +171,13 @@ Always test rollback files in a development environment before relying on them i
 
 ```bash
 # Apply the migration
-raymigrator Migrate-Up -p BookStore -env Development -rm Migrate
+raymigrator migrate-up -p BookStore -env Development -rm migrate
 
 # Roll it back
-raymigrator Migrate-Down -p BookStore -env Development -tr "Release 1.0" -rm Migrate
+raymigrator migrate-down -p BookStore -env Development -tr "Release 1.0" -rm migrate
 
 # Apply again to confirm the cycle works
-raymigrator Migrate-Up -p BookStore -env Development -rm Migrate
+raymigrator migrate-up -p BookStore -env Development -rm migrate
 ```
 
 If apply-rollback-apply completes without errors, your rollback files are correct.
@@ -205,25 +205,25 @@ Some database operations cannot be cleanly reversed:
 
 Control whether rollback files are mandatory. This setting supports the full cross-layer override chain (appsettings → migsettings → TOML). See [Settings Inheritance — RequireRollbackFile](../06-configuration-reference/settings-inheritance-overview.md#requirerollbackfile) for the complete chain.
 
-| Value | Behavior on Migrate-Up | Behavior on Migrate-Down / Error-recovery Rollback |
+| Value | Behavior on migrate-up | Behavior on migrate-down / Error-recovery Rollback |
 |-------|------------------------|----------------------------------------------------|
-| `true` (default) | Migrate-Up fails during file discovery if any migration is missing its `.rollback.sql` file | Rollback chain is aborted if a rollback file is missing; record is set to `Failed` (30) |
+| `true` (default) | migrate-up fails during file discovery if any migration is missing its `.rollback.sql` file | Rollback chain is aborted if a rollback file is missing; record is set to `Failed` (30) |
 | `false` | Rollback files are optional; migrations without rollback files can be executed | Missing rollback files are skipped with a warning; record status is unchanged. For error-recovery rollback, whether the chain stops or continues depends on `StopRollbackOnMissingRollbackFile` |
 
 ## StopRollbackOnMissingRollbackFile Setting
 
-Controls whether an error-recovery rollback chain stops when a rollback file is missing. This setting only applies when `RequireRollbackFile=false` and has no effect on Migrate-Down.
+Controls whether an error-recovery rollback chain stops when a rollback file is missing. This setting only applies when `RequireRollbackFile=false` and has no effect on migrate-down.
 
 | Value | Behavior |
 |-------|----------|
 | `true` (default) | The error-recovery rollback chain stops at the first migration with a missing rollback file. A warning is logged and the record status is left unchanged. |
 | `false` | The error-recovery rollback chain continues past migrations with missing rollback files. A warning is logged and the record status is left unchanged for each skipped file. |
 
-This setting is configured in appsettings at the `ProductDefaults`, `ProductDefaults.TargetGroupDefaults`, `Product`, or `TargetGroup` level. It can also be set at run time via the `--stop-rollback-on-missing-rollback-file` / `-sromrf` CLI option on the `Migrate-Up` command.
+This setting is configured in appsettings at the `ProductDefaults`, `ProductDefaults.TargetGroupDefaults`, `Product`, or `TargetGroup` level. It can also be set at run time via the `--stop-rollback-on-missing-rollback-file` / `-sromrf` CLI option on the `migrate-up` command.
 
 > **Note:** While this setting can also be declared in `migsettings.txt` files and per-file TOML metadata (and is parsed there), those values are not used during the rollback chain execution. Only the appsettings-level and CLI values participate in the runtime resolution.
 
-The setting has no effect on Migrate-Down. Use `RequireRollbackFile = false` in TOML for migrations that intentionally have no rollback file:
+The setting has no effect on migrate-down. Use `RequireRollbackFile = false` in TOML for migrations that intentionally have no rollback file:
 
 ```sql
 /*
@@ -267,9 +267,9 @@ This ensures that foreign key constraints are dropped before the tables they ref
 
 | Topic | Key Point |
 |-------|-----------|
-| Migrate-Down | Rolls back to a target release; that release stays applied |
+| migrate-down | Rolls back to a target release; that release stays applied |
 | Execution order | Always reverse of the original migration order (`FileOrderId` descending) |
-| Validate first | Use `-rm Validate` to check rollback file existence, then `-rm Simulate` to preview with DB, then `-rm Migrate` to execute |
+| Validate first | Use `-rm validate` to check rollback file existence, then `-rm simulate` to preview with DB, then `-rm migrate` to execute |
 | Target group filter | Use `--target-group` / `-tg` to limit rollback to specific target groups |
 | Block-level tracking | Progress is tracked per SQL block; interrupted rollbacks can resume from the last successful block |
 | RollbackErrorAction | Controls behavior when a rollback SQL block fails: `Terminate` (abort chain) or `Ignore` (skip and continue) |

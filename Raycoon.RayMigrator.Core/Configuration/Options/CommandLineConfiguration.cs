@@ -89,7 +89,7 @@ public class CommandLineConfiguration
 
     private Command CreateMigrateUpCommand()
     {
-        var command = new Command("Migrate-Up", "Apply pending migrations forward");
+        var command = new Command("migrate-up", "Apply pending migrations forward");
 
         // Required parameters
         var productOption = new Option<string>("--product", "-p")
@@ -107,8 +107,8 @@ public class CommandLineConfiguration
         // Optional parameters
         var runModeOption = new Option<string>("--run-mode", "-rm")
         {
-            Description = "Execution mode (Migrate, Simulate, or Validate)",
-            DefaultValueFactory = _ => "Migrate"
+            Description = "Execution mode (migrate, simulate, or validate)",
+            DefaultValueFactory = _ => "migrate"
         };
 
         runModeOption.Validators.Add(result =>
@@ -119,7 +119,7 @@ public class CommandLineConfiguration
                 var normalizedValue = ResolveEnvironmentVariable(value).ToLowerInvariant();
                 if (normalizedValue != "migrate" && normalizedValue != "simulate" && normalizedValue != "validate")
                 {
-                    result.AddError($"Invalid value for --run-mode: {value}. Valid values are: Migrate, Simulate, Validate.");
+                    result.AddError($"Invalid value for --run-mode: {value}. Valid values are: migrate, simulate, validate.");
                 }
             }
         });
@@ -142,7 +142,7 @@ public class CommandLineConfiguration
             Arity = ArgumentArity.ZeroOrMore
         };
 
-        var targetGroupMigrationOrderOption = new Option<string?>("--TargetGroup-MigrationOrder", "-tgmo")
+        var targetGroupMigrationOrderOption = new Option<string?>("--target-group-migration-order", "-tgmo")
         {
             Description = "Explicit TargetGroup migration order (comma-separated aliases, e.g. \"Frontend,Backend\")",
             Arity = ArgumentArity.ZeroOrOne
@@ -168,7 +168,7 @@ public class CommandLineConfiguration
 
     private Command CreateMigrateDownCommand()
     {
-        var command = new Command("Migrate-Down", "Rollback to previous version");
+        var command = new Command("migrate-down", "Rollback to previous version");
 
         // Required parameters
         var productOption = new Option<string>("--product", "-p")
@@ -192,8 +192,8 @@ public class CommandLineConfiguration
         // Optional parameters
         var runModeOption = new Option<string>("--run-mode", "-rm")
         {
-            Description = "Execution mode (Migrate, Simulate, or Validate)",
-            DefaultValueFactory = _ => "Migrate"
+            Description = "Execution mode (migrate, simulate, or validate)",
+            DefaultValueFactory = _ => "migrate"
         };
 
         runModeOption.Validators.Add(result =>
@@ -204,7 +204,7 @@ public class CommandLineConfiguration
                 var normalizedValue = ResolveEnvironmentVariable(value).ToLowerInvariant();
                 if (normalizedValue != "migrate" && normalizedValue != "simulate" && normalizedValue != "validate")
                 {
-                    result.AddError($"Invalid value for --run-mode: {value}. Valid values are: Migrate, Simulate, Validate.");
+                    result.AddError($"Invalid value for --run-mode: {value}. Valid values are: migrate, simulate, validate.");
                 }
             }
         });
@@ -226,7 +226,7 @@ public class CommandLineConfiguration
 
     private Command CreateValidateHashCommand()
     {
-        var command = new Command("Validate-Hash", "Verify migration file integrity");
+        var command = new Command("validate-hash", "Verify migration file integrity");
 
         // Required parameters
         var productOption = new Option<string>("--product", "-p")
@@ -244,7 +244,7 @@ public class CommandLineConfiguration
         // Optional parameters
         var scopeOption = new Option<string>("--scope", "-s")
         {
-            Description = "Hash validation scope override (File, SqlBlock, or Disabled). If omitted, uses per-TargetGroup config."
+            Description = "Hash validation scope override (file, sqlblock, or disabled). If omitted, uses per-TargetGroup config."
         };
 
         scopeOption.Validators.Add(result =>
@@ -255,7 +255,7 @@ public class CommandLineConfiguration
                 var normalizedValue = ResolveEnvironmentVariable(value).ToLowerInvariant();
                 if (normalizedValue != "file" && normalizedValue != "sqlblock" && normalizedValue != "sqlblocks" && normalizedValue != "disabled")
                 {
-                    result.AddError($"Invalid value for --scope: {value}. Valid values are: File, SqlBlock, Disabled.");
+                    result.AddError($"Invalid value for --scope: {value}. Valid values are: file, sqlblock, disabled.");
                 }
             }
         });
@@ -276,7 +276,7 @@ public class CommandLineConfiguration
 
     private Command CreateUpdateHashCommand()
     {
-        var command = new Command("Update-Hash", "Update repository hashes after approved changes");
+        var command = new Command("update-hash", "Update repository hashes after approved changes");
 
         // Required parameters
         var productOption = new Option<string>("--product", "-p")
@@ -306,7 +306,7 @@ public class CommandLineConfiguration
 
     private Command CreateInfoCommand()
     {
-        var command = new Command("Info", "Display migration status information");
+        var command = new Command("info", "Display migration status information");
 
         var productOption = new Option<string>("--product", "-p")
         {
@@ -328,7 +328,7 @@ public class CommandLineConfiguration
 
     private Command CreateBaselineCommand()
     {
-        var command = new Command("Baseline", "Mark existing database as migrated (all releases, or up to a specific release)");
+        var command = new Command("baseline", "Mark existing database as migrated (all releases, or up to a specific release)");
 
         var productOption = new Option<string>("--product", "-p")
         {
@@ -354,7 +354,7 @@ public class CommandLineConfiguration
             Arity = ArgumentArity.ZeroOrMore
         };
 
-        var targetGroupMigrationOrderOption = new Option<string?>("--TargetGroup-MigrationOrder", "-tgmo")
+        var targetGroupMigrationOrderOption = new Option<string?>("--target-group-migration-order", "-tgmo")
         {
             Description = "Explicit TargetGroup migration order (comma-separated aliases, e.g. \"Frontend,Backend\")",
             Arity = ArgumentArity.ZeroOrOne
@@ -371,7 +371,7 @@ public class CommandLineConfiguration
 
     private Command CreateFixIssuesCommand()
     {
-        var command = new Command("Fix", "Fix repository inconsistencies (orphaned runs)");
+        var command = new Command("fix", "Fix repository inconsistencies (orphaned runs)");
 
         var productOption = new Option<string>("--product", "-p")
         {
@@ -387,7 +387,7 @@ public class CommandLineConfiguration
 
         var scopeOption = new Option<string>("--scope", "-s")
         {
-            Description = "Fix scope (OrphanedRuns, All)",
+            Description = "Fix scope (orphanedruns, all)",
             DefaultValueFactory = _ => "OrphanedRuns"
         };
 
@@ -399,7 +399,7 @@ public class CommandLineConfiguration
                 var normalizedValue = ResolveEnvironmentVariable(value).ToLowerInvariant();
                 if (normalizedValue != "all" && normalizedValue != "orphanedruns")
                 {
-                    result.AddError($"Invalid value for --scope: {value}. Valid values are: OrphanedRuns, All.");
+                    result.AddError($"Invalid value for --scope: {value}. Valid values are: orphanedruns, all.");
                 }
             }
         });
@@ -454,7 +454,7 @@ public class CommandLineConfiguration
 
             var allowOutOfOrder = parseResult.GetValue(command.Options.OfType<Option<bool>>().First(o => o.Name == "--allow-out-of-order"));
 
-            var tgeoRaw = parseResult.GetValue(command.Options.OfType<Option<string?>>().First(o => o.Name == "--TargetGroup-MigrationOrder"));
+            var tgeoRaw = parseResult.GetValue(command.Options.OfType<Option<string?>>().First(o => o.Name == "--target-group-migration-order"));
             var tgeoArray = ParseCommaSeparatedToArray(tgeoRaw);
 
             var stopRollbackOnMissingRollbackFile = parseResult.GetValue(
@@ -584,7 +584,7 @@ public class CommandLineConfiguration
     {
         command.SetAction(parseResult =>
         {
-            var tgeoRaw = parseResult.GetValue(command.Options.OfType<Option<string?>>().First(o => o.Name == "--TargetGroup-MigrationOrder"));
+            var tgeoRaw = parseResult.GetValue(command.Options.OfType<Option<string?>>().First(o => o.Name == "--target-group-migration-order"));
             var tgeoArray = ParseCommaSeparatedToArray(tgeoRaw);
 
             ParsedOptions = new RayMigratorConsoleOptions

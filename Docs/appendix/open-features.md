@@ -10,9 +10,9 @@ Central registry of open features in RayMigrator v0.10.x.
 
 **Status:** IMPLEMENTED
 
-Detection of orphaned runs and interrupted migrations works and logs warnings. Orphaned run cleanup is implemented via the `Fix` command (`FixIssuesAsync`), which marks orphaned `MigrationRun` entries as Error and fixes associated `MigrationRecord` entries. Resume-from-block recovery is implemented for both Migrate-Up and Migrate-Down.
+Detection of orphaned runs and interrupted migrations works and logs warnings. Orphaned run cleanup is implemented via the `fix` command (`FixIssuesAsync`), which marks orphaned `MigrationRun` entries as Error and fixes associated `MigrationRecord` entries. Resume-from-block recovery is implemented for both migrate-up and migrate-down.
 
-- **What exists:** `RepositoryMigrationRunSelectOrphaned()`, `RepositoryMigrationGetInterrupted()`, warning logging, `FixIssuesAsync` command with `Repository_MigrationRun_FixOrphaned.sql` and `Repository_MigrationRecord_FixOrphaned.sql` templates (all 5 engines), `RepositoryMigrationRecordFixOrphaned` template-executor method, `InterruptedMigrationInfo` model, dry-run mode, `--older-than` filter, `--last-migration-status` option, `FindResumableBlock()` for automatic resume-from-block in Migrate-Up, rollback block resume in Migrate-Down via `FileDownBlocksMigrated`, auto-fix of orphaned runs older than 10 minutes (`AutoFixOrphanedRunsThresholdMinutes`) when a parallel-run conflict is detected, `StopRollbackOnMissingRollbackFile` configuration setting and `--stop-rollback-on-missing-rollback-file` / `-sromrf` CLI option (controls error-recovery rollback chain behavior when rollback file is missing and `RequireRollbackFile=false`)
+- **What exists:** `RepositoryMigrationRunSelectOrphaned()`, `RepositoryMigrationGetInterrupted()`, warning logging, `FixIssuesAsync` command with `Repository_MigrationRun_FixOrphaned.sql` and `Repository_MigrationRecord_FixOrphaned.sql` templates (all 5 engines), `RepositoryMigrationRecordFixOrphaned` template-executor method, `InterruptedMigrationInfo` model, dry-run mode, `--older-than` filter, `--last-migration-status` option, `FindResumableBlock()` for automatic resume-from-block in migrate-up, rollback block resume in migrate-down via `FileDownBlocksMigrated`, auto-fix of orphaned runs older than 10 minutes (`AutoFixOrphanedRunsThresholdMinutes`) when a parallel-run conflict is detected, `StopRollbackOnMissingRollbackFile` configuration setting and `--stop-rollback-on-missing-rollback-file` / `-sromrf` CLI option (controls error-recovery rollback chain behavior when rollback file is missing and `RequireRollbackFile=false`)
 - **What's missing:** `--force-restart` / `--skip` CLI options
 - **Files:** `MigrationService.cs`, `TemplateExecutor.cs`, `RayMigratorService.cs`
 - **Docs:** [Resilience](../02-core-concepts/resilience.md)
@@ -70,9 +70,9 @@ For products with exactly one TargetGroup, migration files can be placed directl
 
 **Status:** IMPLEMENTED
 
-The `--TargetGroup-MigrationOrder` / `-tgmo` CLI option on `Migrate-Up` and `Baseline` commands allows specifying an explicit execution order for TargetGroups, overriding the default configuration order. All configured TargetGroup aliases must be listed exactly once.
+The `--target-group-migration-order` / `-tgmo` CLI option on `migrate-up` and `baseline` commands allows specifying an explicit execution order for TargetGroups, overriding the default configuration order. All configured TargetGroup aliases must be listed exactly once.
 
-- **What exists:** `--TargetGroup-MigrationOrder` (`-tgmo`) option on `Migrate-Up` and `Baseline` commands, `RayMigratorConsoleOptions.TargetGroupMigrationOrder` property, order validation in `MigrationService`, engine tests in `SqlServerTargetGroupMigrationOrderTests`, `SqliteTargetGroupMigrationOrderTests`, `TargetGroupMigrationOrderTests` (PostgreSQL), `MariaDbTargetGroupMigrationOrderTests`, `MySqlTargetGroupMigrationOrderTests`
+- **What exists:** `--target-group-migration-order` (`-tgmo`) option on `migrate-up` and `baseline` commands, `RayMigratorConsoleOptions.TargetGroupMigrationOrder` property, order validation in `MigrationService`, engine tests in `SqlServerTargetGroupMigrationOrderTests`, `SqliteTargetGroupMigrationOrderTests`, `TargetGroupMigrationOrderTests` (PostgreSQL), `MariaDbTargetGroupMigrationOrderTests`, `MySqlTargetGroupMigrationOrderTests`
 - **What's missing:** Nothing planned at this time
 - **Files:** `CommandLineConfiguration.cs` (Core), `RayMigratorConsoleOptions.cs` (Core), `MigrationService.cs` (Services)
 - **Docs:** [CLI Reference](../08-cli-reference/command-reference.md)
@@ -85,7 +85,7 @@ When the Repository and a migration Target share the same ConnectionString (same
 
 - **Guard conditions**: `UseTransaction = true`, `MigrationErrorAction != Ignore`, same `DatabaseType`, and identical `ConnectionString` (ordinal comparison). When any condition is not met, the standard per-block-connection behavior applies.
 - **File-level retry**: When `DbCommandMaxRetries > 0`, transient errors trigger a rollback of the entire transaction followed by a full file re-execution (not just the failed block), up to `DbCommandMaxRetries` attempts.
-- **Rollback atomicity**: The same atomic pattern applies to rollback operations (`Migrate-Down`, error-triggered rollback via `MigrationErrorAction.Rollback`). All rollback blocks + final `NotMigrated` status are committed in a single transaction.
+- **Rollback atomicity**: The same atomic pattern applies to rollback operations (`migrate-down`, error-triggered rollback via `MigrationErrorAction.Rollback`). All rollback blocks + final `NotMigrated` status are committed in a single transaction.
 - **What exists:** `CanUseSharedConnection` guard in `MigrationService`, `ExecuteSqlBlocksAtomic` (forward path), `ExecuteRollbackBlocksAtomic` (rollback path), unit tests in `P1_CanUseSharedConnectionTests`, engine tests in `SqlServerAtomicSharedConnectionTests` (ASC1: transient retry, ASC2: permanent error rollback)
 - **What's missing:** Engine tests for PostgreSQL, MariaDB, MySQL, SQLite atomic shared connection path
 - **Files:** `MigrationService.cs` (Services)

@@ -11,7 +11,7 @@ This document provides a comprehensive overview of unit and engine test coverage
 
 ### Quick Reference Matrix
 
-| Option | Migrate-Up | Migrate-Down | Validate-Hash | Update-Hash | Info | Baseline | Fix |
+| Option | migrate-up | migrate-down | validate-hash | update-hash | info | baseline | fix |
 |--------|:----------:|:------------:|:-------------:|:-----------:|:----:|:--------:|:---:|
 | `--product` `-p` | **R** | **R** | **R** | **R** | **R** | **R** | **R** |
 | `--environment` `-env` | **R** | **R** | **R** | **R** | **R** | **R** | **R** |
@@ -20,7 +20,7 @@ This document provides a comprehensive overview of unit and engine test coverage
 | `--target-group` `-tg` | O | O | O | O | — | O | — |
 | `--allow-out-of-order` `-ooo` | O | — | — | — | — | — | — |
 | `--stop-rollback-on-missing-rollback-file` `-sromrf` | O | — | — | — | — | — | — |
-| `--TargetGroup-MigrationOrder` `-tgmo` | O | — | — | — | — | O | — |
+| `--target-group-migration-order` `-tgmo` | O | — | — | — | — | O | — |
 | `--scope` `-s` | — | — | O | — | — | — | O |
 | `--older-than` `-ot` | — | — | — | — | — | — | O |
 | `--dry-run` | — | — | — | — | — | — | O |
@@ -42,8 +42,8 @@ This document provides a comprehensive overview of unit and engine test coverage
 | `--target-group` | string[] | null | Filter by target group alias(es), multi-value |
 | `--allow-out-of-order` | bool | false | Allow files from older releases to execute |
 | `--stop-rollback-on-missing-rollback-file` | bool? | null (from config) | Stop rollback chain when rollback file missing |
-| `--TargetGroup-MigrationOrder` | string? | null | Comma-separated group aliases for execution order |
-| `--scope` | string | varies | Validate-Hash: `File`/`SqlBlocks`/`Disabled`; Fix: `OrphanedRuns`/`All` |
+| `--target-group-migration-order` | string? | null | Comma-separated group aliases for execution order |
+| `--scope` | string | varies | validate-hash: `File`/`SqlBlocks`/`Disabled`; Fix: `OrphanedRuns`/`All` |
 | `--older-than` | int | 60 | Minutes threshold for orphaned run detection |
 | `--dry-run` | bool | false | Simulate fix without applying changes |
 | `--last-migration-status` | string | `"not-migrated"` | Status to assign after fix: `migrated` or `not-migrated` |
@@ -63,54 +63,54 @@ This document provides a comprehensive overview of unit and engine test coverage
 | PARTIAL | Option is used/set in tests but not the primary test subject |
 | **MISSING** | No tests found for this specific option behavior |
 
-### Migrate-Up
+### migrate-up
 
 | Option | Unit Tests | Engine Tests | Notes |
 |--------|:----------:|:------------:|-------|
 | `--product` | PARTIAL | COVERED | Foundational, tested implicitly in every scenario |
 | `--environment` | PARTIAL | COVERED | Same as above |
-| `--run-mode Migrate` | COVERED | COVERED | Default mode, all HappyPath tests |
-| `--run-mode Simulate` | COVERED | COVERED | `SimulateModeTests` x5 DBs (S1-S3) |
-| `--run-mode Validate` | COVERED | COVERED | `SimulateModeTests.S4` x5 DBs |
+| `--run-mode migrate` | COVERED | COVERED | Default mode, all HappyPath tests |
+| `--run-mode simulate` | COVERED | COVERED | `SimulateModeTests` x5 DBs (S1-S3) |
+| `--run-mode validate` | COVERED | COVERED | `SimulateModeTests.S4` x5 DBs |
 | `--to-release` | COVERED | COVERED | `HappyPathTests` partial migration, `IncrementalTests` |
 | `--allow-out-of-order` | COVERED | COVERED | 11 unit tests + `OutOfOrderBlockingTests` O1-O3 x5 DBs (blocking + allowing + data intact) |
 | `--target-group` | COVERED | COVERED | `TargetGroupFilterTests` x5 DBs |
-| `--TargetGroup-MigrationOrder` | COVERED | COVERED | `TargetGroupMigrationOrderTests` x5 DBs, 20+ unit tests |
+| `--target-group-migration-order` | COVERED | COVERED | `TargetGroupMigrationOrderTests` x5 DBs, 20+ unit tests |
 | `--stop-rollback-on-missing-rollback-file` | COVERED | COVERED | Config inheritance + `RollbackTests` x5 DBs |
 | `--startup-info` | **MISSING** | **MISSING** | Hardcoded `false` in EngineTestHost. Cosmetic feature, not testable without console output capture. |
 | `--reveal-sensitive-data` | COVERED | COVERED | Unit masking tests + `MigrationRunMetaTests` M4 x5 DBs (masking in settings JSON) |
 | `--config-dir` | COVERED | N/A | 17 unit tests. Not testable at engine level (EngineTestHost bypasses config-dir pipeline). |
 
-### Migrate-Down
+### migrate-down
 
 | Option | Unit Tests | Engine Tests | Notes |
 |--------|:----------:|:------------:|-------|
 | `--product` | PARTIAL | COVERED | Implicit in all scenarios |
 | `--environment` | PARTIAL | COVERED | Implicit in all scenarios |
-| `--run-mode Migrate` | COVERED | COVERED | All HappyPath + Error tests |
-| `--run-mode Simulate` | COVERED | COVERED | `SimulateModeTests.S5` x5 DBs |
-| `--run-mode Validate` | COVERED | COVERED | `SimulateModeTests` S6 (non-destructive) + S7 (missing rollback detection) x5 DBs |
+| `--run-mode migrate` | COVERED | COVERED | All HappyPath + Error tests |
+| `--run-mode simulate` | COVERED | COVERED | `SimulateModeTests.S5` x5 DBs |
+| `--run-mode validate` | COVERED | COVERED | `SimulateModeTests` S6 (non-destructive) + S7 (missing rollback detection) x5 DBs |
 | `--to-release` (required) | COVERED | COVERED | All tests use this, multiple release targets |
 | `--target-group` | COVERED | COVERED | `TargetGroupFilterTests.T4` (`MigrateDown_BackendOnly_PreservesFrontend`) x5 DBs |
 | `--startup-info` | **MISSING** | **MISSING** | Cosmetic feature, not testable without console output capture. |
 | `--reveal-sensitive-data` | COVERED | COVERED | Unit masking + `MigrationRunMetaTests.M6` (MigrateDown settings JSON masked) x5 DBs |
 | `--config-dir` | COVERED | N/A | 17 unit tests. Not testable at engine level. |
 
-### Validate-Hash
+### validate-hash
 
 | Option | Unit Tests | Engine Tests | Notes |
 |--------|:----------:|:------------:|-------|
 | `--product` | PARTIAL | COVERED | Implicit |
 | `--environment` | PARTIAL | COVERED | Implicit |
-| `--scope File` | COVERED | COVERED | `ValidateHashTests` x5 DBs |
-| `--scope SqlBlocks` | COVERED | COVERED | `ValidateHashTests` x5 DBs |
-| `--scope Disabled` | COVERED | COVERED | `ValidateHashTests` V7 (ignores modification) + V8 (pass after full migration) x5 DBs |
+| `--scope file` | COVERED | COVERED | `ValidateHashTests` x5 DBs |
+| `--scope sqlblocks` | COVERED | COVERED | `ValidateHashTests` x5 DBs |
+| `--scope disabled` | COVERED | COVERED | `ValidateHashTests` V7 (ignores modification) + V8 (pass after full migration) x5 DBs |
 | `--target-group` | COVERED | PARTIAL | Unit filtering tested, engine tests don't explicitly filter |
 | `--startup-info` | **MISSING** | **MISSING** | Cosmetic feature, not testable without console output capture. |
 | `--reveal-sensitive-data` | COVERED | **MISSING** | Unit masking covered. ValidateHash is read-only (no MigrationRunMeta written). |
 | `--config-dir` | COVERED | N/A | 17 unit tests. Not testable at engine level. |
 
-### Update-Hash
+### update-hash
 
 | Option | Unit Tests | Engine Tests | Notes |
 |--------|:----------:|:------------:|-------|
@@ -140,7 +140,7 @@ This document provides a comprehensive overview of unit and engine test coverage
 | `--environment` | PARTIAL | COVERED | Implicit in all scenarios |
 | `--to-release` | COVERED | COVERED | `BaselineTests` partial + full x5 DBs |
 | `--target-group` | COVERED | COVERED | `TargetGroupFilterTests.T5` (`Baseline_BackendOnly_ShouldOnlyBaselineBackend`) x5 DBs |
-| `--TargetGroup-MigrationOrder` | COVERED | COVERED | `TargetGroupMigrationOrderTests` includes Baseline |
+| `--target-group-migration-order` | COVERED | COVERED | `TargetGroupMigrationOrderTests` includes Baseline |
 | `--startup-info` | **MISSING** | **MISSING** | Cosmetic feature, not testable without console output capture. |
 | `--reveal-sensitive-data` | PARTIAL | COVERED | `MigrationRunMetaTests.M7` (Baseline settings JSON masked) x5 DBs |
 | `--config-dir` | COVERED | N/A | 17 unit tests. Not testable at engine level. |
@@ -151,8 +151,8 @@ This document provides a comprehensive overview of unit and engine test coverage
 |--------|:----------:|:------------:|-------|
 | `--product` | PARTIAL | COVERED | `FixTests` x5 DBs (F1-F8) |
 | `--environment` | PARTIAL | COVERED | Implicit in all Fix scenarios |
-| `--scope OrphanedRuns` | COVERED | COVERED | F1-F8 all use OrphanedRuns scope |
-| `--scope All` | COVERED | **MISSING** | Enum test only. Engine only tests OrphanedRuns scope. |
+| `--scope orphanedruns` | COVERED | COVERED | F1-F8 all use OrphanedRuns scope |
+| `--scope all` | COVERED | **MISSING** | Enum test only. Engine only tests OrphanedRuns scope. |
 | `--older-than` | COVERED | COVERED | F4: threshold filtering |
 | `--dry-run` | COVERED | COVERED | F3: dry run + orphan persistence verification |
 | `--last-migration-status` | COVERED | COVERED | F8: AssumedMigrationStatus=Migrated |
@@ -165,7 +165,7 @@ This document provides a comprehensive overview of unit and engine test coverage
 
 ## 3. Per-Command Test File Mapping
 
-### 3.1 Migrate-Up
+### 3.1 migrate-up
 
 **Engine test files** (51 files, ~211 tests, all 5 DB engines):
 
@@ -183,7 +183,7 @@ This document provides a comprehensive overview of unit and engine test coverage
 | MultiTarget | `MultiTargetTests.cs` | SqlServer, MariaDb, MySql, Sqlite | Multiple databases per target group |
 | BlockLevel | `SqlServerBlockLevelTests.cs` | SqlServer only | GO statement splitting, multiple batches |
 
-**Unit test files** (relevant to Migrate-Up):
+**Unit test files** (relevant to migrate-up):
 - `P0_MigrationRunModeExtensionsTests.cs` — ShouldExecuteSql, ShouldWriteRepository, ShouldReadRepository (12 tests)
 - `P1_OutOfOrderDetectionTests.cs` — DetectOutOfOrderFiles logic (11 tests)
 - `P1_HandleMigrationErrorBehaviorTests.cs` — Error strategy dispatch
@@ -191,12 +191,12 @@ This document provides a comprehensive overview of unit and engine test coverage
 - `P1_RequireRollbackFileValidationTests.cs` — Rollback file requirement validation
 - `P1_FilterByTargetReleaseTests.cs` — `--to-release` filtering logic
 - `P1_FilterByTargetGroupTests.cs` — `--target-group` filtering logic
-- `P1_TargetGroupMigrationOrderTests.cs` — `--TargetGroup-MigrationOrder` parsing + validation (20+ tests)
+- `P1_TargetGroupMigrationOrderTests.cs` — `--target-group-migration-order` parsing + validation (20+ tests)
 - `P1_RollbackErrorActionTests.cs` — Rollback error handling
 - `P1_MigrationErrorActionIgnoreTests.cs` — Ignore strategy
 - `P1_MigrationErrorActionInheritanceTests.cs` — Error action cascading
 
-### 3.2 Migrate-Down
+### 3.2 migrate-down
 
 **Engine test files** (15 files, ~50 tests):
 
@@ -206,9 +206,9 @@ This document provides a comprehensive overview of unit and engine test coverage
 | EdgeCases | `EdgeCaseTests.cs` | SqlServer, MariaDb, MySql, Sqlite | Multiple rollback rounds; cascading state |
 | Errors | `ErrorTests.cs` | SqlServer, MariaDb, MySql, Sqlite | Missing rollback files; broken rollback SQL |
 
-**Unit test files**: Same filtering/mode tests as Migrate-Up (shared logic).
+**Unit test files**: Same filtering/mode tests as migrate-up (shared logic).
 
-### 3.3 Validate-Hash
+### 3.3 validate-hash
 
 **Engine test files** (5 files, 40 tests):
 
@@ -220,7 +220,7 @@ This document provides a comprehensive overview of unit and engine test coverage
 - `P1_ResolveHashValidationScopeTests.cs` — Scope resolution from config
 - `P1_Sha256Tests.cs` — Hash calculation
 
-### 3.4 Update-Hash
+### 3.4 update-hash
 
 **Engine test files** (5 files, 25 tests):
 
@@ -326,16 +326,16 @@ Also tested as part of:
 | **`--startup-info` (all 7 commands)** | LOW | **WONTFIX** — Cosmetic console output. EngineTestHost hardcodes `false`. Would require console output capture infrastructure. |
 | **`--config-dir` (all 7 commands)** | LOW | **WONTFIX** — Not testable at engine level. EngineTestHost bypasses the config-dir pipeline entirely. 17 unit tests in `P0_ConfigDirTests` prove parsing works. |
 | **`--reveal-sensitive-data` for read-only commands** | LOW | **N/A** — ValidateHash, UpdateHash, Info, Fix do not write MigrationRunMeta settings JSON. Nothing to mask at engine level. |
-| **Fix `--scope All`** | LOW | **MISSING** — Only `OrphanedRuns` scope tested. `All` scope shares the same code path with additional checks. |
+| **Fix `--scope all`** | LOW | **MISSING** — Only `OrphanedRuns` scope tested. `All` scope shares the same code path with additional checks. |
 
 ### ~~Priority 3: Cross-command engine gaps~~ (RESOLVED)
 
 | Gap | Status | Details |
 |-----|--------|---------|
 | ~~`--allow-out-of-order` blocking~~ | **RESOLVED** | `OutOfOrderBlockingTests` O1-O3 x5 DBs. Blocking (false) + allowing (true) + data integrity. |
-| ~~MigrateDown + `--run-mode Validate`~~ | **RESOLVED** | `SimulateModeTests` S6-S7 x5 DBs. Non-destructive validation + missing rollback detection. |
+| ~~MigrateDown + `--run-mode validate`~~ | **RESOLVED** | `SimulateModeTests` S6-S7 x5 DBs. Non-destructive validation + missing rollback detection. |
 | ~~MigrateDown + `--target-group`~~ | **ALREADY COVERED** | Existing T4 (`MigrateDown_BackendOnly_PreservesFrontend`) x5 DBs. |
-| ~~Validate-Hash + `--scope Disabled`~~ | **RESOLVED** | `ValidateHashTests` V7-V8 x5 DBs. Ignores modification + pass after full migration. |
+| ~~validate-hash + `--scope disabled`~~ | **RESOLVED** | `ValidateHashTests` V7-V8 x5 DBs. Ignores modification + pass after full migration. |
 | ~~`--config-dir` engine integration~~ | **NOT FEASIBLE** | EngineTestHost bypasses config-dir pipeline. 17 unit tests sufficient. |
 
 ### ~~Priority 4: Minor gaps~~ (RESOLVED)
@@ -344,8 +344,8 @@ Also tested as part of:
 |-----|--------|---------|
 | ~~`--reveal-sensitive-data` for non-MigrateUp~~ | **RESOLVED** | M6 (MigrateDown) + M7 (Baseline) masking tests added × 5 DBs. SensitiveDataMasker.BeginScope() per-command in ScenarioContext. |
 | ~~Baseline + `--target-group`~~ | **ALREADY COVERED** | Existing T5 (`Baseline_BackendOnly_ShouldOnlyBaselineBackend`) covers this × 5 DBs. |
-| ~~Update-Hash + `--target-group`~~ | **ALREADY COVERED** | Existing T8 (`UpdateHash_BackendOnly_AfterFullMigration_ShouldSucceed`) covers this × 5 DBs. |
-| ~~Update-Hash dedicated tests~~ | **RESOLVED** | New `UpdateHashTests.cs` + 4 DB wrappers. U1-U5: fresh migration, file modification, validate after update, idempotent, empty repo. 25 tests. |
+| ~~update-hash + `--target-group`~~ | **ALREADY COVERED** | Existing T8 (`UpdateHash_BackendOnly_AfterFullMigration_ShouldSucceed`) covers this × 5 DBs. |
+| ~~update-hash dedicated tests~~ | **RESOLVED** | New `UpdateHashTests.cs` + 4 DB wrappers. U1-U5: fresh migration, file modification, validate after update, idempotent, empty repo. 25 tests. |
 
 ---
 
@@ -360,7 +360,7 @@ Also tested as part of:
 | Combinations with engine test coverage (COVERED, PARTIAL, or N/A) | 44 (86.3%) |
 | Combinations with **MISSING** engine coverage | 3 (5.9%) — all `--startup-info` related |
 | Combinations marked N/A (not testable at engine level) | 7 — `--config-dir` x7 commands |
-| Remaining actionable gap | 1 — Fix `--scope All` |
+| Remaining actionable gap | 1 — Fix `--scope all` |
 | Commands with zero engine tests | 0 |
 | Engine test files total | ~171 |
 | Engine test methods total | ~888 |
@@ -372,10 +372,10 @@ Also tested as part of:
 
 | Command | Options | Unit Covered | Engine Covered | Engine N/A | Engine MISSING | Unit % | Engine % |
 |---------|---------|-------------|---------------|-----------|---------------|--------|----------|
-| Migrate-Up | 13 | 12 | 11 | 1 | 1 | 92% | 92% |
-| Migrate-Down | 8 | 7 | 7 | 1 | 1 | 88% | 88% |
-| Validate-Hash | 7 | 6 | 5 | 1 | 1 | 86% | 86% |
-| Update-Hash | 5 | 4 | 3 | 1 | 1 | 80% | 80% |
+| migrate-up | 13 | 12 | 11 | 1 | 1 | 92% | 92% |
+| migrate-down | 8 | 7 | 7 | 1 | 1 | 88% | 88% |
+| validate-hash | 7 | 6 | 5 | 1 | 1 | 86% | 86% |
+| update-hash | 5 | 4 | 3 | 1 | 1 | 80% | 80% |
 | Info | 4 | 2 | 2 | 1 | 1 | 50% | 75% |
 | Baseline | 7 | 6 | 6 | 1 | 1 | 86% | 86% |
 | Fix | 8 | 7 | 5 | 1 | 2 | 88% | 75% |

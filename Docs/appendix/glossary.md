@@ -8,13 +8,13 @@ Definitions of terms and concepts used in RayMigrator.
 A unique identifier string used to reference entities in configuration. Products, Target Groups, and Targets all have aliases that must match `^(?=.{1,50}$)[\p{L}\p{N}_]+$`: Unicode letters (`\p{L}`), Unicode numeric characters (`\p{N}`), and underscores only, 1–50 characters maximum. CLI Tools use a slightly broader alias pattern that additionally allows hyphens: `^(?=.{1,50}$)[\p{L}\p{N}_\-]+$`.
 
 ### AllowOutOfOrder
-A CLI option (`--allow-out-of-order` / `-ooo`) for the `Migrate-Up` command that permits execution of migration files that were added after previously executed files. When enabled, RayMigrator will not skip files that sort before the latest executed migration. Available as `RayMigratorConsoleOptions.AllowOutOfOrder`.
+A CLI option (`--allow-out-of-order` / `-ooo`) for the `migrate-up` command that permits execution of migration files that were added after previously executed files. When enabled, RayMigrator will not skip files that sort before the latest executed migration. Available as `RayMigratorConsoleOptions.AllowOutOfOrder`.
 
 ### ApplicationStartupException
 An exception thrown when RayMigrator encounters a fatal error during startup, before migration execution begins. Common causes include failure to create the host application, inability to initialize the DatabaseLogWriter, or DAL instance creation failures. Defined in `CustomExceptions.cs` in the Shared project.
 
 ### Auto-Fix Orphaned Runs
-An automatic recovery mechanism in `MigrationService` that detects and fixes orphaned migration runs when a new migration encounters a parallel-run conflict. Orphaned runs older than 10 minutes (`AutoFixOrphanedRunsThresholdMinutes`) are automatically marked as Error, allowing the new migration to proceed. For manual control, use the `Fix` CLI command with the `--older-than` option.
+An automatic recovery mechanism in `MigrationService` that detects and fixes orphaned migration runs when a new migration encounters a parallel-run conflict. Orphaned runs older than 10 minutes (`AutoFixOrphanedRunsThresholdMinutes`) are automatically marked as Error, allowing the new migration to proceed. For manual control, use the `fix` CLI command with the `--older-than` option.
 
 ### Atomic Shared Connection
 An automatic optimization that activates when the Repository and a migration Target share the same ConnectionString (same physical database). RayMigrator wraps all SQL blocks of a migration file and the corresponding repository status updates in a single database transaction, guaranteeing atomic commit or rollback. Guard conditions: `UseTransaction = true`, `MigrationErrorAction != Ignore`, same `DatabaseType`, and identical `ConnectionString`. When conditions are not met, the standard per-block-connection behavior applies. See [Atomic Shared Connection](../02-core-concepts/error-handling.md#atomic-shared-connection) and [Atomic Shared Connection Execution](../04-service-layer/migration-service.md#atomic-shared-connection-execution).
@@ -119,7 +119,7 @@ See **Target Migration Order**.
 A SHA-256 hash of the entire migration file content, used for integrity validation.
 
 ### Fix Issues Scope
-The scope of repository cleanup performed by the `Fix` CLI command (`FixIssues` enum):
+The scope of repository cleanup performed by the `fix` CLI command (`FixIssues` enum):
 - **Undefined** (0): Invalid value
 - **All** (1): Fix all known problems in the repository
 - **OrphanedRuns** (2): Fix orphaned MigrationRun entries (process crashed while Running)
@@ -298,7 +298,7 @@ The database structure that tracks migration state, history, and metadata. Conta
 The process of reversing previously applied migrations using rollback files.
 
 ### Rollback Error Action
-Configuration that determines behavior when a rollback operation encounters an error (`RollbackErrorAction` enum). Applies both during explicit `Migrate-Down` execution and during error recovery rollback triggered by `MigrationErrorAction` (Rollback, RollbackErrorOnly, or RollbackRelease) in `Migrate-Up`. See [Error Handling](../02-core-concepts/error-handling.md).
+Configuration that determines behavior when a rollback operation encounters an error (`RollbackErrorAction` enum). Applies both during explicit `migrate-down` execution and during error recovery rollback triggered by `MigrationErrorAction` (Rollback, RollbackErrorOnly, or RollbackRelease) in `migrate-up`. See [Error Handling](../02-core-concepts/error-handling.md).
 - **Undefined** (0): Invalid value
 - **Terminate** (10): Stop the rollback chain immediately (default)
 - **Ignore** (30): Skip the failed rollback file (mark it as Failed) and continue the rollback chain with the next file
@@ -350,9 +350,9 @@ See **Block**.
 The model governing valid transitions between migration statuses (Pending, Executing, Failed, NotMigrated, Migrated).
 
 ### StopRollbackOnMissingRollbackFile
-A configuration setting and CLI option that controls whether an error-recovery rollback chain stops or continues when a rollback file is missing. Only relevant when `RequireRollbackFile = false`. Has no effect on explicit `Migrate-Down` execution.
+A configuration setting and CLI option that controls whether an error-recovery rollback chain stops or continues when a rollback file is missing. Only relevant when `RequireRollbackFile = false`. Has no effect on explicit `migrate-down` execution.
 
-- **CLI option**: `--stop-rollback-on-missing-rollback-file` / `-sromrf` (available on `Migrate-Up` command)
+- **CLI option**: `--stop-rollback-on-missing-rollback-file` / `-sromrf` (available on `migrate-up` command)
 - **Configuration**: `bool?` property on `ProductDefaultOptions`, `ProductOptions`, `TargetGroupDefaultOptions`, `TargetGroupOptions`
 - **Default**: `true` (stop the rollback chain when a rollback file is missing)
 - **`true`**: Stop the rollback chain immediately when a rollback file is missing
@@ -378,8 +378,8 @@ A collection of targets that receive the same migrations. All targets in a group
 The unique identifier for a target group within a product. Must match directory names in the migration files structure.
 
 ### Target Group Migration Order
-An override that defines the explicit processing order of TargetGroups within a release, available for `Migrate-Up` and `Baseline` commands. When not set, TargetGroups are processed in the order they appear in configuration. Supports a four-level priority chain (highest first):
-1. `--TargetGroup-MigrationOrder` / `-tgmo` CLI option (comma-separated aliases, e.g. `"Frontend,Backend"`)
+An override that defines the explicit processing order of TargetGroups within a release, available for `migrate-up` and `baseline` commands. When not set, TargetGroups are processed in the order they appear in configuration. Supports a four-level priority chain (highest first):
+1. `--target-group-migration-order` / `-tgmo` CLI option (comma-separated aliases, e.g. `"Frontend,Backend"`)
 2. `TargetGroupMigrationOrder` key in a `migsettings` file for the release directory
 3. `TargetGroupMigrationOrder` property on `ProductOptions` in appsettings (comma-separated string)
 4. Configuration array order (default)
@@ -387,7 +387,7 @@ An override that defines the explicit processing order of TargetGroups within a 
 Stored as `RayMigratorConsoleOptions.TargetGroupMigrationOrder` (CLI) and `MigSettingsEntry.TargetGroupMigrationOrder` (migsettings). Resolution is performed per-release by `ResolveTargetGroupMigrationOrder()` in `MigrationService`.
 
 ### Target Group Filter
-The `--target-group` / `-tg` CLI option, available on `Migrate-Up`, `Migrate-Down`, `Validate-Hash`, `Update-Hash`, and `Baseline` commands. Accepts one or more target group aliases to restrict execution to specific target groups. When omitted, all target groups are processed. Stored as `RayMigratorConsoleOptions.TargetGroupAliases`.
+The `--target-group` / `-tg` CLI option, available on `migrate-up`, `migrate-down`, `validate-hash`, `update-hash`, and `baseline` commands. Accepts one or more target group aliases to restrict execution to specific target groups. When omitted, all target groups are processed. Stored as `RayMigratorConsoleOptions.TargetGroupAliases`.
 
 ### Template
 A SQL file with placeholders that gets processed and executed by RayMigrator. Used for repository and logging schema creation.

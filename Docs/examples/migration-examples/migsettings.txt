@@ -25,7 +25,7 @@ RequireRollbackFile = true
 # RollbackErrorAction = "Terminate"
 
 # When RequireRollbackFile = false, controls whether an error-recovery rollback chain stops (true)
-# or skips and continues (false) when a rollback file is missing. Has no effect on Migrate-Down.
+# or skips and continues (false) when a rollback file is missing. Has no effect on migrate-down.
 # Effective value is resolved from the config cascade: CLI option → TargetGroup → Product → ProductDefaults → default (true)
 # StopRollbackOnMissingRollbackFile = true
 
@@ -34,5 +34,5 @@ RequireRollbackFile = true
 # UseCliToolAlias = "sqlcmd-tool"
 
 # Override TargetGroup execution order for this release (only effective in release-level migsettings)
-# All TargetGroup aliases must be listed; order determines execution sequence for Migrate-Up and Baseline
+# All TargetGroup aliases must be listed; order determines execution sequence for migrate-up and baseline
 # TargetGroupMigrationOrder = ["Frontend", "Backend"]

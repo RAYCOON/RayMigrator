@@ -82,8 +82,8 @@ Pre-built binaries for all supported platforms are available from the [GitHub Re
 ┌─────────────────────────────────────────────────────────┐
 │         CLI (Console Layer)                             │
 │                                                         │
-│    Migrate-Up · Migrate-Down · Baseline                 │
-│   Validate-Hash · Update-Hash · Info · Fix              │
+│    migrate-up · migrate-down · baseline                 │
+│   validate-hash · update-hash · info · fix              │
 └──────────────────────────┬──────────────────────────────┘
                            │
                            ▼

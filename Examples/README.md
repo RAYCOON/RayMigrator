@@ -94,10 +94,10 @@ Copy the appsettings file to the RayMigrator working directory, then run:
 ```bash
 cp ./Examples/MySimpleApplication/appsettings.MySimpleApplication.Docker.json ./appsettings.Docker.json
 
-raymigrator Migrate-Up \
+raymigrator migrate-up \
     --product MySimpleApplication \
     --environment Docker \
-    --run-mode Migrate
+    --run-mode migrate
 ```
 
 ### MyComplexApplication
@@ -112,10 +112,10 @@ Copy the appsettings file to the RayMigrator working directory, then run:
 ```bash
 cp ./Examples/MyComplexApplication/appsettings.MyComplexApplication.Docker.json ./appsettings.Docker.json
 
-raymigrator Migrate-Up \
+raymigrator migrate-up \
     --product MyComplexApplication \
     --environment Docker \
-    --run-mode Migrate
+    --run-mode migrate
 ```
 
 ## Layout Comparison

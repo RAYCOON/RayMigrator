@@ -196,9 +196,9 @@ public async Task ErrorInR3_OnlyR3RolledBack()
 - `BaselineAsync(toRelease?, targetGroupAliases?, targetGroupMigrationOrder?, revealSensitiveData?)` — executes Baseline
 - `ValidateHashAsync(scope?, targetGroupAliases?)` — executes ValidateHash
 - `UpdateHashAsync(targetGroupAliases?)` — executes UpdateHash
-- `InfoAsync()` — executes the `Info` command (returns `MigrationStatusInfo`)
+- `InfoAsync()` — executes the `info` command (returns `MigrationStatusInfo`)
 - `GetHistoryAsync(limit?)` — fetches the run history (returns `MigrationHistory`)
-- `FixIssuesAsync(scope?, olderThanMinutes?, dryRun?, assumedMigrationStatus?)` — executes the `Fix` command
+- `FixIssuesAsync(scope?, olderThanMinutes?, dryRun?, assumedMigrationStatus?)` — executes the `fix` command
 - `InsertOrphanedMigrationRun(minutesOld?)` — inserts a fake `MigrationRun` record with Running status and a `StartedAt` in the past (helper for Fix tests)
 - `RebuildForAsync(command, mode, toRelease?)` — rebuilds DI container for next phase (no DB cleanup)
 
@@ -346,7 +346,7 @@ The catalog lists the unique test scenarios defined for the base PostgreSQL test
 | `SimulateModeTests` | 7 | Simulate mode (no user tables written), Validate mode, MigrateDown simulate, MigrateDown Validate (non-destructive + missing rollback detection) |
 | `TargetGroupMigrationOrderTests` | 10 | TargetGroupMigrationOrder overrides (CLI, appsettings, migsettings), wrong-case error, Baseline, single-TG rejection |
 | `TargetGroupFilterTests` | 12 | Filtering by target group alias (Backend-only, Frontend-only, both) |
-| `UpdateHashTests` | 5 | Update-Hash: no updates after fresh migration, update after file modification, validate passes after update, idempotent second run, empty-repo no-op |
+| `UpdateHashTests` | 5 | update-hash: no updates after fresh migration, update after file modification, validate passes after update, idempotent second run, empty-repo no-op |
 | `ValidateHashTests` | 8 | Hash validation in File and SqlBlocks scopes, detecting modifications, Disabled scope (ignores modification, passes after full migration) |
 | `SqlServerAtomicSharedConnectionTests` | 2 | SqlServer-only: atomic shared-connection path — transient error triggers file-level retry with full transaction rollback (ASC1), permanent error rolls back all blocks including prior DDL (ASC2) |
 | `SqliteDatetimeCheckConstraintTests` | 3 | SQLite-only: DAL-021 strict ISO-8601 CHECK constraints on repository datetime columns (rejects bad input, accepts `datetime('now')`, allows NULLs on nullable columns) |

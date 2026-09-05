@@ -10,7 +10,7 @@ Target groups organize related databases that receive the same migrations.
 | `DatabaseType` | string | Yes | - | Database type for all targets in this group |
 | `TargetMigrationOrder` | string | No | Inherited from `TargetGroupDefaults` | Execution order: `Simultaneously` or `Successively` |
 | `HashValidationScope` | string | No | Inherited from `TargetGroupDefaults` | Hash validation mode: `File`, `SqlBlocks`, or `Disabled` |
-| `StopRollbackOnMissingRollbackFile` | bool? | No | Inherited from `TargetGroupDefaults` | When `RequireRollbackFile=false`, controls whether an error-recovery rollback chain stops (`true`) or continues (`false`) when a rollback file is missing. Overrides the Product-level value for this TargetGroup. No effect on Migrate-Down. |
+| `StopRollbackOnMissingRollbackFile` | bool? | No | Inherited from `TargetGroupDefaults` | When `RequireRollbackFile=false`, controls whether an error-recovery rollback chain stops (`true`) or continues (`false`) when a rollback file is missing. Overrides the Product-level value for this TargetGroup. No effect on migrate-down. |
 | `UseCliToolAlias` | string | No | Inherited from `Product` | CLI tool alias for migration execution instead of the DAL. References a `CliTools[].Alias` defined at the `RayMigrator` root level. Can be overridden per Target. |
 | `Targets` | array | Yes | - | Target database configurations |
 
@@ -55,13 +55,13 @@ Migration 2 → Target 2
 
 ## Hash Validation Scope
 
-This setting governs hash comparison behavior in **all commands**: `Migrate-Up`, `Baseline`, and `Validate-Hash`.
+This setting governs hash comparison behavior in **all commands**: `migrate-up`, `baseline`, and `validate-hash`.
 
 | Value | Validates | Use Case |
 |-------|-----------|----------|
 | `File` | Entire file hash | Strictest, any change detected |
 | `SqlBlocks` | SQL content only (excludes TOML metadata) | Allow metadata changes (e.g., adding `UseCliToolAlias`) without triggering re-execution |
-| `Disabled` | No validation | Development/legacy. **Warning**: With `Disabled`, hash comparison is completely skipped. Changed migration files will **never be re-executed** by `Migrate-Up`, and `Validate-Hash` will report all files as valid. Use only in development environments or for legacy migrations where source files are known to have changed after initial execution. |
+| `Disabled` | No validation | Development/legacy. **Warning**: With `Disabled`, hash comparison is completely skipped. Changed migration files will **never be re-executed** by `migrate-up`, and `validate-hash` will report all files as valid. Use only in development environments or for legacy migrations where source files are known to have changed after initial execution. |
 
 ## Target Group Defaults
 

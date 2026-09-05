@@ -169,9 +169,9 @@ Configured per TargetGroup via `TargetMigrationOrder` option (default inherited 
 
 ### TargetGroup Execution Order
 
-The order in which target groups are processed within a release is controlled by `TargetGroupMigrationOrder`. The resolution chain (highest priority first) is: CLI argument (`--TargetGroup-MigrationOrder`) > migsettings entry > `ProductOptions.TargetGroupMigrationOrder` (comma-separated) > configuration array order.
+The order in which target groups are processed within a release is controlled by `TargetGroupMigrationOrder`. The resolution chain (highest priority first) is: CLI argument (`--target-group-migration-order`) > migsettings entry > `ProductOptions.TargetGroupMigrationOrder` (comma-separated) > configuration array order.
 
-When specified, all target group aliases must be listed exactly once. Applies to `MigrateUp` and `Baseline` commands only.
+When specified, all target group aliases must be listed exactly once. Applies to `MigrateUp` and `baseline` commands only.
 
 ## Error Handling Strategies
 
@@ -192,7 +192,7 @@ When `RequireRollbackFile = false`, some migration files may not have a correspo
 - `true` (default): The rollback chain stops at the missing file, leaving any migrations before it intact.
 - `false`: The rollback chain continues past the missing file and skips it.
 
-This setting only applies to error-recovery rollback (`MigrationErrorAction = Rollback`, `RollbackErrorOnly`, or `RollbackRelease`), not to explicit `Migrate-Down` commands. The effective value is resolved at runtime via: CLI `--stop-rollback-on-missing-rollback-file` → `TargetGroup.StopRollbackOnMissingRollbackFile` → `Product.StopRollbackOnMissingRollbackFile` → hardcoded default `true`. While migsettings files and per-file TOML can declare this setting (and it is parsed and merged in the migsettings hierarchy), the value stored on `MigrationFileInfo` is not consulted during the rollback chain; only the appsettings-level (Product/TargetGroup) and CLI values participate in the runtime resolution.
+This setting only applies to error-recovery rollback (`MigrationErrorAction = Rollback`, `RollbackErrorOnly`, or `RollbackRelease`), not to explicit `migrate-down` commands. The effective value is resolved at runtime via: CLI `--stop-rollback-on-missing-rollback-file` → `TargetGroup.StopRollbackOnMissingRollbackFile` → `Product.StopRollbackOnMissingRollbackFile` → hardcoded default `true`. While migsettings files and per-file TOML can declare this setting (and it is parsed and merged in the migsettings hierarchy), the value stored on `MigrationFileInfo` is not consulted during the rollback chain; only the appsettings-level (Product/TargetGroup) and CLI values participate in the runtime resolution.
 
 ### Inheritance
 

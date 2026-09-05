@@ -1,16 +1,16 @@
-# Validate-Hash Command
+# validate-hash Command
 
 Validates migration file integrity against stored hash values.
 
 ## Synopsis
 
 ```bash
-raymigrator Validate-Hash --product <ProductAlias> --environment <Environment> [options]
+raymigrator validate-hash --product <ProductAlias> --environment <Environment> [options]
 ```
 
 ## Description
 
-The `Validate-Hash` command checks that previously migrated files have not been modified since their execution. It compares SHA-256 hash values of current files against values stored in the repository.
+The `validate-hash` command checks that previously migrated files have not been modified since their execution. It compares SHA-256 hash values of current files against values stored in the repository.
 
 This command is useful for:
 - Pre-deployment verification
@@ -50,38 +50,38 @@ This command is useful for:
 
 ```bash
 # Validate all migrated files for a product
-raymigrator Validate-Hash --product MyProduct --environment Production
+raymigrator validate-hash --product MyProduct --environment Production
 ```
 
 ### Validate SQL Blocks Only
 
 ```bash
 # Allow TOML metadata changes but validate SQL
-raymigrator Validate-Hash -p MyProduct -env Production --scope SqlBlocks
+raymigrator validate-hash -p MyProduct -env Production --scope sqlblocks
 ```
 
 ### Validate Specific Target Groups
 
 ```bash
 # Validate only Backend target group
-raymigrator Validate-Hash -p MyProduct -env Production -tg Backend
+raymigrator validate-hash -p MyProduct -env Production -tg Backend
 
 # Validate Backend and Analytics
-raymigrator Validate-Hash -p MyProduct -env Production -tg Backend -tg Analytics
+raymigrator validate-hash -p MyProduct -env Production -tg Backend -tg Analytics
 ```
 
 ### CI/CD Pipeline
 
 ```bash
 # Exit with error code if validation fails
-raymigrator Validate-Hash -p MyProduct -env Production || exit 1
+raymigrator validate-hash -p MyProduct -env Production || exit 1
 ```
 
 ## Validation Process
 
 ```mermaid
 flowchart TD
-    A[Start Validate-Hash] --> B[Load Configuration]
+    A[Start validate-hash] --> B[Load Configuration]
     B --> C[Initialize Repository]
     C --> D[Discover Migration Files on Disk]
     D --> E[Query Existing Records from Repository]
@@ -178,10 +178,10 @@ Determine if the change was intentional or unauthorized:
 
 ### 2. Update Hash (if change is valid)
 
-Use [Update-Hash](update-hash.md) to accept the changes:
+Use [update-hash](update-hash.md) to accept the changes:
 
 ```bash
-raymigrator Update-Hash -p MyProduct -env Production
+raymigrator update-hash -p MyProduct -env Production
 ```
 
 ### 3. Restore Original File
@@ -206,14 +206,14 @@ Hash validation scope can also be configured per TargetGroup in `appsettings.jso
 }
 ```
 
-The per-TargetGroup `HashValidationScope` setting governs hash comparison in all commands: `Migrate-Up`, `Baseline`, and `Validate-Hash`. When `--scope` is omitted from the `Validate-Hash` CLI command, each file is validated using its TargetGroup's configured scope. When `--scope` is explicitly provided, it overrides the configuration for all TargetGroups.
+The per-TargetGroup `HashValidationScope` setting governs hash comparison in all commands: `migrate-up`, `baseline`, and `validate-hash`. When `--scope` is omitted from the `validate-hash` CLI command, each file is validated using its TargetGroup's configured scope. When `--scope` is explicitly provided, it overrides the configuration for all TargetGroups.
 
 ## Best Practices
 
 1. **Run in CI/CD pipeline before deployment**
    ```yaml
    - name: Validate Migrations
-     run: raymigrator Validate-Hash -p $PRODUCT -env $ENV
+     run: raymigrator validate-hash -p $PRODUCT -env $ENV
    ```
 
 2. **Use File scope for production**
@@ -230,8 +230,8 @@ The per-TargetGroup `HashValidationScope` setting governs hash comparison in all
 
 ## Related Commands
 
-- [Update-Hash](update-hash.md) - Update stored hash values
-- [Migrate-Up](migrate-up.md) - Execute migrations
+- [update-hash](update-hash.md) - Update stored hash values
+- [migrate-up](migrate-up.md) - Execute migrations
 
 ## Related Documentation
 

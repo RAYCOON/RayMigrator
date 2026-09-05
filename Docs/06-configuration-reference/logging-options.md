@@ -302,7 +302,7 @@ Serilog configuration is read from the fully merged `RayMigrator` configuration 
 
 Default output template (when no `outputTemplate` is specified):
 ```
-2025-01-29 10:30:45 [INF] Starting Migrate-Up for RayMigratorTests
+2025-01-29 10:30:45 [INF] Starting migrate-up for RayMigratorTests
 2025-01-29 10:30:45 [INF] Repository version: 1
 2025-01-29 10:30:46 [INF] Executing: 001_CreateTable.sql
 2025-01-29 10:30:46 [INF] Migration completed: 1/1 migrations
@@ -310,7 +310,7 @@ Default output template (when no `outputTemplate` is specified):
 
 With the 4-character level format (`{Level:u4}`) used in the test configurations:
 ```
-2025-01-29 10:30:45 [INFO] Starting Migrate-Up for RayMigratorTests
+2025-01-29 10:30:45 [INFO] Starting migrate-up for RayMigratorTests
 2025-01-29 10:30:45 [INFO] Repository version: 1
 2025-01-29 10:30:46 [INFO] Executing: 001_CreateTable.sql
 2025-01-29 10:30:46 [INFO] Migration completed: 1/1 migrations
@@ -320,7 +320,7 @@ With the 4-character level format (`{Level:u4}`) used in the test configurations
 
 Using the output template from the test configurations:
 ```
-2025-01-29 10:30:45 [INFO] <12> [Raycoon.RayMigrator.Services.MigrationService] Starting Migrate-Up - (RunId:1 BlockId:0)
+2025-01-29 10:30:45 [INFO] <12> [Raycoon.RayMigrator.Services.MigrationService] Starting migrate-up - (RunId:1 BlockId:0)
 2025-01-29 10:30:45 [DBUG] <12> [Raycoon.RayMigrator.Services.MigrationService] Loading configuration - (RunId:1 BlockId:0)
 2025-01-29 10:30:45 [INFO] <12> [Raycoon.RayMigrator.Services.MigrationService] Repository version: 1 - (RunId:1 BlockId:0)
 ```

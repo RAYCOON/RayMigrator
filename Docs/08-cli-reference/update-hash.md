@@ -1,16 +1,16 @@
-# Update-Hash Command
+# update-hash Command
 
 Updates stored hash values to match current migration file content.
 
 ## Synopsis
 
 ```bash
-raymigrator Update-Hash --product <ProductAlias> --environment <Environment> [options]
+raymigrator update-hash --product <ProductAlias> --environment <Environment> [options]
 ```
 
 ## Description
 
-The `Update-Hash` command recalculates and stores new hash values for all previously migrated files (status `Migrated`). Use this after intentionally modifying migration files (e.g., fixing comments, updating metadata) to prevent hash validation failures.
+The `update-hash` command recalculates and stores new hash values for all previously migrated files (status `Migrated`). Use this after intentionally modifying migration files (e.g., fixing comments, updating metadata) to prevent hash validation failures.
 
 ## Required Parameters
 
@@ -34,28 +34,28 @@ The `Update-Hash` command recalculates and stores new hash values for all previo
 
 ```bash
 # Update hashes for all migrated files
-raymigrator Update-Hash --product MyProduct --environment Production
+raymigrator update-hash --product MyProduct --environment Production
 ```
 
 ### After TOML Metadata Fix
 
 ```bash
 # After fixing a typo in a description
-raymigrator Update-Hash -p MyProduct -env Development
+raymigrator update-hash -p MyProduct -env Development
 ```
 
 ### Update Hashes for Specific Target Groups
 
 ```bash
 # Update only Backend target group hashes
-raymigrator Update-Hash -p MyProduct -env Production -tg Backend
+raymigrator update-hash -p MyProduct -env Production -tg Backend
 ```
 
 ## Execution Flow
 
 ```mermaid
 flowchart TD
-    A[Start Update-Hash] --> B["Phase 1: Repository Check/Create"]
+    A[Start update-hash] --> B["Phase 1: Repository Check/Create"]
     B --> C["Phase 2: Discover Files & Calculate Hashes"]
     C --> D["Phase 3: Query Existing Records (status=Migrated)"]
     D --> E{For Each File}
@@ -121,7 +121,7 @@ Description = "Fixed typo in description"  -- Was: "Cretae users table"
 ```
 
 ```bash
-raymigrator Update-Hash -p MyProduct -env Production
+raymigrator update-hash -p MyProduct -env Production
 ```
 
 ### 2. Update Metadata
@@ -145,7 +145,7 @@ After converting line endings (CRLF -> LF):
 dos2unix *.sql
 
 # Update hashes
-raymigrator Update-Hash -p MyProduct -env Production
+raymigrator update-hash -p MyProduct -env Production
 ```
 
 ### 4. Bulk Comment Updates
@@ -153,12 +153,12 @@ raymigrator Update-Hash -p MyProduct -env Production
 After adding/updating comments across many files:
 
 ```bash
-raymigrator Update-Hash -p MyProduct -env Production
+raymigrator update-hash -p MyProduct -env Production
 ```
 
 ## When NOT to Use
 
-Do **NOT** use Update-Hash if:
+Do **NOT** use update-hash if:
 
 | Scenario | Why Not |
 |----------|---------|
@@ -170,7 +170,7 @@ Do **NOT** use Update-Hash if:
 
 1. **Investigate the change first**
    ```bash
-   raymigrator Validate-Hash -p MyProduct -env Production
+   raymigrator validate-hash -p MyProduct -env Production
    ```
 
 2. **Review version control**
@@ -200,9 +200,9 @@ Only records with `MigrationStatusId = Migrated` are considered. Other statuses 
 
 1. **Always validate first**
    ```bash
-   raymigrator Validate-Hash -p MyProduct -env Production
+   raymigrator validate-hash -p MyProduct -env Production
    # Review what changed
-   raymigrator Update-Hash -p MyProduct -env Production
+   raymigrator update-hash -p MyProduct -env Production
    ```
 
 2. **Document the reason for update**
@@ -211,20 +211,20 @@ Only records with `MigrationStatusId = Migrated` are considered. Other statuses 
 
 3. **Update in all environments**
    ```bash
-   raymigrator Update-Hash -p MyProduct -env Development
-   raymigrator Update-Hash -p MyProduct -env Staging
-   raymigrator Update-Hash -p MyProduct -env Production
+   raymigrator update-hash -p MyProduct -env Development
+   raymigrator update-hash -p MyProduct -env Staging
+   raymigrator update-hash -p MyProduct -env Production
    ```
 
 4. **Version control first**
    ```bash
    git add *.sql
    git commit -m "Fix documentation typos"
-   raymigrator Update-Hash -p MyProduct -env Production
+   raymigrator update-hash -p MyProduct -env Production
    ```
 
 5. **Review changes in pull request**
-   - Include Update-Hash step in deployment docs
+   - Include update-hash step in deployment docs
 
 ## Alternative: HashValidationScope Configuration
 
@@ -238,12 +238,12 @@ Instead of updating hashes after TOML metadata changes, you can configure valida
 }
 ```
 
-With `SqlBlocks`, Validate-Hash and Migrate-Up only compare `FileUpBlocksHash`, so TOML metadata changes do not trigger hash mismatches. The Update-Hash command itself always updates all three hash fields regardless of this setting.
+With `SqlBlocks`, validate-hash and migrate-up only compare `FileUpBlocksHash`, so TOML metadata changes do not trigger hash mismatches. The update-hash command itself always updates all three hash fields regardless of this setting.
 
 ## Related Commands
 
-- [Validate-Hash](validate-hash.md) - Check file integrity
-- [Migrate-Up](migrate-up.md) - Execute migrations
+- [validate-hash](validate-hash.md) - Check file integrity
+- [migrate-up](migrate-up.md) - Execute migrations
 
 ## Related Documentation
 

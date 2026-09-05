@@ -4,7 +4,7 @@
     "Docker_Mac_SqlServer": {
       "commandName": "Project",
       "dotnetRunMessages": true,
-      "commandLineArgs": "Migrate-Up --product RM_Tests_Mac_SqlServer -env {ENV:DOTNET_ENVIRONMENT} --run-mode Migrate",
+      "commandLineArgs": "migrate-up --product RM_Tests_Mac_SqlServer -env {ENV:DOTNET_ENVIRONMENT} --run-mode migrate",
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "Docker",
         "ConnectionString_Backend1": "Server=localhost;Initial Catalog=Backend_1;TrustServerCertificate=true;MultiSubnetFailover=True;User Id=sa;Password=P@ssw0rd!",
@@ -14,7 +14,7 @@
     "Docker_Mac_SqlServer_Validate": {
       "commandName": "Project",
       "dotnetRunMessages": true,
-      "commandLineArgs": "Migrate-Up --product RM_Tests_Mac_SqlServer -env {ENV:DOTNET_ENVIRONMENT} --run-mode Validate",
+      "commandLineArgs": "migrate-up --product RM_Tests_Mac_SqlServer -env {ENV:DOTNET_ENVIRONMENT} --run-mode validate",
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "Docker",
         "ConnectionString_Backend1": "Server=localhost;Initial Catalog=Backend_1;TrustServerCertificate=true;MultiSubnetFailover=True;User Id=sa;Password=P@ssw0rd!",
@@ -24,7 +24,7 @@
     "Docker_Mac_SqlServer_Simulate": {
       "commandName": "Project",
       "dotnetRunMessages": true,
-      "commandLineArgs": "Migrate-Up --product RM_Tests_Mac_SqlServer -env {ENV:DOTNET_ENVIRONMENT} --run-mode Simulate",
+      "commandLineArgs": "migrate-up --product RM_Tests_Mac_SqlServer -env {ENV:DOTNET_ENVIRONMENT} --run-mode simulate",
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "Docker",
         "ConnectionString_Backend1": "Server=localhost;Initial Catalog=Backend_1;TrustServerCertificate=true;MultiSubnetFailover=True;User Id=sa;Password=P@ssw0rd!",
@@ -34,7 +34,7 @@
     "Docker_Win_SqlServer": {
       "commandName": "Project",
       "dotnetRunMessages": true,
-      "commandLineArgs": "Migrate-Up --product RM_Tests_Win_SqlServer -env {ENV:DOTNET_ENVIRONMENT} --run-mode Migrate",
+      "commandLineArgs": "migrate-up --product RM_Tests_Win_SqlServer -env {ENV:DOTNET_ENVIRONMENT} --run-mode migrate",
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "Docker",
         "ConnectionString_Backend1": "Server=localhost;Initial Catalog=Backend_1;TrustServerCertificate=true;MultiSubnetFailover=True;User Id=sa;Password=P@ssw0rd!",
@@ -44,7 +44,7 @@
     "Docker_Mac_MariaDb": {
       "commandName": "Project",
       "dotnetRunMessages": true,
-      "commandLineArgs": "Migrate-Up --product RM_Tests_Mac_MariaDb -env {ENV:DOTNET_ENVIRONMENT} --run-mode Migrate",
+      "commandLineArgs": "migrate-up --product RM_Tests_Mac_MariaDb -env {ENV:DOTNET_ENVIRONMENT} --run-mode migrate",
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "Docker",
         "ConnectionString_Backend1": "Server=localhost;Port=3306;Database=raydb;User Id=rayuser;Password=raypass123",
@@ -55,7 +55,7 @@
     "Docker_Win_MariaDb": {
       "commandName": "Project",
       "dotnetRunMessages": true,
-      "commandLineArgs": "Migrate-Up --product RM_Tests_Win_MariaDb -env {ENV:DOTNET_ENVIRONMENT} --run-mode Migrate",
+      "commandLineArgs": "migrate-up --product RM_Tests_Win_MariaDb -env {ENV:DOTNET_ENVIRONMENT} --run-mode migrate",
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "Docker",
         "ConnectionString_Backend1": "Server=localhost;Port=3306;Database=raydb;User Id=rayuser;Password=raypass123",
@@ -66,7 +66,7 @@
     "Docker_Mac_MySql": {
       "commandName": "Project",
       "dotnetRunMessages": true,
-      "commandLineArgs": "Migrate-Up --product RM_Tests_Mac_MySql -env {ENV:DOTNET_ENVIRONMENT} --run-mode Migrate",
+      "commandLineArgs": "migrate-up --product RM_Tests_Mac_MySql -env {ENV:DOTNET_ENVIRONMENT} --run-mode migrate",
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "Docker",
         "ConnectionString_Backend1": "Server=localhost;Port=3307;Database=raydb;User Id=rayuser;Password=raypass123",
@@ -77,7 +77,7 @@
     "Docker_Win_MySql": {
       "commandName": "Project",
       "dotnetRunMessages": true,
-      "commandLineArgs": "Migrate-Up --product RM_Tests_Win_MySql -env {ENV:DOTNET_ENVIRONMENT} --run-mode Migrate",
+      "commandLineArgs": "migrate-up --product RM_Tests_Win_MySql -env {ENV:DOTNET_ENVIRONMENT} --run-mode migrate",
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "Docker",
         "ConnectionString_Backend1": "Server=localhost;Port=3307;Database=raydb;User Id=rayuser;Password=raypass123",
@@ -88,7 +88,7 @@
     "Docker_Mac_PostgreSQL": {
       "commandName": "Project",
       "dotnetRunMessages": true,
-      "commandLineArgs": "Migrate-Up --product RM_Tests_Mac_PostgreSQL -env {ENV:DOTNET_ENVIRONMENT} --run-mode Migrate",
+      "commandLineArgs": "migrate-up --product RM_Tests_Mac_PostgreSQL -env {ENV:DOTNET_ENVIRONMENT} --run-mode migrate",
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "Docker",
         "ConnectionString_Backend1": "Host=localhost;Port=5432;Database=raydb;Username=postgres;Password=postgres123",
@@ -99,7 +99,7 @@
     "Docker_Win_PostgreSQL": {
       "commandName": "Project",
       "dotnetRunMessages": true,
-      "commandLineArgs": "Migrate-Up --product RM_Tests_Win_PostgreSQL -env {ENV:DOTNET_ENVIRONMENT} --run-mode Migrate",
+      "commandLineArgs": "migrate-up --product RM_Tests_Win_PostgreSQL -env {ENV:DOTNET_ENVIRONMENT} --run-mode migrate",
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "Docker",
         "ConnectionString_Backend1": "Host=localhost;Port=5432;Database=raydb;Username=postgres;Password=postgres123",
@@ -110,7 +110,7 @@
     "Docker_Mac_Success_SqlServer": {
       "commandName": "Project",
       "dotnetRunMessages": true,
-      "commandLineArgs": "Migrate-Up --product RM_Tests_Mac_Success_SqlServer -env {ENV:DOTNET_ENVIRONMENT} --run-mode Migrate",
+      "commandLineArgs": "migrate-up --product RM_Tests_Mac_Success_SqlServer -env {ENV:DOTNET_ENVIRONMENT} --run-mode migrate",
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "Docker",
         "ConnectionString_Backend1": "Server=localhost;Initial Catalog=Backend_1;TrustServerCertificate=true;MultiSubnetFailover=True;User Id=sa;Password=P@ssw0rd!",
@@ -120,7 +120,7 @@
     "Docker_Win_Success_SqlServer": {
       "commandName": "Project",
       "dotnetRunMessages": true,
-      "commandLineArgs": "Migrate-Up --product RM_Tests_Win_Success_SqlServer -env {ENV:DOTNET_ENVIRONMENT} --run-mode Migrate",
+      "commandLineArgs": "migrate-up --product RM_Tests_Win_Success_SqlServer -env {ENV:DOTNET_ENVIRONMENT} --run-mode migrate",
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "Docker",
         "ConnectionString_Backend1": "Server=localhost;Initial Catalog=Backend_1;TrustServerCertificate=true;MultiSubnetFailover=True;User Id=sa;Password=P@ssw0rd!",
@@ -130,7 +130,7 @@
     "Docker_Mac_Success_PostgreSQL": {
       "commandName": "Project",
       "dotnetRunMessages": true,
-      "commandLineArgs": "Migrate-Up --product RM_Tests_Mac_Success_PostgreSQL -env {ENV:DOTNET_ENVIRONMENT} --run-mode Migrate",
+      "commandLineArgs": "migrate-up --product RM_Tests_Mac_Success_PostgreSQL -env {ENV:DOTNET_ENVIRONMENT} --run-mode migrate",
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "Docker",
         "ConnectionString_Backend1": "Host=localhost;Port=5432;Database=raydb;Username=postgres;Password=postgres123",
@@ -141,7 +141,7 @@
     "Docker_Win_Success_PostgreSQL": {
       "commandName": "Project",
       "dotnetRunMessages": true,
-      "commandLineArgs": "Migrate-Up --product RM_Tests_Win_Success_PostgreSQL -env {ENV:DOTNET_ENVIRONMENT} --run-mode Migrate",
+      "commandLineArgs": "migrate-up --product RM_Tests_Win_Success_PostgreSQL -env {ENV:DOTNET_ENVIRONMENT} --run-mode migrate",
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "Docker",
         "ConnectionString_Backend1": "Host=localhost;Port=5432;Database=raydb;Username=postgres;Password=postgres123",
@@ -152,7 +152,7 @@
     "Docker_Mac_Success_MariaDb": {
       "commandName": "Project",
       "dotnetRunMessages": true,
-      "commandLineArgs": "Migrate-Up --product RM_Tests_Mac_Success_MariaDb -env {ENV:DOTNET_ENVIRONMENT} --run-mode Migrate",
+      "commandLineArgs": "migrate-up --product RM_Tests_Mac_Success_MariaDb -env {ENV:DOTNET_ENVIRONMENT} --run-mode migrate",
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "Docker",
         "ConnectionString_Backend1": "Server=localhost;Port=3306;Database=raydb;User Id=rayuser;Password=raypass123",
@@ -163,7 +163,7 @@
     "Docker_Win_Success_MariaDb": {
       "commandName": "Project",
       "dotnetRunMessages": true,
-      "commandLineArgs": "Migrate-Up --product RM_Tests_Win_Success_MariaDb -env {ENV:DOTNET_ENVIRONMENT} --run-mode Migrate",
+      "commandLineArgs": "migrate-up --product RM_Tests_Win_Success_MariaDb -env {ENV:DOTNET_ENVIRONMENT} --run-mode migrate",
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "Docker",
         "ConnectionString_Backend1": "Server=localhost;Port=3306;Database=raydb;User Id=rayuser;Password=raypass123",
@@ -174,7 +174,7 @@
     "Docker_Mac_Success_MySql": {
       "commandName": "Project",
       "dotnetRunMessages": true,
-      "commandLineArgs": "Migrate-Up --product RM_Tests_Mac_Success_MySql -env {ENV:DOTNET_ENVIRONMENT} --run-mode Migrate",
+      "commandLineArgs": "migrate-up --product RM_Tests_Mac_Success_MySql -env {ENV:DOTNET_ENVIRONMENT} --run-mode migrate",
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "Docker",
         "ConnectionString_Backend1": "Server=localhost;Port=3307;Database=raydb;User Id=rayuser;Password=raypass123",
@@ -185,7 +185,7 @@
     "Docker_Win_Success_MySql": {
       "commandName": "Project",
       "dotnetRunMessages": true,
-      "commandLineArgs": "Migrate-Up --product RM_Tests_Win_Success_MySql -env {ENV:DOTNET_ENVIRONMENT} --run-mode Migrate",
+      "commandLineArgs": "migrate-up --product RM_Tests_Win_Success_MySql -env {ENV:DOTNET_ENVIRONMENT} --run-mode migrate",
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "Docker",
         "ConnectionString_Backend1": "Server=localhost;Port=3307;Database=raydb;User Id=rayuser;Password=raypass123",
@@ -196,7 +196,7 @@
     "Staging": {
       "commandName": "Project",
       "dotnetRunMessages": true,
-      "commandLineArgs": "Migrate-Up --product RayMigratorTests --environment Staging --run-mode Migrate",
+      "commandLineArgs": "migrate-up --product RayMigratorTests --environment Staging --run-mode migrate",
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "Staging",
         "ConnectionString_Backend1": "Server=YOUR-STAGING-SERVER;Initial Catalog=Backend_1;TrustServerCertificate=true;MultiSubnetFailover=True;User Id=YOUR-USER;Password=YOUR-PASSWORD",
@@ -206,7 +206,7 @@
     "Production": {
       "commandName": "Project",
       "dotnetRunMessages": true,
-      "commandLineArgs": "Migrate-Up --product RayMigratorTests --environment Production --run-mode Migrate",
+      "commandLineArgs": "migrate-up --product RayMigratorTests --environment Production --run-mode migrate",
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "Production",
         "ConnectionString_Backend1": "Server=YOUR-PRODUCTION-SERVER;Initial Catalog=Backend_1;TrustServerCertificate=true;MultiSubnetFailover=True;User Id=YOUR-USER;Password=YOUR-PASSWORD",

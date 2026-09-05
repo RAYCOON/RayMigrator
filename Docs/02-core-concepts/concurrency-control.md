@@ -176,7 +176,7 @@ Options when encountering this error:
 3. **Investigate**: Check if the other process is actually running
 4. **Fix Command**: Use the Fix command to clean up orphaned runs manually (especially those newer than 10 minutes):
    ```
-   raymigrator Fix --product <alias> --environment <env> --scope OrphanedRuns
+   raymigrator fix --product <alias> --environment <env> --scope orphanedruns
    ```
 
 ## Implementation Details
@@ -271,7 +271,7 @@ WHERE Id = @OrphanedMigrationRunId;
 
 ### Manual Cleanup via Fix Command
 
-The `Fix` command identifies orphaned runs using `RepositoryMigrationRunSelectOrphaned` and fixes them using `RepositoryMigrationRunFixOrphaned` (sets `MigrationRunResultId` to Error and `FinishedAt` to current UTC time). It also fixes orphaned MigrationRecord entries via `RepositoryMigrationRecordFixOrphaned`. The default age threshold is 60 minutes (`--older-than` option), which is more conservative than the 10-minute auto-fix threshold.
+The `fix` command identifies orphaned runs using `RepositoryMigrationRunSelectOrphaned` and fixes them using `RepositoryMigrationRunFixOrphaned` (sets `MigrationRunResultId` to Error and `FinishedAt` to current UTC time). It also fixes orphaned MigrationRecord entries via `RepositoryMigrationRecordFixOrphaned`. The default age threshold is 60 minutes (`--older-than` option), which is more conservative than the 10-minute auto-fix threshold.
 
 ## Best Practices
 
@@ -284,16 +284,16 @@ In CI/CD pipelines, ensure migrations run sequentially:
 jobs:
   migrate:
     steps:
-      - run: raymigrator Migrate-Up --product MyProduct
+      - run: raymigrator migrate-up --product MyProduct
 
 # Avoid: Parallel migrations for same product
 jobs:
   migrate-1:
     steps:
-      - run: raymigrator Migrate-Up --product MyProduct
+      - run: raymigrator migrate-up --product MyProduct
   migrate-2:  # Runs in parallel - will fail!
     steps:
-      - run: raymigrator Migrate-Up --product MyProduct
+      - run: raymigrator migrate-up --product MyProduct
 ```
 
 ### 2. Use Process Managers
@@ -328,7 +328,7 @@ catch (MigrationAlreadyRunningException ex)
     _logger.LogInformation(
         "To resolve this issue, either wait for the running migration to complete, " +
         "or use the Fix command to clean up orphaned runs: " +
-        "raymigrator Fix --product {Product} --environment {Environment} --scope OrphanedRuns",
+        "raymigrator fix --product {Product} --environment {Environment} --scope orphanedruns",
         _consoleOptions.Product, _consoleOptions.Environment);
     return 1;
 }

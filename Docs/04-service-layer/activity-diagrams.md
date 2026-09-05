@@ -2,7 +2,7 @@
 
 Activity diagrams for the main migration commands. All flows are implemented in `MigrationService.cs` within the Services project.
 
-## Migrate-Up
+## migrate-up
 
 ### Main Flow
 
@@ -148,7 +148,7 @@ flowchart TD
 
 ### Rollback Execution (ExecuteRollbackForMigrations)
 
-Shared by both Migrate-Up (error recovery) and Migrate-Down (explicit rollback). Processes records in the provided order and is fail-fast by default.
+Shared by both migrate-up (error recovery) and migrate-down (explicit rollback). Processes records in the provided order and is fail-fast by default.
 
 ```mermaid
 flowchart TD
@@ -206,9 +206,9 @@ flowchart TD
 
 ---
 
-## Migrate-Down
+## migrate-down
 
-Migrate-Down rolls back all migrations after the target release. It reuses `ExecuteRollbackForMigrations` (see [above](#rollback-execution-executerollbackformigrations)).
+migrate-down rolls back all migrations after the target release. It reuses `ExecuteRollbackForMigrations` (see [above](#rollback-execution-executerollbackformigrations)).
 
 ```mermaid
 flowchart TD
@@ -244,13 +244,13 @@ flowchart TD
     style FinalErr fill:#ffcdd2
 ```
 
-**Key difference from Migrate-Up**: Migrate-Down operates on a flat list of repository records (ordered by FileOrderId descending), not the nested Release → TargetGroup → Target loop structure.
+**Key difference from migrate-up**: migrate-down operates on a flat list of repository records (ordered by FileOrderId descending), not the nested Release → TargetGroup → Target loop structure.
 
 ---
 
 ## Baseline
 
-Baseline marks migration files as applied in the repository **without executing any SQL**. Uses the same Release → TargetGroup loop as Migrate-Up but skips all SQL execution.
+Baseline marks migration files as applied in the repository **without executing any SQL**. Uses the same Release → TargetGroup loop as migrate-up but skips all SQL execution.
 
 ```mermaid
 flowchart TD

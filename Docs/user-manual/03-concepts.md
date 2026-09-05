@@ -38,7 +38,7 @@ Migrations/
 
 A **Target** is an individual database connection. Each target has its own alias and connection string. When RayMigrator processes a TargetGroup, it applies every pending migration to every target in the group.
 
-This is what makes multi-target deployment possible: define two targets in the same group, and one `Migrate-Up` command applies the same migrations to both databases.
+This is what makes multi-target deployment possible: define two targets in the same group, and one `migrate-up` command applies the same migrations to both databases.
 
 For complete configuration of each level, see [Product Options](../06-configuration-reference/product-options.md).
 
@@ -84,7 +84,7 @@ The repository contains these tables:
 | `MigratorMeta` | Tracks repository schema version, database type, and the RayMigrator application version that created it. |
 | `Product` | One record per product alias. Links migrations to the product they belong to. |
 | `Environment` | One record per environment value (e.g., Development, Production). Referenced by `MigrationRun`, `MigrationRecord`, and `MigrationRecordHistory`. |
-| `MigrationRun` | One record per execution of `Migrate-Up` or `Migrate-Down`. Records start time, end time, and overall result. |
+| `MigrationRun` | One record per execution of `migrate-up` or `migrate-down`. Records start time, end time, and overall result. |
 | `MigrationRunMeta` | One-to-one with `MigrationRun`. Stores the serialized settings JSON and an optional description. |
 | `MigrationRecord` | One record per migration file per target. Records file path, hash, status, execution timestamps. |
 | `MigrationRecordHistory` | Audit log for MigrationRecord entries. Each time a migration reaches a terminal state (Migrated, Failed, or NotMigrated), the current state of that `MigrationRecord` row is copied here. The original `MigrationRecord` is retained and may be reused (reset) on future runs. See [Repository Schema](../03-database-layer/repository-schema.md). |
@@ -124,7 +124,7 @@ The status values and their numeric IDs:
 
 Understanding this lifecycle is essential for troubleshooting. A `Failed` status means the SQL did not complete — you need to examine the error, fix the issue (either in the database or the migration file), and determine the correct recovery action. Chapter 8 covers error handling in detail.
 
-> **Note:** A migration with status `Migrated` has its SHA-256 hash stored. If the file is later modified, `Validate-Hash` will detect the discrepancy. Never modify a migration file that has already been executed — create a new file instead.
+> **Note:** A migration with status `Migrated` has its SHA-256 hash stored. If the file is later modified, `validate-hash` will detect the discrepancy. Never modify a migration file that has already been executed — create a new file instead.
 
 ## TOML Metadata
 
@@ -163,7 +163,7 @@ Additional TOML parameters (`RequireRollbackFile`, `StopRollbackOnMissingRollbac
 
 ## Execution Flow
 
-When you run `Migrate-Up`, RayMigrator follows this sequence:
+When you run `migrate-up`, RayMigrator follows this sequence:
 
 ```
 1. Load configuration

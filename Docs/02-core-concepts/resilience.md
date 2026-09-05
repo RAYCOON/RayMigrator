@@ -2,7 +2,7 @@
 
 > **Implementation Status**: FULLY IMPLEMENTED — see [Open Features](../appendix/open-features.md#f3-recovery-orchestration)
 >
-> `RetryHelper` with transient error detection is fully functional. Block-level resume (`FindResumableBlock`) is implemented and active in `MigrationService` — on re-run, migrations resume from the last failed block automatically. Interrupted migration detection (`RepositoryMigrationGetInterrupted`) is called during `MigrateUpAsync` startup and logs a warning when detected. Orphaned run detection (`RepositoryMigrationRunSelectOrphaned`) is implemented and available via the `Fix` command for manual cleanup. Automatic orphaned run cleanup is implemented via `RepositoryMigrationRunInsertWithAutoFix` — when a migration run insert fails due to `MigrationAlreadyRunningException`, orphaned runs older than 10 minutes (`AutoFixOrphanedRunsThresholdMinutes`) are automatically fixed and the insert is retried once.
+> `RetryHelper` with transient error detection is fully functional. Block-level resume (`FindResumableBlock`) is implemented and active in `MigrationService` — on re-run, migrations resume from the last failed block automatically. Interrupted migration detection (`RepositoryMigrationGetInterrupted`) is called during `MigrateUpAsync` startup and logs a warning when detected. Orphaned run detection (`RepositoryMigrationRunSelectOrphaned`) is implemented and available via the `fix` command for manual cleanup. Automatic orphaned run cleanup is implemented via `RepositoryMigrationRunInsertWithAutoFix` — when a migration run insert fails due to `MigrationAlreadyRunningException`, orphaned runs older than 10 minutes (`AutoFixOrphanedRunsThresholdMinutes`) are automatically fixed and the insert is retried once.
 
 This document describes RayMigrator's fault tolerance mechanisms and automatic recovery capabilities.
 
@@ -191,7 +191,7 @@ When an orphaned run is detected and auto-fix does not apply (run is newer than 
 
 1. **Wait**: The run may still be genuinely running
 2. **Investigate manually**: Check database state before proceeding
-3. **Fix command**: Use `raymigrator Fix --product <alias> --environment <env> --scope OrphanedRuns` for manual cleanup (default threshold: 60 minutes)
+3. **Fix command**: Use `raymigrator fix --product <alias> --environment <env> --scope orphanedruns` for manual cleanup (default threshold: 60 minutes)
 
 ## Exception Types
 
@@ -300,7 +300,7 @@ Repository retry is active. `RepositoryExtensions.GetDalSettings()` (in `Raycoon
 There are two orphan age thresholds:
 
 - **Auto-fix threshold**: 10 minutes (`AutoFixOrphanedRunsThresholdMinutes` in `MigrationService`). Used during automatic orphaned run cleanup on migration start.
-- **Fix command threshold**: 60 minutes (default `--older-than` option). Used by the manual `Fix` command.
+- **Fix command threshold**: 60 minutes (default `--older-than` option). Used by the manual `fix` command.
 
 ## Best Practices
 

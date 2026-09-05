@@ -8,7 +8,7 @@ Which options are available for each command. **R** = Required, **O** = Optional
 
 ### Migration Commands
 
-| Option | Migrate-Up | Migrate-Down | Validate-Hash | Update-Hash | Info | Baseline | Fix |
+| Option | migrate-up | migrate-down | validate-hash | update-hash | info | baseline | fix |
 |--------|:----------:|:------------:|:-------------:|:-----------:|:----:|:--------:|:---:|
 | `--product` | R | R | R | R | R | R | R |
 | `--environment` | R | R | R | R | R | R | R |
@@ -17,7 +17,7 @@ Which options are available for each command. **R** = Required, **O** = Optional
 | `--target-group` | O | O | O | O | — | O | — |
 | `--allow-out-of-order` | O | — | — | — | — | — | — |
 | `--stop-rollback-on-missing-rollback-file` | O | — | — | — | — | — | — |
-| `--TargetGroup-MigrationOrder` | O | — | — | — | — | O | — |
+| `--target-group-migration-order` | O | — | — | — | — | O | — |
 | `--scope` | — | — | O | — | — | — | O |
 | `--older-than` | — | — | — | — | — | — | O |
 | `--dry-run` | — | — | — | — | — | — | O |
@@ -34,14 +34,14 @@ Which options are available for each command. **R** = Required, **O** = Optional
 
 ---
 
-## Migrate-Up
+## migrate-up
 
 Apply pending migrations forward.
 
 ### Synopsis
 
 ```bash
-raymigrator Migrate-Up --product <alias> --environment <env> [--run-mode <mode>] [--to-release <version>] [--target-group <group>...] [--allow-out-of-order] [--stop-rollback-on-missing-rollback-file <bool>] [--TargetGroup-MigrationOrder <order>] [global-options]
+raymigrator migrate-up --product <alias> --environment <env> [--run-mode <mode>] [--to-release <version>] [--target-group <group>...] [--allow-out-of-order] [--stop-rollback-on-missing-rollback-file <bool>] [--target-group-migration-order <order>] [global-options]
 ```
 
 ### Options
@@ -55,7 +55,7 @@ raymigrator Migrate-Up --product <alias> --environment <env> [--run-mode <mode>]
 | `--target-group` | `-tg` | `string[]` | No | `null` (all) | Target group aliases (can be specified multiple times) |
 | `--allow-out-of-order` | `-ooo` | `bool` | No | `false` | `true`, `false` |
 | `--stop-rollback-on-missing-rollback-file` | `-sromrf` | `bool?` | No | `null` (uses config) | `true`, `false` |
-| `--TargetGroup-MigrationOrder` | `-tgmo` | `string?` | No | `null` (config/migsettings order) | Comma-separated list of all TargetGroup aliases |
+| `--target-group-migration-order` | `-tgmo` | `string?` | No | `null` (config/migsettings order) | Comma-separated list of all TargetGroup aliases |
 
 ### Option Details
 
@@ -69,9 +69,9 @@ raymigrator Migrate-Up --product <alias> --environment <env> [--run-mode <mode>]
 
 **--allow-out-of-order**: When `true`, allows execution of migration files that precede already-executed files. See [Execution Modes — Out-of-Order](../02-core-concepts/execution-modes.md#out-of-order-migration) for details.
 
-**--stop-rollback-on-missing-rollback-file**: Overrides the `StopRollbackOnMissingRollbackFile` configuration value for this run. Only effective when `RequireRollbackFile=false`. When `true`, the error-recovery rollback chain stops at the first missing rollback file (warning logged, record status unchanged). When `false`, the chain continues past missing rollback files. Has no effect on Migrate-Down. When omitted, the value from configuration is used.
+**--stop-rollback-on-missing-rollback-file**: Overrides the `StopRollbackOnMissingRollbackFile` configuration value for this run. Only effective when `RequireRollbackFile=false`. When `true`, the error-recovery rollback chain stops at the first missing rollback file (warning logged, record status unchanged). When `false`, the chain continues past missing rollback files. Has no effect on migrate-down. When omitted, the value from configuration is used.
 
-**--TargetGroup-MigrationOrder**: Comma-separated string listing every TargetGroup alias of the product in the desired execution order. Whitespace around each alias is trimmed. All aliases must be present; partial lists, duplicates, and unknown aliases are rejected. Matching is case-sensitive; a case-insensitive-only match produces a specific error with the correct casing as a hint. Takes precedence over both the product-level appsettings value and any release-level migsettings value. Only applies to `Migrate-Up` and `Baseline`; not used for `Migrate-Down` (rollback order is derived from repository records).
+**--target-group-migration-order**: Comma-separated string listing every TargetGroup alias of the product in the desired execution order. Whitespace around each alias is trimmed. All aliases must be present; partial lists, duplicates, and unknown aliases are rejected. Matching is case-sensitive; a case-insensitive-only match produces a specific error with the correct casing as a hint. Takes precedence over both the product-level appsettings value and any release-level migsettings value. Only applies to `migrate-up` and `baseline`; not used for `migrate-down` (rollback order is derived from repository records).
 
 ### Property Mapping
 
@@ -84,7 +84,7 @@ raymigrator Migrate-Up --product <alias> --environment <env> [--run-mode <mode>]
 | `--target-group` | `TargetGroupAliases` | `TargetGroupAliases` |
 | `--allow-out-of-order` | `AllowOutOfOrder` | `AllowOutOfOrder` |
 | `--stop-rollback-on-missing-rollback-file` | `StopRollbackOnMissingRollbackFile` | — (read directly from context) |
-| `--TargetGroup-MigrationOrder` | `TargetGroupMigrationOrder` | `TargetGroupMigrationOrder` |
+| `--target-group-migration-order` | `TargetGroupMigrationOrder` | `TargetGroupMigrationOrder` |
 | `--startup-info` | `ShowStartupInfo` | `ShowInfo` |
 | `--reveal-sensitive-data` | `RevealSensitiveData` | `RevealSensitiveData` |
 
@@ -96,34 +96,34 @@ raymigrator Migrate-Up --product <alias> --environment <env> [--run-mode <mode>]
 
 ```bash
 # Basic migration
-raymigrator Migrate-Up --product MyProduct --environment Development --run-mode Migrate
+raymigrator migrate-up --product MyProduct --environment Development --run-mode migrate
 
 # Simulate (dry run)
-raymigrator Migrate-Up -p MyProduct -env Staging -rm Simulate
+raymigrator migrate-up -p MyProduct -env Staging -rm simulate
 
 # Migrate to a specific release
-raymigrator Migrate-Up -p MyProduct -env Production -rm Migrate -tr "Release 2.0"
+raymigrator migrate-up -p MyProduct -env Production -rm migrate -tr "Release 2.0"
 
 # Execute Frontend before Backend (overrides config array order)
-raymigrator Migrate-Up -p MyProduct -env Production -rm Migrate -tgmo "Frontend, Backend"
+raymigrator migrate-up -p MyProduct -env Production -rm migrate -tgmo "Frontend, Backend"
 
 # Debug mode with sensitive data
-raymigrator Migrate-Up -p MyProduct -env Dev -rm Migrate --reveal-sensitive-data true
+raymigrator migrate-up -p MyProduct -env Dev -rm migrate --reveal-sensitive-data true
 
 # Suppress startup banner
-raymigrator Migrate-Up -p MyProduct -env Prod -rm Migrate --startup-info false
+raymigrator migrate-up -p MyProduct -env Prod -rm migrate --startup-info false
 ```
 
 ---
 
-## Migrate-Down
+## migrate-down
 
 Rollback to a previous version.
 
 ### Synopsis
 
 ```bash
-raymigrator Migrate-Down --product <alias> --environment <env> --to-release <version> [--run-mode <mode>] [--target-group <group>...] [global-options]
+raymigrator migrate-down --product <alias> --environment <env> --to-release <version> [--run-mode <mode>] [--target-group <group>...] [global-options]
 ```
 
 ### Options
@@ -138,9 +138,9 @@ raymigrator Migrate-Down --product <alias> --environment <env> --to-release <ver
 
 ### Option Details
 
-**--to-release**: Required for Migrate-Down. Specifies the target release version to roll back to.
+**--to-release**: Required for migrate-down. Specifies the target release version to roll back to.
 
-**--run-mode**: Same validation as Migrate-Up. Accepts `"Migrate"`, `"Simulate"`, and `"Validate"`.
+**--run-mode**: Same validation as migrate-up. Accepts `"Migrate"`, `"Simulate"`, and `"Validate"`.
 
 **--target-group**: Filters rollback to specific target groups. Can be specified multiple times. If omitted, all target groups are rolled back.
 
@@ -164,25 +164,25 @@ raymigrator Migrate-Down --product <alias> --environment <env> --to-release <ver
 
 ```bash
 # Rollback to Release 1.0
-raymigrator Migrate-Down --product MyProduct --environment Production --to-release "Release 1.0"
+raymigrator migrate-down --product MyProduct --environment Production --to-release "Release 1.0"
 
 # Simulate rollback
-raymigrator Migrate-Down -p MyProduct -env Staging -rm Simulate -tr "Release 1.0"
+raymigrator migrate-down -p MyProduct -env Staging -rm simulate -tr "Release 1.0"
 
 # Short form
-raymigrator Migrate-Down -p MyProduct -env Dev -rm Migrate -tr "Release 2.0"
+raymigrator migrate-down -p MyProduct -env Dev -rm migrate -tr "Release 2.0"
 ```
 
 ---
 
-## Validate-Hash
+## validate-hash
 
 Verify migration file integrity by comparing stored hashes against current file content.
 
 ### Synopsis
 
 ```bash
-raymigrator Validate-Hash --product <alias> --environment <env> [--scope <scope>] [--target-group <group>...] [global-options]
+raymigrator validate-hash --product <alias> --environment <env> [--scope <scope>] [--target-group <group>...] [global-options]
 ```
 
 ### Options
@@ -219,25 +219,25 @@ raymigrator Validate-Hash --product <alias> --environment <env> [--scope <scope>
 
 ```bash
 # Validate file-level hashes
-raymigrator Validate-Hash --product MyProduct --environment Production
+raymigrator validate-hash --product MyProduct --environment Production
 
 # Validate SQL block-level hashes
-raymigrator Validate-Hash -p MyProduct -env Prod -s SqlBlock
+raymigrator validate-hash -p MyProduct -env Prod -s sqlblock
 
 # Quiet mode for CI/CD
-raymigrator Validate-Hash -p MyProduct -env Prod --startup-info false
+raymigrator validate-hash -p MyProduct -env Prod --startup-info false
 ```
 
 ---
 
-## Update-Hash
+## update-hash
 
 Update repository hashes after approved changes to migration files.
 
 ### Synopsis
 
 ```bash
-raymigrator Update-Hash --product <alias> --environment <env> [--target-group <group>...] [global-options]
+raymigrator update-hash --product <alias> --environment <env> [--target-group <group>...] [global-options]
 ```
 
 ### Options
@@ -266,10 +266,10 @@ raymigrator Update-Hash --product <alias> --environment <env> [--target-group <g
 
 ```bash
 # Update hashes after approved file changes
-raymigrator Update-Hash --product MyProduct --environment Production
+raymigrator update-hash --product MyProduct --environment Production
 
 # Short form
-raymigrator Update-Hash -p MyProduct -env Prod
+raymigrator update-hash -p MyProduct -env Prod
 ```
 
 ---
@@ -281,7 +281,7 @@ Display migration status information for a product.
 ### Synopsis
 
 ```bash
-raymigrator Info --product <alias> --environment <env> [global-options]
+raymigrator info --product <alias> --environment <env> [global-options]
 ```
 
 ### Options
@@ -298,7 +298,7 @@ raymigrator Info --product <alias> --environment <env> [global-options]
 ### Example
 
 ```bash
-raymigrator Info --product MyProduct --environment Production
+raymigrator info --product MyProduct --environment Production
 ```
 
 ---
@@ -310,7 +310,7 @@ Mark an existing database as migrated (all releases, or up to a specific release
 ### Synopsis
 
 ```bash
-raymigrator Baseline --product <alias> --environment <env> [--to-release <version>] [--target-group <group>...] [--TargetGroup-MigrationOrder <order>] [global-options]
+raymigrator baseline --product <alias> --environment <env> [--to-release <version>] [--target-group <group>...] [--target-group-migration-order <order>] [global-options]
 ```
 
 ### Options
@@ -321,7 +321,7 @@ raymigrator Baseline --product <alias> --environment <env> [--to-release <versio
 | `--environment` | `-env` | `string` | Yes | — | Any environment name |
 | `--to-release` | `-tr` | `string` | No | — | Any release version string (omit to baseline all releases) |
 | `--target-group` | `-tg` | `string[]` | No | `null` (all) | Target group aliases (can be specified multiple times) |
-| `--TargetGroup-MigrationOrder` | `-tgmo` | `string?` | No | `null` (config/migsettings order) | Comma-separated list of all TargetGroup aliases |
+| `--target-group-migration-order` | `-tgmo` | `string?` | No | `null` (config/migsettings order) | Comma-separated list of all TargetGroup aliases |
 
 ### Property Mapping
 
@@ -331,7 +331,7 @@ raymigrator Baseline --product <alias> --environment <env> [--to-release <versio
 | `--environment` | `Environment` | `Environment` |
 | `--to-release` | `TargetReleaseVersion` | `TargetReleaseVersion` |
 | `--target-group` | `TargetGroupAliases` | `TargetGroupAliases` |
-| `--TargetGroup-MigrationOrder` | `TargetGroupMigrationOrder` | `TargetGroupMigrationOrder` |
+| `--target-group-migration-order` | `TargetGroupMigrationOrder` | `TargetGroupMigrationOrder` |
 | `--startup-info` | `ShowStartupInfo` | `ShowInfo` |
 | `--reveal-sensitive-data` | `RevealSensitiveData` | `RevealSensitiveData` |
 
@@ -344,20 +344,20 @@ raymigrator Baseline --product <alias> --environment <env> [--to-release <versio
 **Simple onboarding** — database is fully up-to-date, baseline all releases:
 
 ```bash
-raymigrator Baseline --product MyProduct --environment Production
+raymigrator baseline --product MyProduct --environment Production
 ```
 
 **Partial onboarding** — database is at Release 2.0, newer releases should still be executed:
 
 ```bash
-raymigrator Baseline --product MyProduct --environment Production --to-release "Release 2.0"
+raymigrator baseline --product MyProduct --environment Production --to-release "Release 2.0"
 ```
 
 **Multi-environment** — Dev is at Release 3.0, Prod at Release 2.0, same migration files:
 
 ```bash
-raymigrator Baseline --product MyProduct --environment Dev --to-release "Release 3.0"
-raymigrator Baseline --product MyProduct --environment Prod --to-release "Release 2.0"
+raymigrator baseline --product MyProduct --environment Dev --to-release "Release 3.0"
+raymigrator baseline --product MyProduct --environment Prod --to-release "Release 2.0"
 ```
 
 ---
@@ -369,7 +369,7 @@ Fix repository inconsistencies such as orphaned migration runs (process crashed 
 ### Synopsis
 
 ```bash
-raymigrator Fix --product <alias> --environment <env> [--scope <scope>] [--older-than <minutes>] [--dry-run] [--last-migration-status <status>] [global-options]
+raymigrator fix --product <alias> --environment <env> [--scope <scope>] [--older-than <minutes>] [--dry-run] [--last-migration-status <status>] [global-options]
 ```
 
 ### Options
@@ -416,16 +416,16 @@ raymigrator Fix --product <alias> --environment <env> [--scope <scope>] [--older
 
 ```bash
 # Fix orphaned runs (default scope)
-raymigrator Fix --product MyProduct --environment Production
+raymigrator fix --product MyProduct --environment Production
 
 # Fix all repository issues
-raymigrator Fix -p MyProduct -env Prod -s All
+raymigrator fix -p MyProduct -env Prod -s all
 
 # Dry run to see what would be fixed
-raymigrator Fix -p MyProduct -env Prod --dry-run true
+raymigrator fix -p MyProduct -env Prod --dry-run true
 
 # Fix with custom age threshold and migration status
-raymigrator Fix -p MyProduct -env Prod -ot 120 -lms migrated
+raymigrator fix -p MyProduct -env Prod -ot 120 -lms migrated
 ```
 
 ---
@@ -439,13 +439,13 @@ Represents the CLI command to execute.
 | Name | Value | CLI Command |
 |------|-------|-------------|
 | `None` | 0 | — |
-| `MigrateUp` | 1 | `Migrate-Up` |
-| `MigrateDown` | 2 | `Migrate-Down` |
-| `ValidateHash` | 3 | `Validate-Hash` |
-| `UpdateHash` | 4 | `Update-Hash` |
-| `Info` | 5 | `Info` |
-| `Baseline` | 6 | `Baseline` |
-| `FixIssues` | 7 | `Fix` |
+| `MigrateUp` | 1 | `migrate-up` |
+| `MigrateDown` | 2 | `migrate-down` |
+| `ValidateHash` | 3 | `validate-hash` |
+| `UpdateHash` | 4 | `update-hash` |
+| `info` | 5 | `info` |
+| `baseline` | 6 | `baseline` |
+| `FixIssues` | 7 | `fix` |
 
 Source: `Raycoon.RayMigrator.Core/Configuration/Enums/MigrationCommand.cs`
 
@@ -496,7 +496,7 @@ See [Error Handling](../02-core-concepts/error-handling.md) for detailed behavio
 
 ### RollbackErrorAction
 
-Controls error handling behavior when a rollback SQL block fails. Applies both during explicit `Migrate-Down` execution and during error recovery rollback triggered by `MigrationErrorAction` (Rollback, RollbackErrorOnly, or RollbackRelease) in `Migrate-Up`.
+Controls error handling behavior when a rollback SQL block fails. Applies both during explicit `migrate-down` execution and during error recovery rollback triggered by `MigrationErrorAction` (Rollback, RollbackErrorOnly, or RollbackRelease) in `migrate-up`.
 
 | Name | Value | Description |
 |------|-------|-------------|
@@ -506,7 +506,7 @@ Controls error handling behavior when a rollback SQL block fails. Applies both d
 
 Source: `Raycoon.RayMigrator.Core/Configuration/Enums/RollbackErrorAction.cs`
 
-See [Migrate-Down -- RollbackErrorAction](migrate-down.md#rollbackerroraction) and [Error Handling](../02-core-concepts/error-handling.md) for details.
+See [migrate-down -- RollbackErrorAction](migrate-down.md#rollbackerroraction) and [Error Handling](../02-core-concepts/error-handling.md) for details.
 
 ### TargetMigrationOrder
 
@@ -582,9 +582,9 @@ Represents the type of migration operation (displayed in the Info command's migr
 | Name | Value | Description |
 |------|-------|-------------|
 | `Undefined` | 0 | Invalid -- not set |
-| `Rollback` | 5 | Performing rollback (error recovery during Migrate-Up) |
-| `MigrateDown` | 50 | Performing down-migration (explicit Migrate-Down command) |
-| `MigrateUp` | 100 | Performing up-migration (Migrate-Up command) |
+| `Rollback` | 5 | Performing rollback (error recovery during migrate-up) |
+| `MigrateDown` | 50 | Performing down-migration (explicit migrate-down command) |
+| `MigrateUp` | 100 | Performing up-migration (migrate-up command) |
 
 Source: `Raycoon.RayMigrator.Core/Configuration/Enums/MigrationOperation.cs`
 
@@ -607,7 +607,7 @@ Source: `Raycoon.RayMigrator.Core/Configuration/Enums/MigrationRunResult.cs`
 
 ### Environment Resolution
 
-The `--environment` option is **required** for all migration commands (Migrate-Up, Migrate-Down, Validate-Hash, Update-Hash, Info, Baseline, Fix). If neither `--environment` nor `DOTNET_ENVIRONMENT` is provided for a command that requires it, RayMigrator exits with code 3.
+The `--environment` option is **required** for all migration commands (migrate-up, migrate-down, validate-hash, update-hash, info, baseline, fix). If neither `--environment` nor `DOTNET_ENVIRONMENT` is provided for a command that requires it, RayMigrator exits with code 3.
 
 ### Environment Sources
 
@@ -644,10 +644,10 @@ The environment can come from two sources:
 
 | Document | Description |
 |----------|-------------|
-| [Migrate-Up](migrate-up.md) | Detailed Migrate-Up command page with execution flow |
-| [Migrate-Down](migrate-down.md) | Detailed Migrate-Down command page with rollback flow |
-| [Validate-Hash](validate-hash.md) | Detailed Validate-Hash command page |
-| [Update-Hash](update-hash.md) | Detailed Update-Hash command page |
+| [migrate-up](migrate-up.md) | Detailed migrate-up command page with execution flow |
+| [migrate-down](migrate-down.md) | Detailed migrate-down command page with rollback flow |
+| [validate-hash](validate-hash.md) | Detailed validate-hash command page |
+| [update-hash](update-hash.md) | Detailed update-hash command page |
 | [Global Options](global-options.md) | Global options, logging, and best practices |
 | [Configuration System](../02-core-concepts/configuration-system.md) | Options pattern hierarchy |
 | [Environment Variables](../06-configuration-reference/environment-variables.md) | `{ENV:}` placeholder reference |

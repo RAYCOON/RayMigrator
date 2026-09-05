@@ -14,9 +14,9 @@ Products represent separate applications or systems with their own migration set
 | `MigrationRollbackFilesPreExtension` | string | No | - | Rollback file naming (inherited from `ProductDefaults`) |
 | `MigrationFilesEncoding` | string | No | - | File encoding (inherited from `ProductDefaults`) |
 | `RequireRollbackFile` | bool? | No | - | Require a rollback file for every migration file (inherited from `ProductDefaults`) |
-| `StopRollbackOnMissingRollbackFile` | bool? | No | `true` | When `RequireRollbackFile=false`, controls whether an error-recovery rollback chain stops (`true`) or continues (`false`) when a rollback file is missing. No effect on Migrate-Down. (inherited from `ProductDefaults`) |
+| `StopRollbackOnMissingRollbackFile` | bool? | No | `true` | When `RequireRollbackFile=false`, controls whether an error-recovery rollback chain stops (`true`) or continues (`false`) when a rollback file is missing. No effect on migrate-down. (inherited from `ProductDefaults`) |
 | `UseCliToolAlias` | string | No | `null` | CLI tool alias for migration execution instead of the DAL (inherited from `ProductDefaults`). References a `CliTools[].Alias` defined at the `RayMigrator` root level. Can be overridden per TargetGroup or Target. |
-| `TargetGroupMigrationOrder` | string | No | `null` (config array order) | Comma-separated list of target group aliases that sets the order in which target groups are executed. Only valid when the product has more than one target group. All aliases must be listed and case matches exactly. Applies to `Migrate-Up` and `Baseline` only. Can be overridden per release via `migsettings` TOML or via the CLI `--TargetGroup-MigrationOrder` option. |
+| `TargetGroupMigrationOrder` | string | No | `null` (config array order) | Comma-separated list of target group aliases that sets the order in which target groups are executed. Only valid when the product has more than one target group. All aliases must be listed and case matches exactly. Applies to `migrate-up` and `baseline` only. Can be overridden per release via `migsettings` TOML or via the CLI `--target-group-migration-order` option. |
 | `TargetGroups` | array | Yes | - | Target group configurations |
 
 Properties marked with * are required after defaults have been applied. If not set on the product, they must be set in `ProductDefaults`.
@@ -48,7 +48,7 @@ See [Error Handling — Rollback Error Handling](../02-core-concepts/error-handl
 
 ## TargetGroupMigrationOrder
 
-The `TargetGroupMigrationOrder` property lets you specify the order in which TargetGroups are executed during `Migrate-Up` and `Baseline`. When omitted, the order defaults to the array order in the `TargetGroups` configuration.
+The `TargetGroupMigrationOrder` property lets you specify the order in which TargetGroups are executed during `migrate-up` and `baseline`. When omitted, the order defaults to the array order in the `TargetGroups` configuration.
 
 ### Validation Rules
 
@@ -57,13 +57,13 @@ The `TargetGroupMigrationOrder` property lets you specify the order in which Tar
 - Alias matching is **case-sensitive**. Providing a case-insensitive-only match produces a specific error with a hint for the correct casing.
 - **No duplicates** are allowed.
 - Comma-separated values; leading and trailing whitespace around each alias is trimmed.
-- This setting does **not** apply to `Migrate-Down`, `Validate-Hash`, `Update-Hash`, `Info`, or `Fix`.
+- This setting does **not** apply to `migrate-down`, `validate-hash`, `update-hash`, `info`, or `fix`.
 
 ### Override Chain
 
 The effective order is determined by the first source in this priority chain (highest wins):
 
-1. CLI `--TargetGroup-MigrationOrder` / `-tgmo` option
+1. CLI `--target-group-migration-order` / `-tgmo` option
 2. Release-level `migsettings` TOML (`TargetGroupMigrationOrder = ["Frontend","Backend"]`)
 3. Product-level `appsettings` JSON (`"TargetGroupMigrationOrder": "Frontend, Backend"`)
 4. Config array order (default)

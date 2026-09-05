@@ -26,8 +26,8 @@ stateDiagram-v2
     Migrated --> NotMigrated: Rollback success (error recovery)
 
     Failed --> NotMigrated: Rollback success (error recovery)
-    Failed --> NotMigrated: Manual fix + Update-Hash
-    Failed --> Migrated: Manual fix + Update-Hash
+    Failed --> NotMigrated: Manual fix + update-hash
+    Failed --> Migrated: Manual fix + update-hash
 ```
 
 ## MigrationStatus Definitions
@@ -62,7 +62,7 @@ A migration file is in `Executing` status when:
 
 A migration file is in `NotMigrated` status when:
 - Newly discovered (never executed)
-- Successfully rolled back via `Migrate-Down`
+- Successfully rolled back via `migrate-down`
 - Successfully rolled back via error recovery
 - Skipped due to environment/target filters
 - Ignored due to configuration
@@ -275,10 +275,10 @@ Manually repair the database state:
 
 ### 3. Update Repository
 
-Use `Update-Hash` to synchronize repository with actual database state:
+Use `update-hash` to synchronize repository with actual database state:
 
 ```bash
-raymigrator Update-Hash -p MyProduct -env Production
+raymigrator update-hash -p MyProduct -env Production
 ```
 
 ### 4. Manually Set Status (if needed)

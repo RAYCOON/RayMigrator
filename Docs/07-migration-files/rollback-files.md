@@ -56,19 +56,19 @@ DROP TABLE IF EXISTS Users;
 
 ## When Rollbacks Execute
 
-### Migrate-Down Command
+### migrate-down Command
 
 ```bash
-raymigrator Migrate-Down -p MyProduct -env Prod --to-release "Release 1.0"
+raymigrator migrate-down -p MyProduct -env Prod --to-release "Release 1.0"
 ```
 
 Executes rollback files in reverse order for all migrations after the target release. Migrations at or before the target release remain intact.
 
-Migrate-Down queries the repository for records with status `Migrated` (or partially-rolled-back `Failed` records where `FileDownBlocksMigrated > 0` and `FileDownBlocksMigrated < FileDownBlocksTotal`), filters to releases after the target, and processes them in reverse `FileOrderId` order.
+migrate-down queries the repository for records with status `Migrated` (or partially-rolled-back `Failed` records where `FileDownBlocksMigrated > 0` and `FileDownBlocksMigrated < FileDownBlocksTotal`), filters to releases after the target, and processes them in reverse `FileOrderId` order.
 
 ### Error Recovery (MigrationErrorAction)
 
-The `MigrationErrorAction` setting controls what happens when a migration fails during `Migrate-Up`. The following values are supported:
+The `MigrationErrorAction` setting controls what happens when a migration fails during `migrate-up`. The following values are supported:
 
 #### Terminate (value 10)
 
@@ -161,9 +161,9 @@ After a rollback, each migration record's `MigrationStatusId` reflects the outco
 
 When the status is "unchanged", the record keeps its status from before the rollback attempt. For a successfully executed migration this is `Migrated` (100). The repository entry is not updated when a rollback file is skipped.
 
-This applies equally to Migrate-Down and error recovery rollbacks, as both use the same shared `ExecuteRollbackForMigrations` method.
+This applies equally to migrate-down and error recovery rollbacks, as both use the same shared `ExecuteRollbackForMigrations` method.
 
-**Example**: A Migrate-Up run with `MigrationErrorAction=Rollback` and `RequireRollbackFile=false` where some schema migrations lack rollback files:
+**Example**: A migrate-up run with `MigrationErrorAction=Rollback` and `RequireRollbackFile=false` where some schema migrations lack rollback files:
 
 - Schema migrations (no rollback file): status = `Migrated` (100) — unchanged, the migration remains in the database
 - Data migrations (with rollback file): status = `NotMigrated` (50)
@@ -268,7 +268,7 @@ When a rollback file is executed, the `UseCliToolAlias` is resolved via `Resolve
 
 ## Missing Rollback Files
 
-The behavior when a rollback file is missing depends on the `RequireRollbackFile` setting. Both Migrate-Down and error recovery share the same logic (via the shared `ExecuteRollbackForMigrations` method).
+The behavior when a rollback file is missing depends on the `RequireRollbackFile` setting. Both migrate-down and error recovery share the same logic (via the shared `ExecuteRollbackForMigrations` method).
 
 **During rollback execution**, only the product-level `RequireRollbackFile` setting (`Products[].RequireRollbackFile` or `ProductDefaults.RequireRollbackFile`) is evaluated. Per-file TOML and migsettings overrides are not considered at this stage:
 
@@ -349,7 +349,7 @@ Document in migration that rollback is not possible. Note that this only works w
 
 ## Partial Rollback Resume
 
-If a rollback is interrupted (e.g., `RollbackErrorAction=Terminate` aborted the chain), the repository records how many rollback blocks were already executed (`FileDownBlocksMigrated`). On a subsequent Migrate-Down, RayMigrator resumes from the next unexecuted block rather than re-executing already-completed blocks.
+If a rollback is interrupted (e.g., `RollbackErrorAction=Terminate` aborted the chain), the repository records how many rollback blocks were already executed (`FileDownBlocksMigrated`). On a subsequent migrate-down, RayMigrator resumes from the next unexecuted block rather than re-executing already-completed blocks.
 
 ## Best Practices
 
@@ -364,4 +364,4 @@ If a rollback is interrupted (e.g., `RollbackErrorAction=Terminate` aborted the 
 - [File Naming](file-naming.md)
 - [Error Handling](../02-core-concepts/error-handling.md)
 - [Migration State Machine](../02-core-concepts/migration-state-machine.md)
-- [Migrate-Down Command](../08-cli-reference/migrate-down.md)
+- [migrate-down Command](../08-cli-reference/migrate-down.md)

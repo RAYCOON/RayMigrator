@@ -16,10 +16,10 @@ This manual guides new users from zero to productive with RayMigrator. It comple
 | [03](03-concepts.md) | Core Concepts | Product/TargetGroup/Target hierarchy, releases, repository, migration lifecycle |
 | [04](04-configuration.md) | Configuration Guide | appsettings.json structure, environment variables, inheritance chain |
 | [05](05-migration-files.md) | Writing Migration Files | TOML metadata, SQL conventions, rollback files, naming and ordering |
-| [06](06-cli-commands.md) | CLI Command Reference | Migrate-Up, Migrate-Down, Validate-Hash, Update-Hash, Info, Baseline, Fix, shell alias |
+| [06](06-cli-commands.md) | CLI Command Reference | migrate-up, migrate-down, validate-hash, update-hash, info, baseline, fix, shell alias |
 | [07](07-execution-modes.md) | Execution Modes | Validate, Simulate, Migrate workflow and CI/CD integration |
 | [08](08-error-handling.md) | Error Handling | MigrationErrorAction strategies (Terminate, Rollback, RollbackErrorOnly, RollbackRelease, Ignore), RollbackErrorAction (Terminate, Ignore) |
-| [09](09-rollback-guide.md) | Rolling Back Migrations | Migrate-Down, writing rollback files, non-reversible operations |
+| [09](09-rollback-guide.md) | Rolling Back Migrations | migrate-down, writing rollback files, non-reversible operations |
 | [10](10-advanced-features.md) | Advanced Features | TargetMigrationOrder, hash validation, baseline, out-of-order, multi-target, target group execution order, CLI tool execution |
 | [11](11-operations-guide.md) | Production Operations | Deployment checklists, CI/CD pipelines, monitoring, security |
 | [12](12-reference.md) | Quick Reference | All config options, CLI options, enums, exit codes, file patterns |
@@ -47,13 +47,13 @@ Chapters 02 through 10 build a single running example — a **BookStore** applic
 
 | Chapter | Tutorial Step |
 |---------|--------------|
-| 02 | Create minimal config + first migration, run Migrate-Up |
+| 02 | Create minimal config + first migration, run migrate-up |
 | 04 | Split config into Dev/Prod environments |
 | 05 | Add more migrations + rollback files |
-| 06 | Run Validate-Hash, Info commands |
+| 06 | Run validate-hash, info commands |
 | 07 | Demonstrate Validate, Simulate, Migrate workflow |
 | 08 | Introduce intentional error, observe error handling |
-| 09 | Migrate-Down to previous release |
+| 09 | migrate-down to previous release |
 | 10 | Add second target, demonstrate TargetMigrationOrder |
 
 > **Tip:** The technical reference docs in [`Docs/`](../) cover every option and edge case in detail. This manual focuses on *when* and *why* you would use each feature.

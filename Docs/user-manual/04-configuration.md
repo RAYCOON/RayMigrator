@@ -28,7 +28,7 @@ In Standalone mode, RayMigrator loads configuration from up to four JSON files, 
 By default, RayMigrator looks for these files in the current working directory. Use the `--config-dir` (`-cd`) global CLI option to override the directory:
 
 ```bash
-raymigrator Migrate-Up -p BookStore -env Production -rm Migrate --config-dir /etc/raymigrator
+raymigrator migrate-up -p BookStore -env Production -rm migrate --config-dir /etc/raymigrator
 ```
 
 The `{ENV:VARIABLE_NAME}` placeholder syntax is supported in the `--config-dir` value. See [Global Options](../08-cli-reference/global-options.md#--config-dir--cd) for full details.
@@ -36,7 +36,7 @@ The `{ENV:VARIABLE_NAME}` placeholder syntax is supported in the `--config-dir` 
 The `{Environment}` value comes from the `--environment` (or `-env`) CLI option:
 
 ```bash
-raymigrator Migrate-Up --product BookStore --environment Production
+raymigrator migrate-up --product BookStore --environment Production
 ```
 
 This would load, in order:
@@ -499,7 +499,7 @@ RayMigrator validates configuration at startup and reports clear error messages.
 | `ConnectionString is empty after variable substitution` | `{ENV:VAR}` references a variable that does not exist, is empty, or is whitespace-only (startup terminates with `ApplicationStartupException`) | Set the environment variable to a non-empty value or fix the placeholder |
 | `Duplicate Alias` | Two products, target groups, or targets share the same Alias | Rename one of the duplicates |
 
-> **Tip:** Run with `--run-mode Simulate` to validate your configuration without executing any migrations. This catches configuration errors before they reach your database.
+> **Tip:** Run with `--run-mode simulate` to validate your configuration without executing any migrations. This catches configuration errors before they reach your database.
 
 ---
 

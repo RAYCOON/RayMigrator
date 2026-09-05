@@ -58,7 +58,7 @@ Database implementation details with ERD diagrams.
 Service implementation and business operations.
 
 - [migration-service.md](04-service-layer/migration-service.md) - IMigrationService interface
-- [activity-diagrams.md](04-service-layer/activity-diagrams.md) - Command flow diagrams (Migrate-Up, Migrate-Down, Baseline)
+- [activity-diagrams.md](04-service-layer/activity-diagrams.md) - Command flow diagrams (migrate-up, migrate-down, baseline)
 - [template-executor.md](04-service-layer/template-executor.md) - Template execution
 - [file-discovery.md](04-service-layer/file-discovery.md) - Migration file scanning
 - [block-execution.md](04-service-layer/block-execution.md) - SQL block parsing
@@ -96,7 +96,7 @@ Migration file specification.
 - [environment-specific.md](07-migration-files/environment-specific.md) - .{Environment}.sql files
 
 ### [08-cli-reference/](08-cli-reference/)
-Command line reference. RayMigrator provides 7 commands: Migrate-Up, Migrate-Down, Validate-Hash, Update-Hash, Info, Baseline, and Fix.
+Command line reference. RayMigrator provides 7 commands: migrate-up, migrate-down, validate-hash, update-hash, info, baseline, and fix.
 
 - [migrate-up.md](08-cli-reference/migrate-up.md) - Apply migrations
 - [migrate-down.md](08-cli-reference/migrate-down.md) - Rollback migrations
@@ -223,16 +223,16 @@ For pre-built binaries, download from the [GitHub Releases](https://github.com/R
 dotnet build
 
 # Apply migrations
-raymigrator Migrate-Up -p RayMigratorTests -env Docker --run-mode Migrate
+raymigrator migrate-up -p RayMigratorTests -env Docker --run-mode migrate
 
 # Simulate (dry run)
-raymigrator Migrate-Up -p RayMigratorTests -env Docker --run-mode Simulate
+raymigrator migrate-up -p RayMigratorTests -env Docker --run-mode simulate
 
 # Rollback
-raymigrator Migrate-Down -p RayMigratorTests -env Docker --to-release "Release 1.0" --run-mode Migrate
+raymigrator migrate-down -p RayMigratorTests -env Docker --to-release "Release 1.0" --run-mode migrate
 
 # Validate hashes
-raymigrator Validate-Hash -p RayMigratorTests -env Docker
+raymigrator validate-hash -p RayMigratorTests -env Docker
 ```
 
 ## Related Files

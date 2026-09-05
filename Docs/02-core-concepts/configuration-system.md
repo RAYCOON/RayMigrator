@@ -26,10 +26,10 @@ Configuration files are loaded and merged in priority order (later overrides ear
 - `Product` (`string`): Product alias from `--product` / `-p`
 - `Environment` (`string`): Target environment from `--environment` / `-env`
 - `RunMode` (`MigrationRunMode`): Validate, Simulate, or Migrate via `--run-mode` / `-rm`
-- `TargetReleaseVersion` (`string?`): For Migrate-Down and Baseline `--to-release` / `-tr`
+- `TargetReleaseVersion` (`string?`): For migrate-down and baseline `--to-release` / `-tr`
 - `TargetGroupAliases` (`string[]?`): Filter execution to specific target groups via `--target-group` / `-tg`
-- `TargetGroupMigrationOrder` (`string[]?`): Explicit TargetGroup execution order via `--TargetGroup-MigrationOrder` / `-tgmo` (all aliases must be listed). Applies to Migrate-Up and Baseline only.
-- `HashValidationScope` (`HashValidationScope?`): For Validate-Hash `--scope` / `-s`
+- `TargetGroupMigrationOrder` (`string[]?`): Explicit TargetGroup execution order via `--target-group-migration-order` / `-tgmo` (all aliases must be listed). Applies to migrate-up and baseline only.
+- `HashValidationScope` (`HashValidationScope?`): For validate-hash `--scope` / `-s`
 - `ShowStartupInfo` (`bool`): Show startup information via `--startup-info` / `-si` (default: true)
 - `RevealSensitiveData` (`bool`): Include sensitive data in logs via `--reveal-sensitive-data` / `-rsd` (default: false)
 - `AllowOutOfOrder` (`bool?`): Allow out-of-order migration execution via `--allow-out-of-order` / `-ooo`

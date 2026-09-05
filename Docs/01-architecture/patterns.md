@@ -105,7 +105,7 @@ Repository_MigrationRun_FixOrphaned.sql - Mark orphaned runs as Error
 Repository_MigrationRecord_Insert.sql         - Create migration record with block tracking
 Repository_MigrationRecord_Update.sql         - Update migration block progress/status
 Repository_MigrationRecord_UpdateRollback.sql - Update rollback fields (FileDown*)
-Repository_MigrationRecord_UpdateHash.sql     - Update hash fields (Update-Hash command)
+Repository_MigrationRecord_UpdateHash.sql     - Update hash fields (update-hash command)
 Repository_MigrationRecord_Select.sql         - Query migrations
 Repository_MigrationRecord_FixOrphaned.sql    - Fix orphaned migration entries
 Repository_MigrationRecord_GetInterrupted.sql - Find interrupted migrations for recovery

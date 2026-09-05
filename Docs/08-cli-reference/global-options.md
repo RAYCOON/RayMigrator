@@ -22,7 +22,7 @@ Controls display of application information at startup.
 **Example:**
 ```bash
 # Quiet mode for scripts
-raymigrator Migrate-Up -p MyProduct -env Prod -rm Migrate --startup-info false
+raymigrator migrate-up -p MyProduct -env Prod -rm migrate --startup-info false
 ```
 
 **Startup Info Includes:**
@@ -43,7 +43,7 @@ Controls logging of sensitive information.
 **Example:**
 ```bash
 # Debug connection issues
-raymigrator Migrate-Up -p MyProduct -env Dev -rm Simulate --reveal-sensitive-data true
+raymigrator migrate-up -p MyProduct -env Dev -rm simulate --reveal-sensitive-data true
 ```
 
 **Logged When Enabled:**
@@ -68,13 +68,13 @@ If the specified directory does not exist, RayMigrator exits with a `Configurati
 **Examples:**
 ```bash
 # Use configuration files from a specific directory
-raymigrator Migrate-Up -p MyProduct -env Prod -rm Migrate --config-dir /etc/raymigrator
+raymigrator migrate-up -p MyProduct -env Prod -rm migrate --config-dir /etc/raymigrator
 
 # Use a relative path (resolved against the current working directory)
-raymigrator Migrate-Up -p MyProduct -env Prod -rm Migrate -cd ../config
+raymigrator migrate-up -p MyProduct -env Prod -rm migrate -cd ../config
 
 # Use an environment variable for the path
-raymigrator Migrate-Up -p MyProduct -env Prod -rm Migrate -cd {ENV:CONFIG_DIR}
+raymigrator migrate-up -p MyProduct -env Prod -rm migrate -cd {ENV:CONFIG_DIR}
 ```
 
 ## Common Command Options
@@ -83,86 +83,86 @@ The following options are shared across most migration commands. They are **not*
 
 ### --product (-p)
 
-Product alias from configuration. Required for: Migrate-Up, Migrate-Down, Validate-Hash, Update-Hash, Info, Baseline, Fix.
+Product alias from configuration. Required for: migrate-up, migrate-down, validate-hash, update-hash, info, baseline, fix.
 
 The value is matched case-sensitively against product aliases in the configuration. If the provided alias does not match but a case-insensitive match exists, RayMigrator will suggest the correct casing before exiting.
 
 ### --environment (-env)
 
-Target environment. Required for: Migrate-Up, Migrate-Down, Validate-Hash, Update-Hash, Info, Baseline, Fix.
+Target environment. Required for: migrate-up, migrate-down, validate-hash, update-hash, info, baseline, fix.
 
 The value is matched case-sensitively. It is used to load `appsettings.{Environment}.json` and `appsettings.{Product}.{Environment}.json` configuration files, and must therefore match the file-system casing of those files exactly.
 
 ### --run-mode (-rm)
 
-Execution mode. Available on Migrate-Up and Migrate-Down. Default: `Migrate`.
+Execution mode. Available on migrate-up and migrate-down. Default: `migrate`.
 
 | Value | Description |
 |-------|-------------|
-| `Migrate` | Execute migrations against target databases (default) |
-| `Simulate` | Validate, check DB connectivity, read repository records. Does NOT write repository records or execute SQL against target databases |
-| `Validate` | Validate configuration and migration files. Does NOT connect to any databases |
+| `migrate` | Execute migrations against target databases (default) |
+| `simulate` | Validate, check DB connectivity, read repository records. Does NOT write repository records or execute SQL against target databases |
+| `validate` | Validate configuration and migration files. Does NOT connect to any databases |
 
 **Example:**
 ```bash
-raymigrator Migrate-Up -p MyProduct -env Dev -rm Simulate
+raymigrator migrate-up -p MyProduct -env Dev -rm simulate
 ```
 
 ### --to-release (-tr)
 
-Target release version. Required for Migrate-Down. Optional for Migrate-Up and Baseline (omit to process all releases).
+Target release version. Required for migrate-down. Optional for migrate-up and baseline (omit to process all releases).
 
 **Example:**
 ```bash
-raymigrator Migrate-Down -p MyProduct -env Prod -rm Migrate --to-release "Release 1.0"
-raymigrator Baseline -p MyProduct -env Prod --to-release "Release 2.0"
+raymigrator migrate-down -p MyProduct -env Prod -rm migrate --to-release "Release 1.0"
+raymigrator baseline -p MyProduct -env Prod --to-release "Release 2.0"
 ```
 
 ### --target-group (-tg)
 
-Filter execution to specific target groups. Can be specified multiple times. Available on: Migrate-Up, Migrate-Down, Validate-Hash, Update-Hash, Baseline.
+Filter execution to specific target groups. Can be specified multiple times. Available on: migrate-up, migrate-down, validate-hash, update-hash, baseline.
 
 **Example:**
 ```bash
-raymigrator Migrate-Up -p MyProduct -env Prod -rm Migrate --target-group Backend --target-group Frontend
+raymigrator migrate-up -p MyProduct -env Prod -rm migrate --target-group Backend --target-group Frontend
 ```
 
 ### --allow-out-of-order (-ooo)
 
-Allow out-of-order migration execution. Available on Migrate-Up only. Default: `false`.
+Allow out-of-order migration execution. Available on migrate-up only. Default: `false`.
 
 **Example:**
 ```bash
-raymigrator Migrate-Up -p MyProduct -env Dev -rm Migrate --allow-out-of-order
+raymigrator migrate-up -p MyProduct -env Dev -rm migrate --allow-out-of-order
 ```
 
 ### --scope (-s)
 
 Context-dependent scope option, used by two commands:
 
-**Validate-Hash:** Hash validation scope override. If omitted, uses the per-TargetGroup `HashValidationScope` configuration.
+**validate-hash:** Hash validation scope override. If omitted, uses the per-TargetGroup `HashValidationScope` configuration.
 
 | Value | Description |
 |-------|-------------|
-| `File` | Validate hash of the entire migration file |
-| `SqlBlock` / `SqlBlocks` | Validate hash of SQL content only (ignoring TOML metadata changes). Both forms are accepted. |
-| `Disabled` | Skip hash validation entirely (all files counted as valid) |
+| `file` | Validate hash of the entire migration file |
+| `sqlblock` / `sqlblocks` | Validate hash of SQL content only (ignoring TOML metadata changes). Both forms are accepted. |
+| `disabled` | Skip hash validation entirely (all files counted as valid) |
 
-**Fix:** Fix scope. Default: `OrphanedRuns`.
+**Fix:** Fix scope. Default: `orphanedruns`.
 
 | Value | Description |
 |-------|-------------|
-| `OrphanedRuns` | Fix only orphaned migration runs (default) |
-| `All` | Fix all known issue types |
+| `orphanedruns` | Fix only orphaned migration runs (default) |
+| `all` | Fix all known issue types |
 
 ## Environment Variable Support
 
-String-valued command parameters support environment variable resolution using the `{ENV:VariableName}` placeholder syntax. This applies to options such as `--product`, `--environment`, `--run-mode`, `--to-release`, `--target-group` (per individual alias value), `--scope`, `--last-migration-status`, and `--config-dir`. Options that do NOT support this syntax: non-string options (`--older-than`, `--dry-run`, `--allow-out-of-order`, `--startup-info`, `--reveal-sensitive-data`, `--stop-rollback-on-missing-rollback-file`) are parsed directly by System.CommandLine, and `--TargetGroup-MigrationOrder` is not resolved (use literal alias names).
+String-valued command parameters support environment variable resolution using the `{ENV:VariableName}` placeholder syntax. This applies to options such as `--product`, `--environment`, `--run-mode`, `--to-release`, `--target-group` (per individual alias value), `--scope`, `--last-migration-status`, and `--config-dir`. Options that do NOT support this syntax: non-string options (`--older-than`, `--dry-run`, `--allow-out-of-order`, `--startup-info`, `--reveal-sensitive-data`, `--stop-rollback-on-missing-rollback-file`) are parsed directly by System.CommandLine, and `--target-group-migration-order` is not resolved (use literal alias names).
 
 If the referenced environment variable is not set or is empty, RayMigrator exits with exit code 5 (command-line parsing error).
 
 ```bash
-raymigrator Migrate-Up --product {ENV:PRODUCT_NAME} --environment {ENV:TARGET_ENV}
+raymigrator migrate-up --product {ENV:PRODUCT_NAME} --environment {ENV:TARGET_ENV}
 ```
 
 ### Syntax
@@ -178,14 +178,14 @@ raymigrator Migrate-Up --product {ENV:PRODUCT_NAME} --environment {ENV:TARGET_EN
 export PRODUCT_NAME="MyProduct"
 export TARGET_ENV="Production"
 
-raymigrator Migrate-Up -p {ENV:PRODUCT_NAME} -env {ENV:TARGET_ENV} -rm Migrate
+raymigrator migrate-up -p {ENV:PRODUCT_NAME} -env {ENV:TARGET_ENV} -rm migrate
 ```
 
 ### Mixed Usage
 
 ```bash
 # Combine literal and environment values
-raymigrator Migrate-Up -p MyProduct -env {ENV:DEPLOY_ENV} -rm Migrate
+raymigrator migrate-up -p MyProduct -env {ENV:DEPLOY_ENV} -rm migrate
 ```
 
 ## Help
@@ -198,8 +198,8 @@ raymigrator --help
 RayMigrator -h
 
 # Command-specific help
-raymigrator Migrate-Up --help
-raymigrator Migrate-Down -h
+raymigrator migrate-up --help
+raymigrator migrate-down -h
 ```
 
 ### Version
@@ -226,14 +226,14 @@ Standard exit codes across all commands:
 
 ```bash
 # Shell script
-raymigrator Migrate-Up -p MyProduct -env Prod -rm Migrate
+raymigrator migrate-up -p MyProduct -env Prod -rm migrate
 if [ $? -ne 0 ]; then
     echo "Migration failed!"
     exit 1
 fi
 
 # PowerShell
-raymigrator Migrate-Up -p MyProduct -env Prod -rm Migrate
+raymigrator migrate-up -p MyProduct -env Prod -rm migrate
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Migration failed!"
     exit 1
@@ -265,17 +265,17 @@ RayMigrator supports console/file logging via Serilog and optional structured lo
 
 ```bash
 # Suppress startup info, use environment variables
-raymigrator Migrate-Up \
+raymigrator migrate-up \
   -p {ENV:PRODUCT} \
   -env {ENV:ENVIRONMENT} \
-  -rm Migrate \
+  -rm migrate \
   --startup-info false
 
 # Configuration files stored outside the working directory
-raymigrator Migrate-Up \
+raymigrator migrate-up \
   -p {ENV:PRODUCT} \
   -env {ENV:ENVIRONMENT} \
-  -rm Migrate \
+  -rm migrate \
   --startup-info false \
   --config-dir {ENV:CONFIG_DIR}
 ```
@@ -284,7 +284,7 @@ raymigrator Migrate-Up \
 
 ```bash
 # Enable sensitive data for troubleshooting
-raymigrator Migrate-Up -p MyProduct -env Dev -rm Simulate --reveal-sensitive-data true
+raymigrator migrate-up -p MyProduct -env Dev -rm simulate --reveal-sensitive-data true
 
 # Clean up logs after debugging!
 ```
@@ -296,10 +296,10 @@ raymigrator Migrate-Up -p MyProduct -env Dev -rm Simulate --reveal-sensitive-dat
 set -e  # Exit on error
 
 # Validate before migrate
-raymigrator Validate-Hash -p "$PRODUCT" -env "$ENV" --startup-info false
+raymigrator validate-hash -p "$PRODUCT" -env "$ENV" --startup-info false
 
 # Execute migration
-raymigrator Migrate-Up -p "$PRODUCT" -env "$ENV" -rm Migrate --startup-info false
+raymigrator migrate-up -p "$PRODUCT" -env "$ENV" -rm migrate --startup-info false
 
 echo "Migration completed successfully"
 ```
@@ -308,10 +308,10 @@ echo "Migration completed successfully"
 
 | Command | Description | Status |
 |---------|-------------|--------|
-| [Migrate-Up](migrate-up.md) | Execute forward migrations | Implemented |
-| [Migrate-Down](migrate-down.md) | Rollback migrations | Implemented |
-| [Validate-Hash](validate-hash.md) | Check file integrity | Implemented |
-| [Update-Hash](update-hash.md) | Update stored hashes | Implemented |
+| [migrate-up](migrate-up.md) | Execute forward migrations | Implemented |
+| [migrate-down](migrate-down.md) | Rollback migrations | Implemented |
+| [validate-hash](validate-hash.md) | Check file integrity | Implemented |
+| [update-hash](update-hash.md) | Update stored hashes | Implemented |
 | [Info](command-reference.md#info) | Display migration status information | Implemented |
 | [Baseline](command-reference.md#baseline) | Mark existing database as migrated | Implemented |
 | [Fix](command-reference.md#fix) | Fix repository inconsistencies | Implemented |

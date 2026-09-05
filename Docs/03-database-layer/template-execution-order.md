@@ -2,7 +2,7 @@
 
 This document describes the exact order in which SQL templates are executed when RayMigrator starts for the first time with no existing database structures (no repository tables, no logging tables).
 
-**Command:** `raymigrator Migrate-Up --product X --environment Y --run-mode Migrate`
+**Command:** `raymigrator migrate-up --product X --environment Y --run-mode migrate`
 
 ---
 
@@ -299,7 +299,7 @@ These templates exist in the template cache but are only used during specific op
 | `Repository_MigrationRecord_Insert` | Per migration file during actual migration execution |
 | `Repository_MigrationRecord_Update` | Block progress or completion per file |
 | `Repository_MigrationRecord_UpdateRollback` | Update migration record with rollback (FileDown) metadata and progress |
-| `Repository_MigrationRecord_UpdateHash` | Update hash fields (used by Update-Hash command) |
+| `Repository_MigrationRecord_UpdateHash` | Update hash fields (used by update-hash command) |
 | `Repository_MigrationRecord_Select` | Query existing migration records for filtering and rollback |
 | `Repository_MigrationRun_SelectOrphaned` | Fix command: select orphaned runs (also used by `RepositoryMigrationRunInsertWithAutoFix` for auto-fix) |
 | `Repository_MigrationRun_FixOrphaned` | Fix command: mark orphaned MigrationRun as Error (also used by `RepositoryMigrationRunInsertWithAutoFix` for auto-fix) |

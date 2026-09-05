@@ -10,7 +10,7 @@ This chapter covers everything you need to deploy, monitor, and maintain RayMigr
 
 - [ ] All migration files reviewed and tested in staging
 - [ ] Rollback files exist for all migrations (if `RequireRollbackFile = true`)
-- [ ] Hash validation passes: `raymigrator Validate-Hash -p MyProduct -env Production`
+- [ ] Hash validation passes: `raymigrator validate-hash -p MyProduct -env Production`
 - [ ] Database backup taken
 - [ ] Connection strings verified via `{ENV:}` variables (no hardcoded credentials)
 - [ ] Deployment window scheduled (for long-running migrations)
@@ -18,15 +18,15 @@ This chapter covers everything you need to deploy, monitor, and maintain RayMigr
 
 ### Deployment
 
-- [ ] Run Validate: `raymigrator Migrate-Up -p MyProduct -env Production -rm Validate`
-- [ ] Run Simulate: `raymigrator Migrate-Up -p MyProduct -env Production -rm Simulate`
-- [ ] Run Migrate: `raymigrator Migrate-Up -p MyProduct -env Production -rm Migrate`
+- [ ] Run Validate: `raymigrator migrate-up -p MyProduct -env Production -rm validate`
+- [ ] Run Simulate: `raymigrator migrate-up -p MyProduct -env Production -rm simulate`
+- [ ] Run Migrate: `raymigrator migrate-up -p MyProduct -env Production -rm migrate`
 - [ ] Check exit code (0 = success)
 
 ### Post-Deployment
 
-- [ ] Run Info to verify: `raymigrator Info -p MyProduct -env Production`
-- [ ] Validate hashes: `raymigrator Validate-Hash -p MyProduct -env Production`
+- [ ] Run Info to verify: `raymigrator info -p MyProduct -env Production`
+- [ ] Validate hashes: `raymigrator validate-hash -p MyProduct -env Production`
 - [ ] Verify application connectivity
 - [ ] Monitor application logs for database errors
 
@@ -63,9 +63,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Validate migrations
-        run: raymigrator Migrate-Up -p MyProduct -env CI -rm Validate --startup-info false
+        run: raymigrator migrate-up -p MyProduct -env CI -rm validate --startup-info false
       - name: Validate hashes
-        run: raymigrator Validate-Hash -p MyProduct -env CI --startup-info false
+        run: raymigrator validate-hash -p MyProduct -env CI --startup-info false
 
   deploy-staging:
     needs: validate
@@ -86,7 +86,7 @@ jobs:
       - name: Simulate in staging
         env:
           DB_CONNECTION: ${{ secrets.STAGING_DB_CONNECTION }}
-        run: raymigrator Migrate-Up -p MyProduct -env Staging -rm Simulate --startup-info false
+        run: raymigrator migrate-up -p MyProduct -env Staging -rm simulate --startup-info false
 
   deploy-production:
     needs: deploy-staging
@@ -109,7 +109,7 @@ jobs:
       - name: Migrate production
         env:
           DB_CONNECTION: ${{ secrets.PROD_DB_CONNECTION }}
-        run: raymigrator Migrate-Up -p MyProduct -env Production -rm Migrate --startup-info false
+        run: raymigrator migrate-up -p MyProduct -env Production -rm migrate --startup-info false
 ```
 
 ### Pipeline Best Practices
@@ -117,7 +117,7 @@ jobs:
 1. **Always validate before migrating.** The `Validate` run mode catches configuration errors and file issues without touching any database.
 2. **Simulate in staging.** The `Simulate` run mode logs every SQL statement that would execute and reads existing repository records, but does not write repository records or execute SQL against target databases. Review the output before committing to production.
 3. **Gate production deployments.** Use environment protection rules to require manual approval before the production job runs.
-4. **Fail fast.** If `Validate-Hash` fails, stop the pipeline immediately.
+4. **Fail fast.** If `validate-hash` fails, stop the pipeline immediately.
 5. **Suppress startup info.** Use `--startup-info false` for cleaner CI/CD output.
 6. **Use environment variables for secrets.** Never hardcode connection strings in pipeline configuration. Use `{ENV:VARIABLE_NAME}` placeholders in `appsettings.json` and inject actual values via CI/CD secret variables.
 7. **Store config files separately from migration files.** Use `--config-dir` (`-cd`) to point RayMigrator at a dedicated configuration directory when `appsettings.json` files are not in the working directory (e.g., mounted from a Kubernetes secret or a separate config repository).
@@ -211,11 +211,11 @@ WHERE migration_run_result_id = 10
 | Exit code 3 | No environment specified | Add `--environment` or set `DOTNET_ENVIRONMENT` |
 | Exit code 4 | Missing or invalid configuration | Check appsettings.json exists with valid Serilog section |
 | Exit code 5 | Bad CLI arguments | Check command syntax with `--help` |
-| Hash mismatch | File modified after execution | Run `Update-Hash` if intentional, or restore original file |
-| "Orphaned run" warning | Previous run interrupted | Run `Fix` command (use `--dry-run` first to preview) |
+| Hash mismatch | File modified after execution | Run `update-hash` if intentional, or restore original file |
+| "Orphaned run" warning | Previous run interrupted | Run `fix` command (use `--dry-run` first to preview) |
 | Connection timeout | Network or DB issue | Check connection string, increase `DbCommandTimeoutInSeconds` |
-| Migration stuck in Executing | Process crashed mid-migration | Run `Fix --scope All` |
-| "Another migration is already running" | Concurrent RayMigrator instance or orphaned run | Wait for the other instance to finish, or run `Fix --scope OrphanedRuns` |
+| Migration stuck in Executing | Process crashed mid-migration | Run `Fix --scope all` |
+| "Another migration is already running" | Concurrent RayMigrator instance or orphaned run | Wait for the other instance to finish, or run `Fix --scope orphanedruns` |
 | "File not found" error | Migration file moved or renamed | Restore original file path |
 
 ### Reading Log Output
@@ -247,7 +247,7 @@ Each database engine uses its own locking mechanism to prevent parallel migratio
 If two instances attempt to run simultaneously for the same product/environment:
 - RayMigrator first checks for orphaned runs older than 10 minutes and auto-fixes them before retrying
 - If the blocking run is genuinely active (or less than 10 minutes old), the second instance fails with a `MigrationAlreadyRunningException` (exit code 1)
-- The error message recommends using the `Fix` command to clean up orphaned runs
+- The error message recommends using the `fix` command to clean up orphaned runs
 
 > **Important:** Ensure only one RayMigrator instance runs at a time per product/environment combination. Use pipeline serialization or deployment locks.
 
@@ -355,7 +355,7 @@ mysqldump -h server -u user -p BookStore > /backup/BookStore_pre_migration.sql
 A backup is only as good as its restore. Periodically test your restore process:
 
 1. Restore the backup to a temporary database
-2. Run `raymigrator Validate-Hash` against the restored database
+2. Run `raymigrator validate-hash` against the restored database
 3. Verify application connectivity against the restored database
 4. Drop the temporary database
 
@@ -384,14 +384,14 @@ When a rollback itself fails, the `RollbackErrorAction` setting controls what ha
 
 ### Manual Rollback
 
-Use `Migrate-Down` to manually roll back to a specific release:
+Use `migrate-down` to manually roll back to a specific release:
 
 ```bash
 # Roll back everything after Release 1.0
-raymigrator Migrate-Down -p BookStore -env Production -rm Migrate -tr "Release 1.0"
+raymigrator migrate-down -p BookStore -env Production -rm migrate -tr "Release 1.0"
 
 # Simulate rollback first to see what would happen
-raymigrator Migrate-Down -p BookStore -env Production -rm Simulate -tr "Release 1.0"
+raymigrator migrate-down -p BookStore -env Production -rm simulate -tr "Release 1.0"
 ```
 
 > **Warning:** Manual rollback executes rollback files in reverse order. Ensure all rollback files are present and tested before relying on this in production.
@@ -451,7 +451,7 @@ RayMigrator automatically retries on known transient error codes for each databa
 
 ## Fix Command: Repository Maintenance
 
-The `Fix` command resolves repository inconsistencies, most commonly orphaned migration runs left behind when a process crashes.
+The `fix` command resolves repository inconsistencies, most commonly orphaned migration runs left behind when a process crashes.
 
 ### Common Scenarios
 
@@ -459,16 +459,16 @@ The `Fix` command resolves repository inconsistencies, most commonly orphaned mi
 
 ```bash
 # Preview what would be fixed (no changes applied)
-raymigrator Fix -p MyProduct -env Production --dry-run
+raymigrator fix -p MyProduct -env Production --dry-run
 
 # Fix orphaned runs older than 60 minutes (default)
-raymigrator Fix -p MyProduct -env Production
+raymigrator fix -p MyProduct -env Production
 
 # Fix runs older than 10 minutes
-raymigrator Fix -p MyProduct -env Production --older-than 10
+raymigrator fix -p MyProduct -env Production --older-than 10
 
 # Fix all known issue types (not just orphaned runs)
-raymigrator Fix -p MyProduct -env Production --scope All
+raymigrator fix -p MyProduct -env Production --scope all
 ```
 
 ### Controlling Post-Fix Migration Status
@@ -477,15 +477,15 @@ The `--last-migration-status` option determines what status orphaned Migration r
 
 | Value | Effect |
 |-------|--------|
-| `not-migrated` (default) | Orphaned migrations will be re-executed on the next Migrate-Up run |
-| `migrated` | Orphaned migrations will be skipped on the next Migrate-Up run |
+| `not-migrated` (default) | Orphaned migrations will be re-executed on the next migrate-up run |
+| `migrated` | Orphaned migrations will be skipped on the next migrate-up run |
 
 ```bash
 # Mark orphaned migrations as "migrated" (skip next time)
-raymigrator Fix -p MyProduct -env Production --last-migration-status migrated
+raymigrator fix -p MyProduct -env Production --last-migration-status migrated
 
 # Mark as "not-migrated" (re-execute next time, default)
-raymigrator Fix -p MyProduct -env Production --last-migration-status not-migrated
+raymigrator fix -p MyProduct -env Production --last-migration-status not-migrated
 ```
 
 > **Tip:** Always use `--dry-run` first to preview what the Fix command would change before applying fixes in production.
@@ -509,9 +509,9 @@ appsettings.MyProduct.Production.json     # Product + environment overrides (opt
 
 ```bash
 # All use the same migration files, different databases
-raymigrator Migrate-Up -p BookStore -env Development -rm Migrate
-raymigrator Migrate-Up -p BookStore -env Staging -rm Migrate
-raymigrator Migrate-Up -p BookStore -env Production -rm Migrate
+raymigrator migrate-up -p BookStore -env Development -rm migrate
+raymigrator migrate-up -p BookStore -env Staging -rm migrate
+raymigrator migrate-up -p BookStore -env Production -rm migrate
 ```
 
 Each environment loads its own `appsettings.{Environment}.json` file, which provides environment-specific connection strings via `{ENV:}` placeholders or direct values.
@@ -522,8 +522,8 @@ When bringing an existing database under RayMigrator management at different poi
 
 ```bash
 # Dev is at Release 3.0, Prod at Release 2.0
-raymigrator Baseline -p BookStore -env Development -tr "Release 3.0"
-raymigrator Baseline -p BookStore -env Production -tr "Release 2.0"
+raymigrator baseline -p BookStore -env Development -tr "Release 3.0"
+raymigrator baseline -p BookStore -env Production -tr "Release 2.0"
 ```
 
 ---

@@ -67,10 +67,10 @@ VALUES ('superadmin', 'admin@example.com', 1);
 
 ### Applies To
 
-- **Migrate-Up (Migrate mode)**: All SQL blocks in migration files are replaced before execution
-- **Migrate-Up (Simulate mode)**: Replacement happens (for trace logging), but SQL is not executed against databases
-- **Migrate-Up (Validate mode)**: No replacement (SQL is not executed; only configuration and file validity are checked)
-- **Migrate-Down / Rollback (Migrate mode)**: All SQL blocks in rollback files are replaced before execution
+- **migrate-up (Migrate mode)**: All SQL blocks in migration files are replaced before execution
+- **migrate-up (Simulate mode)**: Replacement happens (for trace logging), but SQL is not executed against databases
+- **migrate-up (Validate mode)**: No replacement (SQL is not executed; only configuration and file validity are checked)
+- **migrate-down / Rollback (Migrate mode)**: All SQL blocks in rollback files are replaced before execution
 - **Baseline**: No replacement (SQL is not executed, only repository records are written)
 
 ## Environment Variables in DAL SQL Templates

@@ -16,13 +16,13 @@ Available commands:
 
 | Command | Purpose |
 |---------|---------|
-| `Migrate-Up` | Apply pending migrations |
-| `Migrate-Down` | Roll back migrations to a specific release |
-| `Validate-Hash` | Verify migration file integrity |
-| `Update-Hash` | Update stored hashes after intentional file changes |
-| `Info` | Display current migration status |
-| `Baseline` | Mark an existing database as already migrated |
-| `Fix` | Repair repository inconsistencies |
+| `migrate-up` | Apply pending migrations |
+| `migrate-down` | Roll back migrations to a specific release |
+| `validate-hash` | Verify migration file integrity |
+| `update-hash` | Update stored hashes after intentional file changes |
+| `info` | Display current migration status |
+| `baseline` | Mark an existing database as already migrated |
+| `fix` | Repair repository inconsistencies |
 
 Most commands require `--product` (`-p`) and `--environment` (`-env`). For global options (`--startup-info` / `-si`, `--reveal-sensitive-data` / `-rsd`, `--config-dir` / `-cd`), see [Global Options](../08-cli-reference/global-options.md).
 
@@ -56,65 +56,65 @@ Reload the shell (or `source ~/.bashrc` / `. $PROFILE`), then verify:
 raymig --version
 ```
 
-The alias passes every argument through unchanged, so `raymig Migrate-Up -p BookStore -env Production -rm Migrate` behaves exactly like the full command.
+The alias passes every argument through unchanged, so `raymig migrate-up -p BookStore -env Production -rm migrate` behaves exactly like the full command.
 
 > **Note:** The alias is a local convenience that you create yourself -- it is **not** shipped with RayMigrator, and it exists only in the shell where you defined it. Use the full name in CI pipelines, scripts, and container entrypoints, where the alias is not present and the explicit name keeps the command portable and reviewable. All examples in this manual use the full name.
 
 ---
 
-## Migrate-Up -- Apply Pending Migrations
+## migrate-up -- Apply Pending Migrations
 
 Discover and execute pending migration files on target databases.
 
 ```bash
-raymigrator Migrate-Up -p BookStore -env Production -rm Migrate
+raymigrator migrate-up -p BookStore -env Production -rm migrate
 ```
 
-Key options: `--run-mode` (Validate/Simulate/Migrate), `--to-release`, `--target-group`, `--allow-out-of-order`, `--TargetGroup-MigrationOrder` (`-tgmo`), `--stop-rollback-on-missing-rollback-file` (`-sromrf`). See [Migrate-Up Reference](../08-cli-reference/migrate-up.md) for the full option table.
+Key options: `--run-mode` (Validate/Simulate/Migrate), `--to-release`, `--target-group`, `--allow-out-of-order`, `--target-group-migration-order` (`-tgmo`), `--stop-rollback-on-missing-rollback-file` (`-sromrf`). See [migrate-up Reference](../08-cli-reference/migrate-up.md) for the full option table.
 
-> **Tip:** Use `--run-mode Validate` first to preview which migrations would be applied without touching the database or repository. See [Chapter 7 -- Execution Modes](07-execution-modes.md) for the recommended workflow.
+> **Tip:** Use `--run-mode validate` first to preview which migrations would be applied without touching the database or repository. See [Chapter 7 -- Execution Modes](07-execution-modes.md) for the recommended workflow.
 
 ---
 
-## Migrate-Down -- Rollback Migrations
+## migrate-down -- Rollback Migrations
 
 Roll back migrations to a specific release using rollback files.
 
 ```bash
-raymigrator Migrate-Down -p BookStore -env Development -tr "Release 1.0" -rm Migrate
+raymigrator migrate-down -p BookStore -env Development -tr "Release 1.0" -rm migrate
 ```
 
 > **Important:** `--to-release "Release 1.0"` means "roll back TO this release." The specified release remains applied; all later releases are rolled back.
 
-Key options: `--to-release` (required), `--run-mode`, `--target-group`. See [Migrate-Down Reference](../08-cli-reference/migrate-down.md) for the full option table.
+Key options: `--to-release` (required), `--run-mode`, `--target-group`. See [migrate-down Reference](../08-cli-reference/migrate-down.md) for the full option table.
 
 ---
 
-## Validate-Hash -- Verify File Integrity
+## validate-hash -- Verify File Integrity
 
 Compare current migration file hashes against the hashes stored in the repository. Detects unauthorized or accidental modifications.
 
 ```bash
-raymigrator Validate-Hash -p BookStore -env Production
+raymigrator validate-hash -p BookStore -env Production
 ```
 
-Key options: `--scope` (File/SqlBlocks/Disabled), `--target-group`. See [Validate-Hash Reference](../08-cli-reference/validate-hash.md) for the full option table.
+Key options: `--scope` (File/SqlBlocks/Disabled), `--target-group`. See [validate-hash Reference](../08-cli-reference/validate-hash.md) for the full option table.
 
-> **Tip:** Run Validate-Hash in your CI/CD pipeline on every commit to catch unauthorized changes to migration files early.
+> **Tip:** Run validate-hash in your CI/CD pipeline on every commit to catch unauthorized changes to migration files early.
 
 ---
 
-## Update-Hash -- Update Stored Hashes
+## update-hash -- Update Stored Hashes
 
 Update the hashes stored in the repository when migration files have been intentionally modified.
 
 ```bash
-raymigrator Update-Hash -p BookStore -env Production
+raymigrator update-hash -p BookStore -env Production
 ```
 
-Key options: `--target-group`. See [Update-Hash Reference](../08-cli-reference/update-hash.md) for the full option table.
+Key options: `--target-group`. See [update-hash Reference](../08-cli-reference/update-hash.md) for the full option table.
 
-> **Warning:** Only use Update-Hash after carefully verifying that the file changes are intentional.
+> **Warning:** Only use update-hash after carefully verifying that the file changes are intentional.
 
 ---
 
@@ -123,7 +123,7 @@ Key options: `--target-group`. See [Update-Hash Reference](../08-cli-reference/u
 Show which migrations have been applied, which are pending, and the overall state.
 
 ```bash
-raymigrator Info -p BookStore -env Production
+raymigrator info -p BookStore -env Production
 ```
 
 ---
@@ -133,10 +133,10 @@ raymigrator Info -p BookStore -env Production
 Record existing migrations as "already applied" without executing any SQL. Use this when onboarding an existing database into RayMigrator.
 
 ```bash
-raymigrator Baseline -p BookStore -env Production
+raymigrator baseline -p BookStore -env Production
 ```
 
-Key options: `--to-release`, `--target-group`, `--TargetGroup-MigrationOrder` (`-tgmo`). See [Baseline Reference](../08-cli-reference/command-reference.md#baseline) for the full option table.
+Key options: `--to-release`, `--target-group`, `--target-group-migration-order` (`-tgmo`). See [Baseline Reference](../08-cli-reference/command-reference.md#baseline) for the full option table.
 
 ---
 
@@ -145,7 +145,7 @@ Key options: `--to-release`, `--target-group`, `--TargetGroup-MigrationOrder` (`
 Clean up orphaned migration runs and fix inconsistencies in the repository.
 
 ```bash
-raymigrator Fix -p BookStore -env Production --dry-run
+raymigrator fix -p BookStore -env Production --dry-run
 ```
 
 Key options: `--scope` (OrphanedRuns/All), `--older-than`, `--dry-run`, `--last-migration-status`. See [Fix Reference](../08-cli-reference/command-reference.md#fix) for the full option table.
@@ -160,32 +160,32 @@ With the BookStore product configured and migration files in place, here is the 
 
 ```bash
 # Step 1: Check what would be migrated (no changes made)
-raymigrator Migrate-Up -p BookStore -env Development -rm Validate
+raymigrator migrate-up -p BookStore -env Development -rm validate
 
 # Step 2: Apply all pending migrations
-raymigrator Migrate-Up -p BookStore -env Development -rm Migrate
+raymigrator migrate-up -p BookStore -env Development -rm migrate
 
 # Step 3: Verify file integrity
-raymigrator Validate-Hash -p BookStore -env Development
+raymigrator validate-hash -p BookStore -env Development
 
 # Step 4: Check current status
-raymigrator Info -p BookStore -env Development
+raymigrator info -p BookStore -env Development
 ```
 
 For a production deployment with rollback safety:
 
 ```bash
 # Validate first
-raymigrator Migrate-Up -p BookStore -env Production -rm Validate
+raymigrator migrate-up -p BookStore -env Production -rm validate
 
 # Simulate in staging
-raymigrator Migrate-Up -p BookStore -env Staging -rm Simulate
+raymigrator migrate-up -p BookStore -env Staging -rm simulate
 
 # Deploy to production
-raymigrator Migrate-Up -p BookStore -env Production -rm Migrate
+raymigrator migrate-up -p BookStore -env Production -rm migrate
 
 # If something goes wrong, roll back to the last known good release
-raymigrator Migrate-Down -p BookStore -env Production -rm Migrate -tr "Release 1.0"
+raymigrator migrate-down -p BookStore -env Production -rm migrate -tr "Release 1.0"
 ```
 
 ---
