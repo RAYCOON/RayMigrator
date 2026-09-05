@@ -388,7 +388,7 @@ public class CommandLineConfiguration
         var scopeOption = new Option<string>("--scope", "-s")
         {
             Description = "Fix scope (orphanedruns, all)",
-            DefaultValueFactory = _ => "OrphanedRuns"
+            DefaultValueFactory = _ => "orphanedruns"
         };
 
         scopeOption.Validators.Add(result =>

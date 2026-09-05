@@ -147,6 +147,24 @@ public class CommandVerbCasingTests
     }
 
     [Fact]
+    public async Task FixScope_DefaultsToOrphanedRuns()
+    {
+        var (config, _) = await ParseAsync("fix", "-p", "P", "-env", "Dev");
+
+        config.ParsedOptions!.FixIssues.Should().Be(FixIssues.OrphanedRuns);
+    }
+
+    [Fact]
+    public void FixScope_HelpDefault_IsLowercase()
+    {
+        var config = new CommandLineConfiguration("RayMigrator Test");
+        var fix = config.RootCommand.Subcommands.Single(c => c.Name == "fix");
+        var scope = fix.Options.OfType<System.CommandLine.Option<string>>().Single(o => o.Name == "--scope");
+
+        scope.GetDefaultValue().Should().Be("orphanedruns");
+    }
+
+    [Fact]
     public async Task RunMode_InvalidValue_ErrorListsLowercaseValues()
     {
         var (_, parse) = await ParseAsync("migrate-up", "-p", "P", "-env", "Dev", "--run-mode", "bogus");

@@ -43,7 +43,7 @@ This document provides a comprehensive overview of unit and engine test coverage
 | `--allow-out-of-order` | bool | false | Allow files from older releases to execute |
 | `--stop-rollback-on-missing-rollback-file` | bool? | null (from config) | Stop rollback chain when rollback file missing |
 | `--target-group-migration-order` | string? | null | Comma-separated group aliases for execution order |
-| `--scope` | string | varies | validate-hash: `File`/`SqlBlocks`/`Disabled`; Fix: `OrphanedRuns`/`All` |
+| `--scope` | string | varies | validate-hash: `file`/`sqlblocks`/`disabled`; fix: `orphanedruns`/`all` |
 | `--older-than` | int | 60 | Minutes threshold for orphaned run detection |
 | `--dry-run` | bool | false | Simulate fix without applying changes |
 | `--last-migration-status` | string | `"not-migrated"` | Status to assign after fix: `migrated` or `not-migrated` |

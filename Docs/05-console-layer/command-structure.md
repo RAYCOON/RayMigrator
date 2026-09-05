@@ -234,7 +234,7 @@ These options are defined on specific commands (not global).
 | `--allow-out-of-order` | `-ooo` | bool | false | migrate-up | Allow out-of-order migration execution |
 | `--target-group-migration-order` | `-tgmo` | string | (config order) | migrate-up, baseline | Explicit TargetGroup migration order (comma-separated aliases, e.g. `"Frontend,Backend"`) |
 | `--stop-rollback-on-missing-rollback-file` | `-sromrf` | bool? | (config default: true) | migrate-up | CLI override: stop error-recovery rollback chain when a rollback file is missing |
-| `--scope` | `-s` | string | (varies) | validate-hash, fix | Validation or fix scope (validate-hash: `File`/`SqlBlock`/`Disabled`; Fix: `OrphanedRuns`/`All`) |
+| `--scope` | `-s` | string | (varies) | validate-hash, fix | Validation or fix scope (validate-hash: `file`/`sqlblock`/`disabled`; fix: `orphanedruns`/`all`) |
 | `--older-than` | `-ot` | int | 60 | Fix | Only fix runs older than N minutes (0 = immediate) |
 | `--dry-run` | (none) | bool | false | Fix | Preview what would be fixed without applying changes |
 | `--last-migration-status` | `-lms` | string | not-migrated | Fix | Status for orphaned migrations (`migrated` or `not-migrated`) |
