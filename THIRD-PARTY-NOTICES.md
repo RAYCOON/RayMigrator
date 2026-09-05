@@ -9,7 +9,7 @@ carries its dependencies with it, so these components are redistributed as part
 of every release. They remain under their own licenses; nothing in
 `LICENSE.md` applies to them.
 
-Package versions below are those resolved for the RayMigrator 0.11.0 CLI
+Package versions below are those resolved for the RayMigrator 0.11.1 CLI
 (`net10.0`). License identifiers were read from the packages' own `.nuspec`
 metadata. Actual license texts are available at the identifier URLs given in
 each section, and are included in the respective NuGet packages.

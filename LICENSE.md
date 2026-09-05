@@ -12,7 +12,7 @@ License text copyright © 2017 MariaDB Corporation Ab, All Rights Reserved.
 | Field                | Value                                                              |
 |----------------------|--------------------------------------------------------------------|
 | Licensor             | RAYCOON.com GmbH, Mainzer Str. 16g, 64331 Weiterstadt, Germany     |
-| Licensed Work        | RayMigrator 0.11.0 — © 2026 RAYCOON.com GmbH                       |
+| Licensed Work        | RayMigrator 0.11.1 — © 2026 RAYCOON.com GmbH                       |
 | Additional Use Grant | See section below                                                  |
 | Change Date          | Four (4) years after the first publicly available distribution of each version of the Licensed Work (per-version; see License Text below) |
 | Change License       | Apache License, Version 2.0 (https://www.apache.org/licenses/LICENSE-2.0) [^1] |

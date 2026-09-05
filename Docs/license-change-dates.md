@@ -13,10 +13,16 @@ each version states the rule; this register states the resulting dates.
 
 | Version | License regime | First public distribution | Change Date | Change License |
 |---------|----------------|---------------------------|-------------|----------------|
+| 0.11.1  | BUSL-1.1 + Additional Use Grant (unchanged from 0.11.0) | **2026-09-05** (source; pushed to the public repository) | **2030-09-05** | Apache License 2.0 |
 | 0.11.0  | BUSL-1.1 + Additional Use Grant | **2026-08-17** (source; repository made public) | **2030-08-17** | Apache License 2.0 |
 | ≤ 0.10.3 | RayMigrator Dual License Agreement (RMLA) v1.0 | *never publicly distributed* | — (no BSL Change Date) | — |
 
 ### Notes on the entries
+
+**0.11.1** — same licence regime and Additional Use Grant as 0.11.0; only the
+*Licensed Work* version in the Parameters block changed. First public
+distribution was the **source**, pushed to the public repository on
+2026-09-05; the GitHub binary release (tag `v0.11.1`) followed the same day.
 
 **0.11.0** — the first version published under BUSL-1.1. Its Additional Use Grant
 permits production use free of charge, without conditions. First public
