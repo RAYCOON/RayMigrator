@@ -1,22 +1,22 @@
 FROM mariadb:11.6
 
-# Zugangsdaten (MYSQL_ROOT_PASSWORD, MYSQL_DATABASE, MYSQL_USER, MYSQL_PASSWORD)
-# werden zur Laufzeit ueber docker-compose.yml aus der env-Datei gesetzt.
-# Keine Passwoerter im Image hinterlegen!
+# Credentials (MYSQL_ROOT_PASSWORD, MYSQL_DATABASE, MYSQL_USER, MYSQL_PASSWORD)
+# are set at runtime via docker-compose.yml from the env file.
+# Do not store any passwords in the image!
 
-# Kopiere Konfigurationsdateien
+# Copy configuration files
 COPY config/my.cnf /etc/mysql/conf.d/
 
-# Kopiere Initialisierungsskripte
+# Copy initialization scripts
 COPY init/ /docker-entrypoint-initdb.d/
 
-# Setze korrekte Berechtigungen
+# Set correct permissions
 RUN chmod 644 /etc/mysql/conf.d/my.cnf && \
     chmod +x /docker-entrypoint-initdb.d/*.sh
 
-# Exponiere den Standard MariaDB Port
+# Expose the default MariaDB port
 EXPOSE 3306
 
-# Verwende das Standard-Entrypoint des MariaDB-Images
+# Use the default entrypoint of the MariaDB image
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["mariadbd"]

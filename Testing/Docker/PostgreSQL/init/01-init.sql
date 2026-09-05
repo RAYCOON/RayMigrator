@@ -1,7 +1,7 @@
 -- PostgreSQL initialization script
--- Dieses Script wird als postgres Superuser ausgeführt
+-- This script is executed as the postgres superuser
 
--- Benutzer erstellen falls nicht vorhanden
+-- Create the user if it does not exist
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT FROM pg_user WHERE usename = 'rayuser') THEN
@@ -10,36 +10,36 @@ BEGIN
 END
 $$;
 
--- Datenbank erstellen falls nicht vorhanden
+-- Create the database if it does not exist
 SELECT 'CREATE DATABASE raydb OWNER rayuser' 
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'raydb')\gexec
 
--- Rechte vergeben
+-- Grant privileges
 GRANT ALL PRIVILEGES ON DATABASE raydb TO rayuser;
 GRANT CREATE ON DATABASE raydb TO rayuser;
 
--- Zweite Datenbank erstellen
+-- Create the second database
 SELECT 'CREATE DATABASE raydb2 OWNER postgres'
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'raydb2')\gexec
 
--- Dritte Datenbank für Frontend erstellen
+-- Create the third database for the frontend
 SELECT 'CREATE DATABASE raydb_frontend OWNER postgres'
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'raydb_frontend')\gexec
 
 GRANT ALL PRIVILEGES ON DATABASE raydb_frontend TO rayuser;
 GRANT CREATE ON DATABASE raydb_frontend TO rayuser;
 
--- Als rayuser zur Datenbank verbinden
+-- Connect to the database as rayuser
 \c raydb rayuser;
 
--- Schema erstellen
+-- Create the schema
 CREATE SCHEMA IF NOT EXISTS ray_schema;
 
--- Schema als Standard setzen
+-- Set the schema as default
 SET search_path TO ray_schema, public;
 
--- Beispieltabellen erstellen
--- Tabelle für Systeminformationen
+-- Create sample tables
+-- Table for system information
 CREATE TABLE IF NOT EXISTS ray_schema.system_info (
     id SERIAL PRIMARY KEY,
     property VARCHAR(255) NOT NULL UNIQUE,
@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS ray_schema.system_info (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Tabelle für Audit-Log
+-- Table for the audit log
 CREATE TABLE IF NOT EXISTS ray_schema.audit_log (
     id SERIAL PRIMARY KEY,
     table_name VARCHAR(255),
@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS ray_schema.audit_log (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Funktion für updated_at Trigger
+-- Function for the updated_at trigger
 CREATE OR REPLACE FUNCTION ray_schema.update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -68,13 +68,13 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Trigger für updated_at
+-- Trigger for updated_at
 CREATE TRIGGER update_system_info_updated_at 
     BEFORE UPDATE ON ray_schema.system_info
     FOR EACH ROW
     EXECUTE FUNCTION ray_schema.update_updated_at_column();
 
--- Initiale Daten einfügen
+-- Insert initial data
 INSERT INTO ray_schema.system_info (property, value, description) VALUES 
     ('version', '1.0.0', 'System version'),
     ('initialized', 'true', 'Database initialization status'),
@@ -82,11 +82,11 @@ INSERT INTO ray_schema.system_info (property, value, description) VALUES
     ('schema_version', '1', 'Current schema version')
 ON CONFLICT (property) DO NOTHING;
 
--- Zusätzliche Benutzer mit spezifischen Rechten erstellen
--- Als postgres Superuser wieder verbinden
+-- Create additional users with specific privileges
+-- Reconnect as the postgres superuser
 \c raydb postgres;
 
--- Read-only Benutzer erstellen
+-- Create a read-only user
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT FROM pg_user WHERE usename = 'rayreader') THEN
@@ -100,7 +100,7 @@ GRANT USAGE ON SCHEMA ray_schema TO rayreader;
 GRANT SELECT ON ALL TABLES IN SCHEMA ray_schema TO rayreader;
 ALTER DEFAULT PRIVILEGES IN SCHEMA ray_schema GRANT SELECT ON TABLES TO rayreader;
 
--- Anwendungsbenutzer mit eingeschränkten Rechten
+-- Application user with restricted privileges
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT FROM pg_user WHERE usename = 'rayapp') THEN
@@ -116,11 +116,11 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA ray_schema TO rayapp;
 ALTER DEFAULT PRIVILEGES IN SCHEMA ray_schema GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO rayapp;
 ALTER DEFAULT PRIVILEGES IN SCHEMA ray_schema GRANT USAGE, SELECT ON SEQUENCES TO rayapp;
 
--- Zeige alle erstellten Benutzer
+-- Show all created users
 \du
 
--- Zeige alle Schemas
+-- Show all schemas
 \dn
 
--- Zeige Tabellen im ray_schema
+-- Show tables in ray_schema
 \dt ray_schema.*

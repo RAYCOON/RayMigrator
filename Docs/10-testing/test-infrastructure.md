@@ -37,7 +37,7 @@ Testing/
 │   │       └── 01-init.sql
 │   ├── MariaDB/
 │   │   ├── Dockerfile
-│   │   ├── REAME-MariaDB.md
+│   │   ├── README-MariaDB.md
 │   │   ├── config/
 │   │   │   └── my.cnf
 │   │   └── init/

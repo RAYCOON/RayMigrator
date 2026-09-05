@@ -1,12 +1,12 @@
-# RunDocker.extern.all.ps1 (Steuerungsskript)
+# RunDocker.extern.all.ps1 (control script)
 
-# Konfiguration des ContainerNamen aus docker-compose.yml
+# Container name configuration from docker-compose.yml
 $ContainerName = "all.rm_*"
 
 $ErrorActionPreference = "Stop"
 Clear-Host
 
-# Aktuellen Skriptnamen ermitteln
+# Determine the current script name
 $scriptName = Split-Path $MyInvocation.MyCommand.Path -Leaf
 
 # Pattern: RunDocker.<environment>.<profile>.ps1
@@ -14,7 +14,7 @@ if ($scriptName -match "RunDocker\.([^.]+)\.([^.]+)\.ps1") {
     $environment = $matches[1]
     $profile = $matches[2]
 
-    # Konfigurationsvariablen
+    # Configuration variables
     $CONFIG = @{
         EnvFile = "$environment.env"
         Profile = $profile
@@ -29,21 +29,21 @@ if ($scriptName -match "RunDocker\.([^.]+)\.([^.]+)\.ps1") {
         )
     }
 
-    # Pfad zum Hauptskript (relativ zum aktuellen Skript)
+    # Path to the main script (relative to the current script)
     $mainScriptPath = Join-Path $PSScriptRoot "RunDockerXecute.ps1"
 
     if (Test-Path $mainScriptPath) {
-        # Aufruf des Hauptskripts mit Übergabe der Konfiguration
+        # Call the main script and pass the configuration
         & $mainScriptPath -Config $CONFIG
     }
     else {
-        Write-Error "Hauptskript nicht gefunden: $mainScriptPath"
+        Write-Error "Main script not found: $mainScriptPath"
         # pause
         exit 1
     }
 }
 else {
-    Write-Error "Dateiname entspricht nicht dem erwarteten Format 'RunDocker.<environment>.<profile>.ps1'"
+    Write-Error "File name does not match the expected format 'RunDocker.<environment>.<profile>.ps1'"
     # pause
     exit 1
 }

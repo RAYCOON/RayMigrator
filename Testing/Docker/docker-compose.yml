@@ -9,9 +9,9 @@ services:
       args:
         SOURCE_MICROSOFT: ${SOURCE_MICROSOFT}
     environment:
-      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?MSSQL_SA_PASSWORD fehlt in der env-Datei}
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?MSSQL_SA_PASSWORD is missing in the env file}
       MSSQL_PID: ${MSSQL_PID:-Developer}
-      RM_LOGIN_PASSWORD: ${RM_LOGIN_PASSWORD:?RM_LOGIN_PASSWORD fehlt in der env-Datei}
+      RM_LOGIN_PASSWORD: ${RM_LOGIN_PASSWORD:?RM_LOGIN_PASSWORD is missing in the env file}
     restart: always
     ports:
       - 1433:1433
@@ -32,10 +32,10 @@ services:
       dockerfile: Dockerfile
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:?MARIADB_ROOT_PASSWORD fehlt in der env-Datei}
-      MYSQL_DATABASE: ${MARIADB_DATABASE:?MARIADB_DATABASE fehlt in der env-Datei}
-      MYSQL_USER: ${MARIADB_USER:?MARIADB_USER fehlt in der env-Datei}
-      MYSQL_PASSWORD: ${MARIADB_PASSWORD:?MARIADB_PASSWORD fehlt in der env-Datei}
+      MYSQL_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:?MARIADB_ROOT_PASSWORD is missing in the env file}
+      MYSQL_DATABASE: ${MARIADB_DATABASE:?MARIADB_DATABASE is missing in the env file}
+      MYSQL_USER: ${MARIADB_USER:?MARIADB_USER is missing in the env file}
+      MYSQL_PASSWORD: ${MARIADB_PASSWORD:?MARIADB_PASSWORD is missing in the env file}
     ports:
       - 3306:3306
     expose:
@@ -63,10 +63,10 @@ services:
       dockerfile: Dockerfile
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD fehlt in der env-Datei}
-      MYSQL_DATABASE: ${MYSQL_DATABASE:?MYSQL_DATABASE fehlt in der env-Datei}
-      MYSQL_USER: ${MYSQL_USER:?MYSQL_USER fehlt in der env-Datei}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD fehlt in der env-Datei}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is missing in the env file}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:?MYSQL_DATABASE is missing in the env file}
+      MYSQL_USER: ${MYSQL_USER:?MYSQL_USER is missing in the env file}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is missing in the env file}
     ports:
       - 3307:3306
     expose:
@@ -93,9 +93,9 @@ services:
       dockerfile: Dockerfile
     restart: always
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER fehlt in der env-Datei}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD fehlt in der env-Datei}
-      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB fehlt in der env-Datei}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is missing in the env file}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is missing in the env file}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is missing in the env file}
     ports:
       - 5432:5432
     expose:

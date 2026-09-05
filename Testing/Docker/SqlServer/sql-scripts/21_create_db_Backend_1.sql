@@ -19,10 +19,10 @@ CREATE DATABASE [Backend_1]
  CONTAINMENT = NONE
  ON  PRIMARY 
 ( NAME = N'fg_raymigrator_primary_1', FILENAME = N'/var/opt/mssql/data/fg_raymigrator_primary_1.mdf' , SIZE = 8192KB , MAXSIZE = UNLIMITED, FILEGROWTH = 65536KB ),
--- DATEN
+-- DATA
  FILEGROUP [fg_raymigrator_data_1]  DEFAULT
 ( NAME = N'fg_raymigrator_data_1', FILENAME = N'/var/opt/mssql/data/fg_raymigrator_data_1.ndf' , SIZE = 131072KB , MAXSIZE = UNLIMITED, FILEGROWTH = 65536KB ),
--- INDEXE
+-- INDEXES
  FILEGROUP [fg_raymigrator_index_1]
 ( NAME = N'fg_raymigrator_index_1', FILENAME = N'/var/opt/mssql/data/fg_raymigrator_index_1.ndf' , SIZE = 131072KB , MAXSIZE = UNLIMITED, FILEGROWTH = 65536KB )
 -- LOG

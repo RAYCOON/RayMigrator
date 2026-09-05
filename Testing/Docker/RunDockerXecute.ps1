@@ -15,14 +15,14 @@ function Write-ColorOutput($ForegroundColor) {
 function Check-Prerequisites {
     Write-ColorOutput Yellow "`nChecking prerequisites..."
     
-    # Überprüfe ob env-file existiert
+    # Check whether the env file exists
     if (-not (Test-Path $Config.EnvFile)) {
         Write-ColorOutput Red "ERROR: $($Config.EnvFile) file not found!"
         # pause
         exit 1
     }
     
-    # Überprüfe ob Docker läuft
+    # Check whether Docker is running
     try {
         docker info | Out-Null
     }
@@ -42,7 +42,7 @@ function Wait-ForContainers {
     )
 
     if ($ContainerNames -like "all.*") {
-        # Splitte den String bei "." und nimm den zweiten Teil
+        # Split the string at "." and take the second part
         $allContainers = ($ContainerNames -split '\.')[1]
         $ContainerNames = docker ps -a --format '{{.Names}}' | Where-Object { $_ -like "$allContainers" }
         if (-not $ContainerNames) {
@@ -64,7 +64,7 @@ function Wait-ForContainers {
             if ($status -ne 'running') {
                 # Output negative status
 				$uptimeSeconds = 0
-                Write-Host " > [$name] -> $status. Uptime: $uptimeSeconds/$WaitTimeInSeconds sek., Try: $($elapsed + 1)/$TimeoutInSeconds"
+                Write-Host " > [$name] -> $status. Uptime: $uptimeSeconds/$WaitTimeInSeconds sec., Try: $($elapsed + 1)/$TimeoutInSeconds"
                 $allReady = $false
                 break
             }
@@ -89,7 +89,7 @@ function Wait-ForContainers {
         }
     }
 
-    # Für allgemeine Timeouts
+    # For general timeouts
     throw [System.TimeoutException]::new("Aborted: Max wait time of $TimeoutInSeconds seconds exceeded!")
 }
 
@@ -114,7 +114,7 @@ function Show-DockerConfiguration {
 	try {
 		$output = docker compose -f docker-compose.yml --env-file $($Config.EnvFile) config --quiet
     
-		# Ausgabe analysieren
+		# Analyze the output
 		if ($output -match "ERROR:") {
 			Write-Error "`nConfiguration error found"
 		} else {
@@ -140,8 +140,8 @@ function Show-DockerConfiguration {
         Write-ColorOutput Red "Failed to read env file: $($_.Exception.Message)"
     }
     
-    # 3. Dockerfile ARG und ENV Analyse
-    # Write-ColorOutput Cyan "`nDockerfile ARG und ENV Analyse:"
+    # 3. Dockerfile ARG and ENV analysis
+    # Write-ColorOutput Cyan "`nDockerfile ARG and ENV analysis:"
     # Write-Host "----------------------------------------"
     # try {
         # $dockerfile = Get-Content "$PSScriptRoot/SqlServer/Dockerfile" -ErrorAction Stop
@@ -150,14 +150,14 @@ function Show-DockerConfiguration {
         # }
     # }
     # catch {
-        # Write-ColorOutput Red "Dockerfile konnte nicht analysiert werden: $($_.Exception.Message)"
+        # Write-ColorOutput Red "Dockerfile could not be analyzed: $($_.Exception.Message)"
     # }
 }
 
 function Build-DockerImages {
     Write-ColorOutput Green "`n'Build Docker Images..."
     try {
-        # Lade Umgebungsvariablen aus env-file
+        # Load environment variables from the env file
         $envContent = Get-Content $Config.EnvFile
         foreach ($line in $envContent) {
             if ($line.Trim() -and !$line.StartsWith("#")) {
@@ -166,7 +166,7 @@ function Build-DockerImages {
             }
         }
         
-        # Überprüfe kritische Umgebungsvariablen
+        # Check critical environment variables
         foreach ($requiredVar in $Config.RequiredVars) {
             if (-not (Get-Item "env:$requiredVar" -ErrorAction SilentlyContinue)) {
                 Write-ColorOutput Red "ERROR: $requiredVar is not set in $($Config.EnvFile)"
@@ -175,7 +175,7 @@ function Build-DockerImages {
             }
         }
         
-        # Build der Docker Images mit Fortschrittsanzeige
+        # Build the Docker images with progress output
         Write-Host "Building images with docker-compose..."
         $buildCommand = "docker compose --progress plain -f docker-compose.yml --env-file $($Config.EnvFile) build --no-cache"
         Write-Host "Executing: $buildCommand"
@@ -195,20 +195,20 @@ function Build-DockerImages {
 function Start-DockerContainers {
     Write-ColorOutput Green "`nStarting Docker Container..."
     try {
-        # Start der Container mit Profil
+        # Start the containers with the profile
         $startCommand = "docker compose --progress plain -f docker-compose.yml --profile $($Config.Profile) --env-file $($Config.EnvFile) up -d"
         Write-Host "Executing: $startCommand"
         Invoke-Expression $startCommand
         
-        # Überprüfe den Exit-Code
+        # Check the exit code
         if ($LASTEXITCODE -ne 0) {
             throw "Docker compose up returns error with exit code $LASTEXITCODE"
         }
         
-        # Warte, bis die Container bereit sind, und speichere die validierten Container-Namen
+        # Wait until the containers are ready and store the validated container names
         $validatedContainers = Wait-ForContainers -WaitTimeInSeconds $Config.WaitTimeInSeconds -TimeoutInSeconds $Config.TimeoutInSeconds -ContainerNames $Config.ContainerName
         
-        # Zeige Container Status
+        # Show container status
         Write-ColorOutput Cyan "`nContainer Status:"
         Write-Host "----------------------------------------"
         docker compose ps
@@ -216,7 +216,7 @@ function Start-DockerContainers {
         Write-ColorOutput Green "`nDocker Container started successfully!"
         Write-ColorOutput Green "Checking containers:"
         
-        # Gebe die Container-Namen sauber zeilenweise aus
+        # Print the container names one per line
         foreach ($container in $validatedContainers) {
             Write-ColorOutput Green "- $container"
         }
@@ -231,28 +231,28 @@ function Start-DockerContainers {
 }
 
 
-# Hauptprogramm
+# Main program
 try {
     Write-ColorOutput Green "Starting Docker Deployment Process"
     
 	Write-Host "----------------------------------------`n"
-	# Optional: Ausgabe zur Überprüfung
-	Write-ColorOutput Cyan "Check Konfiguration (from filename):"
+	# Optional: output for verification
+	Write-ColorOutput Cyan "Check configuration (from filename):"
 	Write-Host "EnvFile: $($CONFIG.EnvFile)"
 	Write-Host "Profile: $profile"
 
-    # Validiere übergebene Konfiguration
+    # Validate the passed configuration
     $requiredConfigKeys = @(
         'EnvFile', 'Profile', 'WaitTimeInSeconds', 'TimeoutInSeconds', 'RequiredVars'
     )
     
     foreach ($key in $requiredConfigKeys) {
         if (-not $Config.ContainsKey($key)) {
-            throw "Fehlender Configuration-Key: $key"
+            throw "Missing configuration key: $key"
         }
     }
     
-	# Legt die maximale Anzahl der docker-compose Dienste (up, down, build, pull, push) fest, die gleichzeitig während bestimmter Operationen ausgeführt werden können.
+	# Sets the maximum number of docker-compose services (up, down, build, pull, push) that may run in parallel during certain operations.
 	$env:COMPOSE_PARALLEL_LIMIT=3
 	
     Check-Prerequisites

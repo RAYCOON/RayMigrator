@@ -4,9 +4,9 @@ set +m
 
 SQLCMD="/opt/mssql-tools18/bin/sqlcmd"
 
-# Pflichtvariablen (kommen aus docker-compose.yml / env-Datei)
-: "${MSSQL_SA_PASSWORD:?MSSQL_SA_PASSWORD ist nicht gesetzt}"
-: "${RM_LOGIN_PASSWORD:?RM_LOGIN_PASSWORD ist nicht gesetzt}"
+# Required variables (provided by docker-compose.yml / env file)
+: "${MSSQL_SA_PASSWORD:?MSSQL_SA_PASSWORD is not set}"
+: "${RM_LOGIN_PASSWORD:?RM_LOGIN_PASSWORD is not set}"
 
 echo "Starting SQL Server..."
 

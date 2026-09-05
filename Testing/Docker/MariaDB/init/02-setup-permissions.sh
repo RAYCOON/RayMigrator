@@ -1,30 +1,30 @@
 #!/bin/bash
 set -e
 
-echo "Starte MariaDB-Setup-Skript..."
+echo "Starting MariaDB setup script..."
 
-# Während der Initialisierung ist kein Passwort erforderlich
-echo "MariaDB ist bereit. Führe zusätzliche Setup-Schritte aus..."
+# No password is required during initialization
+echo "MariaDB is ready. Running additional setup steps..."
 
-# Erstelle zusätzliche Benutzer oder führe weitere Konfigurationen aus
-# Kein Passwort während der Initialisierung erforderlich
+# Create additional users or apply further configuration
+# No password required during initialization
 mariadb -u root -p"${MYSQL_ROOT_PASSWORD}" <<-EOSQL
-    -- Erstelle einen Nur-Lese-Benutzer
+    -- Create a read-only user
     CREATE USER IF NOT EXISTS 'readonly'@'%' IDENTIFIED BY 'readonly123';
     GRANT SELECT ON ${MYSQL_DATABASE}.* TO 'readonly'@'%';
     
-    -- Erstelle einen Backup-Benutzer
+    -- Create a backup user
     CREATE USER IF NOT EXISTS 'backup'@'%' IDENTIFIED BY 'backup123';
     GRANT SELECT, LOCK TABLES, SHOW VIEW, EVENT, TRIGGER ON ${MYSQL_DATABASE}.* TO 'backup'@'%';
     
-    -- Aktualisiere Berechtigungen
+    -- Reload privileges
     FLUSH PRIVILEGES;
     
-    -- Zeige alle Benutzer an
+    -- Show all users
     SELECT User, Host FROM mysql.user;
 EOSQL
 
-echo "MariaDB-Setup abgeschlossen!"
+echo "MariaDB setup completed!"
 
-# Erstelle eine Statusdatei
+# Create a status file
 touch /tmp/mariadb-setup-complete
