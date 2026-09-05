@@ -223,16 +223,16 @@ For pre-built binaries, download from the [GitHub Releases](https://github.com/R
 dotnet build
 
 # Apply migrations
-RayMigrator Migrate-Up -p RayMigratorTests -env Docker --run-mode Migrate
+raymigrator Migrate-Up -p RayMigratorTests -env Docker --run-mode Migrate
 
 # Simulate (dry run)
-RayMigrator Migrate-Up -p RayMigratorTests -env Docker --run-mode Simulate
+raymigrator Migrate-Up -p RayMigratorTests -env Docker --run-mode Simulate
 
 # Rollback
-RayMigrator Migrate-Down -p RayMigratorTests -env Docker --to-release "Release 1.0" --run-mode Migrate
+raymigrator Migrate-Down -p RayMigratorTests -env Docker --to-release "Release 1.0" --run-mode Migrate
 
 # Validate hashes
-RayMigrator Validate-Hash -p RayMigratorTests -env Docker
+raymigrator Validate-Hash -p RayMigratorTests -env Docker
 ```
 
 ## Related Files

@@ -937,14 +937,14 @@ When a migration run fails, follow these steps in order:
 
 2. **Check the `MigrationRunResult`** — Use `Info` command or query the repository:
    ```bash
-   RayMigrator Info -p MyProduct -env Production
+   raymigrator Info -p MyProduct -env Production
    ```
 
 3. **Identify the inconsistency type** — Use the scenario matrix above to find your exact scenario and inconsistency type
 
 4. **Check for orphaned runs** — If the process crashed:
    ```bash
-   RayMigrator Fix -p MyProduct -env Production --dry-run
+   raymigrator Fix -p MyProduct -env Production --dry-run
    ```
 
 5. **Fix the root cause** — Correct the SQL error in the migration file
@@ -959,18 +959,18 @@ When a migration run fails, follow these steps in order:
 
 7. **Re-run `Migrate-Up`** — Failed and NotMigrated files are auto-retried:
    ```bash
-   RayMigrator Migrate-Up -p MyProduct -env Production -rm Migrate
+   raymigrator Migrate-Up -p MyProduct -env Production -rm Migrate
    ```
 
 8. **Verify** — Check that all files are now `Migrated`:
    ```bash
-   RayMigrator Info -p MyProduct -env Production
-   RayMigrator Validate-Hash -p MyProduct -env Production
+   raymigrator Info -p MyProduct -env Production
+   raymigrator Validate-Hash -p MyProduct -env Production
    ```
 
 9. **Update hashes if needed** — If you modified a previously executed migration file:
    ```bash
-   RayMigrator Update-Hash -p MyProduct -env Production
+   raymigrator Update-Hash -p MyProduct -env Production
    ```
 
 ---

@@ -5,7 +5,7 @@ Options available across all RayMigrator commands.
 ## Syntax
 
 ```bash
-RayMigrator <command> [command-options] [global-options]
+raymigrator <command> [command-options] [global-options]
 ```
 
 ## Global Options
@@ -22,7 +22,7 @@ Controls display of application information at startup.
 **Example:**
 ```bash
 # Quiet mode for scripts
-RayMigrator Migrate-Up -p MyProduct -env Prod -rm Migrate --startup-info false
+raymigrator Migrate-Up -p MyProduct -env Prod -rm Migrate --startup-info false
 ```
 
 **Startup Info Includes:**
@@ -43,7 +43,7 @@ Controls logging of sensitive information.
 **Example:**
 ```bash
 # Debug connection issues
-RayMigrator Migrate-Up -p MyProduct -env Dev -rm Simulate --reveal-sensitive-data true
+raymigrator Migrate-Up -p MyProduct -env Dev -rm Simulate --reveal-sensitive-data true
 ```
 
 **Logged When Enabled:**
@@ -68,13 +68,13 @@ If the specified directory does not exist, RayMigrator exits with a `Configurati
 **Examples:**
 ```bash
 # Use configuration files from a specific directory
-RayMigrator Migrate-Up -p MyProduct -env Prod -rm Migrate --config-dir /etc/raymigrator
+raymigrator Migrate-Up -p MyProduct -env Prod -rm Migrate --config-dir /etc/raymigrator
 
 # Use a relative path (resolved against the current working directory)
-RayMigrator Migrate-Up -p MyProduct -env Prod -rm Migrate -cd ../config
+raymigrator Migrate-Up -p MyProduct -env Prod -rm Migrate -cd ../config
 
 # Use an environment variable for the path
-RayMigrator Migrate-Up -p MyProduct -env Prod -rm Migrate -cd {ENV:CONFIG_DIR}
+raymigrator Migrate-Up -p MyProduct -env Prod -rm Migrate -cd {ENV:CONFIG_DIR}
 ```
 
 ## Common Command Options
@@ -105,7 +105,7 @@ Execution mode. Available on Migrate-Up and Migrate-Down. Default: `Migrate`.
 
 **Example:**
 ```bash
-RayMigrator Migrate-Up -p MyProduct -env Dev -rm Simulate
+raymigrator Migrate-Up -p MyProduct -env Dev -rm Simulate
 ```
 
 ### --to-release (-tr)
@@ -114,8 +114,8 @@ Target release version. Required for Migrate-Down. Optional for Migrate-Up and B
 
 **Example:**
 ```bash
-RayMigrator Migrate-Down -p MyProduct -env Prod -rm Migrate --to-release "Release 1.0"
-RayMigrator Baseline -p MyProduct -env Prod --to-release "Release 2.0"
+raymigrator Migrate-Down -p MyProduct -env Prod -rm Migrate --to-release "Release 1.0"
+raymigrator Baseline -p MyProduct -env Prod --to-release "Release 2.0"
 ```
 
 ### --target-group (-tg)
@@ -124,7 +124,7 @@ Filter execution to specific target groups. Can be specified multiple times. Ava
 
 **Example:**
 ```bash
-RayMigrator Migrate-Up -p MyProduct -env Prod -rm Migrate --target-group Backend --target-group Frontend
+raymigrator Migrate-Up -p MyProduct -env Prod -rm Migrate --target-group Backend --target-group Frontend
 ```
 
 ### --allow-out-of-order (-ooo)
@@ -133,7 +133,7 @@ Allow out-of-order migration execution. Available on Migrate-Up only. Default: `
 
 **Example:**
 ```bash
-RayMigrator Migrate-Up -p MyProduct -env Dev -rm Migrate --allow-out-of-order
+raymigrator Migrate-Up -p MyProduct -env Dev -rm Migrate --allow-out-of-order
 ```
 
 ### --scope (-s)
@@ -162,7 +162,7 @@ String-valued command parameters support environment variable resolution using t
 If the referenced environment variable is not set or is empty, RayMigrator exits with exit code 5 (command-line parsing error).
 
 ```bash
-RayMigrator Migrate-Up --product {ENV:PRODUCT_NAME} --environment {ENV:TARGET_ENV}
+raymigrator Migrate-Up --product {ENV:PRODUCT_NAME} --environment {ENV:TARGET_ENV}
 ```
 
 ### Syntax
@@ -178,14 +178,14 @@ RayMigrator Migrate-Up --product {ENV:PRODUCT_NAME} --environment {ENV:TARGET_EN
 export PRODUCT_NAME="MyProduct"
 export TARGET_ENV="Production"
 
-RayMigrator Migrate-Up -p {ENV:PRODUCT_NAME} -env {ENV:TARGET_ENV} -rm Migrate
+raymigrator Migrate-Up -p {ENV:PRODUCT_NAME} -env {ENV:TARGET_ENV} -rm Migrate
 ```
 
 ### Mixed Usage
 
 ```bash
 # Combine literal and environment values
-RayMigrator Migrate-Up -p MyProduct -env {ENV:DEPLOY_ENV} -rm Migrate
+raymigrator Migrate-Up -p MyProduct -env {ENV:DEPLOY_ENV} -rm Migrate
 ```
 
 ## Help
@@ -194,18 +194,18 @@ RayMigrator Migrate-Up -p MyProduct -env {ENV:DEPLOY_ENV} -rm Migrate
 
 ```bash
 # General help
-RayMigrator --help
+raymigrator --help
 RayMigrator -h
 
 # Command-specific help
-RayMigrator Migrate-Up --help
-RayMigrator Migrate-Down -h
+raymigrator Migrate-Up --help
+raymigrator Migrate-Down -h
 ```
 
 ### Version
 
 ```bash
-RayMigrator --version
+raymigrator --version
 ```
 
 ## Exit Codes
@@ -226,14 +226,14 @@ Standard exit codes across all commands:
 
 ```bash
 # Shell script
-RayMigrator Migrate-Up -p MyProduct -env Prod -rm Migrate
+raymigrator Migrate-Up -p MyProduct -env Prod -rm Migrate
 if [ $? -ne 0 ]; then
     echo "Migration failed!"
     exit 1
 fi
 
 # PowerShell
-RayMigrator Migrate-Up -p MyProduct -env Prod -rm Migrate
+raymigrator Migrate-Up -p MyProduct -env Prod -rm Migrate
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Migration failed!"
     exit 1
@@ -265,14 +265,14 @@ RayMigrator supports console/file logging via Serilog and optional structured lo
 
 ```bash
 # Suppress startup info, use environment variables
-RayMigrator Migrate-Up \
+raymigrator Migrate-Up \
   -p {ENV:PRODUCT} \
   -env {ENV:ENVIRONMENT} \
   -rm Migrate \
   --startup-info false
 
 # Configuration files stored outside the working directory
-RayMigrator Migrate-Up \
+raymigrator Migrate-Up \
   -p {ENV:PRODUCT} \
   -env {ENV:ENVIRONMENT} \
   -rm Migrate \
@@ -284,7 +284,7 @@ RayMigrator Migrate-Up \
 
 ```bash
 # Enable sensitive data for troubleshooting
-RayMigrator Migrate-Up -p MyProduct -env Dev -rm Simulate --reveal-sensitive-data true
+raymigrator Migrate-Up -p MyProduct -env Dev -rm Simulate --reveal-sensitive-data true
 
 # Clean up logs after debugging!
 ```
@@ -296,10 +296,10 @@ RayMigrator Migrate-Up -p MyProduct -env Dev -rm Simulate --reveal-sensitive-dat
 set -e  # Exit on error
 
 # Validate before migrate
-RayMigrator Validate-Hash -p "$PRODUCT" -env "$ENV" --startup-info false
+raymigrator Validate-Hash -p "$PRODUCT" -env "$ENV" --startup-info false
 
 # Execute migration
-RayMigrator Migrate-Up -p "$PRODUCT" -env "$ENV" -rm Migrate --startup-info false
+raymigrator Migrate-Up -p "$PRODUCT" -env "$ENV" -rm Migrate --startup-info false
 
 echo "Migration completed successfully"
 ```

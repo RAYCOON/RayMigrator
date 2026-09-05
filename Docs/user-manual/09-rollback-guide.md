@@ -9,7 +9,7 @@ The previous chapter covered automatic rollback triggered by errors. This chapte
 The `Migrate-Down` command rolls back migrations to a specified release:
 
 ```bash
-RayMigrator Migrate-Down -p BookStore -env Development --to-release "Release 1.0" -rm Migrate
+raymigrator Migrate-Down -p BookStore -env Development --to-release "Release 1.0" -rm Migrate
 ```
 
 **Important:** `--to-release "Release 1.0"` means "roll back TO Release 1.0" -- Release 1.0 stays applied. Everything after Release 1.0 is rolled back.
@@ -88,13 +88,13 @@ Continuing from the previous chapter, assume BookStore has both Release 1.0 and 
 First, validate that all required rollback files exist and are parseable (no database connectivity needed):
 
 ```bash
-RayMigrator Migrate-Down -p BookStore -env Development -tr "Release 1.0" -rm Validate
+raymigrator Migrate-Down -p BookStore -env Development -tr "Release 1.0" -rm Validate
 ```
 
 Then simulate to preview the rollback with repository interaction but without executing SQL on targets:
 
 ```bash
-RayMigrator Migrate-Down -p BookStore -env Development -tr "Release 1.0" -rm Simulate
+raymigrator Migrate-Down -p BookStore -env Development -tr "Release 1.0" -rm Simulate
 ```
 
 Review the output carefully before proceeding.
@@ -102,7 +102,7 @@ Review the output carefully before proceeding.
 ### Step 2: Execute the Rollback
 
 ```bash
-RayMigrator Migrate-Down -p BookStore -env Development -tr "Release 1.0" -rm Migrate
+raymigrator Migrate-Down -p BookStore -env Development -tr "Release 1.0" -rm Migrate
 ```
 
 RayMigrator processes the rollback files in reverse order:
@@ -112,7 +112,7 @@ RayMigrator processes the rollback files in reverse order:
 ### Step 3: Verify the Result
 
 ```bash
-RayMigrator Info -p BookStore -env Development
+raymigrator Info -p BookStore -env Development
 ```
 
 You will see:
@@ -171,13 +171,13 @@ Always test rollback files in a development environment before relying on them i
 
 ```bash
 # Apply the migration
-RayMigrator Migrate-Up -p BookStore -env Development -rm Migrate
+raymigrator Migrate-Up -p BookStore -env Development -rm Migrate
 
 # Roll it back
-RayMigrator Migrate-Down -p BookStore -env Development -tr "Release 1.0" -rm Migrate
+raymigrator Migrate-Down -p BookStore -env Development -tr "Release 1.0" -rm Migrate
 
 # Apply again to confirm the cycle works
-RayMigrator Migrate-Up -p BookStore -env Development -rm Migrate
+raymigrator Migrate-Up -p BookStore -env Development -rm Migrate
 ```
 
 If apply-rollback-apply completes without errors, your rollback files are correct.

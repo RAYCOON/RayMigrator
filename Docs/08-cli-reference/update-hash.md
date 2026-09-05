@@ -5,7 +5,7 @@ Updates stored hash values to match current migration file content.
 ## Synopsis
 
 ```bash
-RayMigrator Update-Hash --product <ProductAlias> --environment <Environment> [options]
+raymigrator Update-Hash --product <ProductAlias> --environment <Environment> [options]
 ```
 
 ## Description
@@ -34,21 +34,21 @@ The `Update-Hash` command recalculates and stores new hash values for all previo
 
 ```bash
 # Update hashes for all migrated files
-RayMigrator Update-Hash --product MyProduct --environment Production
+raymigrator Update-Hash --product MyProduct --environment Production
 ```
 
 ### After TOML Metadata Fix
 
 ```bash
 # After fixing a typo in a description
-RayMigrator Update-Hash -p MyProduct -env Development
+raymigrator Update-Hash -p MyProduct -env Development
 ```
 
 ### Update Hashes for Specific Target Groups
 
 ```bash
 # Update only Backend target group hashes
-RayMigrator Update-Hash -p MyProduct -env Production -tg Backend
+raymigrator Update-Hash -p MyProduct -env Production -tg Backend
 ```
 
 ## Execution Flow
@@ -121,7 +121,7 @@ Description = "Fixed typo in description"  -- Was: "Cretae users table"
 ```
 
 ```bash
-RayMigrator Update-Hash -p MyProduct -env Production
+raymigrator Update-Hash -p MyProduct -env Production
 ```
 
 ### 2. Update Metadata
@@ -145,7 +145,7 @@ After converting line endings (CRLF -> LF):
 dos2unix *.sql
 
 # Update hashes
-RayMigrator Update-Hash -p MyProduct -env Production
+raymigrator Update-Hash -p MyProduct -env Production
 ```
 
 ### 4. Bulk Comment Updates
@@ -153,7 +153,7 @@ RayMigrator Update-Hash -p MyProduct -env Production
 After adding/updating comments across many files:
 
 ```bash
-RayMigrator Update-Hash -p MyProduct -env Production
+raymigrator Update-Hash -p MyProduct -env Production
 ```
 
 ## When NOT to Use
@@ -170,7 +170,7 @@ Do **NOT** use Update-Hash if:
 
 1. **Investigate the change first**
    ```bash
-   RayMigrator Validate-Hash -p MyProduct -env Production
+   raymigrator Validate-Hash -p MyProduct -env Production
    ```
 
 2. **Review version control**
@@ -200,9 +200,9 @@ Only records with `MigrationStatusId = Migrated` are considered. Other statuses 
 
 1. **Always validate first**
    ```bash
-   RayMigrator Validate-Hash -p MyProduct -env Production
+   raymigrator Validate-Hash -p MyProduct -env Production
    # Review what changed
-   RayMigrator Update-Hash -p MyProduct -env Production
+   raymigrator Update-Hash -p MyProduct -env Production
    ```
 
 2. **Document the reason for update**
@@ -211,16 +211,16 @@ Only records with `MigrationStatusId = Migrated` are considered. Other statuses 
 
 3. **Update in all environments**
    ```bash
-   RayMigrator Update-Hash -p MyProduct -env Development
-   RayMigrator Update-Hash -p MyProduct -env Staging
-   RayMigrator Update-Hash -p MyProduct -env Production
+   raymigrator Update-Hash -p MyProduct -env Development
+   raymigrator Update-Hash -p MyProduct -env Staging
+   raymigrator Update-Hash -p MyProduct -env Production
    ```
 
 4. **Version control first**
    ```bash
    git add *.sql
    git commit -m "Fix documentation typos"
-   RayMigrator Update-Hash -p MyProduct -env Production
+   raymigrator Update-Hash -p MyProduct -env Production
    ```
 
 5. **Review changes in pull request**

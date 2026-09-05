@@ -680,20 +680,20 @@ If a previous migration was interrupted (e.g., process crash), the migration run
 
 ```bash
 # Dry run — see what would be fixed
-RayMigrator Fix --product MyProduct --environment Production --scope OrphanedRuns --dry-run
+raymigrator Fix --product MyProduct --environment Production --scope OrphanedRuns --dry-run
 
 # Fix orphaned runs older than 60 minutes (default)
-RayMigrator Fix --product MyProduct --environment Production --scope OrphanedRuns
+raymigrator Fix --product MyProduct --environment Production --scope OrphanedRuns
 ```
 
 ### 5. Resume or Restart
 
 ```bash
 # Continue from where it stopped
-RayMigrator Migrate-Up --product MyProduct --environment Production
+raymigrator Migrate-Up --product MyProduct --environment Production
 
 # Or update hashes if manual fix was applied
-RayMigrator Update-Hash --product MyProduct --environment Production
+raymigrator Update-Hash --product MyProduct --environment Production
 ```
 
 ## Best Practices

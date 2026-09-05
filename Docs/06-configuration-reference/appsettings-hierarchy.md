@@ -120,7 +120,7 @@ If **neither** is set, RayMigrator exits with an error (exit code 3). There is n
 
 **Command line** (recommended):
 ```bash
-RayMigrator Migrate-Up --product MyProduct --environment Docker --run-mode Migrate
+raymigrator Migrate-Up --product MyProduct --environment Docker --run-mode Migrate
 ```
 
 **Windows**:
@@ -148,27 +148,27 @@ By default, all configuration files are resolved relative to the **current worki
 
 ```
 RayMigrator/
-├── RayMigrator.dll
+├── raymigrator.dll
 ├── appsettings.json
 ├── appsettings.Docker.json
 ├── appsettings.Production.json
 └── appsettings.RayMigratorTests.json
 ```
 
-If you run RayMigrator from a different directory (e.g., `dotnet /path/to/RayMigrator.dll Migrate-Up ...`), the configuration files must be present in the directory where the command is run, not in the executable's directory.
+If you run RayMigrator from a different directory (e.g., `dotnet /path/to/raymigrator.dll Migrate-Up ...`), the configuration files must be present in the directory where the command is run, not in the executable's directory.
 
 ### Overriding the Configuration Directory
 
 The `--config-dir` (`-cd`) global option overrides the directory used to search for configuration files:
 
 ```bash
-RayMigrator Migrate-Up -p MyProduct -env Prod --config-dir /etc/raymigrator
+raymigrator Migrate-Up -p MyProduct -env Prod --config-dir /etc/raymigrator
 ```
 
 Both absolute and relative paths are accepted. Relative paths are resolved against the current working directory at parse time. The `{ENV:VAR_NAME}` placeholder syntax is supported:
 
 ```bash
-RayMigrator Migrate-Up -p MyProduct -env Prod --config-dir {ENV:CONFIG_DIR}
+raymigrator Migrate-Up -p MyProduct -env Prod --config-dir {ENV:CONFIG_DIR}
 ```
 
 If the specified directory does not exist, RayMigrator terminates with a `ConfigurationValidationException` before loading any configuration.

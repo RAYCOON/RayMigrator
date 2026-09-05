@@ -5,7 +5,7 @@ Validates migration file integrity against stored hash values.
 ## Synopsis
 
 ```bash
-RayMigrator Validate-Hash --product <ProductAlias> --environment <Environment> [options]
+raymigrator Validate-Hash --product <ProductAlias> --environment <Environment> [options]
 ```
 
 ## Description
@@ -50,31 +50,31 @@ This command is useful for:
 
 ```bash
 # Validate all migrated files for a product
-RayMigrator Validate-Hash --product MyProduct --environment Production
+raymigrator Validate-Hash --product MyProduct --environment Production
 ```
 
 ### Validate SQL Blocks Only
 
 ```bash
 # Allow TOML metadata changes but validate SQL
-RayMigrator Validate-Hash -p MyProduct -env Production --scope SqlBlocks
+raymigrator Validate-Hash -p MyProduct -env Production --scope SqlBlocks
 ```
 
 ### Validate Specific Target Groups
 
 ```bash
 # Validate only Backend target group
-RayMigrator Validate-Hash -p MyProduct -env Production -tg Backend
+raymigrator Validate-Hash -p MyProduct -env Production -tg Backend
 
 # Validate Backend and Analytics
-RayMigrator Validate-Hash -p MyProduct -env Production -tg Backend -tg Analytics
+raymigrator Validate-Hash -p MyProduct -env Production -tg Backend -tg Analytics
 ```
 
 ### CI/CD Pipeline
 
 ```bash
 # Exit with error code if validation fails
-RayMigrator Validate-Hash -p MyProduct -env Production || exit 1
+raymigrator Validate-Hash -p MyProduct -env Production || exit 1
 ```
 
 ## Validation Process
@@ -181,7 +181,7 @@ Determine if the change was intentional or unauthorized:
 Use [Update-Hash](update-hash.md) to accept the changes:
 
 ```bash
-RayMigrator Update-Hash -p MyProduct -env Production
+raymigrator Update-Hash -p MyProduct -env Production
 ```
 
 ### 3. Restore Original File
@@ -213,7 +213,7 @@ The per-TargetGroup `HashValidationScope` setting governs hash comparison in all
 1. **Run in CI/CD pipeline before deployment**
    ```yaml
    - name: Validate Migrations
-     run: RayMigrator Validate-Hash -p $PRODUCT -env $ENV
+     run: raymigrator Validate-Hash -p $PRODUCT -env $ENV
    ```
 
 2. **Use File scope for production**

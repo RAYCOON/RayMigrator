@@ -59,7 +59,7 @@ DROP TABLE IF EXISTS Users;
 ### Migrate-Down Command
 
 ```bash
-RayMigrator Migrate-Down -p MyProduct -env Prod --to-release "Release 1.0"
+raymigrator Migrate-Down -p MyProduct -env Prod --to-release "Release 1.0"
 ```
 
 Executes rollback files in reverse order for all migrations after the target release. Migrations at or before the target release remain intact.

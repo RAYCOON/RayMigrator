@@ -5,7 +5,7 @@ Executes database migrations in reverse (down) direction using rollback files.
 ## Synopsis
 
 ```bash
-RayMigrator Migrate-Down --product <ProductAlias> --environment <Environment> --to-release <ReleaseVersion> [options]
+raymigrator Migrate-Down --product <ProductAlias> --environment <Environment> --to-release <ReleaseVersion> [options]
 ```
 
 ## Description
@@ -46,31 +46,31 @@ See [Execution Modes — Run Mode](../02-core-concepts/execution-modes.md#run-mo
 
 ```bash
 # Rollback to Release 1.0
-RayMigrator Migrate-Down --product MyProduct --environment Production --to-release "Release 1.0"
+raymigrator Migrate-Down --product MyProduct --environment Production --to-release "Release 1.0"
 ```
 
 ### Simulate Rollback
 
 ```bash
 # Test what would be rolled back
-RayMigrator Migrate-Down -p MyProduct -env Staging -rm Simulate -tr "Release 1.0"
+raymigrator Migrate-Down -p MyProduct -env Staging -rm Simulate -tr "Release 1.0"
 ```
 
 ### Development Rollback
 
 ```bash
 # Rollback in development environment
-RayMigrator Migrate-Down -p MyProduct -env Development -rm Migrate -tr "Release 2.0"
+raymigrator Migrate-Down -p MyProduct -env Development -rm Migrate -tr "Release 2.0"
 ```
 
 ### Rollback Specific Target Groups
 
 ```bash
 # Rollback only Backend target group
-RayMigrator Migrate-Down -p MyProduct -env Production -tr "Release 1.0" -tg Backend
+raymigrator Migrate-Down -p MyProduct -env Production -tr "Release 1.0" -tg Backend
 
 # Rollback Backend and Frontend, leave Analytics untouched
-RayMigrator Migrate-Down -p MyProduct -env Production -tr "Release 1.0" -tg Backend -tg Frontend
+raymigrator Migrate-Down -p MyProduct -env Production -tr "Release 1.0" -tg Backend -tg Frontend
 ```
 
 ## Execution Flow
@@ -248,7 +248,7 @@ If rollback file is missing with `RequireRollbackFile=false`:
 
 1. **Always test in non-production first**
    ```bash
-   RayMigrator Migrate-Down -p MyProduct -env Development -rm Simulate -tr "Release 1.0"
+   raymigrator Migrate-Down -p MyProduct -env Development -rm Simulate -tr "Release 1.0"
    ```
 
 2. **Backup before rollback in production**

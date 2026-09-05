@@ -2,7 +2,7 @@
 
 This document describes the exact order in which SQL templates are executed when RayMigrator starts for the first time with no existing database structures (no repository tables, no logging tables).
 
-**Command:** `RayMigrator Migrate-Up --product X --environment Y --run-mode Migrate`
+**Command:** `raymigrator Migrate-Up --product X --environment Y --run-mode Migrate`
 
 ---
 

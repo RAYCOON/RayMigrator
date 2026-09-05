@@ -21,7 +21,7 @@ The `--run-mode` (alias `-rm`) option on `Migrate-Up` and `Migrate-Down` control
 Validate scans your migration files locally and reports what **would** be executed. It makes no changes whatsoever -- no SQL runs on target databases, no records are written to the repository, and no database connections are established at all.
 
 ```bash
-RayMigrator Migrate-Up -p BookStore -env Production -rm Validate
+raymigrator Migrate-Up -p BookStore -env Production -rm Validate
 ```
 
 ### What Validate Checks
@@ -47,7 +47,7 @@ RayMigrator Migrate-Up -p BookStore -env Production -rm Validate
 Simulate does everything Validate does, then goes further: it establishes actual connections to both the repository and target databases, reads existing migration records to determine what is already migrated, and validates connectivity. No SQL migration blocks are executed on target databases and no repository records are written.
 
 ```bash
-RayMigrator Migrate-Up -p BookStore -env Staging -rm Simulate
+raymigrator Migrate-Up -p BookStore -env Staging -rm Simulate
 ```
 
 ### What Simulate Does Beyond Validate
@@ -81,7 +81,7 @@ RayMigrator Migrate-Up -p BookStore -env Staging -rm Simulate
 Migrate is the full execution mode. It discovers pending migrations, executes the SQL on target databases, and creates repository records reflecting the actual results.
 
 ```bash
-RayMigrator Migrate-Up -p BookStore -env Production -rm Migrate
+raymigrator Migrate-Up -p BookStore -env Production -rm Migrate
 ```
 
 ### What Migrate Does
@@ -124,7 +124,7 @@ Let us walk through all three modes using the BookStore product.
 ### Step 1: Validate -- Check for Issues
 
 ```bash
-RayMigrator Migrate-Up -p BookStore -env Production -rm Validate
+raymigrator Migrate-Up -p BookStore -env Production -rm Validate
 ```
 
 Validate scans the migration files and reports:
@@ -137,7 +137,7 @@ If Validate succeeds, you know the migration files are structurally sound. Note 
 ### Step 2: Simulate -- Dry Run with Repository Tracking
 
 ```bash
-RayMigrator Migrate-Up -p BookStore -env Staging -rm Simulate
+raymigrator Migrate-Up -p BookStore -env Staging -rm Simulate
 ```
 
 Simulate reads the repository and processes all migration files without executing SQL or writing any records. After this step, the console output shows:
@@ -148,7 +148,7 @@ Simulate reads the repository and processes all migration files without executin
 ### Step 3: Migrate -- Execute for Real
 
 ```bash
-RayMigrator Migrate-Up -p BookStore -env Production -rm Migrate
+raymigrator Migrate-Up -p BookStore -env Production -rm Migrate
 ```
 
 Migrate runs the actual SQL on target databases. After completion:
@@ -174,10 +174,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Validate migrations
-        run: RayMigrator Migrate-Up -p BookStore -env CI -rm Validate
+        run: raymigrator Migrate-Up -p BookStore -env CI -rm Validate
 
       - name: Check hashes
-        run: RayMigrator Validate-Hash -p BookStore -env CI
+        run: raymigrator Validate-Hash -p BookStore -env CI
 
   migration-deploy-staging:
     needs: migration-validate
@@ -188,7 +188,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Simulate in staging
-        run: RayMigrator Migrate-Up -p BookStore -env Staging -rm Simulate
+        run: raymigrator Migrate-Up -p BookStore -env Staging -rm Simulate
 
   migration-deploy-production:
     needs: migration-deploy-staging
@@ -199,7 +199,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Migrate production
-        run: RayMigrator Migrate-Up -p BookStore -env Production -rm Migrate
+        run: raymigrator Migrate-Up -p BookStore -env Production -rm Migrate
 ```
 
 ### Pipeline Design Principles

@@ -270,9 +270,9 @@ The behavior of each mode is determined by extension methods on `MigrationRunMod
 Execute actual database changes.
 
 ```bash
-RayMigrator Migrate-Up --product MyProduct --environment Production
+raymigrator Migrate-Up --product MyProduct --environment Production
 # or explicitly:
-RayMigrator Migrate-Up --product MyProduct --environment Production --run-mode Migrate
+raymigrator Migrate-Up --product MyProduct --environment Production --run-mode Migrate
 ```
 
 ### Simulate
@@ -280,7 +280,7 @@ RayMigrator Migrate-Up --product MyProduct --environment Production --run-mode M
 Validate and process everything, connect to target databases for connectivity validation, but do not execute SQL on target databases.
 
 ```bash
-RayMigrator Migrate-Up --product MyProduct --environment Production --run-mode Simulate
+raymigrator Migrate-Up --product MyProduct --environment Production --run-mode Simulate
 ```
 
 **Simulate Mode**:
@@ -304,8 +304,8 @@ RayMigrator Migrate-Up --product MyProduct --environment Production --run-mode S
 Validate configuration, migration files, and rollback files without any database operations.
 
 ```bash
-RayMigrator Migrate-Up --product MyProduct --environment Production --run-mode Validate
-RayMigrator Migrate-Down --product MyProduct --environment Production --to-release "Release 1.0" --run-mode Validate
+raymigrator Migrate-Up --product MyProduct --environment Production --run-mode Validate
+raymigrator Migrate-Down --product MyProduct --environment Production --to-release "Release 1.0" --run-mode Validate
 ```
 
 **Validate Mode**:
@@ -457,7 +457,7 @@ Out-of-Order Migration is controlled via the CLI parameter:
 
 ```bash
 # One-time opt-in for a specific migration run
-RayMigrator Migrate-Up -p MyProduct -env Production -rm Migrate --allow-out-of-order
+raymigrator Migrate-Up -p MyProduct -env Production -rm Migrate --allow-out-of-order
 ```
 
 | Parameter | Short | Default | Description |

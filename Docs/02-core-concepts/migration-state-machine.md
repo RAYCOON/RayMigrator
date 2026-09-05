@@ -278,7 +278,7 @@ Manually repair the database state:
 Use `Update-Hash` to synchronize repository with actual database state:
 
 ```bash
-RayMigrator Update-Hash -p MyProduct -env Production
+raymigrator Update-Hash -p MyProduct -env Production
 ```
 
 ### 4. Manually Set Status (if needed)

@@ -159,7 +159,7 @@ Raycoon.RayMigrator.Database.Example/          <- Skeleton template for external
 **Runtime directory structure:**
 ```
 bin/Debug/{TargetFramework}/   (e.g., net10.0, net9.0, or net8.0)
-├── RayMigrator.dll
+├── raymigrator.dll
 ├── Raycoon.RayMigrator.Database.Common.dll
 ├── DataAccessLayers/
 │   ├── SqlServer/

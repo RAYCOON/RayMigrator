@@ -176,7 +176,7 @@ Options when encountering this error:
 3. **Investigate**: Check if the other process is actually running
 4. **Fix Command**: Use the Fix command to clean up orphaned runs manually (especially those newer than 10 minutes):
    ```
-   RayMigrator Fix --product <alias> --environment <env> --scope OrphanedRuns
+   raymigrator Fix --product <alias> --environment <env> --scope OrphanedRuns
    ```
 
 ## Implementation Details
@@ -284,16 +284,16 @@ In CI/CD pipelines, ensure migrations run sequentially:
 jobs:
   migrate:
     steps:
-      - run: RayMigrator Migrate-Up --product MyProduct
+      - run: raymigrator Migrate-Up --product MyProduct
 
 # Avoid: Parallel migrations for same product
 jobs:
   migrate-1:
     steps:
-      - run: RayMigrator Migrate-Up --product MyProduct
+      - run: raymigrator Migrate-Up --product MyProduct
   migrate-2:  # Runs in parallel - will fail!
     steps:
-      - run: RayMigrator Migrate-Up --product MyProduct
+      - run: raymigrator Migrate-Up --product MyProduct
 ```
 
 ### 2. Use Process Managers
@@ -328,7 +328,7 @@ catch (MigrationAlreadyRunningException ex)
     _logger.LogInformation(
         "To resolve this issue, either wait for the running migration to complete, " +
         "or use the Fix command to clean up orphaned runs: " +
-        "RayMigrator Fix --product {Product} --environment {Environment} --scope OrphanedRuns",
+        "raymigrator Fix --product {Product} --environment {Environment} --scope OrphanedRuns",
         _consoleOptions.Product, _consoleOptions.Environment);
     return 1;
 }

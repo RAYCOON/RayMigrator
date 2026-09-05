@@ -337,7 +337,7 @@ Shows the current migration status for a product.
 
 ## Synopsis
 
-RayMigrator Migrate-Status --product <ProductAlias> --environment <Environment> [options]
+raymigrator Migrate-Status --product <ProductAlias> --environment <Environment> [options]
 
 ## Options
 

@@ -201,7 +201,7 @@ Connection strings from launch profile environment variables are referenced in `
       "name": "Docker MigrateUp SqlServer",
       "type": "coreclr",
       "request": "launch",
-      "program": "${workspaceFolder}/Raycoon.RayMigrator.Console/bin/Debug/net10.0/RayMigrator.dll",
+      "program": "${workspaceFolder}/Raycoon.RayMigrator.Console/bin/Debug/net10.0/raymigrator.dll",
       "args": ["Migrate-Up", "--product", "RM_Tests_Mac_SqlServer", "-env", "Docker", "--run-mode", "Migrate"],
       "env": {
         "DOTNET_ENVIRONMENT": "Docker",

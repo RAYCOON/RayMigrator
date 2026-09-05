@@ -163,7 +163,7 @@ Disabled: No hash validation. Use with caution -- changes to already-applied mig
   <data name="Product_Alias_Title" xml:space="preserve"><value>Product - Alias</value></data>
   <data name="Product_Alias_Description" xml:space="preserve"><value>Unique name identifying this product. Used in CLI commands to select which product to migrate.</value></data>
   <data name="Product_Alias_Examples" xml:space="preserve"><value>MyApp, BackendService, DataWarehouse</value></data>
-  <data name="Product_Alias_InheritanceNote" xml:space="preserve"><value>Used in CLI commands: RayMigrator Migrate-Up --product MyApp</value></data>
+  <data name="Product_Alias_InheritanceNote" xml:space="preserve"><value>Used in CLI commands: raymigrator Migrate-Up --product MyApp</value></data>
   <data name="Product_MigrationFilesRootDirectory_Title" xml:space="preserve"><value>Product - MigrationFilesRootDirectory</value></data>
   <data name="Product_MigrationFilesRootDirectory_Description" xml:space="preserve"><value>Path to the root directory containing migration files. Structure: Root/Release_X/TargetGroup/files.sql.</value></data>
   <data name="Product_MigrationFilesRootDirectory_Examples" xml:space="preserve"><value>./Migrations/MyApp

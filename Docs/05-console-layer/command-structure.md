@@ -288,31 +288,31 @@ System.CommandLine handles:
 
 ```bash
 # Basic usage
-RayMigrator Migrate-Up --product MyProduct --environment Production
+raymigrator Migrate-Up --product MyProduct --environment Production
 
 # Short form
-RayMigrator Migrate-Up -p MyProduct -env Production
+raymigrator Migrate-Up -p MyProduct -env Production
 
 # With optional parameters
-RayMigrator Migrate-Up -p MyProduct -env Production -rm Simulate -tr "Release 1.0"
+raymigrator Migrate-Up -p MyProduct -env Production -rm Simulate -tr "Release 1.0"
 
 # With environment variable substitution
-RayMigrator Migrate-Up -p "{ENV:PRODUCT_NAME}" -env "{ENV:TARGET_ENV}"
+raymigrator Migrate-Up -p "{ENV:PRODUCT_NAME}" -env "{ENV:TARGET_ENV}"
 
 # Show help
-RayMigrator --help
-RayMigrator Migrate-Up --help
+raymigrator --help
+raymigrator Migrate-Up --help
 ```
 
 ## Help Output
 
-When the user runs `RayMigrator --help`, the custom `LogoHelpAction` (set on the root command's `HelpOption.Action`) prepends the ASCII assembly-info banner, strips the empty `Description:` section from the default help text, and writes the result to standard output:
+When the user runs `raymigrator --help`, the custom `LogoHelpAction` (set on the root command's `HelpOption.Action`) prepends the ASCII assembly-info banner, strips the empty `Description:` section from the default help text, and writes the result to standard output:
 
 ```
 [ASCII logo banner from AssemblyInfoHelper.GetAssemblyInfo()]
 
 Usage:
-  RayMigrator [command] [options]
+  raymigrator [command] [options]
 
 Options:
   -si, --startup-info             Show startup information [default: True]
@@ -331,7 +331,7 @@ Commands:
   Fix            Fix repository inconsistencies (orphaned runs)
 ```
 
-For subcommands (`RayMigrator Migrate-Up --help`), the default help renderer is used without the logo banner.
+For subcommands (`raymigrator Migrate-Up --help`), the default help renderer is used without the logo banner.
 
 ## Exit Codes
 
@@ -349,7 +349,7 @@ sequenceDiagram
     participant Svc as RayMigratorService
     participant Mig as IMigrationService
 
-    User->>CLI: RayMigrator Migrate-Up -p X -env Y
+    User->>CLI: raymigrator Migrate-Up -p X -env Y
     CLI->>CLI: Parse arguments into RayMigratorConsoleOptions
     CLI->>CLI: Validate options
 

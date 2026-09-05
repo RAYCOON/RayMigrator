@@ -5,6 +5,21 @@ All notable changes to RayMigrator are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 RayMigrator follows Semantic Versioning where applicable.
 
+## [Unreleased]
+
+### Changed
+
+- **Breaking (Linux/macOS):** the CLI executable is now shipped as
+  lowercase `raymigrator` (`raymigrator.exe` on Windows) instead of
+  `RayMigrator`. `AssemblyName` changed accordingly, so the managed
+  assembly, `deps.json` and `runtimeconfig.json` are renamed as well and
+  `--help` now prints `raymigrator [command] [options]`. Pipelines that
+  invoke `RayMigrator ...` on case-sensitive filesystems fail with
+  "command not found" after upgrading; on Windows the old spelling keeps
+  working because `PATH` resolution is case-insensitive. Release archive
+  names (`RayMigrator-<version>-<rid>.*`) are unchanged. All documentation
+  and the ConfigWizard field help use the new name. (#1)
+
 ## [0.11.0] — 2026-08-17
 
 ### Licensing

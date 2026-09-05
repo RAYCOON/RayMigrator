@@ -165,10 +165,10 @@ Check file integrity without executing migrations:
 
 ```bash
 # Validate using per-TargetGroup configured scope (no --scope override)
-RayMigrator Validate-Hash -p MyProduct -env Production
+raymigrator Validate-Hash -p MyProduct -env Production
 
 # Override scope to SqlBlocks for all TargetGroups
-RayMigrator Validate-Hash -p MyProduct -env Production -s SqlBlocks
+raymigrator Validate-Hash -p MyProduct -env Production -s SqlBlocks
 ```
 
 When `--scope` is omitted, each file is validated using its TargetGroup's configured `HashValidationScope`. When `--scope` is provided, it overrides the configuration for all TargetGroups. See [Validate-Hash Command](../08-cli-reference/validate-hash.md) for all options.
@@ -188,7 +188,7 @@ Validation completed: 2 valid, 1 modified, 0 missing, 1 new (not yet migrated)
 Update stored hashes after approved changes:
 
 ```bash
-RayMigrator Update-Hash -p MyProduct -env Production
+raymigrator Update-Hash -p MyProduct -env Production
 ```
 
 Update-Hash always recalculates and updates all three hashes (FileUpHash, FileUpConfigHash, FileUpBlocksHash) for every migrated file where any hash has changed. It does not use HashValidationScope -- all hashes are updated regardless.
@@ -232,7 +232,7 @@ git checkout HEAD -- migrations/003_UpdateSchema.sql
 
 **Option B**: Accept change and update hash
 ```bash
-RayMigrator Update-Hash -p MyProduct -env Production
+raymigrator Update-Hash -p MyProduct -env Production
 ```
 
 ## Block-Level Tracking

@@ -243,7 +243,7 @@ In your `appsettings.json`, set the error handling strategy to `Rollback`:
 ### Step 3: Run the Migration
 
 ```bash
-RayMigrator Migrate-Up -p BookStore -env Development -rm Migrate
+raymigrator Migrate-Up -p BookStore -env Development -rm Migrate
 ```
 
 **Expected result:** Migration 002 fails because the table `NonExistentTable` does not exist. With `Rollback` strategy, RayMigrator automatically rolls back Migration 001 (Categories), leaving the database unchanged from before the run.
@@ -251,7 +251,7 @@ RayMigrator Migrate-Up -p BookStore -env Development -rm Migrate
 ### Step 4: Check the Result
 
 ```bash
-RayMigrator Info -p BookStore -env Development
+raymigrator Info -p BookStore -env Development
 ```
 
 You will see that:
@@ -274,7 +274,7 @@ ALTER TABLE [dbo].[Books] ADD [CategoryId] INT NULL;
 ```
 
 ```bash
-RayMigrator Migrate-Up -p BookStore -env Development -rm Migrate
+raymigrator Migrate-Up -p BookStore -env Development -rm Migrate
 ```
 
 Both migrations now succeed, and all records show status `Migrated` (100).
@@ -323,7 +323,7 @@ RayMigrator also provides a guidance message:
 ```
 To resolve this issue, either wait for the running migration to complete,
 or use the Fix command to clean up orphaned runs:
-RayMigrator Fix --product <Product> --environment <Environment> --scope OrphanedRuns
+raymigrator Fix --product <Product> --environment <Environment> --scope OrphanedRuns
 ```
 
 ---
@@ -338,10 +338,10 @@ See [Fix Reference](../08-cli-reference/command-reference.md#fix) for all option
 
 ```bash
 # Always preview before fixing
-RayMigrator Fix -p BookStore -env Production --dry-run
+raymigrator Fix -p BookStore -env Production --dry-run
 
 # Fix orphaned runs older than 60 minutes (default)
-RayMigrator Fix -p BookStore -env Production
+raymigrator Fix -p BookStore -env Production
 ```
 
 ### Key Options

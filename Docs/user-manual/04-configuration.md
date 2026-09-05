@@ -28,7 +28,7 @@ In Standalone mode, RayMigrator loads configuration from up to four JSON files, 
 By default, RayMigrator looks for these files in the current working directory. Use the `--config-dir` (`-cd`) global CLI option to override the directory:
 
 ```bash
-RayMigrator Migrate-Up -p BookStore -env Production -rm Migrate --config-dir /etc/raymigrator
+raymigrator Migrate-Up -p BookStore -env Production -rm Migrate --config-dir /etc/raymigrator
 ```
 
 The `{ENV:VARIABLE_NAME}` placeholder syntax is supported in the `--config-dir` value. See [Global Options](../08-cli-reference/global-options.md#--config-dir--cd) for full details.
@@ -36,7 +36,7 @@ The `{ENV:VARIABLE_NAME}` placeholder syntax is supported in the `--config-dir` 
 The `{Environment}` value comes from the `--environment` (or `-env`) CLI option:
 
 ```bash
-RayMigrator Migrate-Up --product BookStore --environment Production
+raymigrator Migrate-Up --product BookStore --environment Production
 ```
 
 This would load, in order:

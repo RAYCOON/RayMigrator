@@ -145,7 +145,7 @@ Two additional validations run inside `DiscoverAndPrepareMigrationFiles` before 
 
 ```bash
 # Only migrate up to Release 1.0
-RayMigrator Migrate-Up -p X -env Y --to-release "Release 1.0"
+raymigrator Migrate-Up -p X -env Y --to-release "Release 1.0"
 ```
 
 ### By Target Groups
@@ -154,7 +154,7 @@ RayMigrator Migrate-Up -p X -env Y --to-release "Release 1.0"
 
 ```bash
 # Only migrate the Backend target group
-RayMigrator Migrate-Up -p X -env Y --target-group Backend
+raymigrator Migrate-Up -p X -env Y --target-group Backend
 ```
 
 ### Out-of-Order Detection

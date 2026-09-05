@@ -86,10 +86,10 @@ If you intentionally modify an already-executed migration file:
 3. Run `Update-Hash` to update stored hashes
 
 ```bash
-RayMigrator Validate-Hash -p BookStore -env Production
+raymigrator Validate-Hash -p BookStore -env Production
 # Shows: "Hash mismatch for 001_CreateBooks.sql"
 
-RayMigrator Update-Hash -p BookStore -env Production
+raymigrator Update-Hash -p BookStore -env Production
 # Updates stored hashes to match current files
 ```
 
@@ -101,7 +101,7 @@ A typical pre-deployment validation step:
 
 ```bash
 # Validate that no executed migration files have been tampered with
-RayMigrator Validate-Hash -p BookStore -env Production
+raymigrator Validate-Hash -p BookStore -env Production
 
 # Exit code 0 = all hashes match
 # Non-zero = one or more files have changed
@@ -128,7 +128,7 @@ After Baseline (--to-release "Release 1.2"):
 ### CLI Syntax
 
 ```bash
-RayMigrator Baseline --product <alias> --environment <env> [--to-release <release>] [--target-group <group>] [--TargetGroup-MigrationOrder <order>]
+raymigrator Baseline --product <alias> --environment <env> [--to-release <release>] [--target-group <group>] [--TargetGroup-MigrationOrder <order>]
 ```
 
 | Option | Alias | Required | Default | Description |
@@ -146,7 +146,7 @@ For the full option reference, see [CLI Reference — Baseline](../08-cli-refere
 **Full Baseline** — omit `--to-release` to mark every migration file as migrated:
 
 ```bash
-RayMigrator Baseline -p BookStore -env Production
+raymigrator Baseline -p BookStore -env Production
 ```
 
 Use this when the target database is completely up-to-date with all releases and you simply want to start tracking from this point.
@@ -154,7 +154,7 @@ Use this when the target database is completely up-to-date with all releases and
 **Partial Baseline** — use `--to-release` to mark only releases up to (and including) the specified version:
 
 ```bash
-RayMigrator Baseline -p BookStore -env Production -tr "Release 1.2"
+raymigrator Baseline -p BookStore -env Production -tr "Release 1.2"
 ```
 
 Use this when the target database is at a specific release level and you want Migrate-Up to apply everything after that release. This is the most common scenario when onboarding an existing database.
@@ -213,13 +213,13 @@ Suppose the BookStore database already has all tables from Release 1.0 through R
 **Step 2** — Run Baseline for the existing releases:
 
 ```bash
-RayMigrator Baseline -p BookStore -env Production -tr "Release 1.2"
+raymigrator Baseline -p BookStore -env Production -tr "Release 1.2"
 ```
 
 **Step 3** — Verify the repository state with the Info command:
 
 ```bash
-RayMigrator Info -p BookStore -env Production
+raymigrator Info -p BookStore -env Production
 ```
 
 This shows the current release as `Release 1.2`, the total migrations executed as the count of Releases 1.0–1.2 files, and Release 2.0 files counted as pending migrations.
@@ -227,7 +227,7 @@ This shows the current release as `Release 1.2`, the total migrations executed a
 **Step 4** — Apply the new release:
 
 ```bash
-RayMigrator Migrate-Up -p BookStore -env Production -rm Migrate
+raymigrator Migrate-Up -p BookStore -env Production -rm Migrate
 ```
 
 RayMigrator skips Releases 1.0–1.2 (already baselined) and executes only Release 2.0.
@@ -235,7 +235,7 @@ RayMigrator skips Releases 1.0–1.2 (already baselined) and executes only Relea
 **Step 5** — Confirm integrity:
 
 ```bash
-RayMigrator Validate-Hash -p BookStore -env Production
+raymigrator Validate-Hash -p BookStore -env Production
 ```
 
 > **Tip:** Always run Baseline in a staging environment first. Use the Info command to verify the repository records look correct before applying to production.
@@ -247,7 +247,7 @@ RayMigrator Validate-Hash -p BookStore -env Production
 Use `--target-group` to baseline only a specific target group:
 
 ```bash
-RayMigrator Baseline -p BookStore -env Production -tg Backend
+raymigrator Baseline -p BookStore -env Production -tg Backend
 ```
 
 This is useful for incremental onboarding — for example, when the backend databases are ready for tracking but the reporting databases are still being set up. You can baseline each target group independently.
@@ -261,7 +261,7 @@ By default, RayMigrator requires migrations to be executed in strict sequential 
 Use `--allow-out-of-order` / `-ooo` to allow executing older migrations that were previously skipped:
 
 ```bash
-RayMigrator Migrate-Up -p BookStore -env Development -rm Migrate --allow-out-of-order
+raymigrator Migrate-Up -p BookStore -env Development -rm Migrate --allow-out-of-order
 ```
 
 ### When to Use
@@ -276,7 +276,7 @@ Team A creates `003_CreateReviews.sql` and merges it. Team B, working from an ol
 
 ```bash
 # Allow the out-of-order migration
-RayMigrator Migrate-Up -p BookStore -env Development -rm Migrate --allow-out-of-order
+raymigrator Migrate-Up -p BookStore -env Development -rm Migrate --allow-out-of-order
 ```
 
 > **Caution:** Use out-of-order execution carefully. Ensure the skipped migration does not depend on later migrations that have already been applied.
@@ -419,10 +419,10 @@ Use `--target-group` / `-tg` to run migrations only on specific target groups:
 
 ```bash
 # Only migrate the Backend target group
-RayMigrator Migrate-Up -p BookStore -env Production -rm Migrate -tg Backend
+raymigrator Migrate-Up -p BookStore -env Production -rm Migrate -tg Backend
 
 # Migrate multiple target groups
-RayMigrator Migrate-Up -p BookStore -env Production -rm Migrate -tg Backend -tg Reporting
+raymigrator Migrate-Up -p BookStore -env Production -rm Migrate -tg Backend -tg Reporting
 ```
 
 ### When to Use
@@ -436,13 +436,13 @@ RayMigrator Migrate-Up -p BookStore -env Production -rm Migrate -tg Backend -tg 
 
 ```bash
 # Step 1: Deploy to non-critical databases first
-RayMigrator Migrate-Up -p BookStore -env Production -rm Migrate -tg Reporting
+raymigrator Migrate-Up -p BookStore -env Production -rm Migrate -tg Reporting
 
 # Step 2: Verify reporting database is healthy
 # ... run smoke tests ...
 
 # Step 3: Deploy to the primary backend
-RayMigrator Migrate-Up -p BookStore -env Production -rm Migrate -tg Backend
+raymigrator Migrate-Up -p BookStore -env Production -rm Migrate -tg Backend
 ```
 
 ---
@@ -453,7 +453,7 @@ By default, target groups are processed in the order they appear in the `TargetG
 
 ```bash
 # Process Frontend before Backend, regardless of configuration order
-RayMigrator Migrate-Up -p BookStore -env Production -rm Migrate -tgmo "Frontend,Backend"
+raymigrator Migrate-Up -p BookStore -env Production -rm Migrate -tgmo "Frontend,Backend"
 ```
 
 The execution order can also be set at a more permanent level:
@@ -495,7 +495,7 @@ Use `--to-release` / `-tr` to limit migration execution to a specific release:
 
 ```bash
 # Only migrate up to Release 2.0 (skip Release 2.1 and beyond)
-RayMigrator Migrate-Up -p BookStore -env Production -rm Migrate -tr "Release 2.0"
+raymigrator Migrate-Up -p BookStore -env Production -rm Migrate -tr "Release 2.0"
 ```
 
 This is useful for:
@@ -765,13 +765,13 @@ The `Fix` command resolves repository inconsistencies such as orphaned migration
 
 ```bash
 # Fix orphaned runs older than 60 minutes (default)
-RayMigrator Fix -p BookStore -env Production
+raymigrator Fix -p BookStore -env Production
 
 # Fix all orphaned runs immediately (no age threshold)
-RayMigrator Fix -p BookStore -env Production --older-than 0
+raymigrator Fix -p BookStore -env Production --older-than 0
 
 # Preview what would be fixed without applying changes
-RayMigrator Fix -p BookStore -env Production --dry-run
+raymigrator Fix -p BookStore -env Production --dry-run
 ```
 
 ### Options

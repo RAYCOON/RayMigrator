@@ -5,7 +5,7 @@ Executes database migrations in forward (up) direction.
 ## Synopsis
 
 ```bash
-RayMigrator Migrate-Up --product <ProductAlias> --environment <Environment> [--run-mode <mode>] [--stop-rollback-on-missing-rollback-file <bool>] [options]
+raymigrator Migrate-Up --product <ProductAlias> --environment <Environment> [--run-mode <mode>] [--stop-rollback-on-missing-rollback-file <bool>] [options]
 ```
 
 ## Description
@@ -59,7 +59,7 @@ When omitted, the value from configuration is used. When `true`, the error-recov
 
 ```bash
 # Allow error-recovery rollback to continue past missing rollback files
-RayMigrator Migrate-Up -p MyProduct -env Production -rm Migrate -sromrf false
+raymigrator Migrate-Up -p MyProduct -env Production -rm Migrate -sromrf false
 ```
 
 ### TargetGroup-MigrationOrder Parameter
@@ -72,7 +72,7 @@ The value is a single string with alias names separated by commas. Whitespace ar
 
 ```bash
 # Execute Frontend before Backend for this run
-RayMigrator Migrate-Up -p MyProduct -env Production -rm Migrate -tgmo "Frontend, Backend"
+raymigrator Migrate-Up -p MyProduct -env Production -rm Migrate -tgmo "Frontend, Backend"
 ```
 
 ## Environment Variable Support
@@ -80,7 +80,7 @@ RayMigrator Migrate-Up -p MyProduct -env Production -rm Migrate -tgmo "Frontend,
 All parameter values can be loaded from environment variables:
 
 ```bash
-RayMigrator Migrate-Up --product {ENV:PRODUCT_NAME} --environment {ENV:TARGET_ENV} --run-mode Migrate
+raymigrator Migrate-Up --product {ENV:PRODUCT_NAME} --environment {ENV:TARGET_ENV} --run-mode Migrate
 ```
 
 ## Examples
@@ -89,45 +89,45 @@ RayMigrator Migrate-Up --product {ENV:PRODUCT_NAME} --environment {ENV:TARGET_EN
 
 ```bash
 # Migrate to latest version in Development
-RayMigrator Migrate-Up --product MyProduct --environment Development --run-mode Migrate
+raymigrator Migrate-Up --product MyProduct --environment Development --run-mode Migrate
 ```
 
 ### Simulate Migration
 
 ```bash
 # Test what would be migrated without executing
-RayMigrator Migrate-Up -p MyProduct -env Staging -rm Simulate
+raymigrator Migrate-Up -p MyProduct -env Staging -rm Simulate
 ```
 
 ### Migrate to Specific Release
 
 ```bash
 # Migrate only up to Release 2.0
-RayMigrator Migrate-Up --product MyProduct --environment Production --run-mode Migrate --to-release "Release 2.0"
+raymigrator Migrate-Up --product MyProduct --environment Production --run-mode Migrate --to-release "Release 2.0"
 ```
 
 ### Migrate Specific Target Groups
 
 ```bash
 # Migrate only Backend target group
-RayMigrator Migrate-Up -p MyProduct -env Production -rm Migrate -tg Backend
+raymigrator Migrate-Up -p MyProduct -env Production -rm Migrate -tg Backend
 
 # Migrate Backend and Analytics target groups
-RayMigrator Migrate-Up -p MyProduct -env Production -rm Migrate -tg Backend -tg Analytics
+raymigrator Migrate-Up -p MyProduct -env Production -rm Migrate -tg Backend -tg Analytics
 ```
 
 ### Control TargetGroup Execution Order
 
 ```bash
 # Execute Frontend before Backend (overrides config array order)
-RayMigrator Migrate-Up -p MyProduct -env Production -rm Migrate -tgmo "Frontend, Backend"
+raymigrator Migrate-Up -p MyProduct -env Production -rm Migrate -tgmo "Frontend, Backend"
 ```
 
 ### Debug Mode
 
 ```bash
 # Show sensitive data in logs for debugging
-RayMigrator Migrate-Up -p MyProduct -env Development -rm Migrate --reveal-sensitive-data true
+raymigrator Migrate-Up -p MyProduct -env Development -rm Migrate --reveal-sensitive-data true
 ```
 
 ## Execution Flow

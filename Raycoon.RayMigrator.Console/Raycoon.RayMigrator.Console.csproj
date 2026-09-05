@@ -14,7 +14,7 @@
         <AssemblyVersion>$(RayMigratorVersion)</AssemblyVersion>
         <Description>Pro Database Migration Framework</Description>
         <Authors>Daniel Pavic</Authors>
-        <AssemblyName>RayMigrator</AssemblyName>
+        <AssemblyName>raymigrator</AssemblyName>
         <LangVersion>default</LangVersion>
         <TargetFrameworks>net10.0;net9.0;net8.0</TargetFrameworks>
         <IsPackable>false</IsPackable>

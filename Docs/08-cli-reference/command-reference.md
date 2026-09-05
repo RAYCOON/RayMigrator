@@ -41,7 +41,7 @@ Apply pending migrations forward.
 ### Synopsis
 
 ```bash
-RayMigrator Migrate-Up --product <alias> --environment <env> [--run-mode <mode>] [--to-release <version>] [--target-group <group>...] [--allow-out-of-order] [--stop-rollback-on-missing-rollback-file <bool>] [--TargetGroup-MigrationOrder <order>] [global-options]
+raymigrator Migrate-Up --product <alias> --environment <env> [--run-mode <mode>] [--to-release <version>] [--target-group <group>...] [--allow-out-of-order] [--stop-rollback-on-missing-rollback-file <bool>] [--TargetGroup-MigrationOrder <order>] [global-options]
 ```
 
 ### Options
@@ -96,22 +96,22 @@ RayMigrator Migrate-Up --product <alias> --environment <env> [--run-mode <mode>]
 
 ```bash
 # Basic migration
-RayMigrator Migrate-Up --product MyProduct --environment Development --run-mode Migrate
+raymigrator Migrate-Up --product MyProduct --environment Development --run-mode Migrate
 
 # Simulate (dry run)
-RayMigrator Migrate-Up -p MyProduct -env Staging -rm Simulate
+raymigrator Migrate-Up -p MyProduct -env Staging -rm Simulate
 
 # Migrate to a specific release
-RayMigrator Migrate-Up -p MyProduct -env Production -rm Migrate -tr "Release 2.0"
+raymigrator Migrate-Up -p MyProduct -env Production -rm Migrate -tr "Release 2.0"
 
 # Execute Frontend before Backend (overrides config array order)
-RayMigrator Migrate-Up -p MyProduct -env Production -rm Migrate -tgmo "Frontend, Backend"
+raymigrator Migrate-Up -p MyProduct -env Production -rm Migrate -tgmo "Frontend, Backend"
 
 # Debug mode with sensitive data
-RayMigrator Migrate-Up -p MyProduct -env Dev -rm Migrate --reveal-sensitive-data true
+raymigrator Migrate-Up -p MyProduct -env Dev -rm Migrate --reveal-sensitive-data true
 
 # Suppress startup banner
-RayMigrator Migrate-Up -p MyProduct -env Prod -rm Migrate --startup-info false
+raymigrator Migrate-Up -p MyProduct -env Prod -rm Migrate --startup-info false
 ```
 
 ---
@@ -123,7 +123,7 @@ Rollback to a previous version.
 ### Synopsis
 
 ```bash
-RayMigrator Migrate-Down --product <alias> --environment <env> --to-release <version> [--run-mode <mode>] [--target-group <group>...] [global-options]
+raymigrator Migrate-Down --product <alias> --environment <env> --to-release <version> [--run-mode <mode>] [--target-group <group>...] [global-options]
 ```
 
 ### Options
@@ -164,13 +164,13 @@ RayMigrator Migrate-Down --product <alias> --environment <env> --to-release <ver
 
 ```bash
 # Rollback to Release 1.0
-RayMigrator Migrate-Down --product MyProduct --environment Production --to-release "Release 1.0"
+raymigrator Migrate-Down --product MyProduct --environment Production --to-release "Release 1.0"
 
 # Simulate rollback
-RayMigrator Migrate-Down -p MyProduct -env Staging -rm Simulate -tr "Release 1.0"
+raymigrator Migrate-Down -p MyProduct -env Staging -rm Simulate -tr "Release 1.0"
 
 # Short form
-RayMigrator Migrate-Down -p MyProduct -env Dev -rm Migrate -tr "Release 2.0"
+raymigrator Migrate-Down -p MyProduct -env Dev -rm Migrate -tr "Release 2.0"
 ```
 
 ---
@@ -182,7 +182,7 @@ Verify migration file integrity by comparing stored hashes against current file 
 ### Synopsis
 
 ```bash
-RayMigrator Validate-Hash --product <alias> --environment <env> [--scope <scope>] [--target-group <group>...] [global-options]
+raymigrator Validate-Hash --product <alias> --environment <env> [--scope <scope>] [--target-group <group>...] [global-options]
 ```
 
 ### Options
@@ -219,13 +219,13 @@ RayMigrator Validate-Hash --product <alias> --environment <env> [--scope <scope>
 
 ```bash
 # Validate file-level hashes
-RayMigrator Validate-Hash --product MyProduct --environment Production
+raymigrator Validate-Hash --product MyProduct --environment Production
 
 # Validate SQL block-level hashes
-RayMigrator Validate-Hash -p MyProduct -env Prod -s SqlBlock
+raymigrator Validate-Hash -p MyProduct -env Prod -s SqlBlock
 
 # Quiet mode for CI/CD
-RayMigrator Validate-Hash -p MyProduct -env Prod --startup-info false
+raymigrator Validate-Hash -p MyProduct -env Prod --startup-info false
 ```
 
 ---
@@ -237,7 +237,7 @@ Update repository hashes after approved changes to migration files.
 ### Synopsis
 
 ```bash
-RayMigrator Update-Hash --product <alias> --environment <env> [--target-group <group>...] [global-options]
+raymigrator Update-Hash --product <alias> --environment <env> [--target-group <group>...] [global-options]
 ```
 
 ### Options
@@ -266,10 +266,10 @@ RayMigrator Update-Hash --product <alias> --environment <env> [--target-group <g
 
 ```bash
 # Update hashes after approved file changes
-RayMigrator Update-Hash --product MyProduct --environment Production
+raymigrator Update-Hash --product MyProduct --environment Production
 
 # Short form
-RayMigrator Update-Hash -p MyProduct -env Prod
+raymigrator Update-Hash -p MyProduct -env Prod
 ```
 
 ---
@@ -281,7 +281,7 @@ Display migration status information for a product.
 ### Synopsis
 
 ```bash
-RayMigrator Info --product <alias> --environment <env> [global-options]
+raymigrator Info --product <alias> --environment <env> [global-options]
 ```
 
 ### Options
@@ -298,7 +298,7 @@ RayMigrator Info --product <alias> --environment <env> [global-options]
 ### Example
 
 ```bash
-RayMigrator Info --product MyProduct --environment Production
+raymigrator Info --product MyProduct --environment Production
 ```
 
 ---
@@ -310,7 +310,7 @@ Mark an existing database as migrated (all releases, or up to a specific release
 ### Synopsis
 
 ```bash
-RayMigrator Baseline --product <alias> --environment <env> [--to-release <version>] [--target-group <group>...] [--TargetGroup-MigrationOrder <order>] [global-options]
+raymigrator Baseline --product <alias> --environment <env> [--to-release <version>] [--target-group <group>...] [--TargetGroup-MigrationOrder <order>] [global-options]
 ```
 
 ### Options
@@ -344,20 +344,20 @@ RayMigrator Baseline --product <alias> --environment <env> [--to-release <versio
 **Simple onboarding** — database is fully up-to-date, baseline all releases:
 
 ```bash
-RayMigrator Baseline --product MyProduct --environment Production
+raymigrator Baseline --product MyProduct --environment Production
 ```
 
 **Partial onboarding** — database is at Release 2.0, newer releases should still be executed:
 
 ```bash
-RayMigrator Baseline --product MyProduct --environment Production --to-release "Release 2.0"
+raymigrator Baseline --product MyProduct --environment Production --to-release "Release 2.0"
 ```
 
 **Multi-environment** — Dev is at Release 3.0, Prod at Release 2.0, same migration files:
 
 ```bash
-RayMigrator Baseline --product MyProduct --environment Dev --to-release "Release 3.0"
-RayMigrator Baseline --product MyProduct --environment Prod --to-release "Release 2.0"
+raymigrator Baseline --product MyProduct --environment Dev --to-release "Release 3.0"
+raymigrator Baseline --product MyProduct --environment Prod --to-release "Release 2.0"
 ```
 
 ---
@@ -369,7 +369,7 @@ Fix repository inconsistencies such as orphaned migration runs (process crashed 
 ### Synopsis
 
 ```bash
-RayMigrator Fix --product <alias> --environment <env> [--scope <scope>] [--older-than <minutes>] [--dry-run] [--last-migration-status <status>] [global-options]
+raymigrator Fix --product <alias> --environment <env> [--scope <scope>] [--older-than <minutes>] [--dry-run] [--last-migration-status <status>] [global-options]
 ```
 
 ### Options
@@ -416,16 +416,16 @@ RayMigrator Fix --product <alias> --environment <env> [--scope <scope>] [--older
 
 ```bash
 # Fix orphaned runs (default scope)
-RayMigrator Fix --product MyProduct --environment Production
+raymigrator Fix --product MyProduct --environment Production
 
 # Fix all repository issues
-RayMigrator Fix -p MyProduct -env Prod -s All
+raymigrator Fix -p MyProduct -env Prod -s All
 
 # Dry run to see what would be fixed
-RayMigrator Fix -p MyProduct -env Prod --dry-run true
+raymigrator Fix -p MyProduct -env Prod --dry-run true
 
 # Fix with custom age threshold and migration status
-RayMigrator Fix -p MyProduct -env Prod -ot 120 -lms migrated
+raymigrator Fix -p MyProduct -env Prod -ot 120 -lms migrated
 ```
 
 ---

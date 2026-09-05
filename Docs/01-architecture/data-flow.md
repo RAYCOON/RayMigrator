@@ -15,7 +15,7 @@ sequenceDiagram
     participant Repo as Repository DB
     participant Target as Target DB
 
-    User->>CLI: RayMigrator Migrate-Up -p X -env Y
+    User->>CLI: raymigrator Migrate-Up -p X -env Y
 
     CLI->>CLI: Parse arguments
     CLI->>Bridge: ExecuteMigrateUpAsync()

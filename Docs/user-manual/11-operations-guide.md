@@ -10,7 +10,7 @@ This chapter covers everything you need to deploy, monitor, and maintain RayMigr
 
 - [ ] All migration files reviewed and tested in staging
 - [ ] Rollback files exist for all migrations (if `RequireRollbackFile = true`)
-- [ ] Hash validation passes: `RayMigrator Validate-Hash -p MyProduct -env Production`
+- [ ] Hash validation passes: `raymigrator Validate-Hash -p MyProduct -env Production`
 - [ ] Database backup taken
 - [ ] Connection strings verified via `{ENV:}` variables (no hardcoded credentials)
 - [ ] Deployment window scheduled (for long-running migrations)
@@ -18,15 +18,15 @@ This chapter covers everything you need to deploy, monitor, and maintain RayMigr
 
 ### Deployment
 
-- [ ] Run Validate: `RayMigrator Migrate-Up -p MyProduct -env Production -rm Validate`
-- [ ] Run Simulate: `RayMigrator Migrate-Up -p MyProduct -env Production -rm Simulate`
-- [ ] Run Migrate: `RayMigrator Migrate-Up -p MyProduct -env Production -rm Migrate`
+- [ ] Run Validate: `raymigrator Migrate-Up -p MyProduct -env Production -rm Validate`
+- [ ] Run Simulate: `raymigrator Migrate-Up -p MyProduct -env Production -rm Simulate`
+- [ ] Run Migrate: `raymigrator Migrate-Up -p MyProduct -env Production -rm Migrate`
 - [ ] Check exit code (0 = success)
 
 ### Post-Deployment
 
-- [ ] Run Info to verify: `RayMigrator Info -p MyProduct -env Production`
-- [ ] Validate hashes: `RayMigrator Validate-Hash -p MyProduct -env Production`
+- [ ] Run Info to verify: `raymigrator Info -p MyProduct -env Production`
+- [ ] Validate hashes: `raymigrator Validate-Hash -p MyProduct -env Production`
 - [ ] Verify application connectivity
 - [ ] Monitor application logs for database errors
 
@@ -58,14 +58,14 @@ jobs:
           dotnet-version: '10.0'
       - name: Install RayMigrator
         run: |
-          gh release download --repo RAYCOON/RayMigrator --pattern "RayMigrator-*-linux-x64.tar.gz" --dir /tmp
+          gh release download --repo RAYCOON/raymigrator --pattern "RayMigrator-*-linux-x64.tar.gz" --dir /tmp
           tar -xzf /tmp/RayMigrator-*-linux-x64.tar.gz -C /usr/local/bin
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Validate migrations
-        run: RayMigrator Migrate-Up -p MyProduct -env CI -rm Validate --startup-info false
+        run: raymigrator Migrate-Up -p MyProduct -env CI -rm Validate --startup-info false
       - name: Validate hashes
-        run: RayMigrator Validate-Hash -p MyProduct -env CI --startup-info false
+        run: raymigrator Validate-Hash -p MyProduct -env CI --startup-info false
 
   deploy-staging:
     needs: validate
@@ -79,14 +79,14 @@ jobs:
           dotnet-version: '10.0'
       - name: Install RayMigrator
         run: |
-          gh release download --repo RAYCOON/RayMigrator --pattern "RayMigrator-*-linux-x64.tar.gz" --dir /tmp
+          gh release download --repo RAYCOON/raymigrator --pattern "RayMigrator-*-linux-x64.tar.gz" --dir /tmp
           tar -xzf /tmp/RayMigrator-*-linux-x64.tar.gz -C /usr/local/bin
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Simulate in staging
         env:
           DB_CONNECTION: ${{ secrets.STAGING_DB_CONNECTION }}
-        run: RayMigrator Migrate-Up -p MyProduct -env Staging -rm Simulate --startup-info false
+        run: raymigrator Migrate-Up -p MyProduct -env Staging -rm Simulate --startup-info false
 
   deploy-production:
     needs: deploy-staging
@@ -100,7 +100,7 @@ jobs:
           dotnet-version: '10.0'
       - name: Install RayMigrator
         run: |
-          gh release download --repo RAYCOON/RayMigrator --pattern "RayMigrator-*-linux-x64.tar.gz" --dir /tmp
+          gh release download --repo RAYCOON/raymigrator --pattern "RayMigrator-*-linux-x64.tar.gz" --dir /tmp
           tar -xzf /tmp/RayMigrator-*-linux-x64.tar.gz -C /usr/local/bin
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -109,7 +109,7 @@ jobs:
       - name: Migrate production
         env:
           DB_CONNECTION: ${{ secrets.PROD_DB_CONNECTION }}
-        run: RayMigrator Migrate-Up -p MyProduct -env Production -rm Migrate --startup-info false
+        run: raymigrator Migrate-Up -p MyProduct -env Production -rm Migrate --startup-info false
 ```
 
 ### Pipeline Best Practices
@@ -355,7 +355,7 @@ mysqldump -h server -u user -p BookStore > /backup/BookStore_pre_migration.sql
 A backup is only as good as its restore. Periodically test your restore process:
 
 1. Restore the backup to a temporary database
-2. Run `RayMigrator Validate-Hash` against the restored database
+2. Run `raymigrator Validate-Hash` against the restored database
 3. Verify application connectivity against the restored database
 4. Drop the temporary database
 
@@ -388,10 +388,10 @@ Use `Migrate-Down` to manually roll back to a specific release:
 
 ```bash
 # Roll back everything after Release 1.0
-RayMigrator Migrate-Down -p BookStore -env Production -rm Migrate -tr "Release 1.0"
+raymigrator Migrate-Down -p BookStore -env Production -rm Migrate -tr "Release 1.0"
 
 # Simulate rollback first to see what would happen
-RayMigrator Migrate-Down -p BookStore -env Production -rm Simulate -tr "Release 1.0"
+raymigrator Migrate-Down -p BookStore -env Production -rm Simulate -tr "Release 1.0"
 ```
 
 > **Warning:** Manual rollback executes rollback files in reverse order. Ensure all rollback files are present and tested before relying on this in production.
@@ -459,16 +459,16 @@ The `Fix` command resolves repository inconsistencies, most commonly orphaned mi
 
 ```bash
 # Preview what would be fixed (no changes applied)
-RayMigrator Fix -p MyProduct -env Production --dry-run
+raymigrator Fix -p MyProduct -env Production --dry-run
 
 # Fix orphaned runs older than 60 minutes (default)
-RayMigrator Fix -p MyProduct -env Production
+raymigrator Fix -p MyProduct -env Production
 
 # Fix runs older than 10 minutes
-RayMigrator Fix -p MyProduct -env Production --older-than 10
+raymigrator Fix -p MyProduct -env Production --older-than 10
 
 # Fix all known issue types (not just orphaned runs)
-RayMigrator Fix -p MyProduct -env Production --scope All
+raymigrator Fix -p MyProduct -env Production --scope All
 ```
 
 ### Controlling Post-Fix Migration Status
@@ -482,10 +482,10 @@ The `--last-migration-status` option determines what status orphaned Migration r
 
 ```bash
 # Mark orphaned migrations as "migrated" (skip next time)
-RayMigrator Fix -p MyProduct -env Production --last-migration-status migrated
+raymigrator Fix -p MyProduct -env Production --last-migration-status migrated
 
 # Mark as "not-migrated" (re-execute next time, default)
-RayMigrator Fix -p MyProduct -env Production --last-migration-status not-migrated
+raymigrator Fix -p MyProduct -env Production --last-migration-status not-migrated
 ```
 
 > **Tip:** Always use `--dry-run` first to preview what the Fix command would change before applying fixes in production.
@@ -509,9 +509,9 @@ appsettings.MyProduct.Production.json     # Product + environment overrides (opt
 
 ```bash
 # All use the same migration files, different databases
-RayMigrator Migrate-Up -p BookStore -env Development -rm Migrate
-RayMigrator Migrate-Up -p BookStore -env Staging -rm Migrate
-RayMigrator Migrate-Up -p BookStore -env Production -rm Migrate
+raymigrator Migrate-Up -p BookStore -env Development -rm Migrate
+raymigrator Migrate-Up -p BookStore -env Staging -rm Migrate
+raymigrator Migrate-Up -p BookStore -env Production -rm Migrate
 ```
 
 Each environment loads its own `appsettings.{Environment}.json` file, which provides environment-specific connection strings via `{ENV:}` placeholders or direct values.
@@ -522,8 +522,8 @@ When bringing an existing database under RayMigrator management at different poi
 
 ```bash
 # Dev is at Release 3.0, Prod at Release 2.0
-RayMigrator Baseline -p BookStore -env Development -tr "Release 3.0"
-RayMigrator Baseline -p BookStore -env Production -tr "Release 2.0"
+raymigrator Baseline -p BookStore -env Development -tr "Release 3.0"
+raymigrator Baseline -p BookStore -env Production -tr "Release 2.0"
 ```
 
 ---

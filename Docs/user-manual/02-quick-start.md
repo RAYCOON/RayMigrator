@@ -14,7 +14,7 @@ This chapter walks you through creating a minimal project, writing your first mi
 
   **Windows:** `Expand-Archive RayMigrator-<version>-win-x64.zip -DestinationPath C:\Tools\RayMigrator` and add `C:\Tools\RayMigrator` to your system PATH.
 
-  Verify with `RayMigrator --version`.
+  Verify with `raymigrator --version`.
 
 > **Tip:** Tired of typing the full name? You can define a short shell alias such as `raymig` — see [Shortening the Command with a Shell Alias](06-cli-commands.md#shortening-the-command-with-a-shell-alias) in Chapter 6.
 
@@ -190,7 +190,7 @@ docker exec bookstore-db /opt/mssql-tools18/bin/sqlcmd \
 Navigate to the `BookStore/` directory and execute:
 
 ```bash
-RayMigrator Migrate-Up --product BookStore --environment Development --run-mode Migrate
+raymigrator Migrate-Up --product BookStore --environment Development --run-mode Migrate
 ```
 
 | Flag | Purpose |
@@ -211,7 +211,7 @@ You should see output similar to:
 
 > **Tip:** Run with `--run-mode Simulate` first to preview what would be executed without making any changes, or use `--run-mode Validate` to check files and configuration without connecting to any database:
 > ```bash
-> RayMigrator Migrate-Up --product BookStore --environment Development --run-mode Simulate
+> raymigrator Migrate-Up --product BookStore --environment Development --run-mode Simulate
 > ```
 
 ## Step 6 — Verify the Result
@@ -264,7 +264,7 @@ The `MigrationRun` table contains one record for the run you just executed. The 
 The file's SHA-256 hash is now stored in the repository. If anyone modifies `001_CreateBooks.sql` after execution, the `Validate-Hash` command will detect the tampering:
 
 ```bash
-RayMigrator Validate-Hash --product BookStore --environment Development
+raymigrator Validate-Hash --product BookStore --environment Development
 ```
 
 ## What Just Happened?

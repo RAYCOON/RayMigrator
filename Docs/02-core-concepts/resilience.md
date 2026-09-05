@@ -191,7 +191,7 @@ When an orphaned run is detected and auto-fix does not apply (run is newer than 
 
 1. **Wait**: The run may still be genuinely running
 2. **Investigate manually**: Check database state before proceeding
-3. **Fix command**: Use `RayMigrator Fix --product <alias> --environment <env> --scope OrphanedRuns` for manual cleanup (default threshold: 60 minutes)
+3. **Fix command**: Use `raymigrator Fix --product <alias> --environment <env> --scope OrphanedRuns` for manual cleanup (default threshold: 60 minutes)
 
 ## Exception Types
 

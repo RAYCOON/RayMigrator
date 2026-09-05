@@ -162,7 +162,7 @@ Disabled: Keine Hash-Validierung. Mit Vorsicht verwenden — Aenderungen an bere
   <data name="Product_Alias_Title" xml:space="preserve"><value>Produkt - Alias</value></data>
   <data name="Product_Alias_Description" xml:space="preserve"><value>Eindeutiger Name zur Identifizierung dieses Produkts. Wird in CLI-Befehlen verwendet, um das zu migrierende Produkt auszuwaehlen.</value></data>
   <data name="Product_Alias_Examples" xml:space="preserve"><value>MyApp, BackendService, DataWarehouse</value></data>
-  <data name="Product_Alias_InheritanceNote" xml:space="preserve"><value>Wird in CLI-Befehlen verwendet: RayMigrator Migrate-Up --product MyApp</value></data>
+  <data name="Product_Alias_InheritanceNote" xml:space="preserve"><value>Wird in CLI-Befehlen verwendet: raymigrator Migrate-Up --product MyApp</value></data>
   <data name="Product_MigrationFilesRootDirectory_Title" xml:space="preserve"><value>Produkt - Migrationsdateien-Stammverzeichnis</value></data>
   <data name="Product_MigrationFilesRootDirectory_Description" xml:space="preserve"><value>Pfad zum Stammverzeichnis mit den Migrationsdateien. Struktur: Root/Release_X/TargetGroup/files.sql.</value></data>
   <data name="Product_MigrationFilesRootDirectory_Examples" xml:space="preserve"><value>./Migrations/MyApp
