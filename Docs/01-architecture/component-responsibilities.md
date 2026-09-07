@@ -468,7 +468,7 @@ void RepositoryMigrationUpdateRollback(int migrationRecordId, MigrationStatus mi
 // Shared-connection atomic overload (used by ExecuteSqlBlocksAtomic):
 void RepositoryMigrationUpdateRollback(int migrationRecordId, MigrationStatus migrationStatus, string fileDownHash, string? fileDownConfigHash, string fileDownBlocksHash, int fileDownBlocksMigrated, int fileDownBlocksTotal, string? fileDownConfigJson, DbConnection connection, DbTransaction transaction, int repoCommandTimeoutInSeconds)
 void RepositoryMigrationUpdateHash(int migrationRecordId, string fileUpHash, string? fileUpConfigHash, string fileUpBlocksHash)
-List<MigrationRecord> RepositoryMigrationSelect(MigrationRunMode? overrideRunMode = null)
+List<MigrationRecord> RepositoryMigrationSelect()   // always reads Migrate-mode records, independent of the command's run mode
 List<Dictionary<string, object?>> RepositoryMigrationRunSelect(int limit)
 TemplateResponse ExecuteScalarWithNegativeResultCodeException(Template template, IDal dal, DalSettings dalSettings, DalParameterList? dalParameterList, ILogger? logger = null, EventId? eventId = null)
 ```

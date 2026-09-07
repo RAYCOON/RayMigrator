@@ -131,13 +131,13 @@ public void RepositoryMigrationUpdateRollback(int migrationRecordId,
 
 public void RepositoryMigrationUpdateHash(int migrationRecordId, string fileUpHash,
     string? fileUpConfigHash, string fileUpBlocksHash);
-public List<MigrationRecord> RepositoryMigrationSelect(MigrationRunMode? overrideRunMode = null);
+public List<MigrationRecord> RepositoryMigrationSelect();
 public InterruptedMigrationInfo? RepositoryMigrationGetInterrupted();
 ```
 
 The atomic overloads of `RepositoryMigrationUpdate` and `RepositoryMigrationUpdateRollback` accept a `DbConnection`, `DbTransaction`, and `repoCommandTimeoutInSeconds`. They execute the repository update on the caller-supplied connection within the caller's active transaction. This is used exclusively by `ExecuteSqlBlocksAtomic` and `ExecuteRollbackBlocksAtomic` in `MigrationService` to guarantee that SQL blocks and repository status writes either all commit or all roll back together. See [Atomic Shared Connection](migration-service.md#atomic-shared-connection-execution) for the full pattern.
 
-The `overrideRunMode` parameter on `RepositoryMigrationSelect` allows the caller to override the `MigrationRunModeId` query parameter independently of the current `MigrationContext`. This is used by Simulate mode to query records written by Migrate mode (since Simulate mode no longer writes its own records).
+`RepositoryMigrationSelect` always binds `MigrationRunModeId = Migrate`, independently of the run mode of the current `MigrationContext`: `MigrationRecord` rows are only ever written by runs in Migrate mode, so this is the only filter value that can match. Deriving the filter from the context run mode made `validate-hash` (which runs in Validate mode) query an empty record set (#5); the former `overrideRunMode` parameter that `migrate-up`/`migrate-down` used to pass for Simulate mode is therefore gone.
 
 ### Core Execution
 

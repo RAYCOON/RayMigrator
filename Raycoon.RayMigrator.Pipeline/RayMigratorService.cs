@@ -162,7 +162,9 @@ public class RayMigratorService
 
         var result = await _migrationService.ValidateHashAsync(request);
 
-        if (!result.Success)
+        // ValidationResult.Success means "no hash issues found", not "the command ran".
+        // A command failure (exception inside the service) carries an ErrorMessage; hash issues do not.
+        if (!result.Success && result.ErrorMessage != null)
         {
             _logger.LogError("Validate-Hash failed for product {Product}: {Error}",
                 _consoleOptions.Product, result.ErrorMessage);

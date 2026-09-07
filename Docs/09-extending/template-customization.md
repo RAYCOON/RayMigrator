@@ -460,7 +460,7 @@ public class TemplateExecutor
         string targetGroupAlias, string targetAlias, int fileOrderId, string fileUpHash,
         string? fileUpConfigHash, string fileUpBlocksHash, int fileUpBlocksTotal,
         string? fileUpConfigJson, bool migrateDownFileExists) { ... }   // Returns MigrationRecordId
-    public List<MigrationRecord> RepositoryMigrationSelect(MigrationRunMode? overrideRunMode = null) { ... }
+    public List<MigrationRecord> RepositoryMigrationSelect() { ... }   // always reads Migrate-mode records
     public InterruptedMigrationInfo? RepositoryMigrationGetInterrupted() { ... }
     public int RepositoryMigrationRecordFixOrphaned(int migrationRunId, MigrationStatus status) { ... }
     public void RepositoryMigrationUpdateHash(int migrationRecordId, string fileUpHash,

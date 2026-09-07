@@ -511,7 +511,7 @@ sequenceDiagram
 
     Note over Svc: Phase 2: File Discovery & Preparation
     Svc->>Svc: DiscoverAndPrepareMigrationFiles()
-    Svc->>Tmpl: RepositoryMigrationSelect(MigrationRunMode.Migrate)
+    Svc->>Tmpl: RepositoryMigrationSelect()
     Tmpl->>Repo: Query existing records
     Svc->>Svc: FilterAlreadyMigratedFiles()
     Svc->>Svc: FilterByTargetRelease()
@@ -568,9 +568,9 @@ public async Task<MigrationOperationResult> MigrateUpAsync(MigrateUpRequest requ
     List<MigrationRecord> existingRecords;
     if (request.RunMode.ShouldReadRepository())
     {
-        // Always query with MigrationRunMode.Migrate to read actual Migrate-mode records,
-        // even when running in Simulate mode (which no longer writes its own records).
-        existingRecords = _templateExecutor.RepositoryMigrationSelect(MigrationRunMode.Migrate);
+        // RepositoryMigrationSelect always reads Migrate-mode records (the only ones that exist),
+        // so Simulate mode sees the same records as Migrate mode.
+        existingRecords = _templateExecutor.RepositoryMigrationSelect();
         filesToMigrate = FilterAlreadyMigratedFiles(migrationFiles, existingRecords, productOptions);
     }
     else

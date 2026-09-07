@@ -100,6 +100,8 @@ raymigrator validate-hash -p BookStore -env Production
 
 Key options: `--scope` (File/SqlBlocks/Disabled), `--target-group`. See [validate-hash Reference](../08-cli-reference/validate-hash.md) for the full option table.
 
+Exit code contract: `0` when every migrated file is `Valid` (files that are not migrated yet are listed as `New` and do not affect the exit code); `1` when at least one file is `Modified` or `Missing`. Pipelines can gate on the exit code alone.
+
 > **Tip:** Run validate-hash in your CI/CD pipeline on every commit to catch unauthorized changes to migration files early.
 
 ---

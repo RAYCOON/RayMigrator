@@ -5,6 +5,26 @@ All notable changes to RayMigrator are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 RayMigrator follows Semantic Versioning where applicable.
 
+## [Unreleased]
+
+### Fixed
+
+- `validate-hash` compared the files on disk against an empty record set:
+  the repository query used the command's own `Validate` run mode as the
+  `MigrationRunModeId` filter, but records are only ever written in
+  `Migrate` mode. Every file was therefore reported as `New`, the
+  `Valid`/`Modified`/`Missing` counters stayed at zero and the exit code
+  was always `0`, so modified or deleted migration files were never
+  detected. `TemplateExecutor.RepositoryMigrationSelect()` now always
+  reads `Migrate`-mode records regardless of the run mode of the calling
+  command; the `overrideRunMode` parameter that `migrate-up`/`migrate-down`
+  used to pass is gone. The CLI wrapper also treated a validation result
+  with hash issues (`Success = false`, no error message) as a command
+  failure and aborted with `Validate-Hash failed … : null` before listing
+  the issues; it now prints the counters and every `Hash issue` line and
+  returns exit code `1` for `Modified`/`Missing` files. Teams that gate CI
+  on `validate-hash` had no coverage before this fix. (#5)
+
 ## [0.11.1] — 2026-09-05
 
 ### Changed

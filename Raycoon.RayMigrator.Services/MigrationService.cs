@@ -124,8 +124,8 @@ public class MigrationService : IMigrationService
             }
 
             // Query existing migrations from repository and filter.
-            // Always query with MigrationRunMode.Migrate to read actual Migrate-mode records,
-            // even when running in Simulate mode (which no longer writes its own records).
+            // RepositoryMigrationSelect always reads Migrate-mode records (the only ones that exist),
+            // so Simulate mode sees the same records as Migrate mode.
             List<MigrationFileInfo> filesToMigrate;
             List<MigrationRecord> existingRecords;
             if (request.RunMode.ShouldReadRepository())
@@ -133,7 +133,7 @@ public class MigrationService : IMigrationService
                 try
                 {
                     existingRecords = await Task.Run(() =>
-                        _templateExecutor.RepositoryMigrationSelect(MigrationRunMode.Migrate));
+                        _templateExecutor.RepositoryMigrationSelect());
                     filesToMigrate = FilterAlreadyMigratedFiles(migrationFiles, existingRecords, productOptions);
                 }
                 catch (Exception ex) when (!request.RunMode.ShouldWriteRepository())
@@ -1046,12 +1046,12 @@ public class MigrationService : IMigrationService
             }
 
             // --- Phase 2: Query migrations for rollback ---
-            // Always query with MigrationRunMode.Migrate to read actual Migrate-mode records.
+            // RepositoryMigrationSelect always reads Migrate-mode records (the only ones that exist).
             List<MigrationRecord> existingRecords;
             try
             {
                 existingRecords = await Task.Run(() =>
-                    _templateExecutor.RepositoryMigrationSelect(MigrationRunMode.Migrate));
+                    _templateExecutor.RepositoryMigrationSelect());
             }
             catch (Exception ex) when (!request.RunMode.ShouldWriteRepository())
             {

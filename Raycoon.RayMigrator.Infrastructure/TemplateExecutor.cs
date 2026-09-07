@@ -535,29 +535,31 @@ public class TemplateExecutor
     }
 
     /// <summary>
-    /// Selects all MigrationRecord entries for the current product, environment, and run mode.
+    /// Selects all MigrationRecord entries for the current product and environment.
     /// Returns a list of MigrationRecord objects for comparison with files on disk.
     /// </summary>
-    /// <param name="overrideRunMode">
-    /// Optional run mode override. When set, this value is used for the MigrationRunModeId parameter
-    /// instead of reading from the current MigrationContext. This allows Simulate mode to query
-    /// records that were written by Migrate mode.
-    /// </param>
+    /// <remarks>
+    /// MigrationRecord rows are only ever written by runs in <see cref="MigrationRunMode.Migrate"/> mode
+    /// (see <c>MigrationRunModeExtensions.ShouldWriteRepository</c>), so the query always filters on
+    /// <see cref="MigrationRunMode.Migrate"/> regardless of the run mode of the current command.
+    /// Deriving the filter from the context run mode made every command that runs in another mode
+    /// (e.g. <c>validate-hash</c> in <see cref="MigrationRunMode.Validate"/>) see an empty repository (#5).
+    /// </remarks>
     /// <returns>List of MigrationRecord objects from the repository.</returns>
     /// <exception cref="TemplateExecutionException"></exception>
-    public List<MigrationRecord> RepositoryMigrationSelect(MigrationRunMode? overrideRunMode = null)
+    public List<MigrationRecord> RepositoryMigrationSelect()
     {
-        var effectiveRunMode = overrideRunMode ?? _ctxAccessor.Current.RayMigratorConsoleOptions.RunMode;
+        const MigrationRunMode recordRunMode = MigrationRunMode.Migrate;
         var templateType = TemplateType.Repository_MigrationRecord_Select;
         var eventId = MigrationEvent.TemplateExecutionRepositoryMigrationSelect;
 
-        _logger.LogDebug(eventId, "Selecting migrations for product {ProductId} with environment {Environment} ({EnvironmentId}) with run mode {RunMode}{MigrationContext}",
-            _ctxAccessor.Current.MigrationState.ProductId, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, _ctxAccessor.Current.MigrationState.EnvironmentId, effectiveRunMode, _ctxAccessor.Current.Clone);
+        _logger.LogDebug(eventId, "Selecting migrations for product {ProductId} with environment {Environment} ({EnvironmentId}) with run mode {RunMode} (current command runs in {CurrentRunMode}){MigrationContext}",
+            _ctxAccessor.Current.MigrationState.ProductId, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, _ctxAccessor.Current.MigrationState.EnvironmentId, recordRunMode, _ctxAccessor.Current.RayMigratorConsoleOptions.RunMode, _ctxAccessor.Current.Clone);
 
         DalParameterList dalParameterList = new DalParameterList();
         dalParameterList.AddParameter(new DalParameter("ProductId", _ctxAccessor.Current.MigrationState.ProductId, typeof(int)));
         dalParameterList.AddParameter(new DalParameter("EnvironmentId", _ctxAccessor.Current.MigrationState.EnvironmentId, typeof(int)));
-        dalParameterList.AddParameter(new DalParameter("MigrationRunModeId", (byte)effectiveRunMode, typeof(byte)));
+        dalParameterList.AddParameter(new DalParameter("MigrationRunModeId", (byte)recordRunMode, typeof(byte)));
 
         var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
 

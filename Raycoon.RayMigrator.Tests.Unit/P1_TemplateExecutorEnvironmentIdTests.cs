@@ -36,7 +36,8 @@ public class TemplateExecutorEnvironmentIdTests
     /// </summary>
     private static (TemplateExecutor executor, IDal dal, Func<DalParameterList?> getCapture) CreateExecutor(
         int environmentId = TestEnvironmentId,
-        int productId = TestProductId)
+        int productId = TestProductId,
+        MigrationRunMode runMode = MigrationRunMode.Migrate)
     {
         var dal = Substitute.For<IDal>();
         DalParameterList? captured = null;
@@ -55,7 +56,7 @@ public class TemplateExecutorEnvironmentIdTests
                return Task.FromResult(new List<Dictionary<string, object?>>());
            });
 
-        var ctx = BuildContext(environmentId, productId);
+        var ctx = BuildContext(environmentId, productId, runMode);
         var templateCache = BuildRealTemplateCache(ctx.RayMigratorOptions);
 
         // TemplateExecutor has a public constructor
@@ -78,7 +79,7 @@ public class TemplateExecutorEnvironmentIdTests
         return (executor, dal, () => captured);
     }
 
-    private static MigrationContext BuildContext(int environmentId, int productId)
+    private static MigrationContext BuildContext(int environmentId, int productId, MigrationRunMode runMode = MigrationRunMode.Migrate)
     {
         var repoOptions = new RepositoryOptions
         {
@@ -154,7 +155,7 @@ public class TemplateExecutorEnvironmentIdTests
             Command = MigrationCommand.MigrateUp,
             Product = "TestProduct",
             Environment = "Docker",
-            RunMode = MigrationRunMode.Migrate,
+            RunMode = runMode,
             ShowStartupInfo = false,
             RevealSensitiveData = false
         };
@@ -335,6 +336,48 @@ public class TemplateExecutorEnvironmentIdTests
         var captured = getCapture()!;
         captured.TryGetValue("Environment", out _).Should().BeFalse(
             "RepositoryMigrationSelect must NOT add a text 'Environment' parameter");
+    }
+
+    #endregion
+
+    #region RepositoryMigrationSelect — always queries Migrate-mode records (#5)
+
+    /// <summary>
+    /// #5: MigrationRecord rows are only written in Migrate mode, so the select must filter on
+    /// MigrationRunModeId = 100 no matter which run mode the current command runs in.
+    /// Before the fix, validate-hash (RunMode = Validate) queried with 10 and never found a record.
+    /// </summary>
+    [Theory]
+    [InlineData(MigrationRunMode.Migrate)]
+    [InlineData(MigrationRunMode.Simulate)]
+    [InlineData(MigrationRunMode.Validate)]
+    public void RepositoryMigrationSelect_AlwaysFiltersOnMigrateRunMode(MigrationRunMode contextRunMode)
+    {
+        var (executor, _, getCapture) = CreateExecutor(runMode: contextRunMode);
+
+        InvokeAndCapture(executor, e => e.RepositoryMigrationSelect(), getCapture);
+
+        var captured = getCapture()!;
+        captured.TryGetValue("MigrationRunModeId", out var param).Should().BeTrue(
+            "RepositoryMigrationSelect must add a parameter named 'MigrationRunModeId'");
+        param!.ParameterType.Should().Be(typeof(byte));
+        param.ParameterValue.Should().Be((byte)MigrationRunMode.Migrate,
+            $"records are only ever written in Migrate mode, so a command running in {contextRunMode} mode must still query for Migrate records");
+    }
+
+    [Fact]
+    public void RepositoryMigrationSelect_HasNoRunModeParameter()
+    {
+        // The overload that let callers pass a run mode was the trap behind #5: every caller that
+        // forgot it inherited the context run mode. No overload may take a run mode again.
+        var runModeParameters = typeof(TemplateExecutor).GetMethods(BindingFlags.Public | BindingFlags.Instance)
+            .Where(m => m.Name == "RepositoryMigrationSelect")
+            .SelectMany(m => m.GetParameters())
+            .Where(p => p.ParameterType == typeof(MigrationRunMode) || p.ParameterType == typeof(MigrationRunMode?))
+            .ToList();
+
+        runModeParameters.Should().BeEmpty(
+            "the run mode used for the record query must not be a caller decision");
     }
 
     #endregion

@@ -329,8 +329,9 @@ public class TemplateExecutor
 
     public void RepositoryMigrationUpdateHash(int migrationRecordId, string fileUpHash,
         string? fileUpConfigHash, string fileUpBlocksHash);
-    // Optional overrideRunMode allows Simulate mode to query records written by Migrate mode
-    public List<MigrationRecord> RepositoryMigrationSelect(MigrationRunMode? overrideRunMode = null);
+    // Always queries MigrationRunModeId = Migrate: records are only written in Migrate mode,
+    // so Simulate and validate-hash (Validate) read the same records as Migrate (#5)
+    public List<MigrationRecord> RepositoryMigrationSelect();
     public InterruptedMigrationInfo? RepositoryMigrationGetInterrupted();
 
     // Core Execution — standard (DAL manages connection)

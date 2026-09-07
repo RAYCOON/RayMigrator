@@ -325,7 +325,7 @@ raymigrator migrate-down --product MyProduct --environment Production --to-relea
 - Checking rollback file completeness
 - Environments where database access is not available
 
-> **Note**: The `validate-hash` command is a separate command that validates file hashes against repository records. The `--run-mode validate` option for `migrate-up`/`migrate-down` is a different feature that validates file structure without any database access.
+> **Note**: The `validate-hash` command is a separate command that validates file hashes against repository records (exit code `1` for `Modified` or `Missing` files, `0` otherwise; unmigrated files are listed as `New` and do not affect the exit code). The `--run-mode validate` option for `migrate-up`/`migrate-down` is a different feature that validates file structure without any database access. Internally `validate-hash` runs with `RunMode = Validate`, but the repository record query always reads `Migrate`-mode records regardless of the command's run mode, because records are only ever written in `Migrate` mode.
 
 ## Execution Flow Comparison
 
