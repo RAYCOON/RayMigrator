@@ -3,6 +3,8 @@ set -e
 set +m
 
 SQLCMD="/opt/mssql-tools18/bin/sqlcmd"
+# Connect via 127.0.0.1: inside the container "localhost" resolves to ::1 first and SQL Server does not listen on IPv6,
+# so sqlcmd -S localhost never succeeds and the readiness loop below waits forever (container stays "health: starting").
 
 # Required variables (provided by docker-compose.yml / env file)
 : "${MSSQL_SA_PASSWORD:?MSSQL_SA_PASSWORD is not set}"
@@ -21,7 +23,7 @@ if [ "$1" = '/opt/mssql/bin/sqlservr' ]; then
     function initialize_app_database() {
       # Wait for SQL Server to complete start up
       timeout=100
-      while ! $SQLCMD -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -d master -Q "SELECT 1" &>/dev/null; do
+      while ! $SQLCMD -S 127.0.0.1 -U sa -P "$MSSQL_SA_PASSWORD" -C -d master -Q "SELECT 1" &>/dev/null; do
         sleep 3
         timeout=$((timeout - 3))
         if [ $timeout -le 0 ]; then
@@ -36,14 +38,14 @@ if [ "$1" = '/opt/mssql/bin/sqlservr' ]; then
       echo "START: Executing database scripts..."
 
       #run the setup script to create the DB and the schema in the DB
-      $SQLCMD -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -d master -v RM_LOGIN_PASSWORD="$RM_LOGIN_PASSWORD" -i ./sql-scripts/10_create_logins.sql
-      $SQLCMD -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -d master -i ./sql-scripts/21_create_db_Backend_1.sql
-      $SQLCMD -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -d master -i ./sql-scripts/22_create_db_Backend_2.sql
-      $SQLCMD -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -d master -i ./sql-scripts/23_create_db_Frontend.sql
-      $SQLCMD -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -d master -i ./sql-scripts/90_create_user.sql
+      $SQLCMD -S 127.0.0.1 -U sa -P "$MSSQL_SA_PASSWORD" -C -d master -v RM_LOGIN_PASSWORD="$RM_LOGIN_PASSWORD" -i ./sql-scripts/10_create_logins.sql
+      $SQLCMD -S 127.0.0.1 -U sa -P "$MSSQL_SA_PASSWORD" -C -d master -i ./sql-scripts/21_create_db_Backend_1.sql
+      $SQLCMD -S 127.0.0.1 -U sa -P "$MSSQL_SA_PASSWORD" -C -d master -i ./sql-scripts/22_create_db_Backend_2.sql
+      $SQLCMD -S 127.0.0.1 -U sa -P "$MSSQL_SA_PASSWORD" -C -d master -i ./sql-scripts/23_create_db_Frontend.sql
+      $SQLCMD -S 127.0.0.1 -U sa -P "$MSSQL_SA_PASSWORD" -C -d master -i ./sql-scripts/90_create_user.sql
 
       # sa login change
-      #/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -d master -Q "ALTER LOGIN sa WITH NAME = securesa;"
+      #/opt/mssql-tools18/bin/sqlcmd -S 127.0.0.1 -U sa -P "$MSSQL_SA_PASSWORD" -d master -Q "ALTER LOGIN sa WITH NAME = securesa;"
 
       echo "END: Database scripts successfully executed."
       echo ""
