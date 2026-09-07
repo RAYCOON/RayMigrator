@@ -115,6 +115,7 @@ Raycoon.RayMigrator.Database.SqlServer/        <- Separate project
 │   ├── Repository_CheckCreate.sql
 │   ├── Repository_Drop.sql
 │   ├── Repository_Environment_CheckInsert.sql
+│   ├── Repository_Environment_Select.sql
 │   ├── Repository_MigrationRecord_FixOrphaned.sql
 │   ├── Repository_MigrationRecord_GetInterrupted.sql
 │   ├── Repository_MigrationRecord_Insert.sql
@@ -127,32 +128,33 @@ Raycoon.RayMigrator.Database.SqlServer/        <- Separate project
 │   ├── Repository_MigrationRun_Select.sql
 │   ├── Repository_MigrationRun_SelectOrphaned.sql
 │   ├── Repository_MigrationRun_Update.sql
-│   └── Repository_Product_CheckInsert.sql
+│   ├── Repository_Product_CheckInsert.sql
+│   └── Repository_Product_Select.sql
 └── Raycoon.RayMigrator.Database.SqlServer.csproj
 
 Raycoon.RayMigrator.Database.PostgreSQL/       <- Separate project
 ├── DalPostgreSql.cs
-├── Templates/ (same 18 templates, PostgreSQL syntax)
+├── Templates/ (same 20 templates, PostgreSQL syntax)
 └── Raycoon.RayMigrator.Database.PostgreSQL.csproj
 
 Raycoon.RayMigrator.Database.MariaDb/          <- Separate project
 ├── DalMariaDb.cs
-├── Templates/ (same 18 templates, MariaDB syntax)
+├── Templates/ (same 20 templates, MariaDB syntax)
 └── Raycoon.RayMigrator.Database.MariaDb.csproj
 
 Raycoon.RayMigrator.Database.MySql/            <- Separate project
 ├── DalMySql.cs
-├── Templates/ (same 18 templates, MySQL syntax)
+├── Templates/ (same 20 templates, MySQL syntax)
 └── Raycoon.RayMigrator.Database.MySql.csproj
 
 Raycoon.RayMigrator.Database.Sqlite/           <- Separate project
 ├── DalSqlite.cs
-├── Templates/ (same 18 templates, SQLite syntax)
+├── Templates/ (same 20 templates, SQLite syntax)
 └── Raycoon.RayMigrator.Database.Sqlite.csproj
 
 Raycoon.RayMigrator.Database.Example/          <- Skeleton template for external DAL development
 ├── DalExample.cs
-├── Templates/ (19 placeholder templates: 18 required by the engine + Repository_MigrationRecordHistory_Archive.sql)
+├── Templates/ (21 placeholder templates: 20 required by the engine + Repository_MigrationRecordHistory_Archive.sql)
 └── Raycoon.RayMigrator.Database.Example.csproj
 ```
 
@@ -164,19 +166,19 @@ bin/Debug/{TargetFramework}/   (e.g., net10.0, net9.0, or net8.0)
 ├── DataAccessLayers/
 │   ├── SqlServer/
 │   │   ├── Raycoon.RayMigrator.Database.SqlServer.dll
-│   │   └── *.sql (18 template files)
+│   │   └── *.sql (20 template files)
 │   ├── PostgreSQL/
 │   │   ├── Raycoon.RayMigrator.Database.PostgreSQL.dll
-│   │   └── *.sql (18 template files)
+│   │   └── *.sql (20 template files)
 │   ├── MariaDb/
 │   │   ├── Raycoon.RayMigrator.Database.MariaDb.dll
-│   │   └── *.sql (18 template files)
+│   │   └── *.sql (20 template files)
 │   ├── MySql/
 │   │   ├── Raycoon.RayMigrator.Database.MySql.dll
-│   │   └── *.sql (18 template files)
+│   │   └── *.sql (20 template files)
 │   └── Sqlite/
 │       ├── Raycoon.RayMigrator.Database.Sqlite.dll
-│       └── *.sql (18 template files)
+│       └── *.sql (20 template files)
 ```
 
 ## DatabaseType Attribute
@@ -423,7 +425,7 @@ To add a new database provider at runtime:
 
 1. Build your DAL project (must reference `Database.Common` and `Shared`)
 2. Copy the output DLL to `DataAccessLayers/{YourDatabaseType}/`
-3. Copy your 18 SQL templates to `DataAccessLayers/{YourDatabaseType}/` (same directory as the DLL)
+3. Copy your 20 SQL templates to `DataAccessLayers/{YourDatabaseType}/` (same directory as the DLL)
 4. RayMigrator will auto-discover and register the DAL on next startup via Mode 1 (filesystem scanning)
 
 See [External DAL Development](../09-extending/external-dal-development.md) for a complete guide.

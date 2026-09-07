@@ -97,6 +97,8 @@ Repository_CheckCreate.sql              - Create repository structure
 Repository_Drop.sql                     - Drop repository schema
 Repository_Product_CheckInsert.sql      - Ensure product exists (Name + NameLower)
 Repository_Environment_CheckInsert.sql  - Ensure environment exists (Name + NameLower)
+Repository_Product_Select.sql           - Look up product id read-only (Simulate mode, no insert)
+Repository_Environment_Select.sql       - Look up environment id read-only (Simulate mode, no insert)
 Repository_MigrationRun_Insert.sql      - Record migration run
 Repository_MigrationRun_Update.sql      - Update run result/status
 Repository_MigrationRun_Select.sql      - Query migration runs (history)
@@ -350,19 +352,19 @@ DataAccessLayers/
 ├── SqlServer/
 │   ├── Raycoon.RayMigrator.Database.SqlServer.dll
 │   ├── Repository_CheckCreate.sql
-│   └── ... (18 templates per DAL, flat layout)
+│   └── ... (20 templates per DAL, flat layout)
 ├── PostgreSQL/
 │   ├── Raycoon.RayMigrator.Database.PostgreSQL.dll
-│   └── *.sql (18 template files)
+│   └── *.sql (20 template files)
 ├── MariaDb/
 │   ├── Raycoon.RayMigrator.Database.MariaDb.dll
-│   └── *.sql (18 template files)
+│   └── *.sql (20 template files)
 ├── MySql/
 │   ├── Raycoon.RayMigrator.Database.MySql.dll
-│   └── *.sql (18 template files)
+│   └── *.sql (20 template files)
 └── Sqlite/
     ├── Raycoon.RayMigrator.Database.Sqlite.dll
-    └── *.sql (18 template files)
+    └── *.sql (20 template files)
 ```
 
 ```csharp

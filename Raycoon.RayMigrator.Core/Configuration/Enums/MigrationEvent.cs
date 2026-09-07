@@ -25,6 +25,8 @@ public class MigrationEvent
     public static readonly EventId TemplateExecutionRepositoryMigrationFixOrphaned = new EventId(114, "TemplateExecutionMigrationFixOrphaned");
     public static readonly EventId TemplateExecutionRepositoryProductCheckInsert = new EventId(120, "TemplateExecutionProductCheckInsert");
     public static readonly EventId TemplateExecutionRepositoryEnvironmentCheckInsert = new EventId(121, "TemplateExecutionEnvironmentCheckInsert");
+    public static readonly EventId TemplateExecutionRepositoryProductSelect = new EventId(122, "TemplateExecutionProductSelect");
+    public static readonly EventId TemplateExecutionRepositoryEnvironmentSelect = new EventId(123, "TemplateExecutionEnvironmentSelect");
 
     // Template Execution - Migration Operations
     public static readonly EventId TemplateExecutionRepositoryMigrationInsert = new EventId(130, "TemplateExecutionMigrationInsert");

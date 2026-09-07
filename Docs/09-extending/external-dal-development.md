@@ -6,7 +6,7 @@ Guide for developing custom RayMigrator database providers in an external reposi
 
 RayMigrator's plugin architecture allows developing database providers (DALs) outside the main repository. Your DAL is built as a standalone .NET class library that references `Database.Common` and `Shared` via NuGet packages.
 
-The `Database.Example` project in the main repository serves as a skeleton template. It contains placeholder implementations for all required methods and 19 SQL template files (the 18 required by the engine plus `Repository_MigrationRecordHistory_Archive.sql`, which is an extra placeholder for archive operations). The recommended workflow is to copy (or fork) this project and replace "Example" with your database type name throughout.
+The `Database.Example` project in the main repository serves as a skeleton template. It contains placeholder implementations for all required methods and 21 SQL template files (the 20 required by the engine plus `Repository_MigrationRecordHistory_Archive.sql`, which is an extra placeholder for archive operations). The recommended workflow is to copy (or fork) this project and replace "Example" with your database type name throughout.
 
 > **License note**: The `Raycoon.RayMigrator.Database.Example` directory is licensed under the **MIT License** (see `Raycoon.RayMigrator.Database.Example/LICENSE.md`), separately from the rest of RayMigrator (which is BUSL-1.1 with Additional Use Grant). You may freely copy the Example skeleton as a starting point for your own DAL plugin. The plugin source code you write from there is your own, under whatever license you choose. **Running** your plugin inside a RayMigrator process is a use of the Licensed Work and is governed by `LICENSE.md` — for this version that use is free of charge, whatever the size or nature of your organization.
 
@@ -224,9 +224,9 @@ public class DalYourDb : DalBase, IDal
 
 ## Template Contract
 
-All 18 template files must be present. `TemplateCache` loads templates from `DataAccessLayers/{Type}/` on the filesystem. Templates are delivered as `<Content>` items that propagate transitively through ProjectReference and as `contentFiles` in NuGet packages. `TemplateCache` validates completeness at startup and throws a `ConfigurationValidationException` listing any missing templates. Template files must not be empty -- if a template is not needed for your database type, add a SQL comment explaining why.
+All 20 template files must be present. `TemplateCache` loads templates from `DataAccessLayers/{Type}/` on the filesystem. Templates are delivered as `<Content>` items that propagate transitively through ProjectReference and as `contentFiles` in NuGet packages. `TemplateCache` validates completeness at startup and throws a `ConfigurationValidationException` listing any missing templates. Template files must not be empty -- if a template is not needed for your database type, add a SQL comment explaining why.
 
-The `Database.Example` project includes all 19 files as placeholders with TODO comments (18 required templates plus `Repository_MigrationRecordHistory_Archive.sql`). `TemplateCache` recognizes only the 18 files that correspond to `TemplateType` enum values; `Repository_MigrationRecordHistory_Archive.sql` is silently skipped during loading. Use `Database.SqlServer` or `Database.PostgreSQL` templates as reference implementations.
+The `Database.Example` project includes all 21 files as placeholders with TODO comments (20 required templates plus `Repository_MigrationRecordHistory_Archive.sql`). `TemplateCache` recognizes only the 20 files that correspond to `TemplateType` enum values; `Repository_MigrationRecordHistory_Archive.sql` is silently skipped during loading. Use `Database.SqlServer` or `Database.PostgreSQL` templates as reference implementations.
 
 ### Required Templates
 
@@ -250,6 +250,8 @@ The `Database.Example` project includes all 19 files as placeholders with TODO c
 | `Repository_MigrationRun_SelectOrphaned.sql` | Select orphaned runs |
 | `Repository_MigrationRun_Update.sql` | Update run result |
 | `Repository_Product_CheckInsert.sql` | Lookup product by `NameLower`, insert if not exists; returns `ProductId` |
+| `Repository_Product_Select.sql` | Lookup product by `NameLower` WITHOUT inserting; returns `ProductId` or `0` when not registered (used by Simulate mode, #7) |
+| `Repository_Environment_Select.sql` | Lookup environment by `NameLower` WITHOUT inserting; returns `EnvironmentId` or `0` when not registered (used by Simulate mode, #7) |
 
 > **Note on `Repository_Product_CheckInsert.sql` signature**: the template binds two SQL parameters — `@Name` (original casing) and `@NameLower` (pre-computed lowercase). Lookup must be performed by `NameLower` to remain case-insensitive. See `Database.SqlServer/Templates/Repository_Product_CheckInsert.sql` and `Database.MariaDb/Templates/Repository_Product_CheckInsert.sql` for reference implementations.
 
@@ -367,7 +369,7 @@ DataAccessLayers/YourDb/
 ├── DatabaseLogging_CheckCreate.sql
 ├── DatabaseLogging_Insert.sql
 ├── Repository_CheckCreate.sql
-├── ... (18 .sql files total)
+├── ... (20 .sql files total)
 ```
 
 For built-in DALs, the Console project's `CopyDalAssembliesToDataAccessLayers` post-build target handles this automatically. External DALs must be deployed manually.
@@ -384,7 +386,7 @@ After deployment, verify your DAL is discovered:
 
 1. Start RayMigrator with logging at Debug level
 2. `TemplateCache` logs each discovered DAL: `DataAccessLayer [YourDb] found`
-3. `TemplateCache` validates that all 18 templates are present for each discovered DAL
+3. `TemplateCache` validates that all 20 templates are present for each discovered DAL
 4. `ValidateConfigurationAgainstTemplateCache` verifies that configured `DatabaseType` values (in Repository and TargetGroups) match available DALs
 5. Use your database type in configuration:
 

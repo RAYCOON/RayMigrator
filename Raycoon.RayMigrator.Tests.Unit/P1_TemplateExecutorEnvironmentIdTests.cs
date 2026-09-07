@@ -37,7 +37,8 @@ public class TemplateExecutorEnvironmentIdTests
     private static (TemplateExecutor executor, IDal dal, Func<DalParameterList?> getCapture) CreateExecutor(
         int environmentId = TestEnvironmentId,
         int productId = TestProductId,
-        MigrationRunMode runMode = MigrationRunMode.Migrate)
+        MigrationRunMode runMode = MigrationRunMode.Migrate,
+        string scalarResult = "1,ok")
     {
         var dal = Substitute.For<IDal>();
         DalParameterList? captured = null;
@@ -46,7 +47,7 @@ public class TemplateExecutorEnvironmentIdTests
            .Returns(callInfo =>
            {
                captured = callInfo.ArgAt<DalParameterList>(2);
-               return Task.FromResult<object?>("1,ok");
+               return Task.FromResult<object?>(scalarResult);
            });
 
         dal.ExecuteReaderAsync(Arg.Any<string>(), Arg.Any<IDalSettings>(), Arg.Any<DalParameterList>())
@@ -336,6 +337,82 @@ public class TemplateExecutorEnvironmentIdTests
         var captured = getCapture()!;
         captured.TryGetValue("Environment", out _).Should().BeFalse(
             "RepositoryMigrationSelect must NOT add a text 'Environment' parameter");
+    }
+
+    #endregion
+
+    #region RepositoryProductSelect / RepositoryEnvironmentSelect — read-only id lookups (#7)
+
+    private static MigrationContext ContextOf(TemplateExecutor executor)
+    {
+        var field = typeof(TemplateExecutor).GetField("_ctxAccessor", BindingFlags.NonPublic | BindingFlags.Instance);
+        field.Should().NotBeNull("TemplateExecutor keeps its IMigrationContextAccessor in a field named _ctxAccessor");
+        return ((IMigrationContextAccessor)field!.GetValue(executor)!).Current;
+    }
+
+    [Fact]
+    public void RepositoryProductSelect_PassesNameAndNameLower_AndSetsProductIdFromResult()
+    {
+        var (executor, _, getCapture) = CreateExecutor(productId: 0, runMode: MigrationRunMode.Simulate, scalarResult: "42,Product [TestProduct] with Id [42] found");
+
+        bool found = executor.RepositoryProductSelect();
+
+        found.Should().BeTrue();
+        ContextOf(executor).MigrationState.ProductId.Should().Be(42, "the id returned by the template becomes MigrationState.ProductId");
+        var captured = getCapture()!;
+        captured.TryGetValue("Name", out var name).Should().BeTrue();
+        name!.ParameterValue.Should().Be("TestProduct");
+        captured.TryGetValue("NameLower", out var nameLower).Should().BeTrue();
+        nameLower!.ParameterValue.Should().Be("testproduct", "the lookup key is pre-computed lowercase, like the CheckInsert template");
+    }
+
+    [Fact]
+    public void RepositoryProductSelect_NotFound_ReturnsFalseAndLeavesProductIdZero()
+    {
+        var (executor, _, _) = CreateExecutor(productId: 0, runMode: MigrationRunMode.Simulate, scalarResult: "0,Product [TestProduct] not found");
+
+        bool found = executor.RepositoryProductSelect();
+
+        found.Should().BeFalse("result code 0 means the product is not registered yet — not an error");
+        ContextOf(executor).MigrationState.ProductId.Should().Be(0);
+    }
+
+    [Fact]
+    public void RepositoryEnvironmentSelect_PassesNameAndNameLower_AndSetsEnvironmentIdFromResult()
+    {
+        var (executor, _, getCapture) = CreateExecutor(environmentId: 0, runMode: MigrationRunMode.Simulate, scalarResult: "7,Environment [Docker] with Id [7] found");
+
+        bool found = executor.RepositoryEnvironmentSelect();
+
+        found.Should().BeTrue();
+        ContextOf(executor).MigrationState.EnvironmentId.Should().Be(7);
+        var captured = getCapture()!;
+        captured.TryGetValue("Name", out var name).Should().BeTrue();
+        name!.ParameterValue.Should().Be("Docker");
+        captured.TryGetValue("NameLower", out var nameLower).Should().BeTrue();
+        nameLower!.ParameterValue.Should().Be("docker");
+    }
+
+    [Fact]
+    public void RepositoryProductSelect_NegativeResultCode_ThrowsLikeCheckInsert()
+    {
+        var (executor, _, _) = CreateExecutor(productId: 0, runMode: MigrationRunMode.Simulate, scalarResult: "-1,lookup failed");
+
+        var act = () => executor.RepositoryProductSelect();
+
+        act.Should().Throw<Exception>("a negative result code is an error for the select exactly as for the CheckInsert template");
+        ContextOf(executor).MigrationState.ProductId.Should().Be(0, "a failed lookup must not leave a partial id behind");
+    }
+
+    [Fact]
+    public void RepositoryEnvironmentSelect_NotFound_ReturnsFalseAndLeavesEnvironmentIdZero()
+    {
+        var (executor, _, _) = CreateExecutor(environmentId: 0, runMode: MigrationRunMode.Simulate, scalarResult: "0,Environment [Docker] not found");
+
+        bool found = executor.RepositoryEnvironmentSelect();
+
+        found.Should().BeFalse();
+        ContextOf(executor).MigrationState.EnvironmentId.Should().Be(0);
     }
 
     #endregion

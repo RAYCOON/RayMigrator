@@ -4,13 +4,13 @@
 
 See **[Adding a New Database Type](../09-extending/new-database-type.md)** for the full step-by-step guide, including:
 
-- Quick start using the `Database.Example` skeleton project (19 placeholder templates: 18 required by the engine + `Repository_MigrationRecordHistory_Archive.sql`)
+- Quick start using the `Database.Example` skeleton project (21 placeholder templates: 20 required by the engine + `Repository_MigrationRecordHistory_Archive.sql`)
 - DAL class implementation with Oracle example
 - Plugin architecture: each DAL is a separate project/assembly
 - `[DatabaseType]` attribute as the runtime lookup key
 - DAL classes must be `public` for cross-assembly `Activator.CreateInstance` by `DalFactory`
 - Filesystem-based auto-discovery: `DalFactory` scans `DataAccessLayers/` subdirectories for DLLs
-- All 18 SQL templates required by the engine, with placeholder and result conventions
+- All 20 SQL templates required by the engine, with placeholder and result conventions
 - `RetryHelper` integration with custom transient error predicate
 - Post-build target for copying DAL DLLs to `DataAccessLayers/{Type}/`
 - Monorepo deployment (project references) and external plugin deployment (NuGet packages)

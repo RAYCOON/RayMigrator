@@ -62,6 +62,8 @@ public class PostgreSqlIdentifierCasingTests
     [InlineData("Repository_Drop.sql")]
     [InlineData("Repository_Environment_CheckInsert.sql")]
     [InlineData("Repository_Product_CheckInsert.sql")]
+    [InlineData("Repository_Product_Select.sql")]
+    [InlineData("Repository_Environment_Select.sql")]
     [InlineData("Repository_MigrationRecord_Insert.sql")]
     [InlineData("Repository_MigrationRecord_Update.sql")]
     [InlineData("Repository_MigrationRecord_UpdateHash.sql")]
@@ -81,7 +83,7 @@ public class PostgreSqlIdentifierCasingTests
         var raw = ReadTemplate("PostgreSQL", templateFile);
 
         // Strip leading /* ... */ block comment (the TOML header).
-        // All 18 templates start with a block comment; strip ALL block comments for safety.
+        // All 20 templates start with a block comment; strip ALL block comments for safety.
         string stripped = Regex.Replace(raw, @"/\*.*?\*/", string.Empty, RegexOptions.Singleline);
 
         // Strip single-line -- comments (so lines like "-- Created by RayMigrator" don't trigger).
@@ -110,13 +112,13 @@ public class PostgreSqlIdentifierCasingTests
     /// updating this test class the count assertion fails, prompting a review.
     /// </summary>
     [Fact]
-    public void PgTemplates_TotalCount_IsEighteen()
+    public void PgTemplates_TotalCount_IsTwenty()
     {
         var templatesDir = GetTemplatesDir("PostgreSQL");
         var actualFiles = Directory.GetFiles(templatesDir, "*.sql");
 
-        actualFiles.Should().HaveCount(18,
-            "the PostgreSQL Templates directory must contain exactly 18 .sql files after DAL-017; " +
+        actualFiles.Should().HaveCount(20,
+            "the PostgreSQL Templates directory must contain exactly 20 .sql files after DAL-017 (+2 read-only Select templates, #7); " +
             "if you added a new template, also add it to P2_PostgreSqlIdentifierCasingTests");
     }
 

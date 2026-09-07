@@ -343,7 +343,7 @@ The catalog lists the unique test scenarios defined for the base PostgreSQL test
 | `OutOfOrderBlockingTests` | 3 | Out-of-order migration blocking (false=blocked, true=allowed, data integrity after blocking) |
 | `RepositoryIntegrityTests` | 4 | Repository tables, Product record, Migration records after successful run |
 | `RunningGuardTests` | 6 | Concurrent run prevention (MigrateUp, MigrateDown, Baseline blocked; ValidateHash/UpdateHash allowed) |
-| `SimulateModeTests` | 7 | Simulate mode (no user tables written), Validate mode, MigrateDown simulate, MigrateDown Validate (non-destructive + missing rollback detection) |
+| `SimulateModeTests` | 11 | Simulate mode (no user tables written), Validate mode, MigrateDown simulate, MigrateDown Validate (non-destructive + missing rollback detection), Simulate reads the same records as Migrate: preview of pending files only, nothing pending after a full migrate, rollback candidates, empty repository (#7) |
 | `TargetGroupMigrationOrderTests` | 10 | TargetGroupMigrationOrder overrides (CLI, appsettings, migsettings), wrong-case error, Baseline, single-TG rejection |
 | `TargetGroupFilterTests` | 12 | Filtering by target group alias (Backend-only, Frontend-only, both) |
 | `UpdateHashTests` | 5 | update-hash: no updates after fresh migration, update after file modification, validate passes after update, idempotent second run, empty-repo no-op |

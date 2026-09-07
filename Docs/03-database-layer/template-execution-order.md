@@ -283,6 +283,7 @@ Called immediately after Product registration at all 8 `MigrationService` entry 
 | 3 | `Repository_CheckCreate` | Repository DB | `MigrateUpAsync` | Creates schema + 11 tables + 15 FKs + master data + VersionId |
 | 4 | `Repository_Product_CheckInsert` | Repository DB | `MigrateUpAsync` | Registers the product, returns ProductId |
 | 4b | `Repository_Environment_CheckInsert` | Repository DB | All 8 entry points (after Product check-insert) | Registers the environment, returns EnvironmentId |
+| 4a/4b (Simulate) | `Repository_Product_Select`, `Repository_Environment_Select` | Repository DB | `MigrateUpAsync` / `MigrateDownAsync` in `Simulate` run mode, instead of the two CheckInsert templates | Resolves ProductId/EnvironmentId read-only; `0` when not registered, in which case all files are treated as pending (#7) |
 | 4c | `Repository_MigrationRecord_GetInterrupted` | Repository DB | `MigrateUpAsync` | Checks for interrupted migrations (informational) |
 | 5 | `Repository_MigrationRun_Insert` | Repository DB | `MigrateUpAsync` (via `RepositoryMigrationRunInsertWithAutoFix`) | Creates MigrationRun record, returns MigrationRunId |
 

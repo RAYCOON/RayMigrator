@@ -47,7 +47,8 @@ public sealed class EngineTestHost : IDisposable
         string productAlias,
         MigrationCommand command,
         MigrationRunMode runMode,
-        string? targetReleaseVersion = null)
+        string? targetReleaseVersion = null,
+        string environment = "Docker")
     {
         // Resolve migration files root directory (solution root / Testing / MigrationFiles)
         string solutionRoot = FindSolutionRoot();
@@ -68,7 +69,7 @@ public sealed class EngineTestHost : IDisposable
         {
             Command = command,
             Product = productAlias,
-            Environment = "Docker",
+            Environment = environment,
             RunMode = runMode,
             TargetReleaseVersion = targetReleaseVersion,
             ShowStartupInfo = false,

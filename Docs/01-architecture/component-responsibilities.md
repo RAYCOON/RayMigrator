@@ -324,7 +324,7 @@ public string TargetAlias { get; set; }
 |-------|---------|
 | `Template` | Represents a loaded SQL template with `TemplateType`, `DatabaseType`, `Filename`, and `Content` properties. |
 | `TemplateResponse` | Result of a template execution, containing `ResultCode` (int) and `ResultMessage` (string?). |
-| `TemplateType` | Enum defining all SQL template types (18 values + Undefined). |
+| `TemplateType` | Enum defining all SQL template types (20 values + Undefined). |
 
 ### `MigrationLoggingContext`
 **Location**: `Raycoon.RayMigrator.Core/MigrationLoggingContext.cs`
@@ -585,7 +585,7 @@ Each DAL is a separate project (not a subdirectory of the Database project):
 
 **Source Location**: Each DAL project's `Templates/` directory (e.g., `Raycoon.RayMigrator.Database.SqlServer/Templates/`). At build time, templates are copied to the output directory under `DataAccessLayers/{DatabaseType}/` (flat layout, no `Templates/` subdirectory at runtime).
 
-18 templates per DAL, matching all non-Undefined `TemplateType` enum values. See [Template System](../03-database-layer/template-system.md) for the complete list.
+20 templates per DAL, matching all non-Undefined `TemplateType` enum values. See [Template System](../03-database-layer/template-system.md) for the complete list.
 
 ## Core Layer: Enumerations and Constants
 
@@ -612,7 +612,7 @@ Each DAL is a separate project (not a subdirectory of the Database project):
 
 | Enum | Values |
 |------|--------|
-| `TemplateType` | Undefined (0), DatabaseLogging_CheckCreate, DatabaseLogging_Insert, Repository_CheckCreate, Repository_Drop, Repository_MigrationRun_Insert, Repository_MigrationRun_Update, Repository_MigrationRun_SelectOrphaned, Repository_MigrationRun_FixOrphaned, Repository_MigrationRecord_FixOrphaned, Repository_Product_CheckInsert, Repository_Environment_CheckInsert, Repository_MigrationRecord_Insert, Repository_MigrationRecord_Update, Repository_MigrationRecord_UpdateHash, Repository_MigrationRecord_UpdateRollback, Repository_MigrationRecord_Select, Repository_MigrationRecord_GetInterrupted, Repository_MigrationRun_Select |
+| `TemplateType` | Undefined (0), DatabaseLogging_CheckCreate, DatabaseLogging_Insert, Repository_CheckCreate, Repository_Drop, Repository_MigrationRun_Insert, Repository_MigrationRun_Update, Repository_MigrationRun_SelectOrphaned, Repository_MigrationRun_FixOrphaned, Repository_MigrationRecord_FixOrphaned, Repository_Product_CheckInsert, Repository_Environment_CheckInsert, Repository_Product_Select, Repository_Environment_Select, Repository_MigrationRecord_Insert, Repository_MigrationRecord_Update, Repository_MigrationRecord_UpdateHash, Repository_MigrationRecord_UpdateRollback, Repository_MigrationRecord_Select, Repository_MigrationRecord_GetInterrupted, Repository_MigrationRun_Select |
 
 ## Shared Layer Components
 

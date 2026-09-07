@@ -132,9 +132,19 @@ public class MigrationService : IMigrationService
             {
                 try
                 {
-                    existingRecords = await Task.Run(() =>
-                        _templateExecutor.RepositoryMigrationSelect());
-                    filesToMigrate = FilterAlreadyMigratedFiles(migrationFiles, existingRecords, productOptions);
+                    // Simulate never ran the CheckInsert templates above, so ProductId/EnvironmentId must be
+                    // resolved read-only here; otherwise the select would run with id 0 and find nothing (#7).
+                    if (!request.RunMode.ShouldWriteRepository() && !await ResolveRepositoryIdsReadOnlyAsync(request.RunMode))
+                    {
+                        existingRecords = new List<MigrationRecord>();
+                        filesToMigrate = migrationFiles;
+                    }
+                    else
+                    {
+                        existingRecords = await Task.Run(() =>
+                            _templateExecutor.RepositoryMigrationSelect());
+                        filesToMigrate = FilterAlreadyMigratedFiles(migrationFiles, existingRecords, productOptions);
+                    }
                 }
                 catch (Exception ex) when (!request.RunMode.ShouldWriteRepository())
                 {
@@ -1050,8 +1060,17 @@ public class MigrationService : IMigrationService
             List<MigrationRecord> existingRecords;
             try
             {
-                existingRecords = await Task.Run(() =>
-                    _templateExecutor.RepositoryMigrationSelect());
+                // Simulate never ran the CheckInsert templates above, so ProductId/EnvironmentId must be
+                // resolved read-only here; otherwise the select would run with id 0 and find nothing (#7).
+                if (!request.RunMode.ShouldWriteRepository() && !await ResolveRepositoryIdsReadOnlyAsync(request.RunMode))
+                {
+                    existingRecords = new List<MigrationRecord>();
+                }
+                else
+                {
+                    existingRecords = await Task.Run(() =>
+                        _templateExecutor.RepositoryMigrationSelect());
+                }
             }
             catch (Exception ex) when (!request.RunMode.ShouldWriteRepository())
             {
@@ -3194,6 +3213,37 @@ public class MigrationService : IMigrationService
     /// Runs newer than this threshold are assumed to be genuinely running and not auto-fixed.
     /// </summary>
     internal const int AutoFixOrphanedRunsThresholdMinutes = 10;
+
+    /// <summary>
+    /// Resolves <c>MigrationState.ProductId</c> and <c>EnvironmentId</c> without writing to the repository.
+    /// Run modes that write (Migrate) get the ids from the CheckInsert templates; run modes that only read
+    /// (Simulate) must use the read-only lookups, otherwise the repository queries run with id 0 and see
+    /// an empty repository (#7).
+    /// </summary>
+    /// <returns>
+    /// True when both the product and the environment are registered in the repository.
+    /// False when either row does not exist yet — the caller then treats every migration file as pending,
+    /// which is the same outcome Migrate mode would produce on its first run.
+    /// </returns>
+    private async Task<bool> ResolveRepositoryIdsReadOnlyAsync(MigrationRunMode runMode)
+    {
+        bool productFound = await Task.Run(() => _templateExecutor.RepositoryProductSelect());
+        bool environmentFound = await Task.Run(() => _templateExecutor.RepositoryEnvironmentSelect());
+
+        if (productFound && environmentFound)
+            return true;
+
+        string missing = (productFound, environmentFound) switch
+        {
+            (false, false) => "product and environment",
+            (false, true) => "product",
+            _ => "environment"
+        };
+        _logger.LogInformation(
+            "Repository has no record for the {Missing} yet (product {Product}, environment {Environment}); {RunMode} mode treats all migration files as pending.",
+            missing, _ctxAccessor.Current.RayMigratorConsoleOptions.Product, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, runMode);
+        return false;
+    }
 
     /// <summary>
     /// Attempts to insert a MigrationRun, auto-fixing orphaned runs if a parallel-run lock is detected.

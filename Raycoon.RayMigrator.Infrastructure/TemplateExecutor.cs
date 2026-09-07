@@ -130,6 +130,58 @@ public class TemplateExecutor
     }
 
     /// <summary>
+    /// Looks up the ProductId of the current product without inserting anything.
+    /// Used by run modes that must not write to the repository (Simulate).
+    /// Sets <c>MigrationState.ProductId</c> to the id, or to 0 when the product is not registered yet.
+    /// </summary>
+    /// <returns>True when the product exists in the repository.</returns>
+    /// <exception cref="TemplateExecutionException"></exception>
+    public bool RepositoryProductSelect()
+    {
+        var templateType = TemplateType.Repository_Product_Select;
+        var eventId = MigrationEvent.TemplateExecutionRepositoryProductSelect;
+        string productName = _ctxAccessor.Current.RayMigratorConsoleOptions.Product;
+
+        _logger.LogDebug(eventId, "Looking up product with name {ProductName} (read-only, no insert){MigrationContext}", productName, _ctxAccessor.Current.Clone);
+
+        DalParameterList dalParameterList = new DalParameterList();
+        dalParameterList.AddParameter(new DalParameter("Name", productName, typeof(string)));
+        dalParameterList.AddParameter(new DalParameter("NameLower", productName.ToLowerInvariant(), typeof(string)));
+
+        var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
+        var templateResponse = ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId);
+
+        _ctxAccessor.Current.MigrationState.ProductId = templateResponse.ResultCode;
+        return templateResponse.ResultCode > 0;
+    }
+
+    /// <summary>
+    /// Looks up the EnvironmentId of the current environment without inserting anything.
+    /// Used by run modes that must not write to the repository (Simulate).
+    /// Sets <c>MigrationState.EnvironmentId</c> to the id, or to 0 when the environment is not registered yet.
+    /// </summary>
+    /// <returns>True when the environment exists in the repository.</returns>
+    /// <exception cref="TemplateExecutionException"></exception>
+    public bool RepositoryEnvironmentSelect()
+    {
+        var templateType = TemplateType.Repository_Environment_Select;
+        var eventId = MigrationEvent.TemplateExecutionRepositoryEnvironmentSelect;
+        string environmentName = _ctxAccessor.Current.RayMigratorConsoleOptions.Environment;
+
+        _logger.LogDebug(eventId, "Looking up environment with name {EnvironmentName} (read-only, no insert){MigrationContext}", environmentName, _ctxAccessor.Current.Clone);
+
+        DalParameterList dalParameterList = new DalParameterList();
+        dalParameterList.AddParameter(new DalParameter("Name", environmentName, typeof(string)));
+        dalParameterList.AddParameter(new DalParameter("NameLower", environmentName.ToLowerInvariant(), typeof(string)));
+
+        var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
+        var templateResponse = ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId);
+
+        _ctxAccessor.Current.MigrationState.EnvironmentId = templateResponse.ResultCode;
+        return templateResponse.ResultCode > 0;
+    }
+
+    /// <summary>
     /// OK: Creates a new MigrationRun in the database and inserts the settings JSON into MigrationRunMeta.
     /// </summary>
     /// <param name="migrationRunSettingsJson">JSON snapshot of all RayMigrator settings at migration start.</param>

@@ -53,7 +53,7 @@ raymigrator migrate-up -p BookStore -env Staging -rm simulate
 ### What Simulate Does Beyond Validate
 
 - **Connects to target databases** -- Opens a real connection to each configured target to validate connectivity. This confirms that connection strings are correct and the databases are reachable.
-- **Connects to the repository** -- Reads existing migration records, enabling hash comparison and out-of-order detection that Validate alone cannot perform.
+- **Connects to the repository** -- Reads existing migration records, enabling hash comparison and out-of-order detection that Validate alone cannot perform. The product and environment ids are looked up read-only (nothing is inserted); if the repository has no record for the product or environment yet, Simulate reports that and treats all migrations as pending.
 - **Exercises the full pipeline** -- File discovery, ordering, filtering, and repository read logic all run as they would in Migrate mode.
 - **Gracefully handles non-existent repository** -- If the repository does not exist yet, Simulate treats all migrations as pending and continues without error.
 

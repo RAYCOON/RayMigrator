@@ -8,7 +8,7 @@ RayMigrator uses a **plugin architecture** for database providers. Each database
 
 1. A new project referencing `Database.Common` and `Shared`
 2. A DAL class extending `DalBase` and decorated with `[DatabaseType]`
-3. The 18 required SQL templates for repository and logging operations
+3. The 20 required SQL templates for repository and logging operations
 4. No manual registration -- `DalFactory` auto-discovers implementations via dual-mode discovery (DependencyContext scanning for built-in DALs and filesystem scanning of `DataAccessLayers/` directory for external DAL plugins)
 
 ## Alternative: CLI Tool Execution Mode
@@ -47,7 +47,7 @@ Use these as reference when building a new DAL:
 The fastest way to start is to copy the `Raycoon.RayMigrator.Database.Example` skeleton project. It contains:
 
 - `DalExample.cs` -- DAL class with all abstract methods stubbed as `NotImplementedException` and a commented-out `IsTransient` override template
-- `Templates/` -- All 19 SQL template files with placeholder comments (18 required by the engine plus `Repository_MigrationRecordHistory_Archive.sql`)
+- `Templates/` -- All 21 SQL template files with placeholder comments (20 required by the engine plus `Repository_MigrationRecordHistory_Archive.sql`)
 - `.csproj` -- Pre-configured with template copying and DLL output targets
 
 ```bash
@@ -71,6 +71,7 @@ Raycoon.RayMigrator.Database.Oracle/
 │   ├── Repository_CheckCreate.sql
 │   ├── Repository_Drop.sql
 │   ├── Repository_Environment_CheckInsert.sql
+│   ├── Repository_Environment_Select.sql
 │   ├── Repository_MigrationRecord_FixOrphaned.sql
 │   ├── Repository_MigrationRecord_GetInterrupted.sql
 │   ├── Repository_MigrationRecord_Insert.sql
@@ -83,11 +84,12 @@ Raycoon.RayMigrator.Database.Oracle/
 │   ├── Repository_MigrationRun_Select.sql
 │   ├── Repository_MigrationRun_SelectOrphaned.sql
 │   ├── Repository_MigrationRun_Update.sql
-│   └── Repository_Product_CheckInsert.sql
+│   ├── Repository_Product_CheckInsert.sql
+│   └── Repository_Product_Select.sql
 └── Raycoon.RayMigrator.Database.Oracle.csproj
 ```
 
-> Note: The `Database.Example` skeleton also includes a `Repository_MigrationRecordHistory_Archive.sql` placeholder beyond the 18 required templates. This file has no matching `TemplateType` enum value and is silently skipped by `TemplateCache` during initialization.
+> Note: The `Database.Example` skeleton also includes a `Repository_MigrationRecordHistory_Archive.sql` placeholder beyond the 20 required templates. This file has no matching `TemplateType` enum value and is silently skipped by `TemplateCache` during initialization.
 
 ### Project File (.csproj)
 
@@ -284,7 +286,7 @@ You may also optionally override the following virtual methods from `DalBase`:
 
 ## Step 3: Create SQL Templates
 
-All 18 templates must be present. `TemplateCache` validates their existence at startup. Templates are loaded from the filesystem (`DataAccessLayers/{Type}/`), delivered as `<Content>` items that propagate transitively through ProjectReference and as `contentFiles` in NuGet packages.
+All 20 templates must be present. `TemplateCache` validates their existence at startup. Templates are loaded from the filesystem (`DataAccessLayers/{Type}/`), delivered as `<Content>` items that propagate transitively through ProjectReference and as `contentFiles` in NuGet packages.
 
 ### Template Placeholders
 
@@ -391,7 +393,7 @@ When all retries are exhausted, `RetryHelper` (used internally by `DalBase`) thr
    └── DataAccessLayers/
        └── Oracle/
            ├── Raycoon.RayMigrator.Database.Oracle.dll
-           └── *.sql (18 template files)
+           └── *.sql (20 template files)
    ```
 3. Copy any ADO.NET driver DLLs that are **not** already present in the RayMigrator root directory into the `DataAccessLayers/Oracle/` directory
 4. **Do NOT copy** `Database.Common.dll` or `Shared.dll` -- they must come from the app's root directory
@@ -432,7 +434,7 @@ Create a Docker container for testing and add tests to the integration test proj
   - [ ] `ExecuteNonQueryAsync(string, DbConnection, DbTransaction, int, DalParameterList?)`
   - [ ] `ExecuteScalarAsync(string, DbConnection, DbTransaction, int, DalParameterList?)`
 - [ ] Override `IsTransient(Exception)` to detect your database's transient error codes
-- [ ] Create all 18 SQL templates in `Templates/` directory
+- [ ] Create all 20 SQL templates in `Templates/` directory
 - [ ] Configure `.csproj` template copying and DLL output targets
 - [ ] For monorepo: add `ProjectReference` and copy target to `Console.csproj`
 - [ ] Verify `DalFactory` auto-discovers the new DAL at runtime

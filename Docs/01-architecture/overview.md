@@ -138,7 +138,7 @@ The domain model layer containing configuration, state, and core abstractions.
 - Enumerations (`MigrationCommand`, `MigrationErrorAction`, `RollbackErrorAction`, `TargetMigrationOrder`, `HashValidationScope`, `MigrationRunMode`, `MigrationOperation`, `MigrationRunResult`, `MigrationStatus`, `FixIssues`, `OperatingMode`, `CliToolInputMode`)
 - Configuration sources (`IOptionsSource` interface and `OptionsSourceResult` in `Core/Configuration/Sources/`)
 - `MigrationEvent` class (static `EventId` constants for structured logging)
-- `TemplateType` enum (in `Core/Templates/`, defining all 18 SQL template types + Undefined); companion `Template` and `TemplateResponse` classes
+- `TemplateType` enum (in `Core/Templates/`, defining all 20 SQL template types + Undefined); companion `Template` and `TemplateResponse` classes
 - Domain models: `MigrationFileInfo`, `MigrationRecord`, `InterruptedMigrationInfo`, `MigrationStateSnapshot`
 - `CultureDependentSorting` - Culture-aware file sorting helper
 - `EnvironmentResolver` - Resolves target environment from CLI arguments or `DOTNET_ENVIRONMENT` variable

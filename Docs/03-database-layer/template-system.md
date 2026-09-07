@@ -9,6 +9,8 @@ RayMigrator uses SQL templates with placeholder substitution for database-agnost
 | `Repository_CheckCreate` | Create repository schema and tables |
 | `Repository_Product_CheckInsert` | Ensure product exists |
 | `Repository_Environment_CheckInsert` | Ensure environment exists |
+| `Repository_Product_Select` | Look up product id read-only (no insert); returns `0` when not registered. Used by Simulate mode (#7) |
+| `Repository_Environment_Select` | Look up environment id read-only (no insert); returns `0` when not registered. Used by Simulate mode (#7) |
 | `Repository_MigrationRun_Insert` | Create new migration run |
 | `Repository_MigrationRun_Update` | Update migration run status |
 | `Repository_MigrationRun_SelectOrphaned` | Select orphaned migration runs |
@@ -33,6 +35,8 @@ RayMigrator uses SQL templates with placeholder substitution for database-agnost
 | `Repository_Drop` | Active | Active | Active | Active | Active |
 | `Repository_Product_CheckInsert` | Active | Active | Active | Active | Active |
 | `Repository_Environment_CheckInsert` | Active | Active | Active | Active | Active |
+| `Repository_Product_Select` | Active | Active | Active | Active | Active |
+| `Repository_Environment_Select` | Active | Active | Active | Active | Active |
 | `Repository_MigrationRun_Insert` | Active | Active | Active | Active | Active |
 | `Repository_MigrationRun_Update` | Active | Active | Active | Active | Active |
 | `Repository_MigrationRun_SelectOrphaned` | Active | Active | Active | Active | Active |
@@ -46,7 +50,7 @@ RayMigrator uses SQL templates with placeholder substitution for database-agnost
 | `Repository_MigrationRecord_UpdateHash` | Active | Active | Active | Active | Active |
 | `Repository_MigrationRecord_GetInterrupted` | Active | Active | Active | Active | Active |
 
-> **Note:** The 18 templates listed above are shared by all DAL plugins, including the SQLite DAL.
+> **Note:** The 20 templates listed above are shared by all DAL plugins, including the SQLite DAL.
 
 ## Template Location
 

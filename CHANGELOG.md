@@ -24,6 +24,22 @@ RayMigrator follows Semantic Versioning where applicable.
   the issues; it now prints the counters and every `Hash issue` line and
   returns exit code `1` for `Modified`/`Missing` files. Teams that gate CI
   on `validate-hash` had no coverage before this fix. (#5)
+- `--run-mode simulate` queried the repository with `ProductId = 0` and
+  `EnvironmentId = 0`: the two ids are assigned by the `*_CheckInsert`
+  templates, which Simulate correctly skips because they insert. The
+  record query therefore never matched, `migrate-up` previewed every file
+  as "Would execute" (including long-migrated ones) and `migrate-down`
+  always reported "No migrations found to roll back". Simulate now resolves
+  both ids through two new read-only templates,
+  `Repository_Product_Select` and `Repository_Environment_Select` (added to
+  all five DALs and to `Database.Example`; the required template count per
+  DAL is now 20), and reads the same records as Migrate mode. On a
+  repository that has no product/environment row yet it logs that and keeps
+  today's "everything is pending" behaviour. Because Simulate now sees the
+  real records, the out-of-order check applies to it as well: a Simulate run
+  fails on an out-of-order file unless `--allow-out-of-order` is given, exactly
+  like Migrate. External DALs must add the two templates, otherwise
+  `TemplateCache` reports them as missing at startup. (#7)
 
 ## [0.11.1] — 2026-09-05
 

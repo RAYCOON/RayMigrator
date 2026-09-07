@@ -20,6 +20,7 @@ public class ScenarioContext : IAsyncDisposable
     private readonly string _configPath;
     private readonly string _productAlias;
     private OperationResult? _lastResult;
+    private string _environment = "Docker";
 
     /// <summary>
     /// The temporary working directory containing the copied migration files.
@@ -56,7 +57,7 @@ public class ScenarioContext : IAsyncDisposable
         var request = new MigrateUpRequest
         {
             ProductAlias = _productAlias,
-            Environment = "Docker",
+            Environment = _environment,
             TargetReleaseVersion = toRelease,
             RunMode = runMode ?? MigrationRunMode.Migrate,
             ShowInfo = false,
@@ -83,7 +84,7 @@ public class ScenarioContext : IAsyncDisposable
         var request = new MigrateDownRequest
         {
             ProductAlias = _productAlias,
-            Environment = "Docker",
+            Environment = _environment,
             TargetReleaseVersion = toRelease,
             RunMode = runMode ?? MigrationRunMode.Migrate,
             ShowInfo = false,
@@ -107,7 +108,7 @@ public class ScenarioContext : IAsyncDisposable
         var request = new BaselineRequest
         {
             ProductAlias = _productAlias,
-            Environment = "Docker",
+            Environment = _environment,
             TargetReleaseVersion = toRelease,
             ShowInfo = false,
             RevealSensitiveData = revealSensitiveData,
@@ -187,7 +188,7 @@ public class ScenarioContext : IAsyncDisposable
         var request = new FixIssuesRequest
         {
             ProductAlias = _productAlias,
-            Environment = "Docker",
+            Environment = _environment,
             Scope = scope,
             OlderThanMinutes = olderThanMinutes,
             DryRun = dryRun,
@@ -214,11 +215,12 @@ public class ScenarioContext : IAsyncDisposable
     /// Rebuilds the DI container for a different command/mode without cleaning databases.
     /// Used for multi-step test scenarios (e.g., Migrate-Up then Migrate-Down).
     /// </summary>
-    public Task RebuildForAsync(MigrationCommand command, MigrationRunMode mode, string? toRelease = null)
+    public Task RebuildForAsync(MigrationCommand command, MigrationRunMode mode, string? toRelease = null, string? environment = null)
     {
+        _environment = environment ?? "Docker";
         _host.Dispose();
         _host = new EngineTestHost();
-        _host.Build(_configPath, _productAlias, command, mode, toRelease);
+        _host.Build(_configPath, _productAlias, command, mode, toRelease, _environment);
         return Task.CompletedTask;
     }
 

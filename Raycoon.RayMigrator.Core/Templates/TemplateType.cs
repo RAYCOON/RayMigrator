@@ -26,4 +26,8 @@ public enum TemplateType
     Repository_MigrationRecord_Select,
     Repository_MigrationRecord_GetInterrupted,
     Repository_MigrationRecord_FixOrphaned,
+
+    // Read-only lookups (no insert): used by run modes / commands that must not write to the repository (#7)
+    Repository_Product_Select,
+    Repository_Environment_Select,
 }

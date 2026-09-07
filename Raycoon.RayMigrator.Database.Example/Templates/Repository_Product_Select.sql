@@ -1,0 +1,10 @@
+-- TODO: Implement for your database engine
+-- Purpose: Looks up a product record by NameLower WITHOUT inserting it (read-only counterpart of
+--          Repository_Product_CheckInsert). Must return exactly one row in the 'code,message' format:
+--          '<ProductId>,Product [Name] with Id [<ProductId>] found'  or  '0,Product [Name] not found'.
+-- See the corresponding template in Database.SqlServer or Database.PostgreSQL for reference.
+--
+-- Parameters used in this template:
+-- {CFG:SchemaName} - The repository schema name
+-- {CFG:TableBaseName} - The table name prefix
+-- @Name, @NameLower - SQL parameters (see reference implementations)

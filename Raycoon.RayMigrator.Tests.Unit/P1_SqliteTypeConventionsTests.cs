@@ -233,6 +233,8 @@ public class SqliteTypeConventionsTests
         new object[] { "Repository_MigrationRecord_Select.sql" },
         new object[] { "Repository_MigrationRun_Select.sql" },
         new object[] { "Repository_MigrationRun_SelectOrphaned.sql" },
+        new object[] { "Repository_Product_Select.sql" },
+        new object[] { "Repository_Environment_Select.sql" },
     };
 
     [Theory]

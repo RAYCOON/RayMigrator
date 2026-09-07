@@ -63,6 +63,8 @@ public class MySqlMariaDbIdentifierCasingTests
     [InlineData("Repository_Drop.sql")]
     [InlineData("Repository_Environment_CheckInsert.sql")]
     [InlineData("Repository_Product_CheckInsert.sql")]
+    [InlineData("Repository_Product_Select.sql")]
+    [InlineData("Repository_Environment_Select.sql")]
     [InlineData("Repository_MigrationRecord_Insert.sql")]
     [InlineData("Repository_MigrationRecord_Update.sql")]
     [InlineData("Repository_MigrationRecord_UpdateHash.sql")]
@@ -82,7 +84,7 @@ public class MySqlMariaDbIdentifierCasingTests
         var raw = ReadTemplate("MySql", templateFile);
 
         // Strip leading /* ... */ block comment (the TOML header).
-        // All 18 templates start with a block comment; strip ALL block comments for safety.
+        // All 20 templates start with a block comment; strip ALL block comments for safety.
         string stripped = Regex.Replace(raw, @"/\*.*?\*/", string.Empty, RegexOptions.Singleline);
 
         // Strip single-line -- comments (so lines like "-- DAL-018: snake_case identifiers" don't trigger).
@@ -120,6 +122,8 @@ public class MySqlMariaDbIdentifierCasingTests
     [InlineData("Repository_Drop.sql")]
     [InlineData("Repository_Environment_CheckInsert.sql")]
     [InlineData("Repository_Product_CheckInsert.sql")]
+    [InlineData("Repository_Product_Select.sql")]
+    [InlineData("Repository_Environment_Select.sql")]
     [InlineData("Repository_MigrationRecord_Insert.sql")]
     [InlineData("Repository_MigrationRecord_Update.sql")]
     [InlineData("Repository_MigrationRecord_UpdateHash.sql")]
@@ -168,27 +172,27 @@ public class MySqlMariaDbIdentifierCasingTests
     /// updating this test class the count assertion fails, prompting a review.
     /// </summary>
     [Fact]
-    public void MySqlTemplates_TotalCount_IsEighteen()
+    public void MySqlTemplates_TotalCount_IsTwenty()
     {
         var templatesDir = GetTemplatesDir("MySql");
         var actualFiles = Directory.GetFiles(templatesDir, "*.sql");
 
-        actualFiles.Should().HaveCount(18,
-            "the MySql Templates directory must contain exactly 18 .sql files after DAL-018; " +
+        actualFiles.Should().HaveCount(20,
+            "the MySql Templates directory must contain exactly 20 .sql files after DAL-018 (+2 read-only Select templates, #7); " +
             "if you added a new template, also add it to P2_MySqlMariaDbIdentifierCasingTests");
     }
 
     /// <summary>
-    /// Confirms the count of MariaDB templates: exactly 18. Mirrors MySqlTemplates_TotalCount_IsEighteen.
+    /// Confirms the count of MariaDB templates: exactly 20. Mirrors MySqlTemplates_TotalCount_IsTwenty.
     /// </summary>
     [Fact]
-    public void MariaDbTemplates_TotalCount_IsEighteen()
+    public void MariaDbTemplates_TotalCount_IsTwenty()
     {
         var templatesDir = GetTemplatesDir("MariaDb");
         var actualFiles = Directory.GetFiles(templatesDir, "*.sql");
 
-        actualFiles.Should().HaveCount(18,
-            "the MariaDb Templates directory must contain exactly 18 .sql files after DAL-018; " +
+        actualFiles.Should().HaveCount(20,
+            "the MariaDb Templates directory must contain exactly 20 .sql files after DAL-018 (+2 read-only Select templates, #7); " +
             "if you added a new template, also add it to P2_MySqlMariaDbIdentifierCasingTests");
     }
 

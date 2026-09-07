@@ -289,7 +289,7 @@ raymigrator migrate-up --product MyProduct --environment Production --run-mode s
 - Checks environment/target filters
 - Calculates hashes
 - Connects to target databases (validates connectivity)
-- Reads repository records to determine what is already migrated (same as Migrate mode)
+- Reads repository records to determine what is already migrated (same as Migrate mode). The product and environment ids are resolved read-only via `Repository_Product_Select` / `Repository_Environment_Select`; if either is not registered yet, Simulate logs that and treats all files as pending
 - Does NOT write repository records
 - Does NOT execute SQL on targets
 - Does NOT write database log entries (DatabaseLogging sink is inactive)
