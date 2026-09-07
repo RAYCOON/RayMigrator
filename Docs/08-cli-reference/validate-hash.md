@@ -145,7 +145,7 @@ Output is via structured Serilog logging. The exact format depends on the config
 ```
 [DBG] Executing Validate-Hash command for product MyProduct with scope File
 [INF] Validate-Hash completed. Total: 3, Valid: 2, Invalid: 1, Missing: 0
-[WRN] Hash issue: 002_InsertData.sql - Modified: Hash mismatch detected for file in Release: Release 1.0, TargetGroup: Backend (Scope: File)
+[WRN] Hash issue: 002_InsertData.sql - Modified: Hash mismatch detected for file in Release: Release 1.0, TargetGroup: Backend, Target(s): MainDB (Scope: File)
 ```
 
 ### Issue Types

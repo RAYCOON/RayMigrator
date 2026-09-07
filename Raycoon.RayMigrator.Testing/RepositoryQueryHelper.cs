@@ -71,6 +71,19 @@ public class RepositoryQueryHelper
     }
 
     /// <summary>
+    /// Executes a non-query statement against an arbitrary connection string of the same database type.
+    /// Used by engine tests to prepare a target database (e.g. a conflicting table on a second target)
+    /// or to remove such a preparation again.
+    /// </summary>
+    public void ExecuteOnConnection(string connectionString, string sql)
+    {
+        if (!DalFactory.TryGetDal(_databaseType, connectionString, out IDal? dal))
+            throw new InvalidOperationException($"Could not create DAL for database type {_databaseType}");
+
+        dal!.ExecuteNonQuery(sql, QuerySettings, null);
+    }
+
+    /// <summary>
     /// Checks if a table exists in a specific database.
     /// Set useRepositorySchema=false for user-created tables (dbo/public schema).
     /// </summary>

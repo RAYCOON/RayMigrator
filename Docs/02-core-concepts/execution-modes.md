@@ -63,6 +63,8 @@ This ensures that all TargetGroups complete a release before any TargetGroup sta
 
 The `TargetMigrationOrder` setting controls the sequence of execution across multiple targets within a TargetGroup for a given release.
 
+Whether a file is executed at all is decided **per file and target**: a `(file, target)` pair is skipped only when that target has a `Migrated` record whose hash matches under the TargetGroup's `HashValidationScope`. A file that succeeded on one target and failed (or never ran) on another is therefore executed on the lagging target only; `info` counts pending `(file, target)` pairs, `baseline` marks only the pending pairs, and the out-of-order check compares a file's release against the highest migrated release **of each pending target**, so a lagging target catching up is not out of order (#8).
+
 ### Enum Values
 
 | Value | Name | Description |

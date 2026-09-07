@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Raycoon.RayMigrator.Core.Configuration.Enums;
 using Raycoon.RayMigrator.Core.Configuration.Options;
 using Raycoon.RayMigrator.Core.Models;
 using Raycoon.RayMigrator.Services;
@@ -253,5 +254,177 @@ public class FilterAlreadyMigratedFilesTests
         var result = (List<MigrationFileInfo>)method!.Invoke(service, new object[] { files, records, productOptions })!;
 
         result.Should().HaveCount(1, "Undefined scope falls back to File → hash mismatch detected");
+    }
+
+    // === #8: the decision is made per file AND target ===
+
+    private static ProductOptions CreateProductOptionsWithTargets(string hashValidationScope = "File", params string[] targetAliases)
+    {
+        return new ProductOptions
+        {
+            Alias = "TestProduct",
+            TargetGroups = new List<TargetGroupOptions>
+            {
+                new()
+                {
+                    Alias = "Backend", HashValidationScope = hashValidationScope, DatabaseType = "SqlServer",
+                    Targets = targetAliases.Select(a => new TargetOptions { Alias = a, ConnectionString = "Server=x" }).ToList()
+                }
+            }
+        };
+    }
+
+    private static List<MigrationFileInfo> InvokeFilterWithTargets(
+        List<MigrationFileInfo> files, List<MigrationRecord> records, string hashValidationScope, params string[] targetAliases)
+    {
+        var service = TestFactories.CreateUninitializedMigrationService();
+        var productOptions = CreateProductOptionsWithTargets(hashValidationScope, targetAliases);
+        var method = typeof(MigrationService).GetMethod("FilterAlreadyMigratedFiles",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
+        return (List<MigrationFileInfo>)method!.Invoke(service, new object[] { files, records, productOptions })!;
+    }
+
+    [Fact]
+    public void TwoTargets_MigratedOnOneFailedOnOther_FileIsKeptPendingOnFailedTargetOnly()
+    {
+        var files = new List<MigrationFileInfo> { TestFactories.CreateMigrationFile(hash: "abc123") };
+        var records = new List<MigrationRecord>
+        {
+            TestFactories.CreateMigrationRecord(hash: "abc123", targetAlias: "MainDB", status: MigrationStatus.Migrated),
+            TestFactories.CreateMigrationRecord(hash: "abc123", targetAlias: "SecondDB", status: MigrationStatus.Failed)
+        };
+
+        var result = InvokeFilterWithTargets(files, records, "File", "MainDB", "SecondDB");
+
+        result.Should().ContainSingle("the file still has to run on SecondDB (#8)");
+        result[0].PendingTargetAliases.Should().BeEquivalentTo(new[] { "SecondDB" });
+        result[0].IsPendingOn("MainDB").Should().BeFalse("MainDB already applied it with a matching hash");
+        result[0].IsPendingOn("SecondDB").Should().BeTrue();
+    }
+
+    [Fact]
+    public void TwoTargets_MigratedOnOneNoRecordOnOther_FileIsKeptPendingOnMissingTarget()
+    {
+        var files = new List<MigrationFileInfo> { TestFactories.CreateMigrationFile(hash: "abc123") };
+        var records = new List<MigrationRecord>
+        {
+            TestFactories.CreateMigrationRecord(hash: "abc123", targetAlias: "MainDB")
+        };
+
+        var result = InvokeFilterWithTargets(files, records, "File", "MainDB", "SecondDB");
+
+        result.Should().ContainSingle();
+        result[0].PendingTargetAliases.Should().BeEquivalentTo(new[] { "SecondDB" });
+        result[0].IsPendingOn("MainDB").Should().BeFalse();
+        result[0].IsPendingOn("SecondDB").Should().BeTrue();
+    }
+
+    [Fact]
+    public void TwoTargets_MigratedOnBoth_FileIsFiltered()
+    {
+        var files = new List<MigrationFileInfo> { TestFactories.CreateMigrationFile(hash: "abc123") };
+        var records = new List<MigrationRecord>
+        {
+            TestFactories.CreateMigrationRecord(hash: "abc123", targetAlias: "MainDB"),
+            TestFactories.CreateMigrationRecord(hash: "abc123", targetAlias: "SecondDB")
+        };
+
+        var result = InvokeFilterWithTargets(files, records, "File", "MainDB", "SecondDB");
+
+        result.Should().BeEmpty("both targets applied the file with a matching hash");
+    }
+
+    [Fact]
+    public void TwoTargets_HashMismatchOnOneTarget_FileIsPendingOnThatTargetOnly()
+    {
+        var files = new List<MigrationFileInfo> { TestFactories.CreateMigrationFile(hash: "new-hash") };
+        var records = new List<MigrationRecord>
+        {
+            TestFactories.CreateMigrationRecord(hash: "new-hash", targetAlias: "MainDB"),
+            TestFactories.CreateMigrationRecord(hash: "old-hash", targetAlias: "SecondDB")
+        };
+
+        var result = InvokeFilterWithTargets(files, records, "File", "MainDB", "SecondDB");
+
+        result.Should().ContainSingle();
+        result[0].PendingTargetAliases.Should().BeEquivalentTo(new[] { "SecondDB" },
+            "only the target whose stored hash differs is re-executed");
+        result[0].IsPendingOn("MainDB").Should().BeFalse();
+        result[0].IsPendingOn("seconddb").Should().BeTrue("target aliases are matched case-insensitively");
+    }
+
+    [Fact]
+    public void TwoTargets_NoRecordsAtAll_FileIsPendingOnEveryTarget()
+    {
+        var files = new List<MigrationFileInfo> { TestFactories.CreateMigrationFile() };
+
+        var result = InvokeFilterWithTargets(files, new List<MigrationRecord>(), "File", "MainDB", "SecondDB");
+
+        result.Should().ContainSingle();
+        result[0].PendingTargetAliases.Should().BeNull("null means every target");
+        result[0].IsPendingOn("MainDB").Should().BeTrue();
+        result[0].IsPendingOn("AnyOtherTarget").Should().BeTrue();
+    }
+
+    [Fact]
+    public void TwoTargets_RunAlways_IsPendingOnEveryTargetEvenWhenMigratedOnBoth()
+    {
+        var file = TestFactories.CreateMigrationFile(hash: "abc123");
+        file.RunAlways = true;
+        var records = new List<MigrationRecord>
+        {
+            TestFactories.CreateMigrationRecord(hash: "abc123", targetAlias: "MainDB"),
+            TestFactories.CreateMigrationRecord(hash: "abc123", targetAlias: "SecondDB")
+        };
+
+        var result = InvokeFilterWithTargets(new List<MigrationFileInfo> { file }, records, "File", "MainDB", "SecondDB");
+
+        result.Should().ContainSingle();
+        result[0].PendingTargetAliases.Should().BeNull();
+    }
+
+    [Fact]
+    public void TwoTargets_DisabledScope_MigratedRecordCountsRegardlessOfHash()
+    {
+        var files = new List<MigrationFileInfo> { TestFactories.CreateMigrationFile(hash: "new-hash") };
+        var records = new List<MigrationRecord>
+        {
+            TestFactories.CreateMigrationRecord(hash: "old-hash", targetAlias: "MainDB"),
+            TestFactories.CreateMigrationRecord(hash: "old-hash", targetAlias: "SecondDB", status: MigrationStatus.Failed)
+        };
+
+        var result = InvokeFilterWithTargets(files, records, "Disabled", "MainDB", "SecondDB");
+
+        result.Should().ContainSingle();
+        result[0].PendingTargetAliases.Should().BeEquivalentTo(new[] { "SecondDB" });
+    }
+
+    [Fact]
+    public void NoTargetsConfigured_FallsBackToTheTargetsThatHaveRecords()
+    {
+        // Pre-built options / tests without Targets: the targets seen in the records decide.
+        var files = new List<MigrationFileInfo> { TestFactories.CreateMigrationFile(hash: "abc123") };
+        var records = new List<MigrationRecord>
+        {
+            TestFactories.CreateMigrationRecord(hash: "abc123", targetAlias: "MainDB"),
+            TestFactories.CreateMigrationRecord(hash: "abc123", targetAlias: "SecondDB", status: MigrationStatus.Failed)
+        };
+
+        var result = InvokeFilter(files, records);
+
+        result.Should().ContainSingle();
+        result[0].PendingTargetAliases.Should().BeEquivalentTo(new[] { "SecondDB" });
+    }
+
+    [Fact]
+    public void IsAppliedOnTarget_RecordAliasDiffersOnlyInCase_ReturnsTrueForThatTargetOnly()
+    {
+        var file = TestFactories.CreateMigrationFile(hash: "abc123");
+        var records = new List<MigrationRecord> { TestFactories.CreateMigrationRecord(hash: "abc123", targetAlias: "maindb") };
+
+        MigrationService.IsAppliedOnTarget(file, "MainDB", records, HashValidationScope.File, out var record).Should().BeTrue();
+        record.Should().NotBeNull();
+        MigrationService.IsAppliedOnTarget(file, "SecondDB", records, HashValidationScope.File, out record).Should().BeFalse();
+        record.Should().BeNull();
     }
 }

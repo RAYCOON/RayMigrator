@@ -405,6 +405,13 @@ public class ScenarioContext : IAsyncDisposable
     }
 
     /// <summary>
+    /// Executes a non-query SQL statement on an arbitrary connection of the scenario's database type,
+    /// e.g. to prepare a conflicting object on a second target so that a migration fails on that target only.
+    /// </summary>
+    public void ExecuteOnConnection(string connectionString, string sql)
+        => _queryHelper.ExecuteOnConnection(connectionString, sql);
+
+    /// <summary>
     /// Asserts that Migration records in the repository were written in the specified
     /// TargetGroup order. The order is inferred from the minimum Id per TargetGroup alias,
     /// which reflects actual execution order.

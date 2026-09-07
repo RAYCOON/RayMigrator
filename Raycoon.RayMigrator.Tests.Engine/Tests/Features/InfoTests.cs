@@ -182,4 +182,25 @@ public class InfoTests : PostgreSqlTestBase
         result.Runs[0].Result.Should().Be(MigrationRunResult.Ok);
         result.Runs[0].TotalMigrations.Should().BeGreaterThan(0);
     }
+
+    /// <summary>
+    /// #8: pending is evaluated like migrate-up does, so a migrated file whose hash no longer matches
+    /// (it would be re-executed) counts as pending.
+    /// </summary>
+    [Fact]
+    public async Task Info_AfterFileModification_CountsModifiedFileAsPending()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        await using var ctx = await CreateScenario().BuildAsync();
+        await ctx.MigrateUpAsync();
+        ctx.AssertSuccess(true);
+
+        string filePath = Path.Combine(ctx.WorkDirectory, "Release_1.0", "Backend", "01_CreateTableA.sql");
+        File.WriteAllText(filePath, File.ReadAllText(filePath) + Environment.NewLine + "-- hash-breaking modification");
+
+        await ctx.RebuildForAsync(MigrationCommand.Info, MigrationRunMode.Migrate);
+        var result = await ctx.InfoAsync();
+
+        result.PendingMigrations.Should().Be(1, "the modified file would be re-executed by migrate-up (#8)");
+    }
 }

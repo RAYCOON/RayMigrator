@@ -203,4 +203,60 @@ public class DetectOutOfOrderFilesTests
         // Highest is "Release 2.0", "Release 1.5" < "Release 2.0" => out of order
         result.Should().HaveCount(1);
     }
+
+    // === #8: out-of-order is evaluated per target ===
+
+    [Fact]
+    public void LaggingTarget_CatchingUpOnReleasesItHasNeverSeen_IsNotOutOfOrder()
+    {
+        // MainDB is at Release 4.0, SecondDB only at Release 1.0; the Release 2.0 file is pending on SecondDB only.
+        var file = TestFactories.CreateMigrationFile(filename: "20_Create.sql", release: "Release 2.0");
+        file.PendingTargetAliases = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "SecondDB" };
+        var records = new List<MigrationRecord>
+        {
+            TestFactories.CreateMigrationRecord(filename: "10_Create.sql", release: "Release 1.0", targetAlias: "MainDB"),
+            TestFactories.CreateMigrationRecord(filename: "20_Create.sql", release: "Release 2.0", targetAlias: "MainDB"),
+            TestFactories.CreateMigrationRecord(filename: "40_Create.sql", release: "Release 4.0", targetAlias: "MainDB"),
+            TestFactories.CreateMigrationRecord(filename: "10_Create.sql", release: "Release 1.0", targetAlias: "SecondDB")
+        };
+
+        var result = MigrationService.DetectOutOfOrderFiles(new List<MigrationFileInfo> { file }, records);
+
+        result.Should().BeEmpty("Release 2.0 is newer than everything SecondDB has migrated, so it is in order for that target (#8)");
+    }
+
+    [Fact]
+    public void FilePendingOnTargetThatIsAlreadyBeyondItsRelease_IsOutOfOrder()
+    {
+        var file = TestFactories.CreateMigrationFile(filename: "15_Create.sql", release: "Release 1.5");
+        file.PendingTargetAliases = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "SecondDB" };
+        var records = new List<MigrationRecord>
+        {
+            // MainDB is only at Release 1.0 and must not mask SecondDB's higher release
+            TestFactories.CreateMigrationRecord(filename: "10_Create.sql", release: "Release 1.0", targetAlias: "MainDB"),
+            TestFactories.CreateMigrationRecord(filename: "10_Create.sql", release: "Release 1.0", targetAlias: "SecondDB"),
+            TestFactories.CreateMigrationRecord(filename: "20_Create.sql", release: "Release 2.0", targetAlias: "SecondDB")
+        };
+
+        var result = MigrationService.DetectOutOfOrderFiles(new List<MigrationFileInfo> { file }, records);
+
+        result.Should().ContainSingle("SecondDB has already migrated Release 2.0, so a new Release 1.5 file is out of order for it");
+    }
+
+    [Fact]
+    public void FilePendingOnAllTargets_IsOutOfOrderWhenAnyTargetIsBeyondItsRelease()
+    {
+        var file = TestFactories.CreateMigrationFile(filename: "15_Create.sql", release: "Release 1.5");
+        file.PendingTargetAliases = null;
+        var records = new List<MigrationRecord>
+        {
+            TestFactories.CreateMigrationRecord(filename: "10_Create.sql", release: "Release 1.0", targetAlias: "MainDB"),
+            TestFactories.CreateMigrationRecord(filename: "20_Create.sql", release: "Release 2.0", targetAlias: "MainDB"),
+            TestFactories.CreateMigrationRecord(filename: "10_Create.sql", release: "Release 1.0", targetAlias: "SecondDB")
+        };
+
+        var result = MigrationService.DetectOutOfOrderFiles(new List<MigrationFileInfo> { file }, records);
+
+        result.Should().ContainSingle("MainDB is beyond Release 1.5 and the file is pending there too");
+    }
 }

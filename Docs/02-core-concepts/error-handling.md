@@ -197,7 +197,7 @@ flowchart TD
 
 **Characteristics**:
 - Does not abort the migration run
-- Failed files are marked as `Failed` (re-attempted on next run)
+- Failed files are marked as `Failed` (re-attempted on next run). The re-attempt is decided per target: a file that succeeded on one target and failed on another is executed again on the failed target only, the successful target is not touched (#8)
 - Failed files are NOT added to `successfullyMigratedRecords` — they won't be rolled back if a later file fails with Rollback
 - In Simultaneously mode: if a file fails on one target, remaining targets for that file are skipped
 - The overall `MigrationRunResult` is `Error` when any ignored failures occurred

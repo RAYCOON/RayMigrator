@@ -184,9 +184,13 @@ public class MigrationService : IMigrationService
                         "Out-of-order migrations detected but --allow-out-of-order not specified. {Count} file(s) from releases before '{HighestRelease}' not applied. Aborting.",
                         outOfOrderFiles.Count, highestMigratedRelease);
 
+                    // Detection is per target (#8): the listed files are older than what the target(s) they are
+                    // still pending on have already migrated; the release quoted above is the overall maximum.
+                    string outOfOrderList = string.Join(", ", outOfOrderFiles.Select(f => $"{f.ReleaseVersion}/{f.Filename}"));
                     throw new InvalidOperationException(
-                        $"Out-of-order migrations detected: {outOfOrderFiles.Count} file(s) from releases before '{highestMigratedRelease}' " +
-                        $"have not been applied yet. Use --allow-out-of-order to execute them.");
+                        $"Out-of-order migrations detected: {outOfOrderFiles.Count} file(s) [{outOfOrderList}] belong to releases older than " +
+                        $"what the target(s) they are pending on have already migrated (highest migrated release overall: '{highestMigratedRelease}'). " +
+                        $"Use --allow-out-of-order to execute them.");
                 }
 
                 _logger.LogWarning(
@@ -428,6 +432,13 @@ public class MigrationService : IMigrationService
 
                 foreach (var targetOptions in targetGroupOptions.Targets!)
                 {
+                    if (!file.IsPendingOn(targetOptions.Alias!))
+                    {
+                        _logger.LogDebug("Skipping {Filename} on target {Target}: already applied with matching hash (#8)",
+                            file.Filename, targetOptions.Alias);
+                        continue;
+                    }
+
                     // OPT-1: Check if a previous run completed all blocks but wasn't finalized
                     if (request.RunMode.ShouldWriteRepository())
                     {
@@ -646,6 +657,13 @@ public class MigrationService : IMigrationService
         {
             foreach (var file in files)
             {
+                if (!file.IsPendingOn(targetOptions.Alias!))
+                {
+                    _logger.LogDebug("Skipping {Filename} on target {Target}: already applied with matching hash (#8)",
+                        file.Filename, targetOptions.Alias);
+                    continue;
+                }
+
                 var fileStartTime = DateTime.UtcNow;
                 var errorAction = file.MigrationErrorActionOverride ?? productOptions.MigrationErrorActionEnum;
                 bool ignoreErrors = errorAction == MigrationErrorAction.Ignore;
@@ -1361,6 +1379,13 @@ public class MigrationService : IMigrationService
 
             async Task BaselineFile(MigrationFileInfo file, TargetOptions targetOptions)
             {
+                if (!file.IsPendingOn(targetOptions.Alias!))
+                {
+                    _logger.LogDebug("Skipping baseline of {Filename} on target {Target}: already migrated with matching hash (#8)",
+                        file.Filename, targetOptions.Alias);
+                    return;
+                }
+
                 // Validate CLI tool alias if set (no execution, but ensures config is correct for future rollbacks)
                 string? cliAlias = ResolveUseCliToolAlias(file, targetOptions);
                 if (cliAlias != null)
@@ -3304,8 +3329,12 @@ public class MigrationService : IMigrationService
     }
 
     /// <summary>
-    /// Filters out migration files that have already been successfully applied.
-    /// Hash comparison respects the per-TargetGroup HashValidationScope setting.
+    /// Filters out migration files that have already been successfully applied on every target of their
+    /// TargetGroup, and records on the remaining files which targets still need them
+    /// (<see cref="MigrationFileInfo.PendingTargetAliases"/>). A file is applied on a target when that
+    /// target has a Migrated record whose hash matches under the TargetGroup's HashValidationScope.
+    /// Deciding per file only (any Migrated record) left a target that failed while another target
+    /// succeeded without any retry (#8).
     /// </summary>
     internal List<MigrationFileInfo> FilterAlreadyMigratedFiles(
         List<MigrationFileInfo> migrationFiles, List<MigrationRecord> existingRecords,
@@ -3315,40 +3344,109 @@ public class MigrationService : IMigrationService
 
         foreach (var file in migrationFiles)
         {
-            // Check if this file was already successfully migrated
-            var existingRecord = existingRecords.FirstOrDefault(r =>
-                r.Filename == file.Filename &&
-                r.ReleaseVersion == file.ReleaseVersion &&
-                r.TargetGroupAlias == file.TargetGroupAlias &&
-                r.MigrationStatusId == MigrationStatus.Migrated);
-
-            if (existingRecord != null && !file.RunAlways)
+            if (file.RunAlways)
             {
-                var scope = ResolveHashValidationScope(file.TargetGroupAlias, productOptions);
-
-                bool hashMatch = scope switch
-                {
-                    HashValidationScope.Disabled => true,
-                    HashValidationScope.SqlBlocks => existingRecord.FileUpBlocksHash == file.FileUpBlocksHash,
-                    _ => existingRecord.FileUpHash == file.FileUpHash
-                };
-
-                if (hashMatch)
-                {
-                    _logger.LogDebug("Skipping already-migrated file {Filename} (hash unchanged, scope: {Scope})",
-                        file.Filename, scope);
-                    continue;
-                }
-
-                _logger.LogWarning(
-                    "Migration file {Filename} has changed since last execution (hash mismatch, scope: {Scope}). Re-executing.",
-                    file.Filename, scope);
+                file.PendingTargetAliases = null;
+                result.Add(file);
+                continue;
             }
 
+            var scope = ResolveHashValidationScope(file.TargetGroupAlias, productOptions);
+            var targetAliases = ResolveTargetAliases(file, existingRecords, productOptions);
+            var pending = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var targetAlias in targetAliases)
+            {
+                if (IsAppliedOnTarget(file, targetAlias, existingRecords, scope, out var migratedRecord))
+                    continue;
+
+                if (migratedRecord != null)
+                {
+                    _logger.LogWarning(
+                        "Migration file {Filename} has changed since it was executed on target {Target} (hash mismatch, scope: {Scope}). Re-executing on that target.",
+                        file.Filename, targetAlias, scope);
+                }
+
+                pending.Add(targetAlias);
+            }
+
+            if (targetAliases.Count > 0 && pending.Count == 0)
+            {
+                _logger.LogDebug("Skipping already-migrated file {Filename} (hash unchanged on all {TargetCount} target(s), scope: {Scope})",
+                    file.Filename, targetAliases.Count, scope);
+                continue;
+            }
+
+            if (targetAliases.Count > 0 && pending.Count < targetAliases.Count)
+            {
+                _logger.LogInformation(
+                    "Migration file {Filename} is pending on target(s) [{PendingTargets}] only; already applied on [{AppliedTargets}]",
+                    file.Filename, string.Join(", ", pending), string.Join(", ", targetAliases.Where(t => !pending.Contains(t))));
+            }
+
+            // null = every target (no target information available, or every target is pending)
+            file.PendingTargetAliases = targetAliases.Count == 0 || pending.Count == targetAliases.Count ? null : pending;
             result.Add(file);
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Whether the file is already applied on the given target: a Migrated record for file + target exists
+    /// and its hash matches under the given scope. <paramref name="migratedRecord"/> is the Migrated record
+    /// when one exists (also when its hash no longer matches), otherwise null.
+    /// </summary>
+    internal static bool IsAppliedOnTarget(
+        MigrationFileInfo file, string targetAlias, List<MigrationRecord> existingRecords,
+        HashValidationScope scope, out MigrationRecord? migratedRecord)
+    {
+        migratedRecord = existingRecords.FirstOrDefault(r =>
+            r.Filename == file.Filename &&
+            r.ReleaseVersion == file.ReleaseVersion &&
+            r.TargetGroupAlias == file.TargetGroupAlias &&
+            string.Equals(r.TargetAlias, targetAlias, StringComparison.OrdinalIgnoreCase) &&
+            r.MigrationStatusId == MigrationStatus.Migrated);
+
+        if (migratedRecord == null)
+            return false;
+
+        return scope switch
+        {
+            HashValidationScope.Disabled => true,
+            HashValidationScope.SqlBlocks => migratedRecord.FileUpBlocksHash == file.FileUpBlocksHash,
+            _ => migratedRecord.FileUpHash == file.FileUpHash
+        };
+    }
+
+    /// <summary>
+    /// The target aliases a file has to be evaluated against: the configured targets of its TargetGroup,
+    /// or — when the configuration carries no targets (pre-built options, tests) — the targets that
+    /// already have a record for the file. Empty when neither is available.
+    /// </summary>
+    internal static List<string> ResolveTargetAliases(
+        MigrationFileInfo file, List<MigrationRecord> existingRecords, ProductOptions productOptions)
+    {
+        var targetGroup = productOptions.TargetGroups?
+            .FirstOrDefault(tg => string.Equals(tg.Alias, file.TargetGroupAlias, StringComparison.OrdinalIgnoreCase));
+
+        var configured = targetGroup?.Targets?
+            .Select(t => t.Alias)
+            .Where(a => !string.IsNullOrWhiteSpace(a))
+            .Select(a => a!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (configured is { Count: > 0 })
+            return configured;
+
+        return existingRecords
+            .Where(r => r.Filename == file.Filename &&
+                        r.ReleaseVersion == file.ReleaseVersion &&
+                        r.TargetGroupAlias == file.TargetGroupAlias)
+            .Select(r => r.TargetAlias)
+            .Where(a => !string.IsNullOrWhiteSpace(a))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     /// <summary>
@@ -3539,21 +3637,41 @@ public class MigrationService : IMigrationService
         if (filesToMigrate.Count == 0 || existingRecords.Count == 0)
             return new List<MigrationFileInfo>();
 
-        var migratedRecords = existingRecords
+        // Highest migrated release per (TargetGroup, Target). The comparison is per target: a target
+        // that lags behind the others (e.g. it failed while they succeeded, #8) is not "out of order"
+        // when it catches up on releases it has never seen.
+        var highestMigratedReleaseByTarget = existingRecords
             .Where(r => r.MigrationStatusId == MigrationStatus.Migrated)
-            .ToList();
+            .GroupBy(r => (r.TargetGroupAlias, r.TargetAlias), TupleIgnoreCaseComparer.Instance)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(r => r.ReleaseVersion).OrderByDescending(v => v, StringComparer.OrdinalIgnoreCase).First(),
+                TupleIgnoreCaseComparer.Instance);
 
-        if (migratedRecords.Count == 0)
+        if (highestMigratedReleaseByTarget.Count == 0)
             return new List<MigrationFileInfo>();
 
-        string highestMigratedRelease = migratedRecords
-            .OrderByDescending(r => r.ReleaseVersion, StringComparer.OrdinalIgnoreCase)
-            .Select(r => r.ReleaseVersion)
-            .First();
-
         return filesToMigrate
-            .Where(f => string.Compare(f.ReleaseVersion, highestMigratedRelease, StringComparison.OrdinalIgnoreCase) < 0)
+            .Where(f => highestMigratedReleaseByTarget.Any(kvp =>
+                string.Equals(kvp.Key.TargetGroupAlias, f.TargetGroupAlias, StringComparison.OrdinalIgnoreCase) &&
+                f.IsPendingOn(kvp.Key.TargetAlias) &&
+                string.Compare(f.ReleaseVersion, kvp.Value, StringComparison.OrdinalIgnoreCase) < 0))
             .ToList();
+    }
+
+    /// <summary>Case-insensitive comparer for (TargetGroupAlias, TargetAlias) keys.</summary>
+    private sealed class TupleIgnoreCaseComparer : IEqualityComparer<(string TargetGroupAlias, string TargetAlias)>
+    {
+        public static readonly TupleIgnoreCaseComparer Instance = new();
+
+        public bool Equals((string TargetGroupAlias, string TargetAlias) x, (string TargetGroupAlias, string TargetAlias) y) =>
+            string.Equals(x.TargetGroupAlias, y.TargetGroupAlias, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(x.TargetAlias, y.TargetAlias, StringComparison.OrdinalIgnoreCase);
+
+        public int GetHashCode((string TargetGroupAlias, string TargetAlias) obj) =>
+            HashCode.Combine(
+                StringComparer.OrdinalIgnoreCase.GetHashCode(obj.TargetGroupAlias ?? string.Empty),
+                StringComparer.OrdinalIgnoreCase.GetHashCode(obj.TargetAlias ?? string.Empty));
     }
 
     /// <summary>
@@ -4100,13 +4218,16 @@ public class MigrationService : IMigrationService
                     continue;
                 }
 
-                var matchingRecord = existingRecords.FirstOrDefault(r =>
-                    r.Filename == file.Filename &&
-                    r.ReleaseVersion == file.ReleaseVersion &&
-                    r.TargetGroupAlias == file.TargetGroupAlias &&
-                    r.MigrationStatusId == MigrationStatus.Migrated);
+                // One Migrated record per target: every target the file was applied on is compared (#8).
+                var migratedRecordsForFile = existingRecords
+                    .Where(r =>
+                        r.Filename == file.Filename &&
+                        r.ReleaseVersion == file.ReleaseVersion &&
+                        r.TargetGroupAlias == file.TargetGroupAlias &&
+                        r.MigrationStatusId == MigrationStatus.Migrated)
+                    .ToList();
 
-                if (matchingRecord == null)
+                if (migratedRecordsForFile.Count == 0)
                 {
                     // File exists on disk but not in repository (not yet migrated)
                     issues.Add(new HashValidationIssue
@@ -4120,25 +4241,29 @@ public class MigrationService : IMigrationService
                 }
 
                 // Compare hashes based on effective validation scope
-                bool hashMatch = effectiveScope switch
-                {
-                    HashValidationScope.SqlBlocks => matchingRecord.FileUpBlocksHash == file.FileUpBlocksHash,
-                    _ => matchingRecord.FileUpHash == file.FileUpHash
-                };
+                var mismatchingRecords = migratedRecordsForFile
+                    .Where(r => effectiveScope switch
+                    {
+                        HashValidationScope.SqlBlocks => r.FileUpBlocksHash != file.FileUpBlocksHash,
+                        _ => r.FileUpHash != file.FileUpHash
+                    })
+                    .ToList();
 
-                if (hashMatch)
+                if (mismatchingRecords.Count == 0)
                 {
                     validFiles++;
                 }
                 else
                 {
                     invalidFiles++;
+                    var firstMismatch = mismatchingRecords[0];
                     string expectedHash = effectiveScope == HashValidationScope.SqlBlocks
-                        ? matchingRecord.FileUpBlocksHash
-                        : matchingRecord.FileUpHash;
+                        ? firstMismatch.FileUpBlocksHash
+                        : firstMismatch.FileUpHash;
                     string actualHash = effectiveScope == HashValidationScope.SqlBlocks
                         ? file.FileUpBlocksHash
                         : file.FileUpHash;
+                    string targets = string.Join(", ", mismatchingRecords.Select(r => r.TargetAlias));
 
                     issues.Add(new HashValidationIssue
                     {
@@ -4146,20 +4271,22 @@ public class MigrationService : IMigrationService
                         IssueType = "Modified",
                         ExpectedHash = expectedHash,
                         ActualHash = actualHash,
-                        Details = $"Hash mismatch detected for file in Release: {file.ReleaseVersion}, TargetGroup: {file.TargetGroupAlias} (Scope: {effectiveScope})"
+                        Details = $"Hash mismatch detected for file in Release: {file.ReleaseVersion}, TargetGroup: {file.TargetGroupAlias}, Target(s): {targets} (Scope: {effectiveScope})"
                     });
                 }
             }
 
-            // Check each repository record for files that no longer exist on disk
-            var migratedRecords = existingRecords
+            // Check each migrated file (distinct per Release + TargetGroup + Filename — one record per target) for files that no longer exist on disk
+            var migratedFileKeys = existingRecords
                 .Where(r => r.MigrationStatusId == MigrationStatus.Migrated)
                 .Where(r => request.TargetGroupAliases == null || request.TargetGroupAliases.Length == 0 ||
                     request.TargetGroupAliases.Any(alias =>
                         string.Equals(r.TargetGroupAlias, alias, StringComparison.OrdinalIgnoreCase)))
+                .GroupBy(r => (r.ReleaseVersion, r.TargetGroupAlias, r.Filename))
+                .Select(g => g.First())
                 .ToList();
 
-            foreach (var record in migratedRecords)
+            foreach (var record in migratedFileKeys)
             {
                 bool fileExistsOnDisk = migrationFiles.Any(f =>
                     f.Filename == record.Filename &&
@@ -4380,19 +4507,21 @@ public class MigrationService : IMigrationService
                 .Select(r => r.ReleaseVersion)
                 .FirstOrDefault() ?? "None";
 
-            // Count pending migrations (files on disk that are not yet successfully migrated)
+            // Count pending migrations: (file, target) pairs that are not yet successfully migrated.
+            // Evaluated per target like migrate-up does, so a target that failed while another
+            // succeeded still counts as pending (#8). With a single target this is the file count.
             int pendingMigrations = 0;
             foreach (var file in migrationFiles)
             {
-                bool alreadyMigrated = migratedRecords.Any(r =>
-                    r.Filename == file.Filename &&
-                    r.ReleaseVersion == file.ReleaseVersion &&
-                    r.TargetGroupAlias == file.TargetGroupAlias);
-
-                if (!alreadyMigrated || file.RunAlways)
+                var targetAliases = ResolveTargetAliases(file, existingRecords, productOptions);
+                if (file.RunAlways || targetAliases.Count == 0)
                 {
-                    pendingMigrations++;
+                    pendingMigrations += Math.Max(1, targetAliases.Count);
+                    continue;
                 }
+
+                var scope = ResolveHashValidationScope(file.TargetGroupAlias, productOptions);
+                pendingMigrations += targetAliases.Count(t => !IsAppliedOnTarget(file, t, existingRecords, scope, out _));
             }
 
             // Last migration date

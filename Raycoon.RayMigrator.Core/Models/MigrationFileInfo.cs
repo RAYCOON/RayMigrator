@@ -120,6 +120,21 @@ public class MigrationFileInfo
     public bool RunAlways { get; set; }
 
     /// <summary>
+    /// Targets of the file's TargetGroup on which this file still has to be executed, as decided by
+    /// the repository state (no Migrated record, or a Migrated record whose hash no longer matches).
+    /// Null means "every target". Set by the already-migrated filter; the execution loops skip
+    /// (file, target) pairs that are not pending, so a target that failed while another target
+    /// succeeded is retried on the next run without re-executing the successful one (#8).
+    /// </summary>
+    public HashSet<string>? PendingTargetAliases { get; set; }
+
+    /// <summary>
+    /// Whether this file still has to be executed on the given target (see <see cref="PendingTargetAliases"/>).
+    /// </summary>
+    public bool IsPendingOn(string targetAlias) =>
+        PendingTargetAliases == null || PendingTargetAliases.Contains(targetAlias);
+
+    /// <summary>
     /// Whether this migration requires a rollback file.
     /// Resolved from configuration hierarchy: ProductDefaults → Product → migsettings → TOML.
     /// </summary>

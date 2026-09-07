@@ -40,6 +40,20 @@ RayMigrator follows Semantic Versioning where applicable.
   fails on an out-of-order file unless `--allow-out-of-order` is given, exactly
   like Migrate. External DALs must add the two templates, otherwise
   `TemplateCache` reports them as missing at startup. (#7)
+- In a TargetGroup with several targets, "already migrated" was decided per
+  file: the first `Migrated` record of any target marked the file as done for
+  all targets. A file that succeeded on one target and failed on another was
+  never retried on the failed target (`migrate-up` reported "already applied",
+  `info` showed 0 pending, `baseline` skipped it), and the lagging target
+  stayed behind silently. The decision is now made per `(file, target)` pair:
+  `migrate-up` executes a file only on the targets that still need it,
+  `baseline` marks only those pairs, `info` counts pending pairs (a modified
+  file now also counts as pending, matching what `migrate-up` would do),
+  `validate-hash` compares the hash of every target's record and reports a
+  deleted file once instead of once per target, and the out-of-order check
+  compares a file's release with the highest migrated release of each pending
+  target so that a lagging target catching up is not blocked. With a single
+  target per TargetGroup nothing changes. (#8)
 
 ## [0.11.1] — 2026-09-05
 
