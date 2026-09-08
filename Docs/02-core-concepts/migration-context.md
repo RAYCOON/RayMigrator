@@ -68,7 +68,7 @@ public class RayMigratorConsoleOptions
     public HashValidationScope? HashValidationScope { get; init; }
     public required bool ShowStartupInfo { get; set; }
     public required bool RevealSensitiveData { get; init; }
-    public FixIssues? FixIssues { get; init; }
+    public FixScope? FixScope { get; init; }
     public bool? AllowOutOfOrder { get; init; }
     public int? FixOlderThanMinutes { get; init; }
     public bool? FixDryRun { get; init; }

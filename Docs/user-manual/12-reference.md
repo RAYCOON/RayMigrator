@@ -37,7 +37,7 @@ All CLI-relevant enums are documented in the [Enum Reference](../08-cli-referenc
 - **RollbackErrorAction** — Rollback error handling (`Undefined` = 0, `Terminate` = 10, `Ignore` = 30). See [Error Handling](../02-core-concepts/error-handling.md#rollback-error-handling)
 - **TargetMigrationOrder** — Target iteration order (`Undefined` = 0, `Simultaneously` = 1, `Successively` = 2)
 - **HashValidationScope** — Hash granularity (`Undefined` = 0, `File` = 1, `SqlBlocks` = 2, `Disabled` = 3)
-- **FixIssues** — Fix scope (`Undefined` = 0, `All` = 1, `OrphanedRuns` = 2)
+- **FixScope** — Fix scope (`Undefined` = 0, `All` = 1, `OrphanedRuns` = 2)
 - **MigrationStatus** — Per-migration record status (`Undefined` = 0, `Pending` = 10, `Executing` = 20, `Failed` = 30, `NotMigrated` = 50, `Migrated` = 100)
 - **MigrationRunResult** — Per-run result status (`Undefined` = 0, `Running` = 10, `Error` = 90, `Ok` = 100)
 - **MigrationOperation** — Repository operation types (`Undefined` = 0, `Rollback` = 5, `MigrateDown` = 50, `MigrateUp` = 100, `Baseline` = 110). Used in the `MigrationOperation` lookup table in the repository.

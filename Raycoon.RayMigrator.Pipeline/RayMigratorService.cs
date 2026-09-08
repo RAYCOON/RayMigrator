@@ -305,7 +305,7 @@ public class RayMigratorService
         {
             ProductAlias = _consoleOptions.Product!,
             Environment = _consoleOptions.Environment!,
-            Scope = _consoleOptions.FixIssues ?? FixIssues.OrphanedRuns,
+            Scope = _consoleOptions.FixScope ?? FixScope.OrphanedRuns,
             OlderThanMinutes = _consoleOptions.FixOlderThanMinutes ?? 60,
             DryRun = _consoleOptions.FixDryRun ?? false,
             AssumedMigrationStatus = _consoleOptions.FixAssumedMigrationStatus ?? MigrationStatus.NotMigrated,
@@ -324,13 +324,13 @@ public class RayMigratorService
 
         if (result.WasDryRun)
         {
-            _logger.LogInformation("Fix dry-run completed for product {Product}: {Found} orphaned run(s) found",
-                _consoleOptions.Product, result.OrphanedRunsFound);
+            _logger.LogInformation("Fix dry-run completed for product {Product} (repairs: {Repairs}): {Found} orphaned run(s) found",
+                _consoleOptions.Product, string.Join(", ", result.Repairs), result.OrphanedRunsFound);
         }
         else
         {
-            _logger.LogInformation("Fix completed for product {Product}: {Fixed} orphaned run(s) fixed",
-                _consoleOptions.Product, result.OrphanedRunsFixed);
+            _logger.LogInformation("Fix completed for product {Product} (repairs: {Repairs}): {Fixed} orphaned run(s) fixed",
+                _consoleOptions.Product, string.Join(", ", result.Repairs), result.OrphanedRunsFixed);
         }
 
         return 0;

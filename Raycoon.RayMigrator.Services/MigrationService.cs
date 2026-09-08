@@ -2554,7 +2554,7 @@ public class MigrationService : IMigrationService
                 ["ShowStartupInfo"] = consoleOpts.ShowStartupInfo,
                 ["RevealSensitiveData"] = consoleOpts.RevealSensitiveData,
                 ["AllowOutOfOrder"] = consoleOpts.AllowOutOfOrder,
-                ["FixIssues"] = consoleOpts.FixIssues?.ToString()
+                ["FixScope"] = consoleOpts.FixScope?.ToString()
             },
             ["Repository"] = new Dictionary<string, object?>
             {
@@ -4971,6 +4971,10 @@ public class MigrationService : IMigrationService
                     $"Product mismatch: context has {_ctxAccessor.Current.RayMigratorConsoleOptions.Product} but request has {request.ProductAlias}");
             }
 
+            // The scope decides which repairs run; an unknown scope fails here instead of silently doing the
+            // default repair. All expands to every known repair (#16).
+            var repairs = RepairsFor(request.Scope);
+
             // --- Phase 1: Repository initialization ---
             bool repositoryHasProduct = await InitializeRepositoryAsync();
 
@@ -4978,7 +4982,7 @@ public class MigrationService : IMigrationService
             int environmentId = _ctxAccessor.Current.MigrationState.EnvironmentId;
 
             // --- Phase 2: Query orphaned runs ---
-            var orphanedRows = repositoryHasProduct
+            var orphanedRows = repositoryHasProduct && repairs.Contains(FixScope.OrphanedRuns)
                 ? await Task.Run(() => _templateExecutor.RepositoryMigrationRunSelectOrphaned(productId, environmentId))
                 : new List<Dictionary<string, object?>>();
 
@@ -5053,12 +5057,14 @@ public class MigrationService : IMigrationService
                 ProductAlias = request.ProductAlias,
                 Environment = request.Environment,
                 WasDryRun = request.DryRun,
+                Repairs = repairs.ToList(),
                 OrphanedRunsFound = filteredRuns.Count,
                 OrphanedRunsFixed = fixedCount,
                 OrphanedRuns = filteredRuns,
                 Duration = DateTime.UtcNow - startTime,
                 Messages = new List<string>
                 {
+                    $"Scope {request.Scope}: {string.Join(", ", repairs)}",
                     request.DryRun
                         ? $"Dry-run: found {filteredRuns.Count} orphaned run(s) to fix"
                         : $"Fixed {fixedCount} orphaned run(s)"
@@ -5081,6 +5087,19 @@ public class MigrationService : IMigrationService
             };
         }
     }
+
+    /// <summary>
+    /// Expands a <c>fix --scope</c> value into the repairs to run, in execution order. <see cref="FixScope.All"/>
+    /// lists every repair RayMigrator knows; a new repair must be added here, otherwise All would skip it (#16).
+    /// </summary>
+    /// <exception cref="ConfigurationValidationException">The scope is Undefined or unknown.</exception>
+    internal static IReadOnlyList<FixScope> RepairsFor(FixScope scope) => scope switch
+    {
+        FixScope.OrphanedRuns => [FixScope.OrphanedRuns],
+        FixScope.All => [FixScope.OrphanedRuns],
+        _ => throw new ConfigurationValidationException(
+            $"Invalid fix scope [{scope}]. Allowed values: [{string.Join(", ", typeof(FixScope).AllowedValues())}].")
+    };
 
     #endregion Fix Command
 

@@ -385,7 +385,7 @@ private async Task<int> ExecuteFixIssuesAsync()
     {
         ProductAlias = _consoleOptions.Product!,
         Environment = _consoleOptions.Environment!,
-        Scope = _consoleOptions.FixIssues ?? FixIssues.OrphanedRuns,
+        Scope = _consoleOptions.FixScope ?? FixScope.OrphanedRuns,
         OlderThanMinutes = _consoleOptions.FixOlderThanMinutes ?? 60,
         DryRun = _consoleOptions.FixDryRun ?? false,
         AssumedMigrationStatus = _consoleOptions.FixAssumedMigrationStatus ?? MigrationStatus.NotMigrated,

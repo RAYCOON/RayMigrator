@@ -270,7 +270,7 @@ These options are defined on specific commands (not global).
 - No command-specific options (only `--product` and `--environment`)
 
 **Fix**:
-- `--scope` (`-s`): string, default `"OrphanedRuns"` — Maps to `FixIssues` enum (values: `OrphanedRuns`, `All`)
+- `--scope` (`-s`): string, default `"OrphanedRuns"` — Maps to `FixScope` enum (values: `OrphanedRuns`, `All`)
 - `--older-than` (`-ot`): int, default `60` — Only fix runs older than N minutes (0 = immediate)
 - `--dry-run`: bool, default `false` — Only show what would be fixed without applying changes
 - `--last-migration-status` (`-lms`): string, default `"not-migrated"` — Status for orphaned migrations (`migrated` or `not-migrated`)

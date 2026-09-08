@@ -207,4 +207,30 @@ public class SqliteFixTests : SqliteTestBase
         result.Success.Should().BeTrue();
         result.OrphanedRunsFixed.Should().Be(1);
     }
+
+    /// <summary>
+    /// F9: --scope all runs every known repair (#16). With one orphaned run it behaves like orphanedruns and the
+    /// result names the repair that ran, so a future repair cannot be skipped silently.
+    /// </summary>
+    [Fact]
+    public async Task Fix_ScopeAll_RunsEveryKnownRepair()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+
+        await using var ctx = await CreateScenario()
+            .BuildAsync();
+
+        await ctx.MigrateUpAsync("Release_2.0");
+        ctx.AssertSuccess(true);
+
+        ctx.InsertOrphanedMigrationRun(120);
+
+        await ctx.RebuildForAsync(MigrationCommand.FixIssues, MigrationRunMode.Migrate);
+        var result = await ctx.FixIssuesAsync(scope: FixScope.All, olderThanMinutes: 0);
+
+        result.Success.Should().BeTrue();
+        result.Repairs.Should().Equal(FixScope.OrphanedRuns);
+        result.OrphanedRunsFound.Should().Be(1);
+        result.OrphanedRunsFixed.Should().Be(1);
+    }
 }

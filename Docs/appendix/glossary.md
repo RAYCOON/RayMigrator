@@ -119,7 +119,7 @@ See **Target Migration Order**.
 A SHA-256 hash of the entire migration file content, used for integrity validation.
 
 ### Fix Issues Scope
-The scope of repository cleanup performed by the `fix` CLI command (`FixIssues` enum):
+The scope of repository cleanup performed by the `fix` CLI command (`FixScope` enum, formerly `FixIssues`):
 - **Undefined** (0): Invalid value
 - **All** (1): Fix all known problems in the repository
 - **OrphanedRuns** (2): Fix orphaned MigrationRun entries (process crashed while Running)

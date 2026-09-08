@@ -165,6 +165,11 @@ public class FixIssuesResult : OperationResult
     public string ProductAlias { get; set; } = string.Empty;
     public string Environment { get; set; } = string.Empty;
     public bool WasDryRun { get; set; }
+
+    /// <summary>
+    /// The repairs the requested scope expanded to, in execution order (<c>All</c> lists every known repair) (#16).
+    /// </summary>
+    public List<FixScope> Repairs { get; set; } = new();
     public int OrphanedRunsFound { get; set; }
     public int OrphanedRunsFixed { get; set; }
     public List<OrphanedRunInfo> OrphanedRuns { get; set; } = new();

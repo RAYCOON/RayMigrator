@@ -201,7 +201,7 @@ public class ScenarioContext : IAsyncDisposable
     /// Sets _lastResult because FixIssuesResult extends OperationResult.
     /// </summary>
     public async Task<FixIssuesResult> FixIssuesAsync(
-        FixIssues scope = FixIssues.OrphanedRuns,
+        FixScope scope = FixScope.OrphanedRuns,
         int olderThanMinutes = 0,
         bool dryRun = false,
         MigrationStatus assumedMigrationStatus = MigrationStatus.NotMigrated)

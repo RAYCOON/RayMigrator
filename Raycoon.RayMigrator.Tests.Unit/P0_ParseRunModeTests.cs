@@ -92,20 +92,20 @@ public class ParseScopeTests
     }
 
     [Theory]
-    [InlineData("all", FixIssues.All)]
-    [InlineData("ORPHANEDRUNS", FixIssues.OrphanedRuns)]
-    public void ParseFixIssuesScope_AcceptsKnownValuesCaseInsensitively(string value, FixIssues expected)
+    [InlineData("all", FixScope.All)]
+    [InlineData("ORPHANEDRUNS", FixScope.OrphanedRuns)]
+    public void ParseFixScope_AcceptsKnownValuesCaseInsensitively(string value, FixScope expected)
     {
-        CommandLineConfiguration.ParseFixIssuesScope(value).Should().Be(expected);
+        CommandLineConfiguration.ParseFixScope(value).Should().Be(expected);
     }
 
     [Theory]
     [InlineData("bogus")]
     [InlineData("")]
     [InlineData("1")]
-    public void ParseFixIssuesScope_ThrowsForUnknownValue(string value)
+    public void ParseFixScope_ThrowsForUnknownValue(string value)
     {
-        var act = () => CommandLineConfiguration.ParseFixIssuesScope(value);
+        var act = () => CommandLineConfiguration.ParseFixScope(value);
 
         act.Should().Throw<ConfigurationValidationException>("an unknown scope must never silently become OrphanedRuns")
            .WithMessage("*Invalid value*--scope*orphanedruns, all*");

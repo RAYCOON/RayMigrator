@@ -134,16 +134,16 @@ public class CommandVerbCasingTests
     }
 
     [Theory]
-    [InlineData("orphanedruns", FixIssues.OrphanedRuns)]
-    [InlineData("OrphanedRuns", FixIssues.OrphanedRuns)]
-    [InlineData("all", FixIssues.All)]
-    [InlineData("All", FixIssues.All)]
-    public async Task FixScope_IsCaseInsensitive(string value, FixIssues expected)
+    [InlineData("orphanedruns", FixScope.OrphanedRuns)]
+    [InlineData("OrphanedRuns", FixScope.OrphanedRuns)]
+    [InlineData("all", FixScope.All)]
+    [InlineData("All", FixScope.All)]
+    public async Task FixScope_IsCaseInsensitive(string value, FixScope expected)
     {
         var (config, parse) = await ParseAsync("fix", "-p", "P", "-env", "Dev", "--scope", value);
 
         parse.Errors.Should().BeEmpty();
-        config.ParsedOptions!.FixIssues.Should().Be(expected);
+        config.ParsedOptions!.FixScope.Should().Be(expected);
     }
 
     [Fact]
@@ -151,7 +151,7 @@ public class CommandVerbCasingTests
     {
         var (config, _) = await ParseAsync("fix", "-p", "P", "-env", "Dev");
 
-        config.ParsedOptions!.FixIssues.Should().Be(FixIssues.OrphanedRuns);
+        config.ParsedOptions!.FixScope.Should().Be(FixScope.OrphanedRuns);
     }
 
     [Fact]

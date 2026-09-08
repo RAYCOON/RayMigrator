@@ -388,7 +388,7 @@ public class CommandLineConfiguration
 
         var scopeOption = new Option<string>("--scope", "-s")
         {
-            Description = "Fix scope (orphanedruns, all)",
+            Description = "Fix scope: orphanedruns (orphaned MigrationRun entries) or all (every known repair, currently orphanedruns)",
             DefaultValueFactory = _ => "orphanedruns"
         };
 
@@ -616,7 +616,7 @@ public class CommandLineConfiguration
         command.SetAction(parseResult =>
         {
             var scopeString = parseResult.GetValue(command.Options.OfType<Option<string>>().First(o => o.Name == "--scope")) ?? "OrphanedRuns";
-            var scope = ParseFixIssuesScope(scopeString);
+            var scope = ParseFixScope(scopeString);
 
             var olderThan = parseResult.GetValue(command.Options.OfType<Option<int>>().First(o => o.Name == "--older-than"));
             var dryRun = parseResult.GetValue(command.Options.OfType<Option<bool>>().First(o => o.Name == "--dry-run"));
@@ -633,7 +633,7 @@ public class CommandLineConfiguration
                 ShowStartupInfo = parseResult.GetValue(showInfoOption),
                 RevealSensitiveData = parseResult.GetValue(revealSensitiveDataOption),
                 HashValidationScope = null,
-                FixIssues = scope,
+                FixScope = scope,
                 FixOlderThanMinutes = olderThan,
                 FixDryRun = dryRun,
                 FixAssumedMigrationStatus = lastMigrationStatus,
@@ -680,18 +680,18 @@ public class CommandLineConfiguration
     }
 
     /// <summary>
-    /// Parses the <c>--scope</c> value of <c>fix</c> to <see cref="FixIssues"/>. The option validator rejects
+    /// Parses the <c>--scope</c> value of <c>fix</c> to <see cref="FixScope"/>. The option validator rejects
     /// unknown values first; the throw guards direct calls so that no unknown value can silently fall back to
-    /// <see cref="FixIssues.OrphanedRuns"/> (#17).
+    /// <see cref="FixScope.OrphanedRuns"/> (#17).
     /// </summary>
     /// <exception cref="ConfigurationValidationException">The value is not orphanedruns or all.</exception>
-    internal static FixIssues ParseFixIssuesScope(string value)
+    internal static FixScope ParseFixScope(string value)
     {
         var normalizedValue = ResolveEnvironmentVariable(value).ToLowerInvariant();
         return normalizedValue switch
         {
-            "all" => FixIssues.All,
-            "orphanedruns" => FixIssues.OrphanedRuns,
+            "all" => FixScope.All,
+            "orphanedruns" => FixScope.OrphanedRuns,
             _ => throw new ConfigurationValidationException($"Invalid value [{value}] for --scope. Allowed values: [orphanedruns, all].")
         };
     }

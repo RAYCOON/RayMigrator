@@ -135,7 +135,7 @@ The domain model layer containing configuration, state, and core abstractions.
 - `RayMigratorHostMode` - Enum distinguishing CLI mode (`Cli`) from API mode (`Api`) for DI registration
 - Configuration Options classes (`RayMigratorOptions` hierarchy, `RayMigratorBootstrapOptions`, `AdminDbOptions`, `CliToolOptions`, `ExitCodeMatcher`)
 - `TemplateExecutor` (namespace `Raycoon.RayMigrator.Core`) and `TemplateCache` (namespace `Raycoon.RayMigrator.Core.Templates`), both physically in Infrastructure project
-- Enumerations (`MigrationCommand`, `MigrationErrorAction`, `RollbackErrorAction`, `TargetMigrationOrder`, `HashValidationScope`, `MigrationRunMode`, `MigrationOperation`, `MigrationRunResult`, `MigrationStatus`, `FixIssues`, `OperatingMode`, `CliToolInputMode`)
+- Enumerations (`MigrationCommand`, `MigrationErrorAction`, `RollbackErrorAction`, `TargetMigrationOrder`, `HashValidationScope`, `MigrationRunMode`, `MigrationOperation`, `MigrationRunResult`, `MigrationStatus`, `FixScope`, `OperatingMode`, `CliToolInputMode`)
 - Configuration sources (`IOptionsSource` interface and `OptionsSourceResult` in `Core/Configuration/Sources/`)
 - `MigrationEvent` class (static `EventId` constants for structured logging)
 - `TemplateType` enum (in `Core/Templates/`, defining all 20 SQL template types + Undefined); companion `Template` and `TemplateResponse` classes
@@ -210,7 +210,7 @@ Common types used across all layers. Has no project references.
 - Constants (`InternalConstants`, `TemplateResultCode`)
 - `AssemblyInfoHelper` - Version and assembly metadata utility (`GetRayMigratorVersion`, `GetAsciiLogoLines`, `GetAsciiHeader`)
 
-> **Note**: Enumerations (`MigrationCommand`, `MigrationErrorAction`, `RollbackErrorAction`, `TargetMigrationOrder`, `MigrationRunMode`, `MigrationOperation`, `MigrationRunResult`, `MigrationStatus`, `HashValidationScope`, `FixIssues`, `OperatingMode`, `CliToolInputMode`) and the `MigrationEvent` class (static `EventId` constants) reside in the **Core** layer (`Raycoon.RayMigrator.Core/Configuration/Enums/`), not the Shared layer. The `TemplateType` enum resides in `Raycoon.RayMigrator.Core/Templates/`. Request/Response DTOs reside in `Services.Abstractions`.
+> **Note**: Enumerations (`MigrationCommand`, `MigrationErrorAction`, `RollbackErrorAction`, `TargetMigrationOrder`, `MigrationRunMode`, `MigrationOperation`, `MigrationRunResult`, `MigrationStatus`, `HashValidationScope`, `FixScope`, `OperatingMode`, `CliToolInputMode`) and the `MigrationEvent` class (static `EventId` constants) reside in the **Core** layer (`Raycoon.RayMigrator.Core/Configuration/Enums/`), not the Shared layer. The `TemplateType` enum resides in `Raycoon.RayMigrator.Core/Templates/`. Request/Response DTOs reside in `Services.Abstractions`.
 
 ## Dependency Flow
 

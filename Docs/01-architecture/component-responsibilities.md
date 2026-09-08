@@ -603,7 +603,7 @@ Each DAL is a separate project (not a subdirectory of the Database project):
 | `RollbackErrorAction` | Undefined (0), Terminate (10), Ignore (30) |
 | `TargetMigrationOrder` | Undefined (0), Simultaneously (1), Successively (2) |
 | `HashValidationScope` | Undefined (0), File (1), SqlBlocks (2), Disabled (3) |
-| `FixIssues` | Undefined (0), All (1), OrphanedRuns (2) |
+| `FixScope` | Undefined (0), All (1), OrphanedRuns (2) |
 | `CliToolInputMode` | Undefined (0), File (1), Stdin (2) |
 
 > **Note**: `MigrationEvent` resides in the same `Configuration/Enums/` directory but is a **class** (not an enum). It defines static `EventId` constants used for structured logging (e.g., `CommandLineParsing` = 10, `TemplateExecutionRepositoryCheckCreate` = 100, `RayMigratorServiceShutdown` = 1000).

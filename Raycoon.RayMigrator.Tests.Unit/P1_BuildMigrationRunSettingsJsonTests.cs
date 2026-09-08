@@ -272,7 +272,7 @@ public class BuildMigrationRunSettingsJsonTests : IDisposable
 
         consoleOpts.GetProperty("TargetReleaseVersion").ValueKind.Should().Be(JsonValueKind.Null);
         consoleOpts.GetProperty("HashValidationScope").ValueKind.Should().Be(JsonValueKind.Null);
-        consoleOpts.GetProperty("FixIssues").ValueKind.Should().Be(JsonValueKind.Null);
+        consoleOpts.GetProperty("FixScope").ValueKind.Should().Be(JsonValueKind.Null);
     }
 
     [Fact]

@@ -76,7 +76,7 @@ public class FixIssuesRequest
 {
     public string ProductAlias { get; set; } = string.Empty;
     public string Environment { get; set; } = string.Empty;
-    public FixIssues Scope { get; set; } = FixIssues.OrphanedRuns;
+    public FixScope Scope { get; set; } = FixScope.OrphanedRuns;
     public int OlderThanMinutes { get; set; } = 60;
     public bool DryRun { get; set; } = false;
     public MigrationStatus AssumedMigrationStatus { get; set; } = MigrationStatus.NotMigrated;

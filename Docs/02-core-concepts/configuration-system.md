@@ -33,7 +33,7 @@ Configuration files are loaded and merged in priority order (later overrides ear
 - `ShowStartupInfo` (`bool`): Show startup information via `--startup-info` / `-si` (default: true)
 - `RevealSensitiveData` (`bool`): Include sensitive data in logs via `--reveal-sensitive-data` / `-rsd` (default: false)
 - `AllowOutOfOrder` (`bool?`): Allow out-of-order migration execution via `--allow-out-of-order` / `-ooo`
-- `FixIssues` (`FixIssues?`): Fix command scope (OrphanedRuns, All) via `--scope` / `-s` (default: OrphanedRuns)
+- `FixScope` (`FixScope?`): Fix command scope (OrphanedRuns, All = every known repair) via `--scope` / `-s` (default: OrphanedRuns)
 - `FixOlderThanMinutes` (`int?`): Fix command age threshold via `--older-than` / `-ot` (default: 60)
 - `FixDryRun` (`bool?`): Fix command dry-run mode via `--dry-run`
 - `FixAssumedMigrationStatus` (`MigrationStatus?`): Fix command status for orphaned migrations via `--last-migration-status` / `-lms`

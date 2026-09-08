@@ -59,7 +59,7 @@ public class RayMigratorConsoleOptions
     /// <summary>
     /// Fix command: Scope (All, OrphanedRuns)
     /// </summary>
-    public FixIssues? FixIssues { get; init; }
+    public FixScope? FixScope { get; init; }
 
     /// <summary>
     /// Allow out-of-order migration execution (Migrate-Up only)

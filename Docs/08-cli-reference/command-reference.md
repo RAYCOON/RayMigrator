@@ -393,7 +393,7 @@ raymigrator fix --product <alias> --environment <env> [--scope <scope>] [--older
 
 ### Option Details
 
-**--scope**: Validated case-insensitively. Only `"All"` and `"OrphanedRuns"` are accepted. Parsed via `ParseFixIssuesScope()` into `FixIssues.All` or `FixIssues.OrphanedRuns`.
+**--scope**: Validated case-insensitively. Only `"All"` and `"OrphanedRuns"` are accepted. Parsed via `ParseFixScope()` into `FixScope.All` or `FixScope.OrphanedRuns`; `All` runs every known repair (currently the orphaned-run repair) and the result lists the repairs that ran (#16).
 
 **--older-than**: Minimum age in minutes for a MigrationRun to be considered orphaned. Default is 60 minutes.
 
@@ -407,7 +407,7 @@ raymigrator fix --product <alias> --environment <env> [--scope <scope>] [--older
 |------------|--------------------------------------|--------------------------------|
 | `--product` | `Product` | `ProductAlias` |
 | `--environment` | `Environment` | `Environment` |
-| `--scope` | `FixIssues` | `Scope` |
+| `--scope` | `FixScope` | `Scope` |
 | `--older-than` | `FixOlderThanMinutes` | `OlderThanMinutes` |
 | `--dry-run` | `FixDryRun` | `DryRun` |
 | `--last-migration-status` | `FixAssumedMigrationStatus` | `AssumedMigrationStatus` |
@@ -534,7 +534,7 @@ Source: `Raycoon.RayMigrator.Core/Configuration/Enums/TargetMigrationOrder.cs`
 
 See [Execution Modes](../02-core-concepts/execution-modes.md#target-migration-order) for detailed behavior and examples.
 
-### FixIssues
+### FixScope
 
 Controls the scope of repository issue resolution.
 
@@ -544,7 +544,7 @@ Controls the scope of repository issue resolution.
 | `All` | 1 | Fix all known problems in repository |
 | `OrphanedRuns` | 2 | Fix only orphaned MigrationRun entries |
 
-Source: `Raycoon.RayMigrator.Core/Configuration/Enums/FixIssues.cs`
+Source: `Raycoon.RayMigrator.Core/Configuration/Enums/FixScope.cs`
 
 ### CliToolInputMode
 

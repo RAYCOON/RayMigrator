@@ -18,8 +18,20 @@ RayMigrator follows Semantic Versioning where applicable.
   exit codes are unchanged (1 for migrate-up, 0 for migrate-down). The
   repository lookup table is upgraded idempotently on the next start. (#18)
 
+### Changed
+
+- The enum behind `fix --scope` is named `FixScope` (formerly `FixIssues`, a
+  name shared with the command, the request and the service method), and the
+  console option `RayMigratorConsoleOptions.FixIssues` is `FixScope`. The CLI
+  values `orphanedruns` and `all` are unchanged. (#16)
+
 ### Fixed
 
+- `fix --scope all` was a synonym for `orphanedruns`: the scope was logged and
+  never evaluated. The service now expands the scope into the repairs to run
+  (`All` = every known repair, currently the orphaned-run repair), reports
+  them in the result (`FixIssuesResult.Repairs`) and the log, and rejects an
+  unknown scope instead of running the default repair. (#16)
 - The `info` run history now shows what a `migrate-down` run did. Records
   rolled back by `migrate-down` are stamped `MigrateDown`, records rolled back
   by the error recovery inside a `migrate-up` are stamped `Rollback`, and the

@@ -103,7 +103,7 @@ public class FixIssuesRequest
 {
     public string ProductAlias { get; set; } = string.Empty;
     public string Environment { get; set; } = string.Empty;
-    public FixIssues Scope { get; set; } = FixIssues.OrphanedRuns;
+    public FixScope Scope { get; set; } = FixScope.OrphanedRuns;
     public int OlderThanMinutes { get; set; } = 60;
     public bool DryRun { get; set; } = false;
     public MigrationStatus AssumedMigrationStatus { get; set; } = MigrationStatus.NotMigrated;
@@ -194,7 +194,7 @@ Controls which hash is compared during validation.
 
 Source: `Raycoon.RayMigrator.Core/Configuration/Enums/HashValidationScope.cs`
 
-### FixIssues
+### FixScope
 
 Scope of the Fix command.
 
@@ -204,7 +204,7 @@ Scope of the Fix command.
 | `All` | 1 | Fixes all known repository problems |
 | `OrphanedRuns` | 2 | Fixes orphaned MigrationRun entries (process crashed while Running) |
 
-Source: `Raycoon.RayMigrator.Core/Configuration/Enums/FixIssues.cs`
+Source: `Raycoon.RayMigrator.Core/Configuration/Enums/FixScope.cs`
 
 ### MigrationErrorAction
 

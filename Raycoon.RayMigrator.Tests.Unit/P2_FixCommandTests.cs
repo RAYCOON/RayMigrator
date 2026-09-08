@@ -20,7 +20,7 @@ public class FixIssuesRequestModelTests
 
         request.ProductAlias.Should().BeEmpty();
         request.Environment.Should().BeEmpty();
-        request.Scope.Should().Be(FixIssues.OrphanedRuns);
+        request.Scope.Should().Be(FixScope.OrphanedRuns);
         request.OlderThanMinutes.Should().Be(60);
         request.DryRun.Should().BeFalse();
         request.AssumedMigrationStatus.Should().Be(MigrationStatus.NotMigrated);
@@ -35,7 +35,7 @@ public class FixIssuesRequestModelTests
         {
             ProductAlias = "TestProduct",
             Environment = "Docker",
-            Scope = FixIssues.All,
+            Scope = FixScope.All,
             OlderThanMinutes = 0,
             DryRun = true,
             AssumedMigrationStatus = MigrationStatus.Migrated,
@@ -45,7 +45,7 @@ public class FixIssuesRequestModelTests
 
         request.ProductAlias.Should().Be("TestProduct");
         request.Environment.Should().Be("Docker");
-        request.Scope.Should().Be(FixIssues.All);
+        request.Scope.Should().Be(FixScope.All);
         request.OlderThanMinutes.Should().Be(0);
         request.DryRun.Should().BeTrue();
         request.AssumedMigrationStatus.Should().Be(MigrationStatus.Migrated);
@@ -176,26 +176,26 @@ public class OrphanedRunInfoModelTests
 }
 
 /// <summary>
-/// P2: FixIssues enum tests.
+/// P2: FixScope enum tests.
 /// </summary>
 public class FixIssuesEnumTests
 {
     [Fact]
     public void OrphanedRuns_HasExpectedValue()
     {
-        ((byte)FixIssues.OrphanedRuns).Should().Be(2);
+        ((byte)FixScope.OrphanedRuns).Should().Be(2);
     }
 
     [Fact]
     public void All_HasExpectedValue()
     {
-        ((byte)FixIssues.All).Should().Be(1);
+        ((byte)FixScope.All).Should().Be(1);
     }
 
     [Fact]
     public void Undefined_HasExpectedValue()
     {
-        ((byte)FixIssues.Undefined).Should().Be(0);
+        ((byte)FixScope.Undefined).Should().Be(0);
     }
 }
 
@@ -385,5 +385,39 @@ public class FixCommandConsoleOptionsTests
         options.FixOlderThanMinutes.Should().Be(30);
         options.FixDryRun.Should().BeTrue();
         options.FixAssumedMigrationStatus.Should().Be(MigrationStatus.Migrated);
+    }
+}
+
+/// <summary>
+/// <c>fix --scope</c> is an explicit dispatch (#16): every scope expands to the repairs it runs, All lists every known
+/// repair, and an unknown scope fails instead of silently running the default repair.
+/// </summary>
+public class FixScopeDispatchTests
+{
+    [Fact]
+    public void OrphanedRuns_ExpandsToItself()
+    {
+        Services.MigrationService.RepairsFor(FixScope.OrphanedRuns).Should().Equal(FixScope.OrphanedRuns);
+    }
+
+    [Fact]
+    public void All_ExpandsToEveryKnownRepair()
+    {
+        // Every member except the sentinel and All itself must be part of All; a new repair that is not listed
+        // in RepairsFor would otherwise be skipped by --scope all.
+        var expected = Enum.GetValues<FixScope>().Where(s => s is not FixScope.Undefined and not FixScope.All);
+
+        Services.MigrationService.RepairsFor(FixScope.All).Should().BeEquivalentTo(expected);
+    }
+
+    [Theory]
+    [InlineData(FixScope.Undefined)]
+    [InlineData((FixScope)99)]
+    public void UnknownScope_Throws(FixScope scope)
+    {
+        var act = () => Services.MigrationService.RepairsFor(scope);
+
+        act.Should().Throw<Raycoon.RayMigrator.Shared.Exceptions.ConfigurationValidationException>()
+           .WithMessage("*Invalid fix scope*All, OrphanedRuns*");
     }
 }
