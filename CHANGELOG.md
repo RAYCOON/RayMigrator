@@ -18,6 +18,12 @@ RayMigrator follows Semantic Versioning where applicable.
   although that block never ran. Records written under
   `MigrationErrorAction = Ignore` keep storing the total and are re-executed as
   a whole, as before. (#11)
+- `RollbackErrorAction = Ignore` is now honoured when rollback files are
+  executed through a CLI tool (`UseCliToolAlias`). A non-zero exit code marks
+  the record `Failed` and the rollback chain continues with the next file,
+  exactly like a failed block on the DAL path. Until now the CLI tool's
+  exception aborted the whole chain regardless of the setting, so `Ignore`
+  behaved like `Terminate`. (#15)
 
 ## [0.12.0] — 2026-09-08
 

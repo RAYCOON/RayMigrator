@@ -1623,13 +1623,23 @@ public class MigrationService : IMigrationService
                     string? rollbackCliAlias = ResolveUseCliToolAlias(rollbackFileInfo, targetOptions);
                     if (rollbackCliAlias != null)
                     {
-                        // CLI tool execution for rollback: execute entire file as single unit
+                        // CLI tool execution for rollback: the entire file is one unit. ExecuteWithCliTool never
+                        // reports failed blocks, it throws on a non-zero exit code. With RollbackErrorAction=Ignore
+                        // that failure is handled like a failed block on the DAL path: the record is marked Failed
+                        // and the chain continues with the next rollback (#15).
                         var cliTool = GetCliToolByAlias(rollbackCliAlias);
-                        var (_, failedBlocks) = await ExecuteWithCliTool(
-                            rollbackFileInfo, targetGroupOptions, targetOptions, record.Id, runMode, cliTool);
-
-                        if (failedBlocks > 0)
+                        try
+                        {
+                            await ExecuteWithCliTool(
+                                rollbackFileInfo, targetGroupOptions, targetOptions, record.Id, runMode, cliTool);
+                        }
+                        catch (MigrationExecutionException cliEx) when (rollbackErrorAction == RollbackErrorAction.Ignore)
+                        {
+                            _logger.LogWarning(cliEx,
+                                "RollbackErrorAction=Ignore: CLI tool '{CliTool}' failed for rollback file {RollbackFile} of migration {MigrationRecordId} ({Filename}) on target {Target}. Marking as Failed and continuing with next rollback.",
+                                cliTool.Alias, rollbackFileInfo.Filename, record.Id, record.Filename, record.TargetAlias);
                             fileHadBlockError = true;
+                        }
                     }
                     else
                     {
