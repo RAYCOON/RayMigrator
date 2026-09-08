@@ -2,10 +2,22 @@ name: Build & Test
 
 on:
   push:
-    branches: [main]
+    # develop is the working branch: every commit gets a Linux build and the
+    # unit tests, and the resulting build-test check on the commit SHA is what
+    # the branch protection on main requires when a release is fast-forwarded.
+    # main itself is not listed: it only ever receives that fast-forward, and
+    # the release tag on the same commit triggers the run that publishes.
+    branches: [develop]
     tags: ['v*']
   pull_request:
     branches: [main]
+
+# One run per ref; a newer push to develop cancels the running one. Tag runs
+# are never cancelled because Publish Release and Deploy ConfigWizard depend
+# on their success.
+concurrency:
+  group: build-test-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 jobs:
   build-test:
