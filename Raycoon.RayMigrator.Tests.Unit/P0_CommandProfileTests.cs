@@ -73,6 +73,18 @@ public class CommandProfileTests
         act.Should().Throw<ConfigurationValidationException>().WithMessage("*No command profile*None*");
     }
 
+    [Theory]
+    [InlineData(MigrationCommand.MigrateUp)]
+    [InlineData(MigrationCommand.MigrateDown)]
+    public void GetProfile_ForMigrateCommandWithUndefinedRunMode_Throws(MigrationCommand command)
+    {
+        // Undefined is the "not set" sentinel. Deriving a profile from it would silently yield a validate-like
+        // profile (no connect, no read, no write) for a command that the caller meant to run for real.
+        var act = () => MigrationCommandExtensions.GetProfile(command, MigrationRunMode.Undefined);
+
+        act.Should().Throw<ConfigurationValidationException>().WithMessage("*Undefined*");
+    }
+
     [Fact]
     public void GetProfile_FromConsoleOptions_UsesCommandRunModeAndDryRun()
     {

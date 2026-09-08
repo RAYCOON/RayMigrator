@@ -661,9 +661,12 @@ public class CommandLineConfiguration
     }
 
     /// <summary>
-    /// Parses a string to HashValidationScope enum
+    /// Parses the <c>--scope</c> value of <c>validate-hash</c> to <see cref="HashValidationScope"/>. The option
+    /// validator rejects unknown values first; the throw guards direct calls so that no unknown value can silently
+    /// fall back to <see cref="HashValidationScope.File"/>, the same rule as <see cref="ParseRunMode"/> (#17).
     /// </summary>
-    private static HashValidationScope ParseHashValidationScope(string value)
+    /// <exception cref="ConfigurationValidationException">The value is not file, sqlblock(s) or disabled.</exception>
+    internal static HashValidationScope ParseHashValidationScope(string value)
     {
         var normalizedValue = ResolveEnvironmentVariable(value).ToLowerInvariant();
         return normalizedValue switch
@@ -672,21 +675,24 @@ public class CommandLineConfiguration
             "sqlblock" => HashValidationScope.SqlBlocks,
             "sqlblocks" => HashValidationScope.SqlBlocks,
             "disabled" => HashValidationScope.Disabled,
-            _ => HashValidationScope.File
+            _ => throw new ConfigurationValidationException($"Invalid value [{value}] for --scope. Allowed values: [file, sqlblock, disabled].")
         };
     }
 
     /// <summary>
-    /// Parses a string to FixIssues enum
+    /// Parses the <c>--scope</c> value of <c>fix</c> to <see cref="FixIssues"/>. The option validator rejects
+    /// unknown values first; the throw guards direct calls so that no unknown value can silently fall back to
+    /// <see cref="FixIssues.OrphanedRuns"/> (#17).
     /// </summary>
-    private static FixIssues ParseFixIssuesScope(string value)
+    /// <exception cref="ConfigurationValidationException">The value is not orphanedruns or all.</exception>
+    internal static FixIssues ParseFixIssuesScope(string value)
     {
         var normalizedValue = ResolveEnvironmentVariable(value).ToLowerInvariant();
         return normalizedValue switch
         {
             "all" => FixIssues.All,
             "orphanedruns" => FixIssues.OrphanedRuns,
-            _ => FixIssues.OrphanedRuns
+            _ => throw new ConfigurationValidationException($"Invalid value [{value}] for --scope. Allowed values: [orphanedruns, all].")
         };
     }
 

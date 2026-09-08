@@ -595,6 +595,21 @@ public class ParseTomlEnumTests
         result.Should().Be(MigrationErrorAction.Terminate);
     }
 
+    [Theory]
+    [InlineData("21")]   // numeric form of RollbackErrorOnly
+    [InlineData("99")]   // no such member at all
+    [InlineData("Terminate,Ignore")] // Enum.TryParse would OR the flags together
+    public void NumericOrCompositeValue_IsRejected_LikeAppsettings(string value)
+    {
+        // TOML headers and migsettings must accept exactly what appsettings accepts (OptionsEnumParser):
+        // member names only. Enum.TryParse would silently accept "21", "99" and "Terminate,Ignore".
+        var act = () => MigrationService.ParseTomlEnum<MigrationErrorAction>(value, "MigrationErrorAction");
+
+        act.Should().Throw<MigrationFileParsingException>()
+            .WithMessage($"*{value}*")
+            .WithMessage("*Valid values are*");
+    }
+
     [Fact]
     public void Undefined_ThrowsException()
     {

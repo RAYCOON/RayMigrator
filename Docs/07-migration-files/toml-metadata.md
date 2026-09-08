@@ -49,7 +49,7 @@ If you do not need a description and the defaults are suitable, the file needs n
 | `UseCliToolAlias` | string? | inherits | CLI tool alias for executing this file instead of the built-in DAL. References a `CliTools[].Alias` defined at the `RayMigrator` root level in `appsettings.json`. When omitted, inherits from migsettings, then from the Target/TargetGroup/Product/ProductDefaults configuration cascade. Null or empty means use the DAL (default behavior) |
 | `TargetGroupMigrationOrder` | string[]? | not set | Recognized by the parser but **has no effect in migration file TOML**. Only meaningful in release-level `migsettings.txt` files. See [migsettings Files](migsettings-files.md) for details. |
 
-Key parsing is **case-insensitive**. Enum values (`MigrationErrorAction`, `RollbackErrorAction`) are also case-insensitive and may optionally be quoted (`Rollback` or `"Rollback"`). String values (`Description`, `UseCliToolAlias`) may optionally be quoted. Lines starting with `#` are treated as comments and skipped. Unknown TOML keys cause a `MigrationFileParsingException`.
+Key parsing is **case-insensitive**. Enum values (`MigrationErrorAction`, `RollbackErrorAction`) are also case-insensitive and may optionally be quoted (`Rollback` or `"Rollback"`); only the member names are accepted, numeric values such as `20` are rejected like in `appsettings.json`. String values (`Description`, `UseCliToolAlias`) may optionally be quoted. Lines starting with `#` are treated as comments and skipped. Unknown TOML keys cause a `MigrationFileParsingException`.
 
 ## Environment Filtering
 

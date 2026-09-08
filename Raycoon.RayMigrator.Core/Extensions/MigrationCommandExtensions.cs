@@ -43,6 +43,11 @@ public static class MigrationCommandExtensions
     /// <exception cref="ConfigurationValidationException">The command has no profile (<see cref="MigrationCommand.None"/> or an unknown value).</exception>
     public static CommandProfile GetProfile(MigrationCommand command, MigrationRunMode runMode, bool fixDryRun = false) => command switch
     {
+        // Undefined is the "not set" sentinel. Deriving a profile from it would yield a validate-like profile
+        // (no connect, no read, no write) for a command the caller meant to run for real (#17).
+        MigrationCommand.MigrateUp or MigrationCommand.MigrateDown when runMode == MigrationRunMode.Undefined =>
+            throw new ConfigurationValidationException($"No command profile for [{command}] with run mode [{MigrationRunMode.Undefined}]. Choose migrate, simulate or validate."),
+
         MigrationCommand.MigrateUp or MigrationCommand.MigrateDown => new CommandProfile(
             ExecutesMigrations: true,
             ConnectsToTargets: runMode >= MigrationRunMode.Simulate,

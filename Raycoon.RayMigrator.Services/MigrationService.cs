@@ -70,6 +70,7 @@ public class MigrationService : IMigrationService
                 throw new InvalidOperationException(
                     $"Product mismatch: context has {_ctxAccessor.Current.RayMigratorConsoleOptions.Product} but request has {request.ProductAlias}");
             }
+            EnsureRequestRunModeMatchesContext(request.RunMode);
 
             // --- Phase 1: Initialization ---
             _ctxAccessor.Current.MigrationState.MigrationRunResult = MigrationRunResult.Running;
@@ -888,6 +889,30 @@ public class MigrationService : IMigrationService
     /// Requires: UseTransaction=true, no retries, block errors not ignored,
     /// same DatabaseType, and identical ConnectionString between target and repository.
     /// </summary>
+    /// <summary>
+    /// The execution path reads the run mode from the request, while every repository stamp and the
+    /// DatabaseLogging gate read it from the <see cref="MigrationContext"/>. The CLI fills both from the same
+    /// options; a programmatic caller could let them diverge or send <see cref="MigrationRunMode.Undefined"/>,
+    /// which the execution gates would treat like Validate while the context stamps Migrate (#17).
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The request run mode is Undefined or differs from the context.</exception>
+    private void EnsureRequestRunModeMatchesContext(MigrationRunMode requestRunMode)
+    {
+        if (requestRunMode == MigrationRunMode.Undefined)
+        {
+            throw new InvalidOperationException(
+                "RunMode mismatch: the request carries MigrationRunMode.Undefined. Choose Migrate, Simulate or Validate.");
+        }
+
+        var contextRunMode = _ctxAccessor.Current.RayMigratorConsoleOptions.RunMode;
+        if (requestRunMode != contextRunMode)
+        {
+            throw new InvalidOperationException(
+                $"RunMode mismatch: context has {contextRunMode} but request has {requestRunMode}. " +
+                "Build the MigrationContext for the run mode the request is executed with.");
+        }
+    }
+
     internal static bool CanUseSharedConnection(
         MigrationFileInfo file,
         TargetOptions targetOptions,
@@ -1004,6 +1029,7 @@ public class MigrationService : IMigrationService
                 throw new InvalidOperationException(
                     $"Product mismatch: context has {_ctxAccessor.Current.RayMigratorConsoleOptions.Product} but request has {request.ProductAlias}");
             }
+            EnsureRequestRunModeMatchesContext(request.RunMode);
 
             // --- Validate mode: validate rollback file existence and parseability ---
             if (!request.RunMode.ShouldReadRepository())
@@ -2436,25 +2462,29 @@ public class MigrationService : IMigrationService
             .ToList();
     }
 
+    /// <summary>
+    /// Converts a TOML / migsettings enum value into the enum member. Same contract as appsettings
+    /// (<c>OptionsEnumParser</c> / <c>RayEnumAttribute</c>): only the member names after the <c>Undefined</c>
+    /// sentinel are accepted, compared case-insensitively. <see cref="Enum.TryParse{TEnum}(string, bool, out TEnum)"/>
+    /// would also accept numeric strings ("21"), values that are no member at all ("99") and comma-separated
+    /// lists ("Terminate,Ignore"), which then reach the executor as undefined values (#17).
+    /// </summary>
     internal static T ParseTomlEnum<T>(string value, string keyName) where T : struct, Enum
     {
         var cleaned = ParseTomlString(value).Trim();
-        if (!Enum.TryParse<T>(cleaned, ignoreCase: true, out var result))
+        var validValues = GetValidEnumValues<T>();
+        var match = validValues.FirstOrDefault(name => name.Equals(cleaned, StringComparison.OrdinalIgnoreCase));
+
+        if (match is null)
         {
-            var validValues = GetValidEnumValues<T>();
+            string reason = cleaned.Equals("Undefined", StringComparison.OrdinalIgnoreCase)
+                ? " 'Undefined' is not allowed."
+                : string.Empty;
             throw new MigrationFileParsingException(
-                $"Invalid value '{cleaned}' for TOML property '{keyName}'. Valid values are: {string.Join(", ", validValues)}.");
+                $"Invalid value '{cleaned}' for TOML property '{keyName}'.{reason} Valid values are: {string.Join(", ", validValues)}.");
         }
 
-        // Reject Undefined (value 0) explicitly
-        if (Convert.ToByte(result) == 0)
-        {
-            var validValues = GetValidEnumValues<T>();
-            throw new MigrationFileParsingException(
-                $"Invalid value '{cleaned}' for TOML property '{keyName}'. 'Undefined' is not allowed. Valid values are: {string.Join(", ", validValues)}.");
-        }
-
-        return result;
+        return Enum.Parse<T>(match);
     }
 
     internal static string[] GetValidEnumValues<T>() where T : struct, Enum

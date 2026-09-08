@@ -24,6 +24,18 @@ RayMigrator follows Semantic Versioning where applicable.
   exactly like a failed block on the DAL path. Until now the CLI tool's
   exception aborted the whole chain regardless of the setting, so `Ignore`
   behaved like `Terminate`. (#15)
+- Enum values in migration file headers and `migsettings.txt`
+  (`MigrationErrorAction`, `RollbackErrorAction`) now follow the same rule as
+  `appsettings.json`: only the member names are accepted, case-insensitively.
+  Numeric values such as `21`, values that are no member at all such as `99`,
+  and comma-separated lists such as `Terminate,Ignore` are rejected with a
+  `MigrationFileParsingException` that lists the valid values; until now they
+  were accepted and reached the executor as undefined values. The `--scope`
+  parsers of `validate-hash` and `fix` throw on an unknown value instead of
+  silently falling back to `file` / `orphanedruns`, `GetProfile` rejects
+  `MigrationRunMode.Undefined` for the migrate commands, and `MigrateUpAsync`
+  / `MigrateDownAsync` reject a request whose run mode is `Undefined` or
+  differs from the `MigrationContext`. (#17)
 
 ## [0.12.0] — 2026-09-08
 

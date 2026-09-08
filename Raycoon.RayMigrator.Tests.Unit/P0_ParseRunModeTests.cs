@@ -61,3 +61,53 @@ public class ParseRunModeTests
         config.ParsedOptions.Should().BeNull("a rejected --run-mode must not produce console options");
     }
 }
+
+/// <summary>
+/// The two <c>--scope</c> parsers follow the same rule as <c>ParseRunMode</c>: an unknown value throws instead of
+/// silently becoming the default (#17).
+/// </summary>
+public class ParseScopeTests
+{
+    [Theory]
+    [InlineData("file", HashValidationScope.File)]
+    [InlineData("FILE", HashValidationScope.File)]
+    [InlineData("sqlblock", HashValidationScope.SqlBlocks)]
+    [InlineData("SqlBlocks", HashValidationScope.SqlBlocks)]
+    [InlineData("disabled", HashValidationScope.Disabled)]
+    public void ParseHashValidationScope_AcceptsKnownValuesCaseInsensitively(string value, HashValidationScope expected)
+    {
+        CommandLineConfiguration.ParseHashValidationScope(value).Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData("bogus")]
+    [InlineData("")]
+    [InlineData("2")]
+    public void ParseHashValidationScope_ThrowsForUnknownValue(string value)
+    {
+        var act = () => CommandLineConfiguration.ParseHashValidationScope(value);
+
+        act.Should().Throw<ConfigurationValidationException>("an unknown scope must never silently become File")
+           .WithMessage("*Invalid value*--scope*file, sqlblock, disabled*");
+    }
+
+    [Theory]
+    [InlineData("all", FixIssues.All)]
+    [InlineData("ORPHANEDRUNS", FixIssues.OrphanedRuns)]
+    public void ParseFixIssuesScope_AcceptsKnownValuesCaseInsensitively(string value, FixIssues expected)
+    {
+        CommandLineConfiguration.ParseFixIssuesScope(value).Should().Be(expected);
+    }
+
+    [Theory]
+    [InlineData("bogus")]
+    [InlineData("")]
+    [InlineData("1")]
+    public void ParseFixIssuesScope_ThrowsForUnknownValue(string value)
+    {
+        var act = () => CommandLineConfiguration.ParseFixIssuesScope(value);
+
+        act.Should().Throw<ConfigurationValidationException>("an unknown scope must never silently become OrphanedRuns")
+           .WithMessage("*Invalid value*--scope*orphanedruns, all*");
+    }
+}
