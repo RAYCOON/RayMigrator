@@ -64,6 +64,37 @@ internal static class OptionsEnumParser
 }
 
 /// <summary>
+/// Holds the enum member behind a string-typed option (<c>MigrationErrorAction</c>, <c>HashValidationScope</c>, ...).
+/// The options classes bind the JSON value as a string so that <see cref="RayEnumAttribute"/> can validate it; the
+/// <c>*Enum</c> property of each option resolves it through this helper. The parse result is cached per string
+/// value: a changed string (defaults merged by <c>ProductDefaultsPostConfigureOptions</c>) is parsed again, an
+/// unset string yields <paramref name="missing"/> without caching. Replaces eight hand-written getters (#19).
+/// </summary>
+internal sealed class ParsedEnumOption<TEnum> where TEnum : struct, Enum
+{
+    private string? _parsedFrom;
+    private TEnum _value;
+
+    /// <summary>Resolves <paramref name="raw"/> to its member, or <paramref name="missing"/> when it is unset.</summary>
+    /// <exception cref="ConfigurationValidationException">The value is not a member name.</exception>
+    public TEnum Resolve(string? raw, string propertyName, TEnum missing = default)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return missing;
+        }
+
+        if (!string.Equals(_parsedFrom, raw, StringComparison.Ordinal))
+        {
+            _value = OptionsEnumParser.ParseOrThrow<TEnum>(raw, propertyName);
+            _parsedFrom = raw;
+        }
+
+        return _value;
+    }
+}
+
+/// <summary>
 /// 
 /// </summary>
 public class RayMigratorOptions
@@ -176,9 +207,6 @@ public class ProductDefaultOptions
     [RayEnum(typeof(Enums.MigrationErrorAction), isRequired: false)]
     public string? MigrationErrorAction { get; set; }
 
-    private bool _isMigrationErrorActionInitialized;
-    private MigrationErrorAction _migrationErrorAction;
-
     public ProductDefaultOptions() { }
 
     public ProductDefaultOptions(string? migrationFilesEncoding)
@@ -186,25 +214,13 @@ public class ProductDefaultOptions
         MigrationFilesEncoding = migrationFilesEncoding;
     }
 
-    public MigrationErrorAction MigrationErrorActionEnum
-    {
-        get
-        {
-            if (_isMigrationErrorActionInitialized)
-            {
-                return _migrationErrorAction;
-            }
+    private readonly ParsedEnumOption<Enums.MigrationErrorAction> _migrationErrorAction = new();
 
-            if (string.IsNullOrWhiteSpace(MigrationErrorAction))
-            {
-                return Enums.MigrationErrorAction.Undefined;
-            }
-
-            _migrationErrorAction = OptionsEnumParser.ParseOrThrow<Enums.MigrationErrorAction>(MigrationErrorAction, nameof(MigrationErrorAction));
-            _isMigrationErrorActionInitialized = true;
-            return _migrationErrorAction;
-        }
-    }
+    /// <summary>
+    /// <see cref="MigrationErrorAction"/> as enum member. Undefined while the string is unset; a value that is not a member
+    /// name throws (see <see cref="ParsedEnumOption{TEnum}"/>).
+    /// </summary>
+    public Enums.MigrationErrorAction MigrationErrorActionEnum => _migrationErrorAction.Resolve(MigrationErrorAction, nameof(MigrationErrorAction));
     
     #endregion MigrationErrorAction
 
@@ -214,28 +230,13 @@ public class ProductDefaultOptions
     [RayEnum(typeof(Enums.RollbackErrorAction), isRequired: false)]
     public string? RollbackErrorAction { get; set; }
 
-    private bool _isRollbackErrorActionInitialized;
-    private RollbackErrorAction _rollbackErrorAction;
+    private readonly ParsedEnumOption<Enums.RollbackErrorAction> _rollbackErrorAction = new();
 
-    public RollbackErrorAction RollbackErrorActionEnum
-    {
-        get
-        {
-            if (_isRollbackErrorActionInitialized)
-            {
-                return _rollbackErrorAction;
-            }
-
-            if (string.IsNullOrWhiteSpace(RollbackErrorAction))
-            {
-                return Enums.RollbackErrorAction.Undefined;
-            }
-
-            _rollbackErrorAction = OptionsEnumParser.ParseOrThrow<Enums.RollbackErrorAction>(RollbackErrorAction, nameof(RollbackErrorAction));
-            _isRollbackErrorActionInitialized = true;
-            return _rollbackErrorAction;
-        }
-    }
+    /// <summary>
+    /// <see cref="RollbackErrorAction"/> as enum member. Undefined while the string is unset; a value that is not a member
+    /// name throws (see <see cref="ParsedEnumOption{TEnum}"/>).
+    /// </summary>
+    public Enums.RollbackErrorAction RollbackErrorActionEnum => _rollbackErrorAction.Resolve(RollbackErrorAction, nameof(RollbackErrorAction));
 
     #endregion RollbackErrorAction
 
@@ -280,27 +281,13 @@ public class TargetGroupDefaultOptions
     [RayEnum(typeof(Enums.TargetMigrationOrder), isRequired: false)]
     public string? TargetMigrationOrder { get; set; }
 
-    private bool _isTargetMigrationOrderInitialized;
-    private TargetMigrationOrder _targetMigrationOrder;
-    public TargetMigrationOrder TargetMigrationOrderEnum
-    {
-        get
-        {
-            if (_isTargetMigrationOrderInitialized)
-            {
-                return _targetMigrationOrder;
-            }
+    private readonly ParsedEnumOption<Enums.TargetMigrationOrder> _targetMigrationOrder = new();
 
-            if (string.IsNullOrWhiteSpace(TargetMigrationOrder))
-            {
-                return Enums.TargetMigrationOrder.Undefined;
-            }
-
-            _targetMigrationOrder = OptionsEnumParser.ParseOrThrow<Enums.TargetMigrationOrder>(TargetMigrationOrder, nameof(TargetMigrationOrder));
-            _isTargetMigrationOrderInitialized = true;
-            return _targetMigrationOrder;
-        }
-    }
+    /// <summary>
+    /// <see cref="TargetMigrationOrder"/> as enum member. Undefined while the string is unset; a value that is not a member
+    /// name throws (see <see cref="ParsedEnumOption{TEnum}"/>).
+    /// </summary>
+    public Enums.TargetMigrationOrder TargetMigrationOrderEnum => _targetMigrationOrder.Resolve(TargetMigrationOrder, nameof(TargetMigrationOrder));
 
     #endregion TargetMigrationOrder
     
@@ -309,27 +296,13 @@ public class TargetGroupDefaultOptions
     [RayEnum(typeof(Enums.HashValidationScope), isRequired: false)]
     public string? HashValidationScope { get; set; }
 
-    private bool _isHashValidationScopeInitialized;
-    private HashValidationScope _HashValidationScope;
-    public HashValidationScope HashValidationScopeEnum
-    {
-        get
-        {
-            if (_isHashValidationScopeInitialized)
-            {
-                return _HashValidationScope;
-            }
+    private readonly ParsedEnumOption<Enums.HashValidationScope> _hashValidationScope = new();
 
-            if (string.IsNullOrWhiteSpace(HashValidationScope))
-            {
-                return Enums.HashValidationScope.Undefined;
-            }
-
-            _HashValidationScope = OptionsEnumParser.ParseOrThrow<Enums.HashValidationScope>(HashValidationScope, nameof(HashValidationScope));
-            _isHashValidationScopeInitialized = true;
-            return _HashValidationScope;
-        }
-    }
+    /// <summary>
+    /// <see cref="HashValidationScope"/> as enum member. Undefined while the string is unset; a value that is not a member
+    /// name throws (see <see cref="ParsedEnumOption{TEnum}"/>).
+    /// </summary>
+    public Enums.HashValidationScope HashValidationScopeEnum => _hashValidationScope.Resolve(HashValidationScope, nameof(HashValidationScope));
 
     #endregion HashValidationScope
 
@@ -381,9 +354,6 @@ public class ProductOptions
     [RayEnum(typeof(Enums.MigrationErrorAction), isRequired: true)]
     public string? MigrationErrorAction { get; set; }
 
-    private bool _isMigrationErrorActionInitialized;
-    private MigrationErrorAction _migrationErrorAction;
-
     public ProductOptions() { }
 
     public ProductOptions(string? migrationRollbackFilesPreExtension)
@@ -391,25 +361,13 @@ public class ProductOptions
         MigrationRollbackFilesPreExtension = migrationRollbackFilesPreExtension;
     }
 
-    public MigrationErrorAction MigrationErrorActionEnum
-    {
-        get
-        {
-            if (_isMigrationErrorActionInitialized)
-            {
-                return _migrationErrorAction;
-            }
+    private readonly ParsedEnumOption<Enums.MigrationErrorAction> _migrationErrorAction = new();
 
-            if (string.IsNullOrWhiteSpace(MigrationErrorAction))
-            {
-                return Enums.MigrationErrorAction.Undefined;
-            }
-
-            _migrationErrorAction = OptionsEnumParser.ParseOrThrow<Enums.MigrationErrorAction>(MigrationErrorAction, nameof(MigrationErrorAction));
-            _isMigrationErrorActionInitialized = true;
-            return _migrationErrorAction;
-        }
-    }
+    /// <summary>
+    /// <see cref="MigrationErrorAction"/> as enum member. Undefined while the string is unset; a value that is not a member
+    /// name throws (see <see cref="ParsedEnumOption{TEnum}"/>).
+    /// </summary>
+    public Enums.MigrationErrorAction MigrationErrorActionEnum => _migrationErrorAction.Resolve(MigrationErrorAction, nameof(MigrationErrorAction));
     
     #endregion MigrationErrorAction
 
@@ -419,28 +377,13 @@ public class ProductOptions
     [RayEnum(typeof(Enums.RollbackErrorAction), isRequired: false)]
     public string? RollbackErrorAction { get; set; }
 
-    private bool _isRollbackErrorActionInitialized;
-    private RollbackErrorAction _rollbackErrorAction;
+    private readonly ParsedEnumOption<Enums.RollbackErrorAction> _rollbackErrorAction = new();
 
-    public RollbackErrorAction RollbackErrorActionEnum
-    {
-        get
-        {
-            if (_isRollbackErrorActionInitialized)
-            {
-                return _rollbackErrorAction;
-            }
-
-            if (string.IsNullOrWhiteSpace(RollbackErrorAction))
-            {
-                return Enums.RollbackErrorAction.Undefined;
-            }
-
-            _rollbackErrorAction = OptionsEnumParser.ParseOrThrow<Enums.RollbackErrorAction>(RollbackErrorAction, nameof(RollbackErrorAction));
-            _isRollbackErrorActionInitialized = true;
-            return _rollbackErrorAction;
-        }
-    }
+    /// <summary>
+    /// <see cref="RollbackErrorAction"/> as enum member. Undefined while the string is unset; a value that is not a member
+    /// name throws (see <see cref="ParsedEnumOption{TEnum}"/>).
+    /// </summary>
+    public Enums.RollbackErrorAction RollbackErrorActionEnum => _rollbackErrorAction.Resolve(RollbackErrorAction, nameof(RollbackErrorAction));
 
     #endregion RollbackErrorAction
 
@@ -504,27 +447,13 @@ public class TargetGroupOptions
     [RayEnum(typeof(Enums.TargetMigrationOrder), isRequired: true)] // isRequired=true because value is being evaluated AFTER it was copied from its defaults by class 'ProductDefaultsPostConfigureOptions'
     public string? TargetMigrationOrder { get; set; }
 
-    private bool _isTargetMigrationOrderInitialized;
-    private TargetMigrationOrder _targetMigrationOrder;
-    public TargetMigrationOrder TargetMigrationOrderEnum
-    {
-        get
-        {
-            if (_isTargetMigrationOrderInitialized)
-            {
-                return _targetMigrationOrder;
-            }
+    private readonly ParsedEnumOption<Enums.TargetMigrationOrder> _targetMigrationOrder = new();
 
-            if (string.IsNullOrWhiteSpace(TargetMigrationOrder))
-            {
-                return Enums.TargetMigrationOrder.Undefined;
-            }
-
-            _targetMigrationOrder = OptionsEnumParser.ParseOrThrow<Enums.TargetMigrationOrder>(TargetMigrationOrder, nameof(TargetMigrationOrder));
-            _isTargetMigrationOrderInitialized = true;
-            return _targetMigrationOrder;
-        }
-    }
+    /// <summary>
+    /// <see cref="TargetMigrationOrder"/> as enum member. Undefined while the string is unset; a value that is not a member
+    /// name throws (see <see cref="ParsedEnumOption{TEnum}"/>).
+    /// </summary>
+    public Enums.TargetMigrationOrder TargetMigrationOrderEnum => _targetMigrationOrder.Resolve(TargetMigrationOrder, nameof(TargetMigrationOrder));
 
     #endregion TargetMigrationOrder
     
@@ -533,27 +462,13 @@ public class TargetGroupOptions
     [RayEnum(typeof(Enums.HashValidationScope), isRequired: true)] // isRequired=true because value is being evaluated AFTER it was copied from its defaults by class 'ProductDefaultsPostConfigureOptions'
     public string? HashValidationScope { get; set; }
 
-    private bool _isHashValidationScopeInitialized;
-    private HashValidationScope _HashValidationScope;
-    public HashValidationScope HashValidationScopeEnum
-    {
-        get
-        {
-            if (_isHashValidationScopeInitialized)
-            {
-                return _HashValidationScope;
-            }
+    private readonly ParsedEnumOption<Enums.HashValidationScope> _hashValidationScope = new();
 
-            if (string.IsNullOrWhiteSpace(HashValidationScope))
-            {
-                return Enums.HashValidationScope.Undefined;
-            }
-
-            _HashValidationScope = OptionsEnumParser.ParseOrThrow<Enums.HashValidationScope>(HashValidationScope, nameof(HashValidationScope));
-            _isHashValidationScopeInitialized = true;
-            return _HashValidationScope;
-        }
-    }
+    /// <summary>
+    /// <see cref="HashValidationScope"/> as enum member. Undefined while the string is unset; a value that is not a member
+    /// name throws (see <see cref="ParsedEnumOption{TEnum}"/>).
+    /// </summary>
+    public Enums.HashValidationScope HashValidationScopeEnum => _hashValidationScope.Resolve(HashValidationScope, nameof(HashValidationScope));
 
     #endregion HashValidationScope
 
@@ -660,26 +575,13 @@ public class CliToolOptions
     /// </summary>
     public const CliToolInputMode DefaultInputMode = Enums.CliToolInputMode.File;
 
-    private bool _isInputModeInitialized;
-    private CliToolInputMode _inputMode;
+    private readonly ParsedEnumOption<Enums.CliToolInputMode> _inputMode = new();
 
-    public CliToolInputMode InputModeEnum
-    {
-        get
-        {
-            if (_isInputModeInitialized)
-                return _inputMode;
-
-            if (string.IsNullOrWhiteSpace(InputMode))
-            {
-                return DefaultInputMode;
-            }
-
-            _inputMode = OptionsEnumParser.ParseOrThrow<Enums.CliToolInputMode>(InputMode, nameof(InputMode));
-            _isInputModeInitialized = true;
-            return _inputMode;
-        }
-    }
+    /// <summary>
+    /// <see cref="InputMode"/> as enum member. Undefined while the string is unset (this one: <see cref="DefaultInputMode"/>); a value that is not a member
+    /// name throws (see <see cref="ParsedEnumOption{TEnum}"/>).
+    /// </summary>
+    public Enums.CliToolInputMode InputModeEnum => _inputMode.Resolve(InputMode, nameof(InputMode), DefaultInputMode);
 
     #endregion InputMode
 
