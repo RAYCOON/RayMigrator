@@ -2054,12 +2054,21 @@ public class MigrationService : IMigrationService
                     continue;
                 }
 
+                // A Targets filter must name targets of the file's TargetGroup; a typo would otherwise
+                // silently deselect every target (#10)
+                ValidateFileTargets(migrationFile, productOptions);
+
                 migrationFiles.Add(migrationFile);
                 fileOrderId++;
             }
             catch (MigrationFileParsingException)
             {
                 // Already a complete, user-facing message (e.g. the strict-decoding error from ReadMigrationText, #4)
+                throw;
+            }
+            catch (ConfigurationValidationException)
+            {
+                // Already a complete, user-facing message (e.g. an unknown alias in the Targets filter, #10)
                 throw;
             }
             catch (Exception ex)
@@ -3392,7 +3401,8 @@ public class MigrationService : IMigrationService
     /// (<see cref="MigrationFileInfo.PendingTargetAliases"/>). A file is applied on a target when that
     /// target has a Migrated record whose hash matches under the TargetGroup's HashValidationScope.
     /// Deciding per file only (any Migrated record) left a target that failed while another target
-    /// succeeded without any retry (#8).
+    /// succeeded without any retry (#8). Targets outside the file's <see cref="MigrationFileInfo.Targets"/>
+    /// filter are not evaluated at all: they are neither pending nor applied (#10).
     /// </summary>
     internal List<MigrationFileInfo> FilterAlreadyMigratedFiles(
         List<MigrationFileInfo> migrationFiles, List<MigrationRecord> existingRecords,
@@ -3430,7 +3440,7 @@ public class MigrationService : IMigrationService
 
             if (targetAliases.Count > 0 && pending.Count == 0)
             {
-                _logger.LogDebug("Skipping already-migrated file {Filename} (hash unchanged on all {TargetCount} target(s), scope: {Scope})",
+                _logger.LogDebug("Skipping already-migrated file {Filename} (hash unchanged on all {TargetCount} selected target(s), scope: {Scope})",
                     file.Filename, targetAliases.Count, scope);
                 continue;
             }
@@ -3442,7 +3452,8 @@ public class MigrationService : IMigrationService
                     file.Filename, string.Join(", ", pending), string.Join(", ", targetAliases.Where(t => !pending.Contains(t))));
             }
 
-            // null = every target (no target information available, or every target is pending)
+            // null = every selected target (no target information available, or every selected target is
+            // pending); IsPendingOn applies the Targets filter on top of this set (#10)
             file.PendingTargetAliases = targetAliases.Count == 0 || pending.Count == targetAliases.Count ? null : pending;
             result.Add(file);
         }
@@ -3493,8 +3504,10 @@ public class MigrationService : IMigrationService
 
     /// <summary>
     /// The target aliases a file has to be evaluated against: the configured targets of its TargetGroup,
-    /// or — when the configuration carries no targets (pre-built options, tests) — the targets that
-    /// already have a record for the file. Empty when neither is available.
+    /// or — when the configuration carries no targets (pre-built options, tests) — the targets named by
+    /// the file's <see cref="MigrationFileInfo.Targets"/> filter, else the targets that already have a
+    /// record for the file. Empty when none is available. Targets that the file's <c>Targets</c> filter
+    /// does not select are left out (#10).
     /// </summary>
     internal static List<string> ResolveTargetAliases(
         MigrationFileInfo file, List<MigrationRecord> existingRecords, ProductOptions productOptions)
@@ -3509,7 +3522,15 @@ public class MigrationService : IMigrationService
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
         if (configured is { Count: > 0 })
-            return configured;
+            return configured.Where(file.IsTargetSelected).ToList();
+
+        if (file.HasTargetFilter)
+        {
+            return file.Targets!
+                .Where(a => !string.IsNullOrWhiteSpace(a))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
 
         return existingRecords
             .Where(r => r.Filename == file.Filename &&
@@ -3519,6 +3540,50 @@ public class MigrationService : IMigrationService
             .Where(a => !string.IsNullOrWhiteSpace(a))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+    /// <summary>
+    /// Validates the effective <see cref="MigrationFileInfo.Targets"/> filter of a file (own TOML header,
+    /// else inherited from migsettings): every alias must be a target of the file's TargetGroup. An alias
+    /// that matches a target only case-insensitively is reported like a TargetGroup directory with the
+    /// wrong casing; an alias that matches no target at all lists the valid aliases. Nothing is validated
+    /// when the filter is absent (null, empty or ["*"]) or the TargetGroup carries no targets
+    /// (pre-built options, tests). Throws <see cref="ConfigurationValidationException"/> (#10).
+    /// </summary>
+    internal static void ValidateFileTargets(MigrationFileInfo file, ProductOptions productOptions)
+    {
+        if (!file.HasTargetFilter)
+            return;
+
+        var targetGroup = productOptions.TargetGroups?
+            .FirstOrDefault(tg => string.Equals(tg.Alias, file.TargetGroupAlias, StringComparison.OrdinalIgnoreCase));
+        var configured = targetGroup?.Targets?
+            .Select(t => t.Alias)
+            .Where(a => !string.IsNullOrWhiteSpace(a))
+            .Select(a => a!)
+            .ToList();
+        if (configured is not { Count: > 0 })
+            return;
+
+        foreach (var alias in file.Targets!)
+        {
+            if (configured.Contains(alias, StringComparer.Ordinal))
+                continue;
+
+            var caseMatch = configured.FirstOrDefault(a => string.Equals(a, alias, StringComparison.OrdinalIgnoreCase));
+            if (caseMatch != null)
+            {
+                throw new ConfigurationValidationException(
+                    $"Targets filter of migration file [{file.FilenameWithRelativePath}] names [{alias}], which matches " +
+                    $"target alias [{caseMatch}] of TargetGroup [{targetGroup!.Alias}] case-insensitively but differs in case. " +
+                    $"Use [{caseMatch}].");
+            }
+
+            throw new ConfigurationValidationException(
+                $"Targets filter of migration file [{file.FilenameWithRelativePath}] names [{alias}], which is not a target " +
+                $"of TargetGroup [{targetGroup!.Alias}]. Valid target aliases: [{string.Join(", ", configured)}]. " +
+                "Use [\"*\"] or omit Targets to run the file on every target.");
+        }
     }
 
     /// <summary>
@@ -4632,7 +4697,8 @@ public class MigrationService : IMigrationService
 
             // Count pending migrations: (file, target) pairs that are not yet successfully migrated.
             // Evaluated per target like migrate-up does, so a target that failed while another
-            // succeeded still counts as pending (#8). With a single target this is the file count.
+            // succeeded still counts as pending (#8); targets outside a file's Targets filter are
+            // not counted (#10). With a single target this is the file count.
             int pendingMigrations = 0;
             foreach (var file in migrationFiles)
             {

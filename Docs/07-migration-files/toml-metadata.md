@@ -39,7 +39,7 @@ If you do not need a description and the defaults are suitable, the file needs n
 |-----------|------|---------|-------------|
 | `Description` | string | `""` | Human-readable description |
 | `Environments` | array | not specified (= all) | Allowed environments. Use `["*"]` explicitly, omit entirely, or use `[]` (empty array) for all environments |
-| `Targets` | array | not specified (= all) | Target databases (metadata only). Parsed and stored in the repository but **not** used for runtime target filtering. Use `["*"]` explicitly, omit entirely, or use `[]` (empty array) for all targets |
+| `Targets` | array | not specified (= all) | Targets of the target group on which the file runs. Use `["*"]` explicitly, omit entirely, or use `[]` (empty array) for all targets. Every alias must be a configured target of the file's target group |
 | `UseTransaction` | bool | `true` | Wrap in transaction |
 | `RunAlways` | bool | `false` | Re-execute every run |
 | `RequireRollbackFile` | bool? | inherits | Require a rollback file. When omitted, inherits from migsettings or product config (default: `true`) |
@@ -84,7 +84,17 @@ Environments = ["Production"]
 
 ## Target Filtering
 
-> **Note**: The `Targets` parameter is currently **metadata only**. It is parsed and stored in the migration repository (as part of `FileUpConfigJson`) but is not used for runtime target filtering during execution. All targets in a target group receive every migration file regardless of the `Targets` value. This parameter is reserved for future use.
+The `Targets` parameter restricts a file to specific targets of its target group. The file is executed (`migrate-up`), baselined (`baseline`) and counted as pending (`info`) only on the named targets; the other targets of the group skip it and get no migration record for it. The effective value comes from the file header, else from `migsettings.txt` inheritance, and is also stored in the repository as part of `FileUpConfigJson`.
+
+Every alias must match the `Alias` of a target in the file's target group exactly, including case. An alias that does not exist, or that differs only in case, is a configuration error reported during file discovery, before anything is executed:
+
+```
+Targets filter of migration file [Release 1.0\Backend\001_Reporting.sql] names [ReportingDb],
+which is not a target of TargetGroup [Backend]. Valid target aliases: [Main, ReportingDB].
+Use ["*"] or omit Targets to run the file on every target.
+```
+
+`Targets` selects targets *within* a target group. To run a whole target group or skip one, use the `--target-group` (`-tg`) CLI option instead.
 
 ### All Targets (Default)
 
@@ -236,7 +246,7 @@ ALTER TABLE Users ADD AuditEnabled BIT DEFAULT 1;
 CREATE TABLE UserAuditLog (...);
 ```
 
-### Multi-Target Migration (Metadata Only)
+### Multi-Target Migration
 
 ```sql
 /*
@@ -248,7 +258,7 @@ Targets = ["Primary", "Secondary"]
 INSERT INTO Configuration (Key, Value) VALUES ('Initialized', 'true');
 ```
 
-> **Note**: The `Targets` filter is stored as metadata but not enforced at runtime. This migration will execute against all targets in the target group.
+This migration executes on the targets `Primary` and `Secondary` of its target group only; any other target of the group skips it.
 
 ### Per-File Error Handling
 

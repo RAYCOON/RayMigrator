@@ -370,4 +370,181 @@ public class SqliteMultiTargetTests : SqliteTestBase
     }
 
     #endregion
+
+    #region The TOML Targets filter restricts a file to the named targets (#10)
+
+    /// <summary>
+    /// #10: <c>Targets</c> used to be parsed, inherited and stored but ignored at execution: a file with
+    /// <c>Targets = ["MainDB"]</c> ran on every target. It now runs, is baselined and is counted as pending
+    /// on the named targets only. Release_2.0/02_CreateTableD.sql is used because nothing depends on tabled.
+    /// </summary>
+    [Fact]
+    public async Task TargetsFilter_FileHeader_RunsOnTheNamedTargetOnly()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        Assert.SkipWhen(Fixture.EngineConfig.ConnectionString2 is null, "Second connection string not configured");
+        string secondDb = Fixture.EngineConfig.ConnectionString2!;
+
+        await using var ctx = await CreateScenario()
+            .WithMultiTarget(secondDb)
+            .WithTargetMigrationOrder(TargetMigrationOrder.Successively)
+            .SetFileToml("Release_2.0", "02_CreateTableD.sql", "Targets", "[\"MainDB\"]")
+            .BuildAsync();
+
+        var result = await ctx.MigrateUpAsync();
+
+        result.Success.Should().BeTrue($"migrate-up should succeed: {result.ErrorMessage}");
+        result.TotalMigrations.Should().Be(23, "12 files x 2 targets minus the filtered (02_CreateTableD.sql, SecondDB) pair (#10)");
+        ctx.AssertTableExists("tabled", true);
+        ctx.AssertTableExistsOnConnection(secondDb, "tabled", false);
+        ctx.AssertTableExistsOnConnection(secondDb, "tablec", true);
+        ctx.AssertFileStatusForTarget("02_CreateTableD.sql", "MainDB", MigrationStatus.Migrated);
+        ctx.CountMigrationsByFilename("02_CreateTableD.sql").Should().Be(1, "exactly one record, on MainDB");
+        ctx.CountMigrations().Should().Be(23);
+
+        await ctx.RebuildForAsync(MigrationCommand.Info, MigrationRunMode.Migrate);
+        (await ctx.InfoAsync()).PendingMigrations.Should().Be(0, "SecondDB is not the file's business (#10)");
+
+        await ctx.RebuildForAsync(MigrationCommand.MigrateUp, MigrationRunMode.Migrate);
+        var second = await ctx.MigrateUpAsync();
+        second.Success.Should().BeTrue();
+        second.TotalMigrations.Should().Be(0, "nothing is pending; the filtered pair must not be retried");
+        ctx.CountMigrations().Should().Be(23);
+    }
+
+    /// <summary>
+    /// #10: the filter is inherited from migsettings.txt like Environments. A directory-level
+    /// <c>Targets = ["SecondDB"]</c> restricts every file of Release_2.0 to SecondDB; the later releases
+    /// (no dependency on Release_2.0 tables) still run on both targets.
+    /// </summary>
+    [Fact]
+    public async Task TargetsFilter_MigSettings_RestrictsTheWholeDirectory()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        Assert.SkipWhen(Fixture.EngineConfig.ConnectionString2 is null, "Second connection string not configured");
+        string secondDb = Fixture.EngineConfig.ConnectionString2!;
+
+        await using var ctx = await CreateScenario()
+            .WithMultiTarget(secondDb)
+            .WithTargetMigrationOrder(TargetMigrationOrder.Simultaneously)
+            .SetMigSettings("Release_2.0/Backend/migsettings.txt", new Dictionary<string, string>
+            {
+                ["Targets"] = "[\"SecondDB\"]"
+            })
+            .BuildAsync();
+
+        var result = await ctx.MigrateUpAsync();
+
+        result.Success.Should().BeTrue($"migrate-up should succeed: {result.ErrorMessage}");
+        ctx.AssertTableExists("tablec", false);
+        ctx.AssertTableExists("tabled", false);
+        ctx.AssertTableExistsOnConnection(secondDb, "tablec", true);
+        ctx.AssertTableExistsOnConnection(secondDb, "tabled", true);
+        ctx.AssertTableExists("tablee", true);
+        ctx.AssertTableExistsOnConnection(secondDb, "tablee", true);
+        ctx.AssertFileStatusForTarget("01_CreateTableC.sql", "SecondDB", MigrationStatus.Migrated);
+        ctx.AssertFileStatusForTarget("03_SeedDataB.sql", "SecondDB", MigrationStatus.Migrated);
+        ctx.CountMigrationsByFilename("01_CreateTableC.sql").Should().Be(1);
+        ctx.CountMigrations().Should().Be(21, "9 files x 2 targets + the 3 Release_2.0 files on SecondDB only (#10)");
+
+        await ctx.RebuildForAsync(MigrationCommand.Info, MigrationRunMode.Migrate);
+        (await ctx.InfoAsync()).PendingMigrations.Should().Be(0);
+    }
+
+    /// <summary>#10: the explicit wildcard keeps today's meaning, every target runs the file.</summary>
+    [Fact]
+    public async Task TargetsFilter_Wildcard_RunsOnEveryTarget()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        Assert.SkipWhen(Fixture.EngineConfig.ConnectionString2 is null, "Second connection string not configured");
+        string secondDb = Fixture.EngineConfig.ConnectionString2!;
+
+        await using var ctx = await CreateScenario()
+            .WithMultiTarget(secondDb)
+            .SetFileToml("Release_2.0", "02_CreateTableD.sql", "Targets", "[\"*\"]")
+            .BuildAsync();
+
+        var result = await ctx.MigrateUpAsync();
+
+        result.Success.Should().BeTrue($"migrate-up should succeed: {result.ErrorMessage}");
+        ctx.AssertTableExists("tabled", true);
+        ctx.AssertTableExistsOnConnection(secondDb, "tabled", true);
+        ctx.CountMigrationsByFilename("02_CreateTableD.sql").Should().Be(2);
+        ctx.CountMigrations().Should().Be(24);
+    }
+
+    /// <summary>#10: baseline writes a record for the named target only.</summary>
+    [Fact]
+    public async Task TargetsFilter_Baseline_CreatesOneRecordForTheNamedTarget()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        Assert.SkipWhen(Fixture.EngineConfig.ConnectionString2 is null, "Second connection string not configured");
+        string secondDb = Fixture.EngineConfig.ConnectionString2!;
+
+        await using var ctx = await CreateScenario()
+            .WithMultiTarget(secondDb)
+            .SetFileToml("Release_2.0", "02_CreateTableD.sql", "Targets", "[\"MainDB\"]")
+            .BuildAsync();
+
+        await ctx.RebuildForAsync(MigrationCommand.Baseline, MigrationRunMode.Migrate);
+        var baseline = await ctx.BaselineAsync();
+
+        baseline.Success.Should().BeTrue($"baseline should succeed: {baseline.ErrorMessage}");
+        ctx.AssertFileStatusForTarget("02_CreateTableD.sql", "MainDB", MigrationStatus.Migrated);
+        ctx.CountMigrationsByFilename("02_CreateTableD.sql").Should().Be(1, "the SecondDB pair is not the file's business (#10)");
+        ctx.CountMigrations().Should().Be(23);
+        ctx.AssertTableExists("tabled", false); // baseline records only, it does not execute SQL
+
+        await ctx.RebuildForAsync(MigrationCommand.MigrateUp, MigrationRunMode.Migrate);
+        var up = await ctx.MigrateUpAsync();
+        up.Success.Should().BeTrue();
+        up.TotalMigrations.Should().Be(0, "everything is baselined; the filtered pair must not be executed");
+    }
+
+    /// <summary>
+    /// #10: an alias that is not a target of the file's TargetGroup is a configuration error reported
+    /// during discovery, before any file is executed or any record written.
+    /// </summary>
+    [Fact]
+    public async Task TargetsFilter_UnknownAlias_AbortsBeforeExecution()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        Assert.SkipWhen(Fixture.EngineConfig.ConnectionString2 is null, "Second connection string not configured");
+        string secondDb = Fixture.EngineConfig.ConnectionString2!;
+
+        await using var ctx = await CreateScenario()
+            .WithMultiTarget(secondDb)
+            .SetFileToml("Release_2.0", "02_CreateTableD.sql", "Targets", "[\"Nope\"]")
+            .BuildAsync();
+
+        var result = await ctx.MigrateUpAsync();
+
+        result.Success.Should().BeFalse("an unknown target alias in the Targets filter is a configuration error (#10)");
+        result.ErrorMessage.Should().Contain("02_CreateTableD.sql").And.Contain("[Nope]").And.Contain("MainDB, SecondDB");
+        ctx.CountMigrations().Should().Be(0, "discovery fails before anything is executed");
+        ctx.AssertTableExists("tablea", false);
+        ctx.AssertTableExistsOnConnection(secondDb, "tablea", false);
+    }
+
+    /// <summary>#10: an alias with the wrong casing is reported with the configured alias, like a TargetGroup directory.</summary>
+    [Fact]
+    public async Task TargetsFilter_AliasWithWrongCasing_AbortsNamingTheConfiguredAlias()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        Assert.SkipWhen(Fixture.EngineConfig.ConnectionString2 is null, "Second connection string not configured");
+        string secondDb = Fixture.EngineConfig.ConnectionString2!;
+
+        await using var ctx = await CreateScenario()
+            .WithMultiTarget(secondDb)
+            .SetFileToml("Release_2.0", "02_CreateTableD.sql", "Targets", "[\"maindb\"]")
+            .BuildAsync();
+
+        var result = await ctx.MigrateUpAsync();
+
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().Contain("[maindb]").And.Contain("differs in case").And.Contain("Use [MainDB]");
+        ctx.CountMigrations().Should().Be(0);
+    }
+
+    #endregion
 }

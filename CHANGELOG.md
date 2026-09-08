@@ -7,6 +7,21 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ## [Unreleased]
 
+### Added
+
+- The TOML `Targets` key (migration file header or `migsettings.txt`) now
+  restricts a file to the named targets of its TargetGroup: the file is
+  executed by `migrate-up`, recorded by `baseline` and counted as pending by
+  `info` on those targets only, the other targets of the group skip it and
+  get no `MigrationRecord` for it. `null`, `[]` and `["*"]` keep their
+  meaning (all targets). An alias that is not a target of the file's
+  TargetGroup, or that differs from the configured alias only in case, is a
+  configuration error reported during file discovery, before anything is
+  executed (`ConfigurationValidationException`). Until now
+  the key was parsed, inherited across all settings levels and stored in
+  `FileUpConfigJson`, but ignored at execution time, so a file with
+  `Targets = ["Main"]` ran on every target. (#10)
+
 ### Fixed
 
 - `info`, `update-hash`, `fix` and `validate-hash` no longer require every
@@ -109,6 +124,12 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ### Changed
 
+- Migration files and `migsettings.txt` files that already carry a
+  restrictive `Targets` value stop running on the targets they do not name
+  after this upgrade; the value used to be ignored. Anyone who used the key
+  as pure documentation must widen it to `["*"]` or remove it. A value that
+  names a target alias which does not exist in the TargetGroup now aborts
+  the run instead of being stored silently. (#10)
 - `validate-hash` now runs in `Migrate` mode like the other non-migrate
   commands; `--run-mode` is a `migrate-up` / `migrate-down` concept and no
   longer leaks into other commands (no user-visible option changes).

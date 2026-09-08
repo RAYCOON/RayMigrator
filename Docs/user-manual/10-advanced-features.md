@@ -389,9 +389,9 @@ This migration will be skipped when running against Production or Staging, but a
 
 ## Target-Specific Migrations
 
-The TOML `Targets` parameter records which targets a migration is intended for, but it is **metadata only** — it does not restrict which targets actually execute the migration at runtime. Every target in a target group receives every migration file regardless of the `Targets` value.
+The TOML `Targets` parameter restricts a migration to specific targets of its target group. Only the named targets execute, baseline and report the file as pending; the other targets of the group skip it.
 
-### Via TOML Header (Metadata Only)
+### Via TOML Header
 
 ```sql
 /*
@@ -407,9 +407,11 @@ JOIN [dbo].[Books] b ON s.BookId = b.Id
 GROUP BY b.Title;
 ```
 
-The `Targets` value is stored in the repository as documentation for which target this migration was designed for, but all targets in the group will still execute it.
+Only the target with Alias `ReportingDB` executes this migration; the other targets of the group get no migration record for it. Omit the key or use `["*"]` to run a file on every target. The alias must match a configured target of the file's target group exactly (including case), otherwise the run aborts with a configuration error before anything is executed.
 
-> **Note:** The `Targets` parameter is reserved for future runtime filtering. For actual target group filtering today, use the `--target-group` (`-tg`) CLI option. See [TOML Metadata](../07-migration-files/toml-metadata.md#target-filtering) for full details.
+The same key in a `migsettings.txt` restricts every file of that directory (see [Settings Inheritance](../06-configuration-reference/settings-inheritance-overview.md)).
+
+> **Note:** `Targets` selects targets *within* a target group. To run or skip a whole target group, use the `--target-group` (`-tg`) CLI option. See [TOML Metadata](../07-migration-files/toml-metadata.md#target-filtering) for full details.
 
 ---
 
@@ -574,7 +576,7 @@ Settings are merged from least specific to most specific. Each level can overrid
 | `RequireRollbackFile` | bool? | inherits | Require a rollback file |
 | `StopRollbackOnMissingRollbackFile` | bool? | inherits | Stop error-recovery rollback chain when rollback file is missing (only applies when `RequireRollbackFile=false`) |
 | `Environments` | array | all | Allowed environments (omit key or use `["*"]` for all environments) |
-| `Targets` | array | all | Intended target databases (metadata only; stored in repository but not used for runtime filtering) |
+| `Targets` | array | all | Targets of the target group on which the file runs (omit key or use `["*"]` for all targets) |
 | `MigrationErrorAction` | string? | inherits | Error handling strategy |
 | `RollbackErrorAction` | string? | inherits | Rollback error handling strategy |
 | `UseCliToolAlias` | string? | inherits | CLI tool alias for executing migrations instead of the built-in DAL. References a `CliTools[].Alias` in `appsettings.json`. |

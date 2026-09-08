@@ -356,7 +356,7 @@ Default: null (all targets match)
               ← Migration file TOML
 ```
 
-The `Targets` value is stored in the repository as metadata but is **not currently used for runtime target filtering**. Every migration file runs on all targets in the target group regardless of this value. The filtering behavior is reserved for a future release. See [Target Options — Target Alias in TOML](target-options.md#target-alias-in-toml) for details.
+The effective `Targets` value restricts the file to the named targets of its target group: the file is executed, baselined and counted as pending only on those targets. `null` (unset), `[]` and `["*"]` mean all targets. Every alias must match a target of the file's target group exactly (including case); otherwise migration file discovery fails with a configuration error before anything is executed. The value is also stored in the repository as part of `FileUpConfigJson`. See [Target Options — Target Alias in TOML](target-options.md#target-alias-in-toml) for details.
 
 ### UseCliToolAlias
 
@@ -488,7 +488,7 @@ See [migsettings Files](../07-migration-files/migsettings-files.md) for full doc
 | Re-run a migration on every deploy | TOML metadata: `RunAlways = true` | File-specific behavior |
 | Skip a file in production | TOML metadata: `Environments = ["Docker", "Development"]` | File-level filtering |
 | Skip all files in a directory for production | `migsettings.txt`: `Environments = ["Docker", "Development"]` | Directory-wide filtering |
-| Tag all files in a directory with target metadata | `migsettings.txt`: `Targets = ["Primary"]` | Directory-wide metadata (stored in repository; not used for runtime filtering in current release) |
+| Run all files in a directory on one target only | `migsettings.txt`: `Targets = ["Primary"]` | Directory-wide target filtering |
 | Set the execution order for a target group | `appsettings.json` → `TargetGroup.TargetMigrationOrder` | Structural setting |
 | Set default TargetGroup execution order for a product | `appsettings.json` → `Product.TargetGroupMigrationOrder` | Product-level default (comma-separated) |
 | Override TargetGroup execution order for a specific release | Release-level `migsettings.txt`: `TargetGroupMigrationOrder = ["Frontend", "Backend"]` | Release-specific override |
@@ -582,7 +582,7 @@ Environments = ["Docker", "Development"]
 
 5. **Hardcoded defaults are the ultimate fallback**: If no layer sets a value, hardcoded defaults apply: `UseTransaction = true`, `RunAlways = false`, `RequireRollbackFile = true`, `StopRollbackOnMissingRollbackFile = true`, `MigrationErrorAction = null` (uses Product default), `Environments = null` (all), `Targets = null` (all), `UseCliToolAlias = null` (use built-in DAL), `TargetGroupMigrationOrder = null` (config array order).
 
-6. **`null` vs `["*"]` for Environments**: Both `null` (unset) and `["*"]` mean "match all environments". However, once any layer sets a specific list like `["Docker"]`, deeper layers must explicitly use `["*"]` to revert to "match all" — leaving it unset will inherit the parent's filter. For `Targets`, the value is stored as metadata only and is not used for runtime filtering in the current release.
+6. **`null` vs `["*"]` for Environments**: Both `null` (unset) and `["*"]` mean "match all environments". However, once any layer sets a specific list like `["Docker"]`, deeper layers must explicitly use `["*"]` to revert to "match all" — leaving it unset will inherit the parent's filter. The same rule applies to `Targets`: once a layer restricts the targets, a deeper layer must set `["*"]` explicitly to run its files on every target again.
 
 7. **MigrationErrorAction**: See [Error Handling](../02-core-concepts/error-handling.md) for all values and their behavior.
 

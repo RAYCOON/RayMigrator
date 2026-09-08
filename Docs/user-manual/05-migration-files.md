@@ -84,17 +84,17 @@ Environments = ["Production"]
 
 ### Targets
 
-Metadata field that records which targets this migration is intended for. The value is parsed and stored in the repository as part of the migration record, but it is **not used for runtime target filtering**. Every target in a target group receives every migration file regardless of this value.
+Restricts the migration to specific targets of its target group. The file is executed, baselined and counted as pending only on the named targets; the other targets of the group skip it. The value is also stored in the repository as part of the migration record.
 
 - Omit the key — All targets (default behavior when the key is not present).
 - `["*"]` — Explicit wildcard; all targets.
-- `["Primary"]` — Intended for the target with Alias `Primary` (informational only).
+- `["Primary"]` — Runs on the target with Alias `Primary` only.
 
 ```toml
 Targets = ["Primary"]
 ```
 
-> **Note:** This parameter is reserved for future runtime filtering. Currently it has no effect on execution. See [TOML Metadata](../07-migration-files/toml-metadata.md#target-filtering) for details.
+Every alias must be a target of the file's target group, spelled exactly like its configured `Alias`. An unknown alias or a casing mismatch aborts the run with a configuration error before any migration is executed. The key can also be set for a whole directory in `migsettings.txt`. See [TOML Metadata](../07-migration-files/toml-metadata.md#target-filtering) for details.
 
 ### UseTransaction
 

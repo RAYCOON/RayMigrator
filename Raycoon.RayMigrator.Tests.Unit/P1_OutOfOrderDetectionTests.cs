@@ -259,4 +259,36 @@ public class DetectOutOfOrderFilesTests
 
         result.Should().ContainSingle("MainDB is beyond Release 1.5 and the file is pending there too");
     }
+
+    // === #10: targets outside a file's Targets filter do not make it out of order ===
+
+    [Fact]
+    public void TargetsFilter_HigherReleaseOnlyOnAnUnselectedTarget_IsNotOutOfOrder()
+    {
+        var file = TestFactories.CreateMigrationFile(filename: "10_A.sql", release: "Release 1.0");
+        file.Targets = new List<string> { "SecondDB" };
+        var records = new List<MigrationRecord>
+        {
+            TestFactories.CreateMigrationRecord(filename: "99_Z.sql", release: "Release 2.0", targetAlias: "MainDB")
+        };
+
+        var result = MigrationService.DetectOutOfOrderFiles(new List<MigrationFileInfo> { file }, records);
+
+        result.Should().BeEmpty("MainDB is not selected by the file's Targets filter (#10)");
+    }
+
+    [Fact]
+    public void TargetsFilter_HigherReleaseOnTheSelectedTarget_IsOutOfOrder()
+    {
+        var file = TestFactories.CreateMigrationFile(filename: "10_A.sql", release: "Release 1.0");
+        file.Targets = new List<string> { "SecondDB" };
+        var records = new List<MigrationRecord>
+        {
+            TestFactories.CreateMigrationRecord(filename: "99_Z.sql", release: "Release 2.0", targetAlias: "SecondDB")
+        };
+
+        var result = MigrationService.DetectOutOfOrderFiles(new List<MigrationFileInfo> { file }, records);
+
+        result.Should().ContainSingle();
+    }
 }

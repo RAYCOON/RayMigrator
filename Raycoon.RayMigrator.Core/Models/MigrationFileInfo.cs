@@ -109,9 +109,25 @@ public class MigrationFileInfo
     public List<string>? Environments { get; set; }
 
     /// <summary>
-    /// Target filter from TOML metadata. Null or ["*"] means all targets.
+    /// Target filter from TOML metadata (file header, else inherited from migsettings). Null, empty or
+    /// ["*"] means all targets of the file's TargetGroup; otherwise the file is executed, baselined and
+    /// counted as pending only on the named targets (#10). See <see cref="IsTargetSelected"/>.
     /// </summary>
     public List<string>? Targets { get; set; }
+
+    /// <summary>
+    /// Whether the <see cref="Targets"/> filter restricts the file to specific targets
+    /// (i.e. it is not null, not empty and does not contain the wildcard "*").
+    /// </summary>
+    public bool HasTargetFilter =>
+        Targets is { Count: > 0 } && !Targets.Contains("*");
+
+    /// <summary>
+    /// Whether the given target is selected by the <see cref="Targets"/> filter: true when the filter is
+    /// absent (null, empty or ["*"]) or names the alias (case-insensitively) (#10).
+    /// </summary>
+    public bool IsTargetSelected(string targetAlias) =>
+        !HasTargetFilter || Targets!.Contains(targetAlias, StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Whether this migration should run every time, even if already applied.
@@ -129,10 +145,14 @@ public class MigrationFileInfo
     public HashSet<string>? PendingTargetAliases { get; set; }
 
     /// <summary>
-    /// Whether this file still has to be executed on the given target (see <see cref="PendingTargetAliases"/>).
+    /// Whether this file still has to be executed on the given target: the target must be selected by the
+    /// <see cref="Targets"/> filter (#10) and still pending according to <see cref="PendingTargetAliases"/>.
+    /// The filter is checked here as well, so it holds even when the already-migrated filter did not run
+    /// (Validate mode, Simulate mode without a reachable repository).
     /// </summary>
     public bool IsPendingOn(string targetAlias) =>
-        PendingTargetAliases == null || PendingTargetAliases.Contains(targetAlias);
+        IsTargetSelected(targetAlias) &&
+        (PendingTargetAliases == null || PendingTargetAliases.Contains(targetAlias));
 
     /// <summary>
     /// Whether this migration requires a rollback file.

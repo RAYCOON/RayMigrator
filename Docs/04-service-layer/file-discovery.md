@@ -278,7 +278,7 @@ A migration file is included for execution if all of the following conditions ar
 
 Pending detection is handled inside `MigrationService.MigrateUpAsync()` by comparing discovered `MigrationFileInfo` records against existing `MigrationRecord` entries from the repository.
 
-> **Note**: The TOML `Targets` parameter is parsed and stored in the repository as metadata, but is **not** used for runtime target filtering. All targets within a target group receive all migration files for that group. See [TOML Metadata](../07-migration-files/toml-metadata.md) for details.
+> **Note**: The TOML `Targets` parameter (file header, else inherited from `migsettings.txt`) restricts a file to the named targets of its target group: the file is executed, baselined and counted as pending only on those targets. `null`, `[]` and `["*"]` mean all targets. An alias that is not a target of the file's target group is a configuration error reported during discovery, before anything is executed (`ConfigurationValidationException`; the command fails like any other discovery-time configuration error). See [TOML Metadata](../07-migration-files/toml-metadata.md#target-filtering) for details.
 
 ## Example Discovery
 

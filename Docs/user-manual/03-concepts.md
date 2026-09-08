@@ -153,7 +153,7 @@ The TOML header controls how RayMigrator processes the file:
 |-------|------|---------|---------|
 | `Description` | string | `""` | Human-readable description, stored in repository and shown in logs |
 | `Environments` | string array | all environments (omit parameter) | Which environments this file applies to. Omit to run everywhere, or specify `["Production"]` to restrict. |
-| `Targets` | string array | all targets (omit parameter) | Intended targets for this file (metadata only; stored in repository but not used for runtime filtering) |
+| `Targets` | string array | all targets (omit parameter) | Which targets of the target group this file runs on. Omit to run on every target, or specify `["ReportingDB"]` to restrict. |
 | `UseTransaction` | boolean | `true` | Wrap execution in a database transaction |
 | `RunAlways` | boolean | `false` | Execute on every run, even if previously migrated |
 

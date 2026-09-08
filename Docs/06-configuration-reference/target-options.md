@@ -237,7 +237,7 @@ See [CLI Tools Options](cli-tools-options.md) for the `CliTools[]` definition fo
 
 ## Target Alias in TOML
 
-Target aliases can be referenced in migration file TOML headers. This value is stored in the repository as metadata but is **not used for runtime target filtering** — all targets in a target group receive every migration file regardless of this value:
+Target aliases can be referenced in migration file TOML headers (or inherited from `migsettings.txt`) to restrict a file to specific targets of its target group. The file is executed, baselined and counted as pending only on the named targets; the other targets of the group skip it:
 
 ```sql
 /*
@@ -246,13 +246,13 @@ Targets = ["Primary", "Secondary"]
 */
 ```
 
-| TOML Value | Meaning (metadata only) |
-|------------|------------------------|
-| `["*"]` | Intended for all targets (default) |
-| `["Primary"]` | Intended for Primary (informational only) |
-| `["Primary", "Secondary"]` | Intended for both (informational only) |
+| TOML Value | Meaning |
+|------------|---------|
+| omitted, `[]` or `["*"]` | Runs on all targets of the target group (default) |
+| `["Primary"]` | Runs on Primary only |
+| `["Primary", "Secondary"]` | Runs on Primary and Secondary only |
 
-> **Note:** The `Targets` TOML parameter is reserved for future runtime filtering. See [TOML Metadata — Target Filtering](../07-migration-files/toml-metadata.md#target-filtering) for details.
+Every alias must be a target of the file's target group, spelled exactly like the configured `Alias` (including case). An unknown alias or a casing mismatch is a configuration error reported during migration file discovery, before anything is executed. See [TOML Metadata — Target Filtering](../07-migration-files/toml-metadata.md#target-filtering) for details.
 
 ## Environment-Specific Targets
 

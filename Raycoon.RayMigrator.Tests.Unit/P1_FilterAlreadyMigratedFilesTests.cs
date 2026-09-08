@@ -3,6 +3,7 @@ using Raycoon.RayMigrator.Core.Configuration.Enums;
 using Raycoon.RayMigrator.Core.Configuration.Options;
 using Raycoon.RayMigrator.Core.Models;
 using Raycoon.RayMigrator.Services;
+using Raycoon.RayMigrator.Shared.Exceptions;
 using Raycoon.RayMigrator.Tests.Unit.Helpers;
 
 namespace Raycoon.RayMigrator.Tests.Unit;
@@ -426,5 +427,200 @@ public class FilterAlreadyMigratedFilesTests
         record.Should().NotBeNull();
         MigrationService.IsAppliedOnTarget(file, "SecondDB", records, HashValidationScope.File, out record).Should().BeFalse();
         record.Should().BeNull();
+    }
+
+    // === #10: the TOML Targets filter restricts the targets a file is evaluated against ===
+
+    [Theory]
+    [InlineData(null, "MainDB", true)]
+    [InlineData(new string[] { }, "MainDB", true)]
+    [InlineData(new[] { "*" }, "MainDB", true)]
+    [InlineData(new[] { "SecondDB", "*" }, "MainDB", true)]
+    [InlineData(new[] { "MainDB" }, "MainDB", true)]
+    [InlineData(new[] { "maindb" }, "MainDB", true)]
+    [InlineData(new[] { "SecondDB" }, "MainDB", false)]
+    [InlineData(new[] { "Nope" }, "MainDB", false)]
+    public void IsTargetSelected_FollowsTheTargetsFilter(string[]? targets, string alias, bool expected)
+    {
+        var file = TestFactories.CreateMigrationFile();
+        file.Targets = targets?.ToList();
+
+        file.IsTargetSelected(alias).Should().Be(expected);
+        file.HasTargetFilter.Should().Be(targets is { Length: > 0 } && !targets.Contains("*"));
+    }
+
+    [Fact]
+    public void IsPendingOn_AppliesTheTargetsFilterEvenWithoutPendingSet()
+    {
+        // Validate mode and Simulate mode without a reachable repository never run the filter, so
+        // PendingTargetAliases stays null; the Targets filter must still hold (#10).
+        var file = TestFactories.CreateMigrationFile();
+        file.Targets = new List<string> { "SecondDB" };
+        file.PendingTargetAliases = null;
+
+        file.IsPendingOn("MainDB").Should().BeFalse("MainDB is not selected by the Targets filter");
+        file.IsPendingOn("SecondDB").Should().BeTrue();
+        file.IsPendingOn("seconddb").Should().BeTrue("the filter matches case-insensitively");
+    }
+
+    [Fact]
+    public void TargetsFilter_FreshRepository_FileIsPendingOnTheNamedTargetOnly()
+    {
+        var file = TestFactories.CreateMigrationFile(hash: "abc123");
+        file.Targets = new List<string> { "SecondDB" };
+
+        var result = InvokeFilterWithTargets(new List<MigrationFileInfo> { file }, new List<MigrationRecord>(), "File", "MainDB", "SecondDB");
+
+        result.Should().ContainSingle();
+        result[0].IsPendingOn("SecondDB").Should().BeTrue();
+        result[0].IsPendingOn("MainDB").Should().BeFalse("MainDB is outside the Targets filter (#10)");
+    }
+
+    [Fact]
+    public void TargetsFilter_AppliedOnTheNamedTarget_FileIsFilteredEvenThoughTheOtherTargetHasNoRecord()
+    {
+        var file = TestFactories.CreateMigrationFile(hash: "abc123");
+        file.Targets = new List<string> { "SecondDB" };
+        var records = new List<MigrationRecord>
+        {
+            TestFactories.CreateMigrationRecord(hash: "abc123", targetAlias: "SecondDB")
+        };
+
+        var result = InvokeFilterWithTargets(new List<MigrationFileInfo> { file }, records, "File", "MainDB", "SecondDB");
+
+        result.Should().BeEmpty("the only selected target already applied the file; MainDB is not the file's business (#10)");
+    }
+
+    [Fact]
+    public void TargetsFilter_RecordOnlyOnAnUnselectedTarget_FileIsStillPendingOnTheNamedTarget()
+    {
+        // A repository written before #10 may carry a record on a target the filter never meant.
+        var file = TestFactories.CreateMigrationFile(hash: "abc123");
+        file.Targets = new List<string> { "SecondDB" };
+        var records = new List<MigrationRecord>
+        {
+            TestFactories.CreateMigrationRecord(hash: "abc123", targetAlias: "MainDB")
+        };
+
+        var result = InvokeFilterWithTargets(new List<MigrationFileInfo> { file }, records, "File", "MainDB", "SecondDB");
+
+        result.Should().ContainSingle();
+        result[0].IsPendingOn("SecondDB").Should().BeTrue();
+        result[0].IsPendingOn("MainDB").Should().BeFalse();
+    }
+
+    [Fact]
+    public void TargetsFilter_Wildcard_EveryTargetIsEvaluated()
+    {
+        var file = TestFactories.CreateMigrationFile(hash: "abc123");
+        file.Targets = new List<string> { "*" };
+        var records = new List<MigrationRecord>
+        {
+            TestFactories.CreateMigrationRecord(hash: "abc123", targetAlias: "MainDB")
+        };
+
+        var result = InvokeFilterWithTargets(new List<MigrationFileInfo> { file }, records, "File", "MainDB", "SecondDB");
+
+        result.Should().ContainSingle();
+        result[0].PendingTargetAliases.Should().BeEquivalentTo(new[] { "SecondDB" });
+        result[0].IsPendingOn("MainDB").Should().BeFalse();
+        result[0].IsPendingOn("SecondDB").Should().BeTrue();
+    }
+
+    [Fact]
+    public void TargetsFilter_RunAlways_StillRespectsTheFilter()
+    {
+        var file = TestFactories.CreateMigrationFile(hash: "abc123", runAlways: true);
+        file.Targets = new List<string> { "SecondDB" };
+
+        var result = InvokeFilterWithTargets(new List<MigrationFileInfo> { file }, new List<MigrationRecord>(), "File", "MainDB", "SecondDB");
+
+        result.Should().ContainSingle();
+        result[0].IsPendingOn("SecondDB").Should().BeTrue();
+        result[0].IsPendingOn("MainDB").Should().BeFalse("RunAlways re-executes on the selected targets only");
+    }
+
+    [Fact]
+    public void ResolveTargetAliases_IntersectsConfiguredTargetsWithTheFilter()
+    {
+        var file = TestFactories.CreateMigrationFile();
+        file.Targets = new List<string> { "seconddb" };
+        var productOptions = CreateProductOptionsWithTargets("File", "MainDB", "SecondDB", "ThirdDB");
+
+        MigrationService.ResolveTargetAliases(file, new List<MigrationRecord>(), productOptions)
+            .Should().BeEquivalentTo(new[] { "SecondDB" }, "the configured casing is kept");
+    }
+
+    [Fact]
+    public void ResolveTargetAliases_NoTargetsConfigured_UsesTheFilterInsteadOfTheRecords()
+    {
+        var file = TestFactories.CreateMigrationFile();
+        file.Targets = new List<string> { "SecondDB" };
+        var records = new List<MigrationRecord> { TestFactories.CreateMigrationRecord(targetAlias: "MainDB") };
+
+        MigrationService.ResolveTargetAliases(file, records, CreateProductOptions())
+            .Should().BeEquivalentTo(new[] { "SecondDB" });
+    }
+
+    [Fact]
+    public void ValidateFileTargets_KnownAliases_Passes()
+    {
+        var file = TestFactories.CreateMigrationFile();
+        file.Targets = new List<string> { "SecondDB", "MainDB" };
+
+        var act = () => MigrationService.ValidateFileTargets(file, CreateProductOptionsWithTargets("File", "MainDB", "SecondDB"));
+
+        act.Should().NotThrow();
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(new object[] { new string[] { } })]
+    [InlineData(new object[] { new[] { "*" } })]
+    public void ValidateFileTargets_NoFilter_Passes(string[]? targets)
+    {
+        var file = TestFactories.CreateMigrationFile();
+        file.Targets = targets?.ToList();
+
+        var act = () => MigrationService.ValidateFileTargets(file, CreateProductOptionsWithTargets("File", "MainDB", "SecondDB"));
+
+        act.Should().NotThrow();
+    }
+
+    [Fact]
+    public void ValidateFileTargets_UnknownAlias_ThrowsNamingFileAliasAndValidAliases()
+    {
+        var file = TestFactories.CreateMigrationFile();
+        file.FilenameWithRelativePath = @"Release 1.0\Backend\10_Create.sql";
+        file.Targets = new List<string> { "MainDB", "Nope" };
+
+        var act = () => MigrationService.ValidateFileTargets(file, CreateProductOptionsWithTargets("File", "MainDB", "SecondDB"));
+
+        act.Should().Throw<ConfigurationValidationException>()
+            .Which.Message.Should().Contain("10_Create.sql").And.Contain("[Nope]").And.Contain("[MainDB, SecondDB]");
+    }
+
+    [Fact]
+    public void ValidateFileTargets_AliasDiffersOnlyInCase_ThrowsNamingTheConfiguredAlias()
+    {
+        var file = TestFactories.CreateMigrationFile();
+        file.Targets = new List<string> { "seconddb" };
+
+        var act = () => MigrationService.ValidateFileTargets(file, CreateProductOptionsWithTargets("File", "MainDB", "SecondDB"));
+
+        act.Should().Throw<ConfigurationValidationException>()
+            .Which.Message.Should().Contain("[seconddb]").And.Contain("differs in case").And.Contain("Use [SecondDB]");
+    }
+
+    [Fact]
+    public void ValidateFileTargets_NoTargetsConfigured_Passes()
+    {
+        // Pre-built options / tests without Targets: nothing to validate against.
+        var file = TestFactories.CreateMigrationFile();
+        file.Targets = new List<string> { "Anything" };
+
+        var act = () => MigrationService.ValidateFileTargets(file, CreateProductOptions());
+
+        act.Should().NotThrow();
     }
 }
