@@ -36,9 +36,9 @@ public class RepositorySelectTemplateTests
     public void MigrationEvent_SelectEventIds_FollowTheCheckInsertIds()
     {
         MigrationEvent.TemplateExecutionRepositoryProductSelect.Id.Should().Be(122);
-        MigrationEvent.TemplateExecutionRepositoryProductSelect.Name.Should().Be("TemplateExecutionProductSelect");
+        MigrationEvent.TemplateExecutionRepositoryProductSelect.Name.Should().Be("TemplateExecutionRepositoryProductSelect");
         MigrationEvent.TemplateExecutionRepositoryEnvironmentSelect.Id.Should().Be(123);
-        MigrationEvent.TemplateExecutionRepositoryEnvironmentSelect.Name.Should().Be("TemplateExecutionEnvironmentSelect");
+        MigrationEvent.TemplateExecutionRepositoryEnvironmentSelect.Name.Should().Be("TemplateExecutionRepositoryEnvironmentSelect");
     }
 
     #endregion

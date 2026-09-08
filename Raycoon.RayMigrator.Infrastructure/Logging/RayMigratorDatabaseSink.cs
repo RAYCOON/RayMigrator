@@ -58,7 +58,7 @@ public class RayMigratorDatabaseSink : ILogEventSink, IDisposable
             return;
 
         var logLevel = MapToMicrosoftLogLevel(logEvent.Level);
-        var eventId = GetIntProperty(logEvent, "EventId_Id");
+        var eventId = GetEventId(logEvent);
         var message = logEvent.RenderMessage();
 
         if (logEvent.Exception != null)
@@ -98,12 +98,18 @@ public class RayMigratorDatabaseSink : ILogEventSink, IDisposable
         _ => LogLevel.None
     };
 
-    private static int GetIntProperty(LogEvent logEvent, string name)
+    /// <summary>
+    /// Serilog.Extensions.Logging attaches the Microsoft <c>EventId</c> of a logger call as one property named
+    /// <c>EventId</c> whose value is a <see cref="StructureValue"/> with <c>Id</c> and <c>Name</c>. Events logged
+    /// without an EventId carry no such property and are stored as 0 (<c>MigrationEvent.UnspecifiedEvent</c>) (#12).
+    /// </summary>
+    private static int GetEventId(LogEvent logEvent)
     {
-        if (logEvent.Properties.TryGetValue(name, out var value) && value is ScalarValue sv)
+        if (logEvent.Properties.TryGetValue("EventId", out var value) && value is StructureValue structure)
         {
-            if (sv.Value is int i) return i;
-            if (sv.Value != null && int.TryParse(sv.Value.ToString(), out var parsed)) return parsed;
+            var id = structure.Properties.FirstOrDefault(p => p.Name == "Id")?.Value as ScalarValue;
+            if (id?.Value is int i) return i;
+            if (id?.Value != null && int.TryParse(id.Value.ToString(), out var parsed)) return parsed;
         }
         return 0;
     }

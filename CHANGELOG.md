@@ -9,6 +9,20 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ### Fixed
 
+- DatabaseLogging now stores the EventId of every logger call in
+  `MigrationLog.MigrationEventId`. The sink read a Serilog property that is
+  never produced (`EventId_Id`), so every row carried 0 (`UnspecifiedEvent`)
+  and the `MigrationEvent` lookup table could never be joined meaningfully.
+  The lookup table seeded by `DatabaseLogging_CheckCreate` now matches the
+  `MigrationEvent` catalogue in code (id 100 is
+  `TemplateExecutionRepositoryCheckCreate`, the sixteen template-execution
+  events 110 to 136 are present, the orphan id 32 is gone); existing log
+  databases are upgraded idempotently on the next start. The event names of
+  the four template events whose name differed from their constant now equal
+  the constant (`TemplateExecutionRepositoryProductSelect` and siblings).
+  `MigrationEvent` is a static class and the unused
+  `MigrationState.MigrationEvent` property was removed. (#12)
+
 - Block-level resume no longer skips the block that failed. A `Failed`
   `MigrationRecord` now stores the number of blocks that are committed on the
   target in `FileUpBlocksMigrated` (0 when the file ran in one transaction that

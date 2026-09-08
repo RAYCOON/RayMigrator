@@ -58,7 +58,7 @@ public class EnvironmentCheckInsertTests
     public void MigrationEvent_TemplateExecutionRepositoryEnvironmentCheckInsert_HasCorrectName()
     {
         MigrationEvent.TemplateExecutionRepositoryEnvironmentCheckInsert.Name
-            .Should().Be("TemplateExecutionEnvironmentCheckInsert");
+            .Should().Be("TemplateExecutionRepositoryEnvironmentCheckInsert");
     }
 
     [Fact]

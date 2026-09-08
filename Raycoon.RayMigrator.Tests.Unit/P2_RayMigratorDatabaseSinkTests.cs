@@ -233,4 +233,39 @@ public class RayMigratorDatabaseSinkTests
     }
 
     #endregion
+
+    #region EventId
+
+    [Fact]
+    public void Emit_WithSerilogEventIdStructure_PassesEventIdToWriter()
+    {
+        // Arrange — Serilog.Extensions.Logging attaches the Microsoft EventId as one property named "EventId"
+        // whose value is a StructureValue { Id, Name }. That is the only shape the sink will ever see.
+        var (sink, dal) = CreateInitializedSink();
+        DalParameterList? captured = null;
+        dal.When(x => x.ExecuteNonQuery(Arg.Any<string>(), Arg.Any<IDalSettings>(), Arg.Any<DalParameterList>()))
+           .Do(call => captured = call.Arg<DalParameterList>());
+
+        var logEvent = CreateLogEvent(
+            LogEventLevel.Information,
+            ("DbLogEnabled", true),
+            ("RunModeId", (byte)MigrationRunMode.Migrate));
+        var eventId = MigrationEvent.TemplateExecutionRepositoryMigrationRunInsert;
+        logEvent.AddPropertyIfAbsent(new LogEventProperty("EventId", new StructureValue(new[]
+        {
+            new LogEventProperty("Id", new ScalarValue(eventId.Id)),
+            new LogEventProperty("Name", new ScalarValue(eventId.Name))
+        })));
+
+        // Act
+        sink.Emit(logEvent);
+
+        // Assert
+        WaitForCondition(() => captured != null).Should().BeTrue("the event must reach the DAL");
+        captured!.TryGetValue("MigrationEventId", out var parameter).Should().BeTrue();
+        parameter!.ParameterValue.Should().Be(eventId.Id,
+            "the EventId of the logger call must be written to MigrationLog.MigrationEventId, not 0");
+    }
+
+    #endregion
 }

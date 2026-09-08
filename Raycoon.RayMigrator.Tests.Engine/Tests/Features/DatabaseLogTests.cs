@@ -78,4 +78,34 @@ public class DatabaseLogTests : PostgreSqlTestBase
         ctx.AssertRepositoryTableExists("MigrationLog", true);
         ctx.AssertRepositoryTableExists("MigrationEvent", true);
     }
+
+    /// <summary>
+    /// D5: The EventId of a logger call must reach the MigrationEventId column. TemplateExecutor logs every
+    /// repository template execution with a MigrationEvent id (100..136), so after a migrate-up at least one
+    /// MigrationLog row must carry an event id other than 0 (UnspecifiedEvent).
+    /// </summary>
+    [Fact]
+    public async Task LogEntries_CarryMigrationEventId()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+
+        await using var ctx = await CreateScenario()
+            .WithDatabaseLogging("Debug")
+            .WithSerilogMinimumLevel("Debug")
+            .BuildAsync();
+
+        await ctx.MigrateUpAsync("Release_1.0");
+        ctx.AssertSuccess(true);
+        ctx.FlushDatabaseLog();
+
+        ctx.CountLogEntries().Should().BeGreaterThan(0, "database logging is enabled");
+        ctx.CountLogEntriesWithEventIdOtherThan(0).Should().BeGreaterThan(0,
+            "template execution events (MigrationEvent.TemplateExecution*) are logged with an EventId that must be persisted");
+
+        // A second command against the same log database runs the "already exists" branch of
+        // DatabaseLogging_CheckCreate, i.e. the idempotent catalogue upgrade, on this engine.
+        await ctx.RebuildForAsync(MigrationCommand.MigrateUp, MigrationRunMode.Migrate);
+        await ctx.MigrateUpAsync();
+        ctx.AssertSuccess(true);
+    }
 }

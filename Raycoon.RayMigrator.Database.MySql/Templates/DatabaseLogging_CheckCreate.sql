@@ -81,14 +81,34 @@ VALUES
     (10, 'CommandLineParsing', ''),
     (20, 'EnvironmentVariableReplacement', ''),
     (31, 'CreateDatabaseLogger', ''),
-    (32, 'CreateCompositeLogger', ''),
     (40, 'ValidateRayMigratorOptions', ''),
     (50, 'CreateApplicationHost', ''),
     (60, 'InitializeDalSpecificProperties', ''),
     (70, 'ValidateConnectionStrings', ''),
     (80, 'RayMigratorServiceStart', ''),
-    (100, 'CreateAndStartRayMigratorService', ''),
+    (100, 'TemplateExecutionRepositoryCheckCreate', ''),
+    (110, 'TemplateExecutionRepositoryMigrationRunInsert', ''),
+    (111, 'TemplateExecutionRepositoryMigrationRunUpdate', ''),
+    (112, 'TemplateExecutionRepositoryMigrationRunSelectOrphaned', ''),
+    (113, 'TemplateExecutionRepositoryMigrationRunFixOrphaned', ''),
+    (114, 'TemplateExecutionRepositoryMigrationFixOrphaned', ''),
+    (120, 'TemplateExecutionRepositoryProductCheckInsert', ''),
+    (121, 'TemplateExecutionRepositoryEnvironmentCheckInsert', ''),
+    (122, 'TemplateExecutionRepositoryProductSelect', ''),
+    (123, 'TemplateExecutionRepositoryEnvironmentSelect', ''),
+    (130, 'TemplateExecutionRepositoryMigrationInsert', ''),
+    (131, 'TemplateExecutionRepositoryMigrationUpdate', ''),
+    (132, 'TemplateExecutionRepositoryMigrationGetInterrupted', ''),
+    (133, 'TemplateExecutionRepositoryMigrationUpdateRollback', ''),
+    (134, 'TemplateExecutionRepositoryMigrationSelect', ''),
+    (135, 'TemplateExecutionRepositoryMigrationUpdateHash', ''),
+    (136, 'TemplateExecutionRepositoryMigrationRunSelect', ''),
     (1000, 'RayMigratorServiceShutdown', '');
+
+-- Catalogue entries renamed or removed after the initial release (idempotent upgrade of existing log databases, #12)
+UPDATE {CFG:TableBaseName}migration_event SET name = 'TemplateExecutionRepositoryCheckCreate'
+WHERE id = 100 AND name = 'CreateAndStartRayMigratorService';
+DELETE FROM {CFG:TableBaseName}migration_event WHERE id = 32 AND name = 'CreateCompositeLogger';
 
 SELECT CASE WHEN @v_exists > 0
     THEN '0,Database logging infrastructure already exists'

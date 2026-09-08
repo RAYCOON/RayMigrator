@@ -49,7 +49,6 @@ public class MigrationContext
         {
             MigrationState = new MigrationState
             {
-                MigrationEvent = migrationState.MigrationEvent,
                 MigratorMetaId = migrationState.MigratorMetaId,
                 ProductId = migrationState.ProductId,
                 EnvironmentId = migrationState.EnvironmentId,

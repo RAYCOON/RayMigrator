@@ -71,32 +71,11 @@ Main logging table. Types shown are SQL Server canonical types. PostgreSQL store
 
 ## MigrationEvent Lookup Table
 
-The `MigrationEvent` table contains base event types inserted by the `DatabaseLogging_CheckCreate` template. These are the events stored in the database lookup table:
+The `MigrationEvent` table is the catalogue of the `EventId`s RayMigrator logs with. It is seeded by the `DatabaseLogging_CheckCreate` template and mirrors the static class `Raycoon.RayMigrator.Core.Configuration.Enums.MigrationEvent` one to one: the C# constant, the event name and the row `Name` are identical. The DatabaseLogging sink stores the `Id` of the `EventId` passed to the logger call in `MigrationLog.MigrationEventId`; a call without an EventId is stored as 0. The template also upgrades the catalogue of an existing log database idempotently (missing rows are added, the pre-0.13 names `CreateAndStartRayMigratorService` (100) and `CreateCompositeLogger` (32) are renamed and removed). There is no FK from `MigrationLog.MigrationEventId` to `MigrationEvent.Id`.
 
 | Id | Name | Description |
 |----|------|-------------|
-| 0 | UnspecifiedEvent | Generic event |
-| 10 | CommandLineParsing | CLI argument parsing |
-| 20 | EnvironmentVariableReplacement | Env var resolution |
-| 31 | CreateDatabaseLogger | Database logger setup |
-| 32 | CreateCompositeLogger | Composite logger setup |
-| 40 | ValidateRayMigratorOptions | Options validation |
-| 50 | CreateApplicationHost | Host creation |
-| 60 | InitializeDalSpecificProperties | DAL initialization |
-| 70 | ValidateConnectionStrings | Connection validation |
-| 80 | RayMigratorServiceStart | Service startup |
-| 100 | CreateAndStartRayMigratorService | RayMigrator service creation and startup |
-| 1000 | RayMigratorServiceShutdown | Service shutdown |
-
-## EventId Values (C# MigrationEvent Class)
-
-The C# `MigrationEvent` class (`Raycoon.RayMigrator.Core.Configuration.Enums.MigrationEvent`) defines EventId values used throughout the application for structured logging. Some overlap with the database lookup table IDs, and some are unique to C# code. These appear in `MigrationLog.MigrationEventId`:
-
-**Application Startup Events:**
-
-| Id | Name | Description |
-|----|------|-------------|
-| 0 | UnspecifiedEvent | Generic event |
+| 0 | UnspecifiedEvent | Logged without an EventId |
 | 10 | CommandLineParsing | CLI argument parsing |
 | 20 | EnvironmentVariableReplacement | Env var resolution |
 | 31 | CreateDatabaseLogger | Database logger setup |
@@ -105,34 +84,24 @@ The C# `MigrationEvent` class (`Raycoon.RayMigrator.Core.Configuration.Enums.Mig
 | 60 | InitializeDalSpecificProperties | DAL initialization |
 | 70 | ValidateConnectionStrings | Connection validation |
 | 80 | RayMigratorServiceStart | Service startup |
-
-**Template Execution Events:**
-
-| Id | Name | Description |
-|----|------|-------------|
 | 100 | TemplateExecutionRepositoryCheckCreate | Repository check/create |
-| 110 | TemplateExecutionMigrationRunInsert | MigrationRun insert |
-| 111 | TemplateExecutionMigrationRunUpdate | MigrationRun update |
-| 112 | TemplateExecutionMigrationRunSelectOrphaned | Select orphaned runs |
-| 113 | TemplateExecutionMigrationRunFixOrphaned | Fix orphaned migration runs |
-| 114 | TemplateExecutionMigrationFixOrphaned | Fix orphaned migrations |
-| 120 | TemplateExecutionProductCheckInsert | Product check/insert |
-| 121 | TemplateExecutionEnvironmentCheckInsert | Environment check/insert |
-| 130 | TemplateExecutionMigrationInsert | Migration record insert |
-| 131 | TemplateExecutionMigrationUpdate | Migration record update |
-| 132 | TemplateExecutionMigrationGetInterrupted | Check for interrupted migrations |
-| 133 | TemplateExecutionMigrationUpdateRollback | Migration rollback update |
-| 134 | TemplateExecutionMigrationSelect | Query migration records |
-| 135 | TemplateExecutionMigrationUpdateHash | Update migration hashes |
-| 136 | TemplateExecutionMigrationRunSelect | Query MigrationRun records |
-
-**Application Shutdown Events:**
-
-| Id | Name | Description |
-|----|------|-------------|
+| 110 | TemplateExecutionRepositoryMigrationRunInsert | MigrationRun insert |
+| 111 | TemplateExecutionRepositoryMigrationRunUpdate | MigrationRun update |
+| 112 | TemplateExecutionRepositoryMigrationRunSelectOrphaned | Select orphaned runs |
+| 113 | TemplateExecutionRepositoryMigrationRunFixOrphaned | Fix orphaned migration runs |
+| 114 | TemplateExecutionRepositoryMigrationFixOrphaned | Fix orphaned migration records |
+| 120 | TemplateExecutionRepositoryProductCheckInsert | Product check/insert |
+| 121 | TemplateExecutionRepositoryEnvironmentCheckInsert | Environment check/insert |
+| 122 | TemplateExecutionRepositoryProductSelect | Product lookup (read-only commands) |
+| 123 | TemplateExecutionRepositoryEnvironmentSelect | Environment lookup (read-only commands) |
+| 130 | TemplateExecutionRepositoryMigrationInsert | Migration record insert |
+| 131 | TemplateExecutionRepositoryMigrationUpdate | Migration record update |
+| 132 | TemplateExecutionRepositoryMigrationGetInterrupted | Check for interrupted migrations |
+| 133 | TemplateExecutionRepositoryMigrationUpdateRollback | Migration rollback update |
+| 134 | TemplateExecutionRepositoryMigrationSelect | Query migration records |
+| 135 | TemplateExecutionRepositoryMigrationUpdateHash | Update migration hashes |
+| 136 | TemplateExecutionRepositoryMigrationRunSelect | Query MigrationRun records |
 | 1000 | RayMigratorServiceShutdown | Service shutdown |
-
-> **Note**: EventId 100 is used for both `CreateAndStartRayMigratorService` (in the MigrationEvent database lookup table) and `TemplateExecutionRepositoryCheckCreate` (in the C# code). The database lookup table also contains `CreateCompositeLogger` (32), which is no longer defined in the C# `MigrationEvent` class. There is no FK constraint from `MigrationLog.MigrationEventId` to `MigrationEvent.Id`, so log entries can reference any EventId value.
 
 ## Log Levels
 

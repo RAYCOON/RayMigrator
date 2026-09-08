@@ -48,7 +48,7 @@ public class ProductCheckInsertTests
     public void MigrationEvent_TemplateExecutionRepositoryProductCheckInsert_HasCorrectName()
     {
         MigrationEvent.TemplateExecutionRepositoryProductCheckInsert.Name
-            .Should().Be("TemplateExecutionProductCheckInsert");
+            .Should().Be("TemplateExecutionRepositoryProductCheckInsert");
     }
 
     [Fact]

@@ -46,13 +46,28 @@ This phase executes whenever the `DatabaseLogging` section is present in the con
    | 10 | CommandLineParsing |
    | 20 | EnvironmentVariableReplacement |
    | 31 | CreateDatabaseLogger |
-   | 32 | CreateCompositeLogger |
    | 40 | ValidateRayMigratorOptions |
    | 50 | CreateApplicationHost |
    | 60 | InitializeDalSpecificProperties |
    | 70 | ValidateConnectionStrings |
    | 80 | RayMigratorServiceStart |
-   | 100 | CreateAndStartRayMigratorService |
+   | 100 | TemplateExecutionRepositoryCheckCreate |
+   | 110 | TemplateExecutionRepositoryMigrationRunInsert |
+   | 111 | TemplateExecutionRepositoryMigrationRunUpdate |
+   | 112 | TemplateExecutionRepositoryMigrationRunSelectOrphaned |
+   | 113 | TemplateExecutionRepositoryMigrationRunFixOrphaned |
+   | 114 | TemplateExecutionRepositoryMigrationFixOrphaned |
+   | 120 | TemplateExecutionRepositoryProductCheckInsert |
+   | 121 | TemplateExecutionRepositoryEnvironmentCheckInsert |
+   | 122 | TemplateExecutionRepositoryProductSelect |
+   | 123 | TemplateExecutionRepositoryEnvironmentSelect |
+   | 130 | TemplateExecutionRepositoryMigrationInsert |
+   | 131 | TemplateExecutionRepositoryMigrationUpdate |
+   | 132 | TemplateExecutionRepositoryMigrationGetInterrupted |
+   | 133 | TemplateExecutionRepositoryMigrationUpdateRollback |
+   | 134 | TemplateExecutionRepositoryMigrationSelect |
+   | 135 | TemplateExecutionRepositoryMigrationUpdateHash |
+   | 136 | TemplateExecutionRepositoryMigrationRunSelect |
    | 1000 | RayMigratorServiceShutdown |
 3. **`MigrationLog` table** (data) - Stores all log entries with columns:
    - `Id` (BIGINT IDENTITY), `LogLevelId`, `MigrationEventId`, `RunModeId`, `ProductId`, `EnvironmentId`, `MigrationRunId`, `MigrationRecordId`

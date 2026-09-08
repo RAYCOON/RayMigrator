@@ -93,13 +93,28 @@ BEGIN TRY
 					(10, 'CommandLineParsing', N''),
 					(20, 'EnvironmentVariableReplacement', N''),
 					(31, 'CreateDatabaseLogger', N''),
-					(32, 'CreateCompositeLogger', N''),
 					(40, 'ValidateRayMigratorOptions', N''),
 					(50, 'CreateApplicationHost', N''),
 					(60, 'InitializeDalSpecificProperties', N''),
 					(70, 'ValidateConnectionStrings', N''),
 					(80, 'RayMigratorServiceStart', N''),
-					(100, 'CreateAndStartRayMigratorService', N''),
+					(100, 'TemplateExecutionRepositoryCheckCreate', N''),
+					(110, 'TemplateExecutionRepositoryMigrationRunInsert', N''),
+					(111, 'TemplateExecutionRepositoryMigrationRunUpdate', N''),
+					(112, 'TemplateExecutionRepositoryMigrationRunSelectOrphaned', N''),
+					(113, 'TemplateExecutionRepositoryMigrationRunFixOrphaned', N''),
+					(114, 'TemplateExecutionRepositoryMigrationFixOrphaned', N''),
+					(120, 'TemplateExecutionRepositoryProductCheckInsert', N''),
+					(121, 'TemplateExecutionRepositoryEnvironmentCheckInsert', N''),
+					(122, 'TemplateExecutionRepositoryProductSelect', N''),
+					(123, 'TemplateExecutionRepositoryEnvironmentSelect', N''),
+					(130, 'TemplateExecutionRepositoryMigrationInsert', N''),
+					(131, 'TemplateExecutionRepositoryMigrationUpdate', N''),
+					(132, 'TemplateExecutionRepositoryMigrationGetInterrupted', N''),
+					(133, 'TemplateExecutionRepositoryMigrationUpdateRollback', N''),
+					(134, 'TemplateExecutionRepositoryMigrationSelect', N''),
+					(135, 'TemplateExecutionRepositoryMigrationUpdateHash', N''),
+					(136, 'TemplateExecutionRepositoryMigrationRunSelect', N''),
 					(1000, 'RayMigratorServiceShutdown', N'');
 
 			COMMIT TRANSACTION;
@@ -110,6 +125,52 @@ BEGIN TRY
 		END
 		ELSE
 		BEGIN
+
+			-- Master data added or renamed after the initial release (idempotent upgrade of existing log databases, #12).
+			-- The catalogue must match MigrationEvent.cs; MigrationLog.MigrationEventId has no FK so nothing else changes.
+			BEGIN TRANSACTION;
+
+				INSERT INTO [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationEvent] ([Id], [Name], [Description])
+				SELECT v.[Id], v.[Name], N''
+				FROM (VALUES
+					(0, 'UnspecifiedEvent'),
+					(10, 'CommandLineParsing'),
+					(20, 'EnvironmentVariableReplacement'),
+					(31, 'CreateDatabaseLogger'),
+					(40, 'ValidateRayMigratorOptions'),
+					(50, 'CreateApplicationHost'),
+					(60, 'InitializeDalSpecificProperties'),
+					(70, 'ValidateConnectionStrings'),
+					(80, 'RayMigratorServiceStart'),
+					(100, 'TemplateExecutionRepositoryCheckCreate'),
+					(110, 'TemplateExecutionRepositoryMigrationRunInsert'),
+					(111, 'TemplateExecutionRepositoryMigrationRunUpdate'),
+					(112, 'TemplateExecutionRepositoryMigrationRunSelectOrphaned'),
+					(113, 'TemplateExecutionRepositoryMigrationRunFixOrphaned'),
+					(114, 'TemplateExecutionRepositoryMigrationFixOrphaned'),
+					(120, 'TemplateExecutionRepositoryProductCheckInsert'),
+					(121, 'TemplateExecutionRepositoryEnvironmentCheckInsert'),
+					(122, 'TemplateExecutionRepositoryProductSelect'),
+					(123, 'TemplateExecutionRepositoryEnvironmentSelect'),
+					(130, 'TemplateExecutionRepositoryMigrationInsert'),
+					(131, 'TemplateExecutionRepositoryMigrationUpdate'),
+					(132, 'TemplateExecutionRepositoryMigrationGetInterrupted'),
+					(133, 'TemplateExecutionRepositoryMigrationUpdateRollback'),
+					(134, 'TemplateExecutionRepositoryMigrationSelect'),
+					(135, 'TemplateExecutionRepositoryMigrationUpdateHash'),
+					(136, 'TemplateExecutionRepositoryMigrationRunSelect'),
+					(1000, 'RayMigratorServiceShutdown')
+				) AS v ([Id], [Name])
+				WHERE NOT EXISTS (SELECT 1 FROM [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationEvent] e WHERE e.[Id] = v.[Id]);
+
+				UPDATE [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationEvent]
+				SET [Name] = 'TemplateExecutionRepositoryCheckCreate'
+				WHERE [Id] = 100 AND [Name] = 'CreateAndStartRayMigratorService';
+
+				DELETE FROM [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationEvent]
+				WHERE [Id] = 32 AND [Name] = 'CreateCompositeLogger';
+
+			COMMIT TRANSACTION;
 
 		    SELECT '0,Database logging infrastructure already exists';
 			RETURN;

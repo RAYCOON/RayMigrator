@@ -7,9 +7,6 @@ namespace Raycoon.RayMigrator.Core;
 /// </summary>
 public class MigrationState
 {
-    // Migration Process
-    public MigrationEvent? MigrationEvent { get; set; }
-    
     // Migration Process: RunId's
     public int MigratorMetaId { get; set; }
     public int ProductId { get; set; }

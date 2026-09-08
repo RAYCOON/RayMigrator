@@ -7,8 +7,8 @@ namespace Raycoon.RayMigrator.Tests.Unit;
 
 /// <summary>
 /// P1: Regression tests for MigrationContext.Clone.
-/// Verifies that Clone correctly propagates EnvironmentId, MigratorMetaId, and MigrationEvent —
-/// three fields that were previously omitted from the Clone copy constructor.
+/// Verifies that Clone correctly propagates EnvironmentId and MigratorMetaId, two fields that were
+/// previously omitted from the Clone copy constructor. (MigrationState.MigrationEvent was removed in #12.)
 /// </summary>
 public class MigrationContextCloneTests
 {
@@ -184,47 +184,14 @@ public class MigrationContextCloneTests
 
     #endregion
 
-    #region MigrationEvent propagation
+    #region Both fields together
 
     [Fact]
-    public void Clone_PropagatesMigrationEvent_WhenNonNull()
+    public void Clone_PropagatesEnvironmentIdAndMigratorMetaId_Together()
     {
         var ctx = CreateTestContext();
-        var eventInstance = new MigrationEvent();
-        ctx.MigrationState.MigrationEvent = eventInstance;
-
-        var clone = ctx.Clone;
-
-        clone.MigrationState.MigrationEvent.Should().NotBeNull(
-            "Clone must copy the MigrationEvent reference from the source MigrationState");
-        clone.MigrationState.MigrationEvent.Should().BeSameAs(eventInstance,
-            "Clone copies the MigrationEvent reference (no deep copy needed as MigrationEvent has no mutable instance state)");
-    }
-
-    [Fact]
-    public void Clone_PropagatesMigrationEvent_WhenNull()
-    {
-        var ctx = CreateTestContext();
-        ctx.MigrationState.MigrationEvent = null;
-
-        var clone = ctx.Clone;
-
-        clone.MigrationState.MigrationEvent.Should().BeNull(
-            "Clone must propagate null MigrationEvent from the source MigrationState");
-    }
-
-    #endregion
-
-    #region All three fields together
-
-    [Fact]
-    public void Clone_PropagatesAllThreeNewFields_Together()
-    {
-        var ctx = CreateTestContext();
-        var eventInstance = new MigrationEvent();
         ctx.MigrationState.EnvironmentId = 7;
         ctx.MigrationState.MigratorMetaId = 3;
-        ctx.MigrationState.MigrationEvent = eventInstance;
 
         var clone = ctx.Clone;
 
@@ -232,8 +199,6 @@ public class MigrationContextCloneTests
             "EnvironmentId must be cloned");
         clone.MigrationState.MigratorMetaId.Should().Be(3,
             "MigratorMetaId must be cloned");
-        clone.MigrationState.MigrationEvent.Should().NotBeNull(
-            "MigrationEvent must be cloned (non-null)");
     }
 
     [Fact]
