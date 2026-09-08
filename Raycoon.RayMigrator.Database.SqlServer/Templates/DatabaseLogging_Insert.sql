@@ -74,6 +74,7 @@ Event_133  = "TemplateExecutionRepositoryMigrationUpdateRollback"
 Event_134  = "TemplateExecutionRepositoryMigrationSelect"
 Event_135  = "TemplateExecutionRepositoryMigrationUpdateHash"
 Event_136  = "TemplateExecutionRepositoryMigrationRunSelect"
+Event_137  = "TemplateExecutionRepositoryMigrationRecordHistorySelect"
 Event_1000 = "RayMigratorServiceShutdown"
 
 [ModificationNotes]

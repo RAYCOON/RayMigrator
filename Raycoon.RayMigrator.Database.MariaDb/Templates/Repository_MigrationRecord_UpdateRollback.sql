@@ -27,6 +27,8 @@ TableBaseName = "Table name prefix from Repository configuration"
 [Parameters]
 MigrationRecordId            = "INT | REQUIRED | The Migration record ID to update"
 MigrationStatusId      = "TINYINT | REQUIRED | Status: 10=Pending, 20=Executing, 30=Failed, 50=NotMigrated, 100=Migrated"
+MigrationRunId         = "INT | REQUIRED | The MigrationRun performing the rollback; written to the history row (#13)"
+MigrationOperationId   = "TINYINT | REQUIRED | Operation stamped on the record: 50=MigrateDown (command), 5=Rollback (error recovery)"
 FileDownHash           = "VARCHAR(64) | REQUIRED | SHA256 hash of the rollback file"
 FileDownConfigHash     = "VARCHAR(64) | OPTIONAL | SHA256 hash of TOML config in rollback file"
 FileDownBlocksHash     = "VARCHAR(64) | REQUIRED | SHA256 hash of SQL blocks in rollback file"
@@ -49,6 +51,7 @@ Note3 = "FinishedAt and DurationInMs conditionally set only for MigrationStatusI
 UPDATE {CFG:TableBaseName}migration_record
 SET
     migration_status_id = @MigrationStatusId,
+    migration_operation_id = @MigrationOperationId,
     file_down_hash = @FileDownHash,
     file_down_config_hash = @FileDownConfigHash,
     file_down_blocks_hash = @FileDownBlocksHash,
@@ -79,7 +82,7 @@ INSERT INTO {CFG:TableBaseName}migration_record_history
     historized_at
 )
 SELECT
-    id, product_id, environment_id, migration_run_id, migration_run_mode_id, migration_operation_id,
+    id, product_id, environment_id, @MigrationRunId, migration_run_mode_id, migration_operation_id,
     migration_status_id, release_version, target_group_alias, target_alias,
     filename, file_order_id, file_up_hash, file_up_config_hash, file_up_blocks_hash,
     file_up_blocks_migrated, file_up_blocks_total, file_up_config_json, migrate_down_file_exists,

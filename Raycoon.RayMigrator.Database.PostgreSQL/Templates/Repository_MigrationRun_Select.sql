@@ -18,7 +18,7 @@ Behaviour = """
 - Returns NULL/empty result set if no MigrationRuns found
 - Returns multiple rows with MigrationRun details if found
 - NOTE: This is a SELECT query, NOT the standard 'code,message' format
-- Results are ordered by StartedAt DESC (most recent first)
+- Results are ordered by StartedAt DESC, Id DESC (most recent first; Id breaks ties of second-precision timestamps, #14)
 - Limit parameter controls maximum number of records returned
 """
 
@@ -60,5 +60,5 @@ FROM
 WHERE
     product_id = @ProductId
 ORDER BY
-    started_at DESC
+    started_at DESC, id DESC
 LIMIT @Limit;

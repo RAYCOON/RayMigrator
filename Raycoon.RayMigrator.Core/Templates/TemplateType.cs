@@ -27,6 +27,10 @@ public enum TemplateType
     Repository_MigrationRecord_GetInterrupted,
     Repository_MigrationRecord_FixOrphaned,
 
+    // Terminal state transitions per run (MigrationRecordHistory): the info run history is built from it, because
+    // migrate-down and error-recovery rollbacks change records that belong to another run (#13)
+    Repository_MigrationRecordHistory_Select,
+
     // Read-only lookups (no insert): used by run modes / commands that must not write to the repository (#7)
     Repository_Product_Select,
     Repository_Environment_Select,

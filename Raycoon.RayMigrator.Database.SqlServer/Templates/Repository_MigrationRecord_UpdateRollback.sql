@@ -33,6 +33,8 @@ TableBaseName = "Table name prefix from Repository configuration (e.g., '' or 'R
 # SQL parameters bound at runtime
 MigrationRecordId            = "INT | REQUIRED | The Migration record ID to update"
 MigrationStatusId      = "TINYINT | REQUIRED | Status: 10=Pending, 20=Executing, 30=Failed, 50=NotMigrated, 100=Migrated"
+MigrationRunId         = "INT | REQUIRED | The MigrationRun performing the rollback; written to the history row (#13)"
+MigrationOperationId   = "TINYINT | REQUIRED | Operation stamped on the record: 50=MigrateDown (command), 5=Rollback (error recovery)"
 FileDownHash           = "VARCHAR(100) | REQUIRED | SHA256 hash of the rollback file"
 FileDownConfigHash     = "VARCHAR(100) | OPTIONAL | SHA256 hash of TOML config in rollback file"
 FileDownBlocksHash     = "VARCHAR(100) | REQUIRED | SHA256 hash of SQL blocks in rollback file"
@@ -70,6 +72,7 @@ BEGIN TRY
     UPDATE [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRecord]
     SET
         MigrationStatusId = @MigrationStatusId,
+        MigrationOperationId = @MigrationOperationId,
         FileDownHash = @FileDownHash,
         FileDownConfigHash = @FileDownConfigHash,
         FileDownBlocksHash = @FileDownBlocksHash,
@@ -100,7 +103,7 @@ BEGIN TRY
             HistorizedAt
         )
         SELECT
-            Id, ProductId, EnvironmentId, MigrationRunId, MigrationRunModeId, MigrationOperationId,
+            Id, ProductId, EnvironmentId, @MigrationRunId, MigrationRunModeId, MigrationOperationId,
             MigrationStatusId, ReleaseVersion, TargetGroupAlias, TargetAlias,
             Filename, FileOrderId, FileUpHash, FileUpConfigHash, FileUpBlocksHash,
             FileUpBlocksMigrated, FileUpBlocksTotal, FileUpConfigJson, MigrateDownFileExists,

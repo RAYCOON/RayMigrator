@@ -31,6 +31,7 @@ public class MySqlMariaDbIdentifierCasingTests
         "Repository_MigrationRecord_UpdateHash.sql",
         "Repository_MigrationRecord_UpdateRollback.sql",
         "Repository_MigrationRecord_Select.sql",
+        "Repository_MigrationRecordHistory_Select.sql",
         "Repository_MigrationRecord_GetInterrupted.sql",
         "Repository_MigrationRecord_FixOrphaned.sql",
         "Repository_MigrationRun_Insert.sql",
@@ -70,6 +71,7 @@ public class MySqlMariaDbIdentifierCasingTests
     [InlineData("Repository_MigrationRecord_UpdateHash.sql")]
     [InlineData("Repository_MigrationRecord_UpdateRollback.sql")]
     [InlineData("Repository_MigrationRecord_Select.sql")]
+    [InlineData("Repository_MigrationRecordHistory_Select.sql")]
     [InlineData("Repository_MigrationRecord_GetInterrupted.sql")]
     [InlineData("Repository_MigrationRecord_FixOrphaned.sql")]
     [InlineData("Repository_MigrationRun_Insert.sql")]
@@ -129,6 +131,7 @@ public class MySqlMariaDbIdentifierCasingTests
     [InlineData("Repository_MigrationRecord_UpdateHash.sql")]
     [InlineData("Repository_MigrationRecord_UpdateRollback.sql")]
     [InlineData("Repository_MigrationRecord_Select.sql")]
+    [InlineData("Repository_MigrationRecordHistory_Select.sql")]
     [InlineData("Repository_MigrationRecord_GetInterrupted.sql")]
     [InlineData("Repository_MigrationRecord_FixOrphaned.sql")]
     [InlineData("Repository_MigrationRun_Insert.sql")]
@@ -172,27 +175,27 @@ public class MySqlMariaDbIdentifierCasingTests
     /// updating this test class the count assertion fails, prompting a review.
     /// </summary>
     [Fact]
-    public void MySqlTemplates_TotalCount_IsTwenty()
+    public void MySqlTemplates_TotalCount_IsTwentyOne()
     {
         var templatesDir = GetTemplatesDir("MySql");
         var actualFiles = Directory.GetFiles(templatesDir, "*.sql");
 
-        actualFiles.Should().HaveCount(20,
-            "the MySql Templates directory must contain exactly 20 .sql files after DAL-018 (+2 read-only Select templates, #7); " +
+        actualFiles.Should().HaveCount(21,
+            "the MySql Templates directory must contain exactly 21 .sql files after DAL-018 (+2 read-only Select templates, #7; +1 history Select template, #13); " +
             "if you added a new template, also add it to P2_MySqlMariaDbIdentifierCasingTests");
     }
 
     /// <summary>
-    /// Confirms the count of MariaDB templates: exactly 20. Mirrors MySqlTemplates_TotalCount_IsTwenty.
+    /// Confirms the count of MariaDB templates: exactly 21. Mirrors MySqlTemplates_TotalCount_IsTwentyOne.
     /// </summary>
     [Fact]
-    public void MariaDbTemplates_TotalCount_IsTwenty()
+    public void MariaDbTemplates_TotalCount_IsTwentyOne()
     {
         var templatesDir = GetTemplatesDir("MariaDb");
         var actualFiles = Directory.GetFiles(templatesDir, "*.sql");
 
-        actualFiles.Should().HaveCount(20,
-            "the MariaDb Templates directory must contain exactly 20 .sql files after DAL-018 (+2 read-only Select templates, #7); " +
+        actualFiles.Should().HaveCount(21,
+            "the MariaDb Templates directory must contain exactly 21 .sql files after DAL-018 (+2 read-only Select templates, #7; +1 history Select template, #13); " +
             "if you added a new template, also add it to P2_MySqlMariaDbIdentifierCasingTests");
     }
 
@@ -317,6 +320,8 @@ public class MySqlMariaDbIdentifierCasingTests
         var readerTemplates = new[]
         {
             "Repository_MigrationRecord_Select.sql",
+            "Repository_MigrationRecordHistory_Select.sql",
+        "Repository_MigrationRecordHistory_Select.sql",
             "Repository_MigrationRun_Select.sql",
             "Repository_MigrationRun_SelectOrphaned.sql"
         };
@@ -339,6 +344,8 @@ public class MySqlMariaDbIdentifierCasingTests
         var readerTemplates = new[]
         {
             "Repository_MigrationRecord_Select.sql",
+            "Repository_MigrationRecordHistory_Select.sql",
+        "Repository_MigrationRecordHistory_Select.sql",
             "Repository_MigrationRun_Select.sql",
             "Repository_MigrationRun_SelectOrphaned.sql"
         };

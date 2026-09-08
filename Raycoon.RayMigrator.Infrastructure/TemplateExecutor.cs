@@ -513,6 +513,10 @@ public class TemplateExecutor
         dalParameterList.AddParameter(new DalParameter("FileDownBlocksMigrated", fileDownBlocksMigrated, typeof(int)));
         dalParameterList.AddParameter(new DalParameter("FileDownBlocksTotal", fileDownBlocksTotal, typeof(int)));
         dalParameterList.AddParameter(new DalParameter("FileDownConfigJson", fileDownConfigJson ?? "{}", typeof(string)));
+        // The run performing the rollback and what it does (MigrateDown or Rollback): the history row is attributed to
+        // this run while the record keeps the MigrationRunId of the run that created it (#13)
+        dalParameterList.AddParameter(new DalParameter("MigrationRunId", _ctxAccessor.Current.MigrationState.MigrationRunId, typeof(int)));
+        dalParameterList.AddParameter(new DalParameter("MigrationOperationId", (byte)_ctxAccessor.Current.MigrationState.MigrationOperation, typeof(byte)));
 
         var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
         ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId);
@@ -585,6 +589,10 @@ public class TemplateExecutor
         dalParameterList.AddParameter(new DalParameter("FileDownBlocksMigrated", fileDownBlocksMigrated, typeof(int)));
         dalParameterList.AddParameter(new DalParameter("FileDownBlocksTotal", fileDownBlocksTotal, typeof(int)));
         dalParameterList.AddParameter(new DalParameter("FileDownConfigJson", fileDownConfigJson ?? "{}", typeof(string)));
+        // The run performing the rollback and what it does (MigrateDown or Rollback): the history row is attributed to
+        // this run while the record keeps the MigrationRunId of the run that created it (#13)
+        dalParameterList.AddParameter(new DalParameter("MigrationRunId", _ctxAccessor.Current.MigrationState.MigrationRunId, typeof(int)));
+        dalParameterList.AddParameter(new DalParameter("MigrationOperationId", (byte)_ctxAccessor.Current.MigrationState.MigrationOperation, typeof(byte)));
 
         var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
         ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, connection, transaction, repoCommandTimeoutInSeconds, dalParameterList, _logger, eventId);
@@ -641,40 +649,82 @@ public class TemplateExecutor
             throw new TemplateExecutionException(errorMessage, ex);
         }
 
-        var records = new List<MigrationRecord>();
-        foreach (var row in rows)
-        {
-            records.Add(new MigrationRecord
-            {
-                Id = Convert.ToInt32(row["Id"]),
-                ProductId = Convert.ToInt32(row["ProductId"]),
-                MigrationRunId = Convert.ToInt32(row["MigrationRunId"]),
-                MigrationOperationId = (MigrationOperation)Convert.ToByte(row["MigrationOperationId"]),
-                MigrationStatusId = (MigrationStatus)Convert.ToByte(row["MigrationStatusId"]),
-                ReleaseVersion = row["ReleaseVersion"]?.ToString() ?? string.Empty,
-                TargetGroupAlias = row["TargetGroupAlias"]?.ToString() ?? string.Empty,
-                TargetAlias = row["TargetAlias"]?.ToString() ?? string.Empty,
-                Filename = row["Filename"]?.ToString() ?? string.Empty,
-                FileOrderId = Convert.ToInt32(row["FileOrderId"]),
-                FileUpHash = row["FileUpHash"]?.ToString() ?? string.Empty,
-                // "" and NULL both mean "no TOML block" (the insert stores ""); normalise to null so that
-                // comparisons with a freshly parsed file (null) do not report a phantom change (#9)
-                FileUpConfigHash = NormalizeConfigHash(row["FileUpConfigHash"]),
-                FileUpBlocksHash = row["FileUpBlocksHash"]?.ToString() ?? string.Empty,
-                FileUpBlocksMigrated = Convert.ToInt32(row["FileUpBlocksMigrated"]),
-                FileUpBlocksTotal = Convert.ToInt32(row["FileUpBlocksTotal"]),
-                MigrateDownFileExists = Convert.ToBoolean(row["MigrateDownFileExists"]),
-                FileDownHash = row["FileDownHash"]?.ToString(),
-                FileDownConfigHash = NormalizeConfigHash(row["FileDownConfigHash"]),
-                FileDownBlocksHash = row["FileDownBlocksHash"]?.ToString(),
-                FileDownBlocksMigrated = row["FileDownBlocksMigrated"] != null ? Convert.ToInt32(row["FileDownBlocksMigrated"]) : null,
-                FileDownBlocksTotal = row["FileDownBlocksTotal"] != null ? Convert.ToInt32(row["FileDownBlocksTotal"]) : null,
-            });
-        }
+        var records = rows.Select(MapMigrationRecord).ToList();
 
         _logger.LogDebug(eventId, "Found {Count} migration records in repository{MigrationContext}", records.Count, _ctxAccessor.Current.Clone);
         return records;
     }
+
+    /// <summary>
+    /// Selects the terminal state transitions (MigrationRecordHistory rows) of all records of the current product and
+    /// environment, ordered by history id. <c>Id</c> is the MigrationRecordId, <c>MigrationRunId</c> the run that caused
+    /// the transition: migrate-down and error-recovery rollbacks change records that belong to another run, so the
+    /// info run history is built from these rows instead of the records (#13).
+    /// </summary>
+    /// <exception cref="TemplateExecutionException"></exception>
+    public List<MigrationRecord> RepositoryMigrationRecordHistorySelect()
+    {
+        const MigrationRunMode recordRunMode = MigrationRunMode.Migrate;
+        var templateType = TemplateType.Repository_MigrationRecordHistory_Select;
+        var eventId = MigrationEvent.TemplateExecutionRepositoryMigrationRecordHistorySelect;
+
+        _logger.LogDebug(eventId, "Selecting migration record history for product {ProductId} with environment {Environment} ({EnvironmentId}){MigrationContext}",
+            _ctxAccessor.Current.MigrationState.ProductId, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, _ctxAccessor.Current.MigrationState.EnvironmentId, _ctxAccessor.Current.Clone);
+
+        DalParameterList dalParameterList = new DalParameterList();
+        dalParameterList.AddParameter(new DalParameter("ProductId", _ctxAccessor.Current.MigrationState.ProductId, typeof(int)));
+        dalParameterList.AddParameter(new DalParameter("EnvironmentId", _ctxAccessor.Current.MigrationState.EnvironmentId, typeof(int)));
+        dalParameterList.AddParameter(new DalParameter("MigrationRunModeId", (byte)recordRunMode, typeof(byte)));
+
+        var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
+
+        List<Dictionary<string, object?>> rows;
+        try
+        {
+            rows = _repositoryDal.ExecuteReaderAsync(template.Content, _repository.GetDalSettings(), dalParameterList).GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            string errorMessage = $"Error executing template [{template}] with dal for DB [{_repositoryDal.DatabaseType}]";
+            throw new TemplateExecutionException(errorMessage, ex);
+        }
+
+        var records = rows.Select(MapMigrationRecord).ToList();
+
+        _logger.LogDebug(eventId, "Found {Count} migration record history rows in repository{MigrationContext}", records.Count, _ctxAccessor.Current.Clone);
+        return records;
+    }
+
+    /// <summary>
+    /// Maps one row of Repository_MigrationRecord_Select or Repository_MigrationRecordHistory_Select (same column
+    /// contract) to a <see cref="MigrationRecord"/>.
+    /// </summary>
+    internal static MigrationRecord MapMigrationRecord(Dictionary<string, object?> row) => new()
+    {
+        Id = Convert.ToInt32(row["Id"]),
+        ProductId = Convert.ToInt32(row["ProductId"]),
+        MigrationRunId = Convert.ToInt32(row["MigrationRunId"]),
+        MigrationOperationId = (MigrationOperation)Convert.ToByte(row["MigrationOperationId"]),
+        MigrationStatusId = (MigrationStatus)Convert.ToByte(row["MigrationStatusId"]),
+        ReleaseVersion = row["ReleaseVersion"]?.ToString() ?? string.Empty,
+        TargetGroupAlias = row["TargetGroupAlias"]?.ToString() ?? string.Empty,
+        TargetAlias = row["TargetAlias"]?.ToString() ?? string.Empty,
+        Filename = row["Filename"]?.ToString() ?? string.Empty,
+        FileOrderId = Convert.ToInt32(row["FileOrderId"]),
+        FileUpHash = row["FileUpHash"]?.ToString() ?? string.Empty,
+        // "" and NULL both mean "no TOML block" (the insert stores ""); normalise to null so that
+        // comparisons with a freshly parsed file (null) do not report a phantom change (#9)
+        FileUpConfigHash = NormalizeConfigHash(row["FileUpConfigHash"]),
+        FileUpBlocksHash = row["FileUpBlocksHash"]?.ToString() ?? string.Empty,
+        FileUpBlocksMigrated = Convert.ToInt32(row["FileUpBlocksMigrated"]),
+        FileUpBlocksTotal = Convert.ToInt32(row["FileUpBlocksTotal"]),
+        MigrateDownFileExists = Convert.ToBoolean(row["MigrateDownFileExists"]),
+        FileDownHash = row["FileDownHash"]?.ToString(),
+        FileDownConfigHash = NormalizeConfigHash(row["FileDownConfigHash"]),
+        FileDownBlocksHash = row["FileDownBlocksHash"]?.ToString(),
+        FileDownBlocksMigrated = row["FileDownBlocksMigrated"] != null ? Convert.ToInt32(row["FileDownBlocksMigrated"]) : null,
+        FileDownBlocksTotal = row["FileDownBlocksTotal"] != null ? Convert.ToInt32(row["FileDownBlocksTotal"]) : null,
+    };
 
     /// <summary>
     /// Updates the hash fields of an existing MigrationRecord entry.

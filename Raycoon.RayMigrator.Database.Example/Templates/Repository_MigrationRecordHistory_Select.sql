@@ -1,0 +1,9 @@
+-- TODO: Implement for your database engine
+-- Purpose: Selects the terminal state transitions (MigrationRecordHistory rows) of a product's records,
+--          one row per transition with the MigrationRun that caused it (used by the info run history, #13)
+-- See the corresponding template in Database.SqlServer or Database.PostgreSQL for reference.
+--
+-- Parameters used in this template:
+-- {CFG:SchemaName} - The repository schema name
+-- {CFG:TableBaseName} - The table name prefix
+-- @ProductId, @EnvironmentId, @MigrationRunModeId - SQL parameters (see reference implementations)

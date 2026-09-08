@@ -231,6 +231,7 @@ public class SqliteTypeConventionsTests
         new object[] { "Repository_Drop.sql" },
         new object[] { "Repository_MigrationRecord_GetInterrupted.sql" },
         new object[] { "Repository_MigrationRecord_Select.sql" },
+        new object[] { "Repository_MigrationRecordHistory_Select.sql" },
         new object[] { "Repository_MigrationRun_Select.sql" },
         new object[] { "Repository_MigrationRun_SelectOrphaned.sql" },
         new object[] { "Repository_Product_Select.sql" },

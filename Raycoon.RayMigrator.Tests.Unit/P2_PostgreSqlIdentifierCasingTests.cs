@@ -31,6 +31,7 @@ public class PostgreSqlIdentifierCasingTests
         "Repository_MigrationRecord_UpdateHash.sql",
         "Repository_MigrationRecord_UpdateRollback.sql",
         "Repository_MigrationRecord_Select.sql",
+        "Repository_MigrationRecordHistory_Select.sql",
         "Repository_MigrationRecord_GetInterrupted.sql",
         "Repository_MigrationRecord_FixOrphaned.sql",
         "Repository_MigrationRun_Insert.sql",
@@ -69,6 +70,7 @@ public class PostgreSqlIdentifierCasingTests
     [InlineData("Repository_MigrationRecord_UpdateHash.sql")]
     [InlineData("Repository_MigrationRecord_UpdateRollback.sql")]
     [InlineData("Repository_MigrationRecord_Select.sql")]
+    [InlineData("Repository_MigrationRecordHistory_Select.sql")]
     [InlineData("Repository_MigrationRecord_GetInterrupted.sql")]
     [InlineData("Repository_MigrationRecord_FixOrphaned.sql")]
     [InlineData("Repository_MigrationRun_Insert.sql")]
@@ -112,13 +114,13 @@ public class PostgreSqlIdentifierCasingTests
     /// updating this test class the count assertion fails, prompting a review.
     /// </summary>
     [Fact]
-    public void PgTemplates_TotalCount_IsTwenty()
+    public void PgTemplates_TotalCount_IsTwentyOne()
     {
         var templatesDir = GetTemplatesDir("PostgreSQL");
         var actualFiles = Directory.GetFiles(templatesDir, "*.sql");
 
-        actualFiles.Should().HaveCount(20,
-            "the PostgreSQL Templates directory must contain exactly 20 .sql files after DAL-017 (+2 read-only Select templates, #7); " +
+        actualFiles.Should().HaveCount(21,
+            "the PostgreSQL Templates directory must contain exactly 21 .sql files after DAL-017 (+2 read-only Select templates, #7; +1 history Select template, #13); " +
             "if you added a new template, also add it to P2_PostgreSqlIdentifierCasingTests");
     }
 
@@ -189,6 +191,8 @@ public class PostgreSqlIdentifierCasingTests
         var readerTemplates = new[]
         {
             "Repository_MigrationRecord_Select.sql",
+            "Repository_MigrationRecordHistory_Select.sql",
+        "Repository_MigrationRecordHistory_Select.sql",
             "Repository_MigrationRun_Select.sql",
             "Repository_MigrationRun_SelectOrphaned.sql"
         };

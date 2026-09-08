@@ -101,6 +101,7 @@ The `MigrationEvent` table is the catalogue of the `EventId`s RayMigrator logs w
 | 134 | TemplateExecutionRepositoryMigrationSelect | Query migration records |
 | 135 | TemplateExecutionRepositoryMigrationUpdateHash | Update migration hashes |
 | 136 | TemplateExecutionRepositoryMigrationRunSelect | Query MigrationRun records |
+| 137 | TemplateExecutionRepositoryMigrationRecordHistorySelect | Query MigrationRecordHistory rows (info run history) |
 | 1000 | RayMigratorServiceShutdown | Service shutdown |
 
 ## Log Levels

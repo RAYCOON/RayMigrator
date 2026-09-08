@@ -84,6 +84,7 @@ BEGIN
             (134, 'TemplateExecutionRepositoryMigrationSelect', ''),
             (135, 'TemplateExecutionRepositoryMigrationUpdateHash', ''),
             (136, 'TemplateExecutionRepositoryMigrationRunSelect', ''),
+            (137, 'TemplateExecutionRepositoryMigrationRecordHistorySelect', ''),
             (1000, 'RayMigratorServiceShutdown', '')
         ON CONFLICT (id) DO NOTHING;
 
@@ -157,6 +158,7 @@ BEGIN
         (134, 'TemplateExecutionRepositoryMigrationSelect', ''),
         (135, 'TemplateExecutionRepositoryMigrationUpdateHash', ''),
         (136, 'TemplateExecutionRepositoryMigrationRunSelect', ''),
+        (137, 'TemplateExecutionRepositoryMigrationRecordHistorySelect', ''),
         (1000, 'RayMigratorServiceShutdown', '');
 
     RAISE NOTICE '1,Database logging infrastructure successfully created';

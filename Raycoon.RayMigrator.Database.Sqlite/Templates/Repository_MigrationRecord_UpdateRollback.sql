@@ -27,6 +27,8 @@ TableBaseName = "Table name prefix from Repository configuration"
 [Parameters]
 MigrationRecordId            = "INTEGER | REQUIRED | The Migration record ID to update"
 MigrationStatusId      = "INTEGER | REQUIRED | Status: 10=Pending, 20=Executing, 30=Failed, 50=NotMigrated, 100=Migrated"
+MigrationRunId         = "INTEGER | REQUIRED | The MigrationRun performing the rollback; written to the history row (#13)"
+MigrationOperationId   = "INTEGER | REQUIRED | Operation stamped on the record: 50=MigrateDown (command), 5=Rollback (error recovery)"
 FileDownHash           = "TEXT | REQUIRED | SHA256 hash of the rollback file"
 FileDownConfigHash     = "TEXT | OPTIONAL | SHA256 hash of TOML config in rollback file"
 FileDownBlocksHash     = "TEXT | REQUIRED | SHA256 hash of SQL blocks in rollback file"
@@ -60,6 +62,7 @@ Note5 = "Uses temp table to capture changes() since SQLite has no session variab
 UPDATE "{CFG:TableBaseName}MigrationRecord"
 SET
     "MigrationStatusId" = @MigrationStatusId,
+    "MigrationOperationId" = @MigrationOperationId,
     "FileDownHash" = @FileDownHash,
     "FileDownConfigHash" = @FileDownConfigHash,
     "FileDownBlocksHash" = @FileDownBlocksHash,
@@ -93,7 +96,7 @@ INSERT INTO "{CFG:TableBaseName}MigrationRecordHistory"
     "HistorizedAt"
 )
 SELECT
-    "Id", "ProductId", "EnvironmentId", "MigrationRunId", "MigrationRunModeId", "MigrationOperationId",
+    "Id", "ProductId", "EnvironmentId", @MigrationRunId, "MigrationRunModeId", "MigrationOperationId",
     "MigrationStatusId", "ReleaseVersion", "TargetGroupAlias", "TargetAlias",
     "Filename", "FileOrderId", "FileUpHash", "FileUpConfigHash", "FileUpBlocksHash",
     "FileUpBlocksMigrated", "FileUpBlocksTotal", "FileUpConfigJson", "MigrateDownFileExists",

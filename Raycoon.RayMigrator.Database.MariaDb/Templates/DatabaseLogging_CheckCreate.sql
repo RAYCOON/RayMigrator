@@ -103,6 +103,7 @@ VALUES
     (134, 'TemplateExecutionRepositoryMigrationSelect', ''),
     (135, 'TemplateExecutionRepositoryMigrationUpdateHash', ''),
     (136, 'TemplateExecutionRepositoryMigrationRunSelect', ''),
+    (137, 'TemplateExecutionRepositoryMigrationRecordHistorySelect', ''),
     (1000, 'RayMigratorServiceShutdown', '');
 
 -- Catalogue entries renamed or removed after the initial release (idempotent upgrade of existing log databases, #12)

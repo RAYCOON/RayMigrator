@@ -115,6 +115,7 @@ BEGIN TRY
 					(134, 'TemplateExecutionRepositoryMigrationSelect', N''),
 					(135, 'TemplateExecutionRepositoryMigrationUpdateHash', N''),
 					(136, 'TemplateExecutionRepositoryMigrationRunSelect', N''),
+					(137, 'TemplateExecutionRepositoryMigrationRecordHistorySelect', N''),
 					(1000, 'RayMigratorServiceShutdown', N'');
 
 			COMMIT TRANSACTION;
@@ -159,6 +160,7 @@ BEGIN TRY
 					(134, 'TemplateExecutionRepositoryMigrationSelect'),
 					(135, 'TemplateExecutionRepositoryMigrationUpdateHash'),
 					(136, 'TemplateExecutionRepositoryMigrationRunSelect'),
+					(137, 'TemplateExecutionRepositoryMigrationRecordHistorySelect'),
 					(1000, 'RayMigratorServiceShutdown')
 				) AS v ([Id], [Name])
 				WHERE NOT EXISTS (SELECT 1 FROM [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationEvent] e WHERE e.[Id] = v.[Id]);

@@ -95,7 +95,7 @@ public class PostgreSqlCliToolFileTests : PostgreSqlTestBase
     /// <summary>
     /// RollbackErrorAction=Ignore must be honoured when rollback files run through a CLI tool, exactly like
     /// the DAL path (see MigrateDown ErrorTests #42): the broken R2/F1 rollback is marked Failed, the chain
-    /// continues and the run ends Ok (#15).
+    /// continues and the run ends PartialSuccess (#15, #18).
     /// </summary>
     [Fact]
     public async Task FileMode_BrokenRollback_Ignore_ChainContinues()
@@ -131,7 +131,7 @@ public class PostgreSqlCliToolFileTests : PostgreSqlTestBase
 
         ctx.AssertSuccess(true);
         ctx.AssertRunCount(2);
-        ctx.AssertMigrationRun(2, new MigrationRunExpectation { MigrationRunResultId = (int)MigrationRunResult.Ok });
+        ctx.AssertMigrationRun(2, new MigrationRunExpectation { MigrationRunResultId = (int)MigrationRunResult.PartialSuccess });
 
         ctx.AssertFileStatuses(
             ("01_CreateTableA.sql", MigrationStatus.Migrated),

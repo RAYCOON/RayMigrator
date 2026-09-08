@@ -68,6 +68,7 @@ This phase executes whenever the `DatabaseLogging` section is present in the con
    | 134 | TemplateExecutionRepositoryMigrationSelect |
    | 135 | TemplateExecutionRepositoryMigrationUpdateHash |
    | 136 | TemplateExecutionRepositoryMigrationRunSelect |
+   | 137 | TemplateExecutionRepositoryMigrationRecordHistorySelect |
    | 1000 | RayMigratorServiceShutdown |
 3. **`MigrationLog` table** (data) - Stores all log entries with columns:
    - `Id` (BIGINT IDENTITY), `LogLevelId`, `MigrationEventId`, `RunModeId`, `ProductId`, `EnvironmentId`, `MigrationRunId`, `MigrationRecordId`

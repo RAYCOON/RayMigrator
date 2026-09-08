@@ -20,6 +20,17 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ### Fixed
 
+- The `info` run history now shows what a `migrate-down` run did. Records
+  rolled back by `migrate-down` are stamped `MigrateDown`, records rolled back
+  by the error recovery inside a `migrate-up` are stamped `Rollback`, and the
+  `MigrationRecordHistory` row written for the transition carries the run that
+  caused it. The history is built from those rows (new template
+  `Repository_MigrationRecordHistory_Select`), so a migrate-down run lists the
+  records it rolled back and the migrate-up run that created them keeps its
+  count. Until now a migrate-down run appeared as an empty `MigrateUp` run,
+  and `MigrationOperation.MigrateDown` / `Rollback` were never written. No
+  schema change: the record keeps the `MigrationRunId` of the run that created
+  it. (#13)
 - `info` reads `LastRunResult` and the last migration date from the newest
   `MigrationRun` row instead of deriving them from an arbitrary migration
   record; a failed migrate-down no longer shows `Ok` and a clean one no longer

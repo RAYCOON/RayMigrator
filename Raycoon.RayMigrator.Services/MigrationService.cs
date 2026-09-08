@@ -1527,6 +1527,15 @@ public class MigrationService : IMigrationService
             migrationsToRollback.Count, productOptions.Alias);
 
         var result = new RollbackResult();
+
+        if (isErrorRecovery)
+        {
+            // Everything this chain writes is stamped as an error-recovery Rollback, so the history rows of the
+            // migrate-up run distinguish "migrated" from "rolled back again" (#13). The run itself stays a
+            // migrate-up run; it finalizes right after the chain, so the operation is not restored.
+            _ctxAccessor.Current.MigrationState.MigrationOperation = MigrationOperation.Rollback;
+        }
+
         string rollbackPreExtension = productOptions.MigrationRollbackFilesPreExtension ?? "rollback";
         string migrationFilesExtension = productOptions.MigrationFilesExtension ?? "sql";
         string rootDirectory = productOptions.MigrationFilesRootDirectory!;
@@ -3391,6 +3400,29 @@ public class MigrationService : IMigrationService
     /// A run without records (nothing pending, validation failure before the first file) is reported as
     /// <see cref="MigrationOperation.MigrateUp"/>.
     /// </summary>
+    /// <summary>
+    /// Summarizes the terminal transitions (<c>MigrationRecordHistory</c> rows) one run caused: the number of
+    /// distinct records it touched, how many of them ended in the state the operation aims for (Migrated for
+    /// migrate-up and baseline, NotMigrated for migrate-down and error-recovery rollback), how many are Failed,
+    /// and the operation derived from the rows. The rows must be ordered by history id, so the last row of a
+    /// record is its final state within the run (#13).
+    /// </summary>
+    internal static (int Total, int Successful, int Failed, MigrationOperation Operation) SummarizeRun(IEnumerable<MigrationRecord> historyRows)
+    {
+        var rows = historyRows as IReadOnlyList<MigrationRecord> ?? historyRows.ToList();
+        var finalStates = rows.GroupBy(r => r.Id).Select(g => g.Last()).ToList();
+        var operation = DeriveRunOperation(rows);
+
+        // The target state depends on what the run set out to do: a migrate-up counts records that ended
+        // Migrated (records its error recovery rolled back again are not successes), a migrate-down counts
+        // records that ended NotMigrated.
+        var targetState = operation == MigrationOperation.MigrateDown ? MigrationStatus.NotMigrated : MigrationStatus.Migrated;
+        int successful = finalStates.Count(r => r.MigrationStatusId == targetState);
+        int failed = finalStates.Count(r => r.MigrationStatusId == MigrationStatus.Failed);
+
+        return (finalStates.Count, successful, failed, operation);
+    }
+
     internal static MigrationOperation DeriveRunOperation(IEnumerable<MigrationRecord> runRecords)
     {
         var records = runRecords as ICollection<MigrationRecord> ?? runRecords.ToList();
@@ -4857,10 +4889,19 @@ public class MigrationService : IMigrationService
             // --- Phase 1: Initialization ---
             bool repositoryHasProduct = await InitializeRepositoryAsync();
 
-            // --- Phase 2: Query MigrationRun records ---
+            // --- Phase 2: Query MigrationRun records and the terminal transitions of all records ---
+            // A record belongs to the run that created it, but migrate-down and error-recovery rollbacks change
+            // records of other runs. The history rows carry the run that caused each transition, so they, not the
+            // records, say what a run did (#13).
             var rows = repositoryHasProduct
                 ? await Task.Run(() => _templateExecutor.RepositoryMigrationRunSelect(limit))
                 : new List<Dictionary<string, object?>>();
+            var historyRows = repositoryHasProduct
+                ? await Task.Run(() => _templateExecutor.RepositoryMigrationRecordHistorySelect())
+                : new List<MigrationRecord>();
+            var historyByRun = historyRows
+                .GroupBy(h => h.MigrationRunId)
+                .ToDictionary(g => g.Key, g => (IReadOnlyList<MigrationRecord>)g.ToList());
 
             // --- Phase 3: Build history ---
             var runs = new List<MigrationRunInfo>();
@@ -4876,16 +4917,8 @@ public class MigrationService : IMigrationService
                     : null;
                 string? toRelease = row["ToReleaseVersion"]?.ToString();
 
-                // Count migrations for this run from the Migration table
-                var existingRecords = await Task.Run(() => _templateExecutor.RepositoryMigrationSelect());
-                var runMigrations = existingRecords.Where(r => r.MigrationRunId == runId).ToList();
-
-                int totalMigrations = runMigrations.Count;
-                int successfulMigrations = runMigrations.Count(r => r.MigrationStatusId == MigrationStatus.Migrated);
-                int failedMigrations = runMigrations.Count(r => r.MigrationStatusId == MigrationStatus.Failed);
-
-                // The MigrationRun row has no operation column; derive it from the records the run wrote.
-                var operation = DeriveRunOperation(runMigrations);
+                var runHistory = historyByRun.TryGetValue(runId, out var h) ? h : Array.Empty<MigrationRecord>();
+                var (totalMigrations, successfulMigrations, failedMigrations, operation) = SummarizeRun(runHistory);
 
                 runs.Add(new MigrationRunInfo
                 {

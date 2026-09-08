@@ -42,6 +42,7 @@ public static class MigrationEvent
     public static readonly EventId TemplateExecutionRepositoryMigrationSelect = new EventId(134, nameof(TemplateExecutionRepositoryMigrationSelect));
     public static readonly EventId TemplateExecutionRepositoryMigrationUpdateHash = new EventId(135, nameof(TemplateExecutionRepositoryMigrationUpdateHash));
     public static readonly EventId TemplateExecutionRepositoryMigrationRunSelect = new EventId(136, nameof(TemplateExecutionRepositoryMigrationRunSelect));
+    public static readonly EventId TemplateExecutionRepositoryMigrationRecordHistorySelect = new EventId(137, nameof(TemplateExecutionRepositoryMigrationRecordHistorySelect));
 
     // Application Shutdown
     public static readonly EventId RayMigratorServiceShutdown = new EventId(1000, nameof(RayMigratorServiceShutdown));

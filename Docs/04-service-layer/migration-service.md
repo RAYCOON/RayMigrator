@@ -149,7 +149,7 @@ Identifies the type of operation being performed.
 
 Source: `Raycoon.RayMigrator.Core/Configuration/Enums/MigrationOperation.cs`
 
-`BaselineAsync` stamps its run and records with `Baseline`; `GetHistoryAsync` derives a run's operation from its records via `MigrationService.DeriveRunOperation()` (`Baseline` → `MigrateDown` → otherwise `MigrateUp`), because the `MigrationRun` row has no operation column.
+`BaselineAsync` stamps its run and records with `Baseline`; `MigrateDownAsync` stamps the records it rolls back with `MigrateDown`, the error-recovery rollbacks inside a migrate-up stamp them with `Rollback`. A record keeps the `MigrationRunId` of the run that created it, so `GetHistoryAsync` does not count records per run: it reads the terminal transitions from `MigrationRecordHistory` (`Repository_MigrationRecordHistory_Select`), whose rows carry the run that caused each transition, and summarizes them per run via `MigrationService.SummarizeRun()` (distinct records, records that reached the operation's target state, failed records) and `DeriveRunOperation()` (`Baseline` → `MigrateDown` → otherwise `MigrateUp`), because the `MigrationRun` row has no operation column (#13).
 
 Every non-migrate command starts with `InitializeRepositoryAsync()`: `RepositoryCheckCreate` always runs, but product and environment are only registered (`*_CheckInsert`) when the command's `CommandProfile.WritesRepository` is true; `info`, `validate-hash` and `fix --dry-run` look them up read-only and treat a repository without them as empty (#6). The error-recovery rollbacks (`HandleMigrationError`, `RollbackSingleMigration`) take the run mode from the request that started the run, not from the context.
 
