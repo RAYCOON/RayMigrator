@@ -52,7 +52,7 @@ public class EnvironmentIdLoggingPipelineTests : IDisposable
                 RequireRollbackFile = false,
                 TargetGroupDefaults = new TargetGroupDefaultOptions
                 {
-                    TargetMigrationOrder = "Simultaneously",
+                    TargetMigrationOrder = "FileByFile",
                     HashValidationScope = "File",
                     TargetDefaults = new TargetDefaultsOptions
                     {

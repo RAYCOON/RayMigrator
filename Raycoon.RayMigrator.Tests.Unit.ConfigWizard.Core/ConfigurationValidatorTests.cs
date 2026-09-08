@@ -113,7 +113,7 @@ public class ConfigurationValidatorTests
     public void ValidateTargetGroup_SingleTarget_OverriddenTargetMigrationOrder_Warns()
     {
         var tg = TestModelFactory.CreateValidTargetGroup();
-        tg.TargetMigrationOrder = new OverridableValue<string> { IsOverridden = true, Value = "Simultaneously" };
+        tg.TargetMigrationOrder = new OverridableValue<string> { IsOverridden = true, Value = "FileByFile" };
         // tg.Targets has exactly 1 target
 
         var result = ConfigurationValidator.ValidateTargetGroup(tg, "Test");
@@ -125,7 +125,7 @@ public class ConfigurationValidatorTests
     {
         var tg = TestModelFactory.CreateValidTargetGroup();
         tg.Targets.Add(TestModelFactory.CreateValidTarget("ReplicaDB"));
-        tg.TargetMigrationOrder = new OverridableValue<string> { IsOverridden = true, Value = "Simultaneously" };
+        tg.TargetMigrationOrder = new OverridableValue<string> { IsOverridden = true, Value = "FileByFile" };
 
         var result = ConfigurationValidator.ValidateTargetGroup(tg, "Test");
         result.Warnings.Should().NotContain(e => e.Path.Contains("TargetMigrationOrder"));

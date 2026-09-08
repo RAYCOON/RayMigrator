@@ -37,7 +37,7 @@ public class MigrationSafetyWarningTests
         int maxRetries = 0,
         string? targetCliAlias = null,
         string migrationErrorAction = "Terminate",
-        string targetMigrationOrder = "Successively",
+        string targetMigrationOrder = "TargetByTarget",
         string hashValidationScope = "Disabled")
     {
         return new ProductOptions("rollback")
@@ -500,7 +500,7 @@ public class MigrationSafetyWarningTests
                 {
                     Alias = "Backend",
                     DatabaseType = "SqlServer",
-                    TargetMigrationOrder = "Successively",
+                    TargetMigrationOrder = "TargetByTarget",
                     HashValidationScope = "Disabled",
                     Targets = new List<TargetOptions>
                     {
@@ -515,7 +515,7 @@ public class MigrationSafetyWarningTests
                 {
                     Alias = "Frontend",
                     DatabaseType = "PostgreSQL",
-                    TargetMigrationOrder = "Successively",
+                    TargetMigrationOrder = "TargetByTarget",
                     HashValidationScope = "Disabled",
                     Targets = new List<TargetOptions>
                     {
@@ -875,7 +875,7 @@ public class MigrationSafetyWarningTests
     // -------------------------------------------------------------------------
 
     [Fact]
-    public void SimultaneouslyWithRollback_LogsRule212Warning()
+    public void FileByFileWithRollback_LogsRule212Warning()
     {
         var (logger, service) = CreateServiceWithLogger();
         var files = new List<MigrationFileInfo>
@@ -891,16 +891,16 @@ public class MigrationSafetyWarningTests
         };
 
         InvokeLogMigrationSafetyWarnings(service, files,
-            CreateProductOptions(migrationErrorAction: "Rollback", targetMigrationOrder: "Simultaneously"));
+            CreateProductOptions(migrationErrorAction: "Rollback", targetMigrationOrder: "FileByFile"));
 
         logger.Entries.Should().Contain(e =>
             e.LogLevel == LogLevel.Warning &&
             e.Message.Contains("[Rule 2.12 SIMULTANEOUSLY_WITH_ROLLBACK]") &&
-            e.Message.Contains("Simultaneously"));
+            e.Message.Contains("FileByFile"));
     }
 
     [Fact]
-    public void SimultaneouslyWithTerminate_NoRule212Warning()
+    public void FileByFileWithTerminate_NoRule212Warning()
     {
         var (logger, service) = CreateServiceWithLogger();
         var files = new List<MigrationFileInfo>
@@ -916,7 +916,7 @@ public class MigrationSafetyWarningTests
         };
 
         InvokeLogMigrationSafetyWarnings(service, files,
-            CreateProductOptions(migrationErrorAction: "Terminate", targetMigrationOrder: "Simultaneously"));
+            CreateProductOptions(migrationErrorAction: "Terminate", targetMigrationOrder: "FileByFile"));
 
         logger.Entries.Should().NotContain(e =>
             e.LogLevel == LogLevel.Warning &&
@@ -924,7 +924,7 @@ public class MigrationSafetyWarningTests
     }
 
     [Fact]
-    public void SuccessivelyWithRollback_NoRule212Warning()
+    public void TargetByTargetWithRollback_NoRule212Warning()
     {
         var (logger, service) = CreateServiceWithLogger();
         var files = new List<MigrationFileInfo>
@@ -940,7 +940,7 @@ public class MigrationSafetyWarningTests
         };
 
         InvokeLogMigrationSafetyWarnings(service, files,
-            CreateProductOptions(migrationErrorAction: "Rollback", targetMigrationOrder: "Successively"));
+            CreateProductOptions(migrationErrorAction: "Rollback", targetMigrationOrder: "TargetByTarget"));
 
         logger.Entries.Should().NotContain(e =>
             e.LogLevel == LogLevel.Warning &&

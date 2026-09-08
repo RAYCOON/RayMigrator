@@ -4,11 +4,11 @@ This chapter covers advanced RayMigrator features that give you fine-grained con
 
 ---
 
-## TargetMigrationOrder: Simultaneously vs Successively
+## TargetMigrationOrder: FileByFile vs TargetByTarget
 
 When a TargetGroup has multiple targets, the `TargetMigrationOrder` setting controls the order in which migrations are applied across those targets.
 
-### Successively (Default)
+### TargetByTarget (Default)
 
 All migrations run on one target before moving to the next.
 
@@ -23,7 +23,7 @@ Target: MainDB               Target: ReplicaDB
 - **Use when:** Targets are independent databases
 - **Benefit:** If an error occurs, only one target is partially migrated
 
-### Simultaneously
+### FileByFile
 
 Each migration runs on ALL targets before the next migration starts.
 
@@ -44,7 +44,7 @@ Each migration runs on ALL targets before the next migration starts.
   "TargetGroups": [{
     "Alias": "Backend",
     "DatabaseType": "SqlServer",
-    "TargetMigrationOrder": "Simultaneously",
+    "TargetMigrationOrder": "FileByFile",
     "Targets": [
       { "Alias": "Shard1", "ConnectionString": "..." },
       { "Alias": "Shard2", "ConnectionString": "..." }
@@ -55,7 +55,7 @@ Each migration runs on ALL targets before the next migration starts.
 
 For all enum values and detailed behavior, see [Execution Modes — Target Migration Order](../02-core-concepts/execution-modes.md#target-migration-order).
 
-> **Tip:** If you are unsure which mode to use, start with `Successively`. It is the safer default because a failure only affects a single target.
+> **Tip:** If you are unsure which mode to use, start with `TargetByTarget`. It is the safer default because a failure only affects a single target.
 
 ---
 
@@ -173,8 +173,8 @@ Baseline follows a five-phase process, identical in structure to migrate-up but 
    - **Already-migrated filter**: Files that already have a `Migrated` record in the repository are excluded. This is what makes Baseline idempotent.
 
 4. **Recording** — For each remaining file+target combination, RayMigrator archives any prior migration history for that file, then writes a new repository record and immediately sets its status to `Migrated`. The recording respects the configured `TargetMigrationOrder`:
-   - **Successively** (default): iterates target → file (each target receives all its files before moving to the next target).
-   - **Simultaneously**: iterates file → target (each file is recorded against all its targets before moving to the next file).
+   - **TargetByTarget** (default): iterates target → file (each target receives all its files before moving to the next target).
+   - **FileByFile**: iterates file → target (each file is recorded against all its targets before moving to the next file).
 
    > **Important:** No SQL is executed on the target databases during this phase. Only the migration repository is written to.
 
@@ -194,7 +194,7 @@ Running Baseline twice with the same parameters is safe. The second run detects 
 
 #### Respects TargetMigrationOrder
 
-Baseline uses the same execution order as migrate-up. If your target group is configured with `TargetMigrationOrder: Successively` (the default), baseline records files in target → file order. If configured with `Simultaneously`, it uses file → target order. See [Execution Modes](07-execution-modes.md) for details.
+Baseline uses the same execution order as migrate-up. If your target group is configured with `TargetMigrationOrder: TargetByTarget` (the default), baseline records files in target → file order. If configured with `FileByFile`, it uses file → target order. See [Execution Modes](07-execution-modes.md) for details.
 
 ### Repository State After Baseline
 
@@ -292,7 +292,7 @@ A single TargetGroup can have multiple targets. All targets in a group receive t
   "TargetGroups": [{
     "Alias": "Backend",
     "DatabaseType": "SqlServer",
-    "TargetMigrationOrder": "Simultaneously",
+    "TargetMigrationOrder": "FileByFile",
     "Targets": [
       { "Alias": "Primary", "ConnectionString": "{ENV:PRIMARY_DB}" },
       { "Alias": "Reporting", "ConnectionString": "{ENV:REPORTING_DB}" },
@@ -311,7 +311,7 @@ Add a reporting database to the BookStore configuration:
   "TargetGroups": [{
     "Alias": "Backend",
     "DatabaseType": "SqlServer",
-    "TargetMigrationOrder": "Simultaneously",
+    "TargetMigrationOrder": "FileByFile",
     "Targets": [
       { "Alias": "MainDB", "ConnectionString": "{ENV:BOOKSTORE_CONNECTION}" },
       { "Alias": "ReportingDB", "ConnectionString": "{ENV:BOOKSTORE_REPORTING_CONNECTION}" }
@@ -320,16 +320,16 @@ Add a reporting database to the BookStore configuration:
 }
 ```
 
-Now every migration runs on both MainDB and ReportingDB. With `TargetMigrationOrder` set to `Simultaneously`, both databases stay at the same migration level after each file.
+Now every migration runs on both MainDB and ReportingDB. With `TargetMigrationOrder` set to `FileByFile`, both databases stay at the same migration level after each file.
 
 ### When to Use Multiple Targets
 
 | Scenario | TargetMigrationOrder | Rationale |
 |----------|---------------|-----------|
-| Database shards | `Simultaneously` | Keep all shards in sync |
-| Primary + read replicas | `Successively` | Replicas are independent |
-| Multi-region databases | `Simultaneously` | Schema consistency across regions |
-| Dev + test databases | `Successively` | Independent, failure isolation |
+| Database shards | `FileByFile` | Keep all shards in sync |
+| Primary + read replicas | `TargetByTarget` | Replicas are independent |
+| Multi-region databases | `FileByFile` | Schema consistency across regions |
+| Dev + test databases | `TargetByTarget` | Independent, failure isolation |
 
 ---
 

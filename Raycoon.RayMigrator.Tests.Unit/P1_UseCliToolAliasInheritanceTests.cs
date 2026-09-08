@@ -26,7 +26,7 @@ public class UseCliToolAliasInheritanceTests
                 UseCliToolAlias = defaultsAlias,
                 TargetGroupDefaults = new TargetGroupDefaultOptions
                 {
-                    TargetMigrationOrder = "Successively",
+                    TargetMigrationOrder = "TargetByTarget",
                     HashValidationScope = "FileHash",
                     TargetDefaults = new TargetDefaultsOptions
                     {

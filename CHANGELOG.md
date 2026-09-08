@@ -20,6 +20,14 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ### Changed
 
+- `TargetMigrationOrder` members are named after what they do: `FileByFile`
+  (each file is applied to every target of the group before the next file,
+  formerly `Simultaneously`) and `TargetByTarget` (all files on one target
+  before the next target, formerly `Successively`, the default). Nothing runs
+  concurrently in either order, which the old names suggested. The former
+  names are still accepted in `appsettings.json` and in the configuration
+  wizard as aliases; everything RayMigrator writes (settings snapshot, log
+  output, wizard export) uses the new names. (#19)
 - Enum housekeeping (#19). `CommandProfile` moved from
   `Raycoon.RayMigrator.Core.Configuration.Enums` to
   `Raycoon.RayMigrator.Core.Configuration` and lost its two fields without a

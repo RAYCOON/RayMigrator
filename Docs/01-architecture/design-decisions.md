@@ -145,9 +145,9 @@ All four files are searched in the directory specified by `--config-dir` (or the
 
 ## Execution Modes
 
-**Decision**: Support both "Simultaneously" and "Successively" execution orders.
+**Decision**: Support both "FileByFile" and "TargetByTarget" execution orders.
 
-**Simultaneously** (file → target loop):
+**FileByFile** (file → target loop):
 ```
 Migration A → Target 1
 Migration A → Target 2
@@ -155,7 +155,7 @@ Migration B → Target 1
 Migration B → Target 2
 ```
 
-**Successively** (target → file loop):
+**TargetByTarget** (target → file loop):
 ```
 All migrations → Target 1
 All migrations → Target 2
@@ -164,8 +164,8 @@ All migrations → Target 2
 Configured per TargetGroup via `TargetMigrationOrder` option (default inherited from `ProductDefaults.TargetGroupDefaults.TargetMigrationOrder`).
 
 **Rationale**:
-- **Simultaneously**: Keeps all targets in sync, better for tightly coupled systems
-- **Successively**: Safer, allows partial success, better for independent targets
+- **FileByFile**: Keeps all targets in sync, better for tightly coupled systems
+- **TargetByTarget**: Safer, allows partial success, better for independent targets
 
 ### TargetGroup Execution Order
 

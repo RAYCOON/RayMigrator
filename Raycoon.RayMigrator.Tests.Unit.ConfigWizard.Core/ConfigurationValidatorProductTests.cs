@@ -253,8 +253,8 @@ public class ConfigurationValidatorProductTests
     }
 
     [Theory]
-    [InlineData("Simultaneously")]
-    [InlineData("Successively")]
+    [InlineData("FileByFile")]
+    [InlineData("TargetByTarget")]
     public void ValidateProductDefaults_ValidTargetMigrationOrders_NoError(string order)
     {
         var defaults = new ProductDefaultsModel();

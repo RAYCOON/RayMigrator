@@ -329,7 +329,7 @@ public class ConfigurationFileParserAdditionalTests
               "RequireRollbackFile": true,
               "StopRollbackOnMissingRollbackFile": true,
               "TargetGroupDefaults": {
-                "TargetMigrationOrder": "Successively",
+                "TargetMigrationOrder": "TargetByTarget",
                 "HashValidationScope": "File",
                 "StopRollbackOnMissingRollbackFile": true,
                 "TargetDefaults": {

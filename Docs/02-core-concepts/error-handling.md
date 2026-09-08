@@ -199,7 +199,7 @@ flowchart TD
 - Does not abort the migration run
 - Failed files are marked as `Failed` (re-attempted on next run). The re-attempt is decided per target: a file that succeeded on one target and failed on another is executed again on the failed target only, the successful target is not touched (#8)
 - Failed files are NOT added to `successfullyMigratedRecords` — they won't be rolled back if a later file fails with Rollback
-- In Simultaneously mode: if a file fails on one target, remaining targets for that file are skipped
+- In FileByFile mode: if a file fails on one target, remaining targets for that file are skipped
 - The overall `MigrationRunResult` is `Error` when any ignored failures occurred
 
 **Use Cases**:
@@ -207,12 +207,12 @@ flowchart TD
 - Development environments where you want to run as many migrations as possible
 - Non-critical migrations that should not block the rest of the run
 
-### Error Handling in Simultaneously vs Successively Modes
+### Error Handling in FileByFile vs TargetByTarget Modes
 
 Both `TargetMigrationOrder` modes handle errors identically:
 
-- **Simultaneously** (file -> target loop): If a file fails on one target, remaining targets for that file are skipped. With `Ignore`, the file is marked as `Failed` and execution continues to the next file. With any other error action, the `TargetGroup` is aborted immediately.
-- **Successively** (target -> file loop): If a file fails on a target, with `Ignore`, the file is marked as `Failed` and execution continues to the next file for that target. With any other error action, the `TargetGroup` is aborted immediately.
+- **FileByFile** (file -> target loop): If a file fails on one target, remaining targets for that file are skipped. With `Ignore`, the file is marked as `Failed` and execution continues to the next file. With any other error action, the `TargetGroup` is aborted immediately.
+- **TargetByTarget** (target -> file loop): If a file fails on a target, with `Ignore`, the file is marked as `Failed` and execution continues to the next file for that target. With any other error action, the `TargetGroup` is aborted immediately.
 
 In both modes, when a non-Ignore error aborts a `TargetGroup`, the caller (`MigrateUpAsync` Phase 3) invokes `HandleMigrationError` to execute the configured error action (Terminate, Rollback, RollbackErrorOnly, or RollbackRelease), then updates the `MigrationRun` to `MigrationRunResult.Error` and returns.
 

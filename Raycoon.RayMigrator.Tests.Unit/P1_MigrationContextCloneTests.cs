@@ -39,7 +39,7 @@ public class MigrationContextCloneTests
                 RequireRollbackFile = false,
                 TargetGroupDefaults = new TargetGroupDefaultOptions
                 {
-                    TargetMigrationOrder = "Simultaneously",
+                    TargetMigrationOrder = "FileByFile",
                     HashValidationScope = "File",
                     TargetDefaults = new TargetDefaultsOptions
                     {
@@ -66,7 +66,7 @@ public class MigrationContextCloneTests
                         {
                             Alias = "Backend",
                             DatabaseType = "SqlServer",
-                            TargetMigrationOrder = "Simultaneously",
+                            TargetMigrationOrder = "FileByFile",
                             HashValidationScope = "File",
                             Targets = new List<TargetOptions>
                             {

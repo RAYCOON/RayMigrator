@@ -7,7 +7,7 @@ namespace Raycoon.RayMigrator.Tests.Unit.ConfigWizard.Core;
 public class WizardOnlyChecksEnumCasingTests
 {
     [Theory]
-    [InlineData("Rollback", "Terminate", "Successively", "File")]
+    [InlineData("Rollback", "Terminate", "TargetByTarget", "File")]
     [InlineData("rollback", "terminate", "successively", "file")]
     [InlineData("ROLLBACK", "IGNORE", "SIMULTANEOUSLY", "SQLBLOCKS")]
     public void ProductDefaults_EnumValues_AreAcceptedInAnyCase(string mea, string rea, string tmo, string hvs)

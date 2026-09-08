@@ -202,8 +202,8 @@ When you run `migrate-up`, RayMigrator follows this sequence:
 
 The order in which targets are processed within a TargetGroup depends on the `TargetMigrationOrder` setting:
 
-- **Simultaneously**: For each migration file, apply it to all targets in the group before moving to the next file (file-first loop: file -> target).
-- **Successively**: For each target, apply all migration files before moving to the next target (target-first loop: target -> file).
+- **FileByFile**: For each migration file, apply it to all targets in the group before moving to the next file (file-first loop: file -> target).
+- **TargetByTarget**: For each target, apply all migration files before moving to the next target (target-first loop: target -> file).
 
 Chapter 10 covers TargetMigrationOrder in detail.
 

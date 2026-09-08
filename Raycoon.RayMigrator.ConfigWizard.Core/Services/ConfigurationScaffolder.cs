@@ -78,7 +78,7 @@ public static class ConfigurationScaffolder
             StopRollbackOnMissingRollbackFile = true,
             TargetGroupDefaults = new TargetGroupDefaultsModel
             {
-                TargetMigrationOrder = "Successively",
+                TargetMigrationOrder = "TargetByTarget",
                 HashValidationScope = "File",
                 StopRollbackOnMissingRollbackFile = true,
                 TargetDefaults = new TargetDefaultsModel
@@ -283,7 +283,7 @@ public static class ConfigurationScaffolder
             StopRollbackOnMissingRollbackFile = basePd?.StopRollbackOnMissingRollbackFile ?? true,
             TargetGroupDefaults = new TargetGroupDefaultsModel
             {
-                TargetMigrationOrder = basePd?.TargetGroupDefaults.TargetMigrationOrder ?? "Successively",
+                TargetMigrationOrder = basePd?.TargetGroupDefaults.TargetMigrationOrder ?? "TargetByTarget",
                 HashValidationScope = basePd?.TargetGroupDefaults.HashValidationScope ?? "File",
                 StopRollbackOnMissingRollbackFile = basePd?.TargetGroupDefaults.StopRollbackOnMissingRollbackFile ?? true,
                 TargetDefaults = new TargetDefaultsModel

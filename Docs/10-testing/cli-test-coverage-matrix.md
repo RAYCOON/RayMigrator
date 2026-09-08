@@ -187,7 +187,7 @@ This document provides a comprehensive overview of unit and engine test coverage
 - `P0_MigrationRunModeExtensionsTests.cs` — ShouldExecuteSql, ShouldWriteRepository, ShouldReadRepository (12 tests)
 - `P1_OutOfOrderDetectionTests.cs` — DetectOutOfOrderFiles logic (11 tests)
 - `P1_HandleMigrationErrorBehaviorTests.cs` — Error strategy dispatch
-- `P1_TargetMigrationOrderExecutionTests.cs` — Simultaneously vs Successively (20 tests)
+- `P1_TargetMigrationOrderExecutionTests.cs` — FileByFile vs TargetByTarget (20 tests)
 - `P1_RequireRollbackFileValidationTests.cs` — Rollback file requirement validation
 - `P1_FilterByTargetReleaseTests.cs` — `--to-release` filtering logic
 - `P1_FilterByTargetGroupTests.cs` — `--target-group` filtering logic
@@ -419,7 +419,7 @@ The engine test harness (`ScenarioContext.cs`) exposes these methods:
 .WithStopRollbackOnMissingRollbackFile(bool)
 
 // Execution order
-.WithTargetMigrationOrder(Simultaneously|Successively)
+.WithTargetMigrationOrder(FileByFile|TargetByTarget)
 .WithTargetGroupMigrationOrder(csv)
 
 // Topology

@@ -649,15 +649,15 @@ All scenarios use a standard 3-release, 9-file migration set unless otherwise no
 
 ---
 
-### Category 9: Multi-Target (Simultaneously)
+### Category 9: Multi-Target (FileByFile)
 
-In `Simultaneously` mode (file → target loop), each file is executed on all targets before moving to the next file. If a file fails on one target, remaining targets for that file are skipped.
+In `FileByFile` mode (file → target loop), each file is executed on all targets before moving to the next file. If a file fails on one target, remaining targets for that file are skipped.
 
-#### S31 — Simultaneously + Ignore
+#### S31 — FileByFile + Ignore
 
 | Setting | Value |
 |---------|-------|
-| TargetMigrationOrder | Simultaneously |
+| TargetMigrationOrder | FileByFile |
 | MigrationErrorAction | Ignore |
 | Error Position | R2F2 fails on Target1 |
 | MigrationRunResult | Error (90) |
@@ -676,11 +676,11 @@ In `Simultaneously` mode (file → target loop), each file is executed on all ta
 
 **Recovery**: Fix `02_InsertDataB.sql`, re-run `migrate-up`. R2F2 is retried on Target1 (Failed → retry) and executed for the first time on Target2 (NoRecord → new execution).
 
-#### S32 — Simultaneously + Rollback
+#### S32 — FileByFile + Rollback
 
 | Setting | Value |
 |---------|-------|
-| TargetMigrationOrder | Simultaneously |
+| TargetMigrationOrder | FileByFile |
 | MigrationErrorAction | Rollback |
 | Error Position | R2F2 fails on Target1 |
 | MigrationRunResult | Error (90) |
@@ -699,15 +699,15 @@ In `Simultaneously` mode (file → target loop), each file is executed on all ta
 
 ---
 
-### Category 10: Multi-Target (Successively)
+### Category 10: Multi-Target (TargetByTarget)
 
-In `Successively` mode (target → file loop), all files are executed on Target1 before moving to Target2 within each release.
+In `TargetByTarget` mode (target → file loop), all files are executed on Target1 before moving to Target2 within each release.
 
-#### S33 — Successively + Terminate
+#### S33 — TargetByTarget + Terminate
 
 | Setting | Value |
 |---------|-------|
-| TargetMigrationOrder | Successively |
+| TargetMigrationOrder | TargetByTarget |
 | MigrationErrorAction | Terminate |
 | Error Position | R2F2 fails on Target1 |
 | MigrationRunResult | Error (90) |
@@ -725,11 +725,11 @@ In `Successively` mode (target → file loop), all files are executed on Target1
 
 **Recovery**: Fix `02_InsertDataB.sql`, re-run `migrate-up`. Target1 retries R2F2, Target2 starts R2 from R2F1.
 
-#### S34 — Successively + Ignore
+#### S34 — TargetByTarget + Ignore
 
 | Setting | Value |
 |---------|-------|
-| TargetMigrationOrder | Successively |
+| TargetMigrationOrder | TargetByTarget |
 | MigrationErrorAction | Ignore |
 | Error Position | R2F2 (same broken SQL, fails on both targets) |
 | MigrationRunResult | Error (90) |
@@ -747,11 +747,11 @@ In `Successively` mode (target → file loop), all files are executed on Target1
 
 **Recovery**: Fix `02_InsertDataB.sql`, re-run `migrate-up`. R2F2 is retried on both targets.
 
-#### S35 — Successively + Rollback
+#### S35 — TargetByTarget + Rollback
 
 | Setting | Value |
 |---------|-------|
-| TargetMigrationOrder | Successively |
+| TargetMigrationOrder | TargetByTarget |
 | MigrationErrorAction | Rollback |
 | Error Position | R2F2 fails on Target1 |
 | MigrationRunResult | Error (90) |
@@ -986,7 +986,7 @@ When a migration run fails, follow these steps in order:
 | `UseTransaction` | `true` | Prevents partial data on errors (except MariaDB/MySQL DDL) — prevents S05 |
 | `DbCommandMaxRetries` | `3` | Handles transient network/connection errors |
 | `DbCommandWaitTimeInMsBeforeRetry` | `500` | Linear backoff: 500ms, 1000ms, 1500ms |
-| `TargetMigrationOrder` | `Successively` | Predictable target-by-target execution |
+| `TargetMigrationOrder` | `TargetByTarget` | Predictable target-by-target execution |
 
 **Choosing `MigrationErrorAction` for production:**
 
@@ -1017,6 +1017,6 @@ When a migration run fails, follow these steps in order:
 
 - [Error Handling](error-handling.md) — Error action strategies and configuration hierarchy
 - [Migration State Machine](migration-state-machine.md) — State transitions and status definitions
-- [Execution Modes](execution-modes.md) — Simultaneously vs Successively mode details
+- [Execution Modes](execution-modes.md) — FileByFile vs TargetByTarget mode details
 - [Troubleshooting](../appendix/troubleshooting.md) — Common issues and solutions
 - [Fix Command Reference](../08-cli-reference/command-reference.md#fix) — Fix command options

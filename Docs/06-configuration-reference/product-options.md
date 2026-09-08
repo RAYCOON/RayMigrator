@@ -128,7 +128,7 @@ Configure defaults for all products. The `ProductDefaults` section is **required
       "UseCliToolAlias": null,
 
       "TargetGroupDefaults": {
-        "TargetMigrationOrder": "Successively",
+        "TargetMigrationOrder": "TargetByTarget",
         "HashValidationScope": "File",
         "StopRollbackOnMissingRollbackFile": true,
 

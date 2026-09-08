@@ -161,7 +161,7 @@ public static class ConfigurationSerializer
         {
             model.TargetGroupDefaults = new TargetGroupDefaultsModel
             {
-                TargetMigrationOrder = tgDefNode["TargetMigrationOrder"]?.GetValue<string>() ?? "Successively",
+                TargetMigrationOrder = tgDefNode["TargetMigrationOrder"]?.GetValue<string>() ?? "TargetByTarget",
                 HashValidationScope = tgDefNode["HashValidationScope"]?.GetValue<string>() ?? "File",
                 StopRollbackOnMissingRollbackFile = tgDefNode["StopRollbackOnMissingRollbackFile"]?.GetValue<bool>() ?? true,
             };

@@ -35,7 +35,7 @@ public class CliToolValidationTests
                 {
                     Alias = "Backend",
                     DatabaseType = "SqlServer",
-                    TargetMigrationOrder = "Successively",
+                    TargetMigrationOrder = "TargetByTarget",
                     HashValidationScope = "File",
                     UseCliToolAlias = useCliToolAlias,
                     Targets = new List<TargetOptions>

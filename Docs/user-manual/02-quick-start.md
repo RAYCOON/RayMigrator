@@ -71,7 +71,7 @@ Create `BookStore/appsettings.json` with the following content:
       "MigrationFilesEncoding": "UTF-8",
       "RequireRollbackFile": false,
       "TargetGroupDefaults": {
-        "TargetMigrationOrder": "Successively",
+        "TargetMigrationOrder": "TargetByTarget",
         "HashValidationScope": "File",
         "TargetDefaults": {
           "DbCommandTimeoutInSeconds": 20,
@@ -117,7 +117,7 @@ Key points about this configuration:
 | `Repository.SchemaName` | `ray` | All tracking tables are created in this schema |
 | `MigrationErrorAction` | `Terminate` | Stop immediately if any migration fails |
 | `RequireRollbackFile` | `false` | Rollback files are optional for now (we add them in Chapter 9) |
-| `TargetMigrationOrder` | `Successively` | Apply all files to one target before moving to the next |
+| `TargetMigrationOrder` | `TargetByTarget` | Apply all files to one target before moving to the next |
 | `{ENV:BOOKSTORE_CONNECTION}` | — | Replaced at runtime with the environment variable value |
 | `Serilog` | Console sink | Controls log output; without it, no migration progress is displayed |
 

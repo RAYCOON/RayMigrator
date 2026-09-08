@@ -48,7 +48,7 @@ internal static class InputFactory
         string? databaseType = "SqlServer",
         IReadOnlyList<TargetInput>? targets = null,
         string? useCliToolAlias = null,
-        string? effectiveTargetMigrationOrder = "Simultaneously",
+        string? effectiveTargetMigrationOrder = "FileByFile",
         string? effectiveHashValidationScope = "File")
         => new()
         {

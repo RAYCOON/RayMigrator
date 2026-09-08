@@ -69,7 +69,7 @@ The smallest valid configuration for a single SQL Server product with one target
 Key characteristics:
 - Single product (`MyProduct`) with one target group (`Backend`) pointing to one SQL Server database
 - `MigrationErrorAction`: `Terminate` — stops on first error, no automatic rollback
-- `TargetMigrationOrder`: `Successively` — runs migrations file-by-file across targets in sequence
+- `TargetMigrationOrder`: `TargetByTarget` — runs migrations file-by-file across targets in sequence
 - `HashValidationScope`: `File` — validates the entire file hash on each run
 - All connection strings and paths use `{ENV:...}` placeholders
 - Configured timeouts: 30 s command timeout, no retries (system defaults are 20 s and 0 retries; see [Target Options](../06-configuration-reference/target-options.md))
@@ -87,8 +87,8 @@ Key characteristics:
 - `ProductDefaults` sets `MigrationErrorAction: Terminate`, `RollbackErrorAction: Terminate`, `StopRollbackOnMissingRollbackFile: true`, and `UseCliToolAlias: null` (uses built-in DAL by default) as the baseline
 - Product `MyApplication` explicitly sets `MigrationErrorAction` to `Rollback`, `RollbackErrorAction` to `Terminate` (overriding `ProductDefaults`), and `TargetGroupMigrationOrder` to `"Backend, Analytics"` to pin the execution order
 - Two target groups:
-  - `Backend` (SQL Server, `Successively`, two targets with retry, `UseCliToolAlias: sqlcmd-tool` with per-target `CliToolParameters`)
-  - `Analytics` (PostgreSQL, `Simultaneously`, `HashValidationScope: SqlBlocks`, `UseCliToolAlias: psql-tool` with per-target `CliToolParameters`)
+  - `Backend` (SQL Server, `TargetByTarget`, two targets with retry, `UseCliToolAlias: sqlcmd-tool` with per-target `CliToolParameters`)
+  - `Analytics` (PostgreSQL, `FileByFile`, `HashValidationScope: SqlBlocks`, `UseCliToolAlias: psql-tool` with per-target `CliToolParameters`)
 - Serilog writes to both Console (ANSI theme) and a rolling File sink
 
 See [06-configuration-reference/product-options.md](../06-configuration-reference/product-options.md), [06-configuration-reference/target-group-options.md](../06-configuration-reference/target-group-options.md), and [06-configuration-reference/cli-tools-options.md](../06-configuration-reference/cli-tools-options.md) for all available keys.

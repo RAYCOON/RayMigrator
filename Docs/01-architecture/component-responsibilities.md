@@ -601,7 +601,7 @@ Each DAL is a separate project (not a subdirectory of the Database project):
 | `MigrationStatus` | Undefined (0), Pending (10), Executing (20), Failed (30), NotMigrated (50), Migrated (100) |
 | `MigrationErrorAction` | Undefined (0), Terminate (10), Rollback (20), RollbackErrorOnly (21), RollbackRelease (22), Ignore (30) |
 | `RollbackErrorAction` | Undefined (0), Terminate (10), Ignore (30) |
-| `TargetMigrationOrder` | Undefined (0), Simultaneously (1), Successively (2) |
+| `TargetMigrationOrder` | Undefined (0), FileByFile (1), TargetByTarget (2) |
 | `HashValidationScope` | Undefined (0), File (1), SqlBlocks (2), Disabled (3) |
 | `FixScope` | Undefined (0), All (1), OrphanedRuns (2) |
 | `CliToolInputMode` | Undefined (0), File (1), Stdin (2) |

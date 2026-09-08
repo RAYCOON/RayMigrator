@@ -531,11 +531,11 @@ sequenceDiagram
         Note over Svc: ResolveTargetGroupMigrationOrder()<br/>(CLI > migsettings > appsettings > config order)
         loop For each TargetGroup (resolved order)
             Note over Svc: Dispatch by TargetMigrationOrder
-            alt Simultaneously (file→target)
-                Svc->>Svc: ExecuteTargetGroupSimultaneously()
+            alt FileByFile (file→target)
+                Svc->>Svc: ExecuteTargetGroupFileByFile()
                 Note over Svc: Inside: TryFinalizeCompletedMigration()<br/>RepositoryMigrationInsert()<br/>ResolveUseCliToolAlias() → ExecuteWithCliTool() or ExecuteSqlBlocks()<br/>RepositoryMigrationUpdate(Migrated)
-            else Successively (target→file)
-                Svc->>Svc: ExecuteTargetGroupSuccessively()
+            else TargetByTarget (target→file)
+                Svc->>Svc: ExecuteTargetGroupTargetByTarget()
                 Note over Svc: Inside: TryFinalizeCompletedMigration()<br/>RepositoryMigrationInsert()<br/>ResolveUseCliToolAlias() → ExecuteWithCliTool() or ExecuteSqlBlocks()<br/>RepositoryMigrationUpdate(Migrated)
             end
         end
@@ -599,9 +599,9 @@ public async Task<MigrationOperationResult> MigrateUpAsync(MigrateUpRequest requ
     {
         foreach (var targetGroup in productOptions.TargetGroups!)
         {
-            var result = targetGroup.TargetMigrationOrderEnum == TargetMigrationOrder.Simultaneously
-                ? await ExecuteTargetGroupSimultaneously(tgFiles, targetGroup, ...)
-                : await ExecuteTargetGroupSuccessively(tgFiles, targetGroup, ...);
+            var result = targetGroup.TargetMigrationOrderEnum == TargetMigrationOrder.FileByFile
+                ? await ExecuteTargetGroupFileByFile(tgFiles, targetGroup, ...)
+                : await ExecuteTargetGroupTargetByTarget(tgFiles, targetGroup, ...);
 
             if (!result.Success)
             {
@@ -700,7 +700,7 @@ public async Task<BaselineResult> BaselineAsync(BaselineRequest request)
     {
         foreach (var targetGroup in productOptions.TargetGroups!)
         {
-            if (targetGroup.TargetMigrationOrderEnum == TargetMigrationOrder.Simultaneously)
+            if (targetGroup.TargetMigrationOrderEnum == TargetMigrationOrder.FileByFile)
             {
                 // File → Target order
                 foreach (var file in tgFiles)
@@ -709,7 +709,7 @@ public async Task<BaselineResult> BaselineAsync(BaselineRequest request)
             }
             else
             {
-                // Target → File order (Successively, default)
+                // Target → File order (TargetByTarget, default)
                 foreach (var target in targetGroup.Targets!)
                     foreach (var file in tgFiles)
                         await BaselineFile(file, target);
@@ -791,16 +791,16 @@ Fixes repository inconsistencies such as orphaned `MigrationRun` entries.
 
 ## TargetGroup Execution
 
-### ExecuteTargetGroupSimultaneously
+### ExecuteTargetGroupFileByFile
 
 **Visibility**: `internal` (for testability)
 
 Executes migrations in **file-first** order: `foreach file -> foreach target`. This means each migration file is applied to all targets before moving to the next file.
 
-An error aborts the entire TargetGroup unless `MigrationErrorAction` is `Ignore`, in which case the file is marked as Failed and execution continues to the next file. Within the Simultaneously loop, when block-level failures occur with Ignore, remaining targets for that file are skipped (`break`), and the next file is processed.
+An error aborts the entire TargetGroup unless `MigrationErrorAction` is `Ignore`, in which case the file is marked as Failed and execution continues to the next file. Within the FileByFile loop, when block-level failures occur with Ignore, remaining targets for that file are skipped (`break`), and the next file is processed.
 
 ```csharp
-internal async Task<TargetGroupExecutionResult> ExecuteTargetGroupSimultaneously(
+internal async Task<TargetGroupExecutionResult> ExecuteTargetGroupFileByFile(
     List<MigrationFileInfo> files, TargetGroupOptions targetGroupOptions,
     ProductOptions productOptions, MigrateUpRequest request,
     List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)> successfullyMigratedRecords,
@@ -818,16 +818,16 @@ Each file/target execution:
 7. Updates migration record status (`RepositoryMigrationUpdate`)
 8. Adds `(file, migrationRecordId, targetOptions.Alias!)` to `successfullyMigratedRecords`
 
-### ExecuteTargetGroupSuccessively
+### ExecuteTargetGroupTargetByTarget
 
 **Visibility**: `internal` (for testability)
 
 Executes migrations in **target-first** order: `foreach target -> foreach file`. This means all migration files are applied to one target before moving to the next target.
 
-Error handling behavior is identical to Simultaneously: Ignore causes the file to be marked as Failed and continues to the next file; all other error actions abort the TargetGroup. Like Simultaneously, execution branches between CLI tool (`ResolveUseCliToolAlias` / `ExecuteWithCliTool`) and DAL (`ExecuteSqlBlocks`) per file/target.
+Error handling behavior is identical to FileByFile: Ignore causes the file to be marked as Failed and continues to the next file; all other error actions abort the TargetGroup. Like FileByFile, execution branches between CLI tool (`ResolveUseCliToolAlias` / `ExecuteWithCliTool`) and DAL (`ExecuteSqlBlocks`) per file/target.
 
 ```csharp
-internal async Task<TargetGroupExecutionResult> ExecuteTargetGroupSuccessively(
+internal async Task<TargetGroupExecutionResult> ExecuteTargetGroupTargetByTarget(
     List<MigrationFileInfo> files, TargetGroupOptions targetGroupOptions,
     ProductOptions productOptions, MigrateUpRequest request,
     List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)> successfullyMigratedRecords,
@@ -846,8 +846,8 @@ internal static List<(int FileOrderId, string TargetAlias)> GetExecutionOrder(
     List<MigrationFileInfo> files, TargetGroupOptions targetGroup)
 ```
 
-- `Simultaneously`: File -> Target (outer loop files, inner loop targets)
-- `Successively` / `Undefined`: Target -> File (outer loop targets, inner loop files)
+- `FileByFile`: File -> Target (outer loop files, inner loop targets)
+- `TargetByTarget` / `Undefined`: Target -> File (outer loop targets, inner loop files)
 
 ### GetFullExecutionOrder (Static Helper)
 
@@ -882,7 +882,7 @@ Validation rules enforced by `ValidateAndReorderTargetGroups`:
 
 **Visibility**: `internal class` (nested in MigrationService)
 
-Result type returned by both `ExecuteTargetGroupSimultaneously` and `ExecuteTargetGroupSuccessively`.
+Result type returned by both `ExecuteTargetGroupFileByFile` and `ExecuteTargetGroupTargetByTarget`.
 
 ```csharp
 internal class TargetGroupExecutionResult
@@ -1018,7 +1018,7 @@ Used by `MigrateUpAsync`, `MigrateDownAsync`, and `BaselineAsync`.
 
 **Visibility**: `internal`
 
-Before executing a file+target combination, both `ExecuteTargetGroupSimultaneously` and `ExecuteTargetGroupSuccessively` call `TryFinalizeCompletedMigration` to recover from crashes between target execution and the final status update. This handles the case where all SQL blocks were executed successfully but the migration record was not updated to `Migrated` status (e.g., due to a process crash).
+Before executing a file+target combination, both `ExecuteTargetGroupFileByFile` and `ExecuteTargetGroupTargetByTarget` call `TryFinalizeCompletedMigration` to recover from crashes between target execution and the final status update. This handles the case where all SQL blocks were executed successfully but the migration record was not updated to `Migrated` status (e.g., due to a process crash).
 
 Conditions for finalization:
 1. An `Executing` record exists for the same file, release, target group, and target
@@ -1045,7 +1045,7 @@ Called during Phase 2 (after filtering, before execution) to log warnings for po
 - **Rule 2.8 — DDL_ON_NON_TRANSACTIONAL_DB**: DDL statements (`CREATE`, `ALTER`, `DROP`, `TRUNCATE`, `RENAME`) found in a file targeting a database without transactional DDL support (e.g., MariaDB, MySQL) with `UseTransaction=true`. DDL causes implicit COMMIT — transaction protection is limited. Detection uses `DalSpecificProperties.SupportsTransactionalDdl`.
 - **Rule 2.9 — NO_TRANSACTION_MULTI_BLOCK**: `UseTransaction=false` with multiple SQL blocks. Partial failures cannot be atomically rolled back by the database.
 - **Rule 2.10 — NO_TRANSACTION_WITH_RETRIES**: `UseTransaction=false` combined with `DbCommandMaxRetries > 0`. Retries may cause duplicate execution of non-idempotent statements.
-- **Rule 2.12 — SIMULTANEOUSLY_WITH_ROLLBACK**: A TargetGroup uses `TargetMigrationOrder=Simultaneously` combined with a rollback-type `MigrationErrorAction`. Rollback in Simultaneously mode affects targets in interleaved order, which may produce inconsistent state across targets.
+- **Rule 2.12 — SIMULTANEOUSLY_WITH_ROLLBACK**: A TargetGroup uses `TargetMigrationOrder=FileByFile` combined with a rollback-type `MigrationErrorAction`. Rollback in FileByFile mode affects targets in interleaved order, which may produce inconsistent state across targets.
 
 Uses a compiled `DdlPattern` regex (`^\s*(CREATE|ALTER|DROP|TRUNCATE|RENAME)\s`) to detect DDL statements.
 
@@ -1084,7 +1084,7 @@ On failure: `RollbackAsync()` undoes all SQL blocks and all repository writes.
 
 **File-level retry**: If `DbCommandMaxRetries > 0` and the error is transient (`DalBase.IsTransient` returns `true`), the entire sequence (connection creation through block execution) is retried from scratch, up to `MaxRetries` times with `RetryDelayMs` between attempts.
 
-The return type of `ExecuteSqlBlocks` includes a `bool atomicCommitCompleted` flag. When `true`, the callers (`ExecuteTargetGroupSimultaneously`, `ExecuteTargetGroupSuccessively`) skip the separate final `RepositoryMigrationUpdate(Migrated)` call that the non-atomic path requires.
+The return type of `ExecuteSqlBlocks` includes a `bool atomicCommitCompleted` flag. When `true`, the callers (`ExecuteTargetGroupFileByFile`, `ExecuteTargetGroupTargetByTarget`) skip the separate final `RepositoryMigrationUpdate(Migrated)` call that the non-atomic path requires.
 
 ### Rollback Path: `ExecuteRollbackBlocksAtomic`
 
@@ -1142,7 +1142,7 @@ private async Task HandleMigrationError(
 
 **Important**: The `successfullyMigratedRecords` tuple stores `targetOptions.Alias!` per record (not `_ctxAccessor.Current.MigrationState.TargetAlias`). This ensures that when building rollback records, each successful migration uses the correct target alias it was executed against, not the last-set target alias from the context.
 
-The `MigrationErrorAction` is resolved via **ErrorAction Inheritance**: a file-level override (from TOML metadata or migsettings) takes precedence over the product-level configuration. This applies both in `HandleMigrationError` and within `ExecuteTargetGroupSimultaneously`/`ExecuteTargetGroupSuccessively` where `MigrationErrorAction.Ignore` causes the file to be marked as Failed while execution continues to the next file.
+The `MigrationErrorAction` is resolved via **ErrorAction Inheritance**: a file-level override (from TOML metadata or migsettings) takes precedence over the product-level configuration. This applies both in `HandleMigrationError` and within `ExecuteTargetGroupFileByFile`/`ExecuteTargetGroupTargetByTarget` where `MigrationErrorAction.Ignore` causes the file to be marked as Failed while execution continues to the next file.
 
 ### ExecuteRollbackForMigrations
 

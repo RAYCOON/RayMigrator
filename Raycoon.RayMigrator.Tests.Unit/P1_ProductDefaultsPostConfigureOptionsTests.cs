@@ -14,7 +14,7 @@ public class ProductDefaultsPostConfigureOptionsTests
 {
     private static RayMigratorOptions CreateOptionsWithDefaults(
         string? migrationErrorAction = "Terminate",
-        string? targetMigrationOrder = "Successively",
+        string? targetMigrationOrder = "TargetByTarget",
         string? hashValidationScope = "File",
         int? dbTimeout = 30)
     {
@@ -92,13 +92,13 @@ public class ProductDefaultsPostConfigureOptionsTests
     [Fact]
     public void DefaultTargetMigrationOrder_IsCopiedToTargetGroup()
     {
-        var options = CreateOptionsWithDefaults(targetMigrationOrder: "Successively");
+        var options = CreateOptionsWithDefaults(targetMigrationOrder: "TargetByTarget");
         var postConfigure = new ProductDefaultsPostConfigureOptions();
 
         postConfigure.PostConfigure(null, options);
 
         var targetGroup = options.Products!.First().TargetGroups!.First();
-        targetGroup.TargetMigrationOrder.Should().Be("Successively");
+        targetGroup.TargetMigrationOrder.Should().Be("TargetByTarget");
     }
 
     [Fact]
@@ -218,7 +218,7 @@ public class ProductDefaultsPostConfigureOptionsTests
         product.MigrationErrorAction.Should().Be("rollback", "the raw string is copied verbatim");
         product.MigrationErrorActionEnum.Should().Be(MigrationErrorAction.Rollback);
         var targetGroup = product.TargetGroups!.First();
-        targetGroup.TargetMigrationOrderEnum.Should().Be(TargetMigrationOrder.Simultaneously);
+        targetGroup.TargetMigrationOrderEnum.Should().Be(TargetMigrationOrder.FileByFile);
         targetGroup.HashValidationScopeEnum.Should().Be(HashValidationScope.SqlBlocks);
     }
 
@@ -233,7 +233,7 @@ public class ProductDefaultsPostConfigureOptionsTests
                 RequireRollbackFile = false,
                 TargetGroupDefaults = new TargetGroupDefaultOptions
                 {
-                    TargetMigrationOrder = "Successively",
+                    TargetMigrationOrder = "TargetByTarget",
                     HashValidationScope = "File",
                     TargetDefaults = new TargetDefaultsOptions()
                 }
@@ -266,7 +266,7 @@ public class ProductDefaultsPostConfigureOptionsTests
                 RequireRollbackFile = true,
                 TargetGroupDefaults = new TargetGroupDefaultOptions
                 {
-                    TargetMigrationOrder = "Successively",
+                    TargetMigrationOrder = "TargetByTarget",
                     HashValidationScope = "File",
                     TargetDefaults = new TargetDefaultsOptions()
                 }
@@ -300,7 +300,7 @@ public class ProductDefaultsPostConfigureOptionsTests
                 RequireRollbackFile = null,
                 TargetGroupDefaults = new TargetGroupDefaultOptions
                 {
-                    TargetMigrationOrder = "Successively",
+                    TargetMigrationOrder = "TargetByTarget",
                     HashValidationScope = "File",
                     TargetDefaults = new TargetDefaultsOptions()
                 }
@@ -333,7 +333,7 @@ public class ProductDefaultsPostConfigureOptionsTests
                 StopRollbackOnMissingRollbackFile = true,
                 TargetGroupDefaults = new TargetGroupDefaultOptions
                 {
-                    TargetMigrationOrder = "Successively",
+                    TargetMigrationOrder = "TargetByTarget",
                     HashValidationScope = "File",
                     TargetDefaults = new TargetDefaultsOptions()
                 }
@@ -366,7 +366,7 @@ public class ProductDefaultsPostConfigureOptionsTests
                 StopRollbackOnMissingRollbackFile = true,
                 TargetGroupDefaults = new TargetGroupDefaultOptions
                 {
-                    TargetMigrationOrder = "Successively",
+                    TargetMigrationOrder = "TargetByTarget",
                     HashValidationScope = "File",
                     TargetDefaults = new TargetDefaultsOptions()
                 }
@@ -399,7 +399,7 @@ public class ProductDefaultsPostConfigureOptionsTests
                 MigrationErrorAction = "Terminate",
                 TargetGroupDefaults = new TargetGroupDefaultOptions
                 {
-                    TargetMigrationOrder = "Successively",
+                    TargetMigrationOrder = "TargetByTarget",
                     HashValidationScope = "File",
                     StopRollbackOnMissingRollbackFile = false,
                     TargetDefaults = new TargetDefaultsOptions()
@@ -441,7 +441,7 @@ public class ProductDefaultsPostConfigureOptionsTests
                 MigrationFilesEncoding = "NOT-A-VALID-ENCODING",
                 TargetGroupDefaults = new TargetGroupDefaultOptions
                 {
-                    TargetMigrationOrder = "Successively",
+                    TargetMigrationOrder = "TargetByTarget",
                     HashValidationScope = "File",
                     TargetDefaults = new TargetDefaultsOptions()
                 }

@@ -175,7 +175,7 @@ public async Task ErrorInR3_OnlyR3RolledBack()
 - `WithRollbackErrorAction(action)` — sets rollback error action
 - `WithRequireRollbackFile(bool)` — sets rollback file requirement
 - `WithStopRollbackOnMissingRollbackFile(bool)` — sets whether the error-recovery rollback chain stops (`true`) or continues (`false`) when a rollback file is missing; only effective when `RequireRollbackFile=false`
-- `WithTargetMigrationOrder(order)` — sets execution order (Simultaneously/Successively)
+- `WithTargetMigrationOrder(order)` — sets execution order (FileByFile/TargetByTarget)
 - `WithMultiTarget(connectionString)` — enables multi-target mode (adds a second target to the Backend target group)
 - `WithTargetGroup(alias, databaseType, connectionString, order?, hashScope?)` — adds an additional target group (used for multi-target-group tests)
 - `WithCliTool(alias, executablePath, argumentTemplate, inputMode, timeoutInSeconds?, successExitCodes?)` — registers a CLI tool in the product configuration
@@ -298,10 +298,10 @@ The catalog lists the unique test scenarios defined for the base PostgreSQL test
 | #29 | IN-3 | R1R2First_R3Error_RollbackRelease_SameAsRollback | IncrementalTests |
 | #30 | IN-4 | R1First_R2R3Error_Rollback_R2AndR3RolledBack | IncrementalTests |
 | #31 | IN-5 | R1First_R2R3Error_RollbackRelease_OnlyR3RolledBack | IncrementalTests |
-| #32 | MT-1 | Simultaneously_Ignore_SkipsSecondTarget | MultiTargetTests |
-| #33 | MT-2 | Simultaneously_Rollback_BothTargets | MultiTargetTests |
-| #34 | MT-3 | Successively_Terminate_SecondTargetNeverStarts | MultiTargetTests |
-| #35 | MT-4 | Successively_Rollback_BothTargets | MultiTargetTests |
+| #32 | MT-1 | FileByFile_Ignore_SkipsSecondTarget | MultiTargetTests |
+| #33 | MT-2 | FileByFile_Rollback_BothTargets | MultiTargetTests |
+| #34 | MT-3 | TargetByTarget_Terminate_SecondTargetNeverStarts | MultiTargetTests |
+| #35 | MT-4 | TargetByTarget_Rollback_BothTargets | MultiTargetTests |
 | #36 | MD-1 | ToRelease2_R3R4RolledBack | MigrateDown/HappyPathTests |
 | #37 | MD-2 | ToRelease1_OnlyR1Stays | MigrateDown/HappyPathTests |
 | #38 | MD-3 | FullRollback_AllReleases | MigrateDown/HappyPathTests |

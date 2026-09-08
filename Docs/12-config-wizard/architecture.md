@@ -40,7 +40,7 @@ ConfigurationModel  (Raycoon.RayMigrator.ConfigWizard.Core)
 │   ├── bool StopRollbackOnMissingRollbackFile (default: true)
 │   ├── string? UseCliToolAlias
 │   └── TargetGroupDefaultsModel TargetGroupDefaults
-│       ├── string TargetMigrationOrder             (default: "Successively")
+│       ├── string TargetMigrationOrder             (default: "TargetByTarget")
 │       ├── string HashValidationScope        (default: "File")
 │       ├── bool StopRollbackOnMissingRollbackFile (default: true)
 │       └── TargetDefaultsModel TargetDefaults

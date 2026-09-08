@@ -30,7 +30,7 @@ public class InheritanceResolverTests
     {
         var tg = new TargetGroupModel();
         InheritanceResolver.GetEffectiveTargetMigrationOrder(tg, _defaults)
-            .Should().Be("Successively");
+            .Should().Be("TargetByTarget");
     }
 
     [Fact]

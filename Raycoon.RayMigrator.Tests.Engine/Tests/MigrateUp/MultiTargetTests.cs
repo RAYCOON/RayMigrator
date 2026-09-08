@@ -12,18 +12,18 @@ public class MultiTargetTests : PostgreSqlTestBase
     public MultiTargetTests(PostgreSqlFixture fixture) : base(fixture) { }
 
     /// <summary>
-    /// #32 Simultaneously mode with Ignore. Error in R2/F2 fails on T1, T2 skipped for that file.
+    /// #32 FileByFile mode with Ignore. Error in R2/F2 fails on T1, T2 skipped for that file.
     /// T1: R2/F2=Failed, all others Migrated. T2: R2/F2=NoRecord (skipped), all others Migrated.
     /// </summary>
     [Fact]
-    public async Task Simultaneously_Ignore_SkipsSecondTarget()
+    public async Task FileByFile_Ignore_SkipsSecondTarget()
     {
         Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
         Assert.SkipWhen(Fixture.EngineConfig.ConnectionString2 is null, "Second connection string not configured");
 
         await using var ctx = await CreateScenario()
             .WithMultiTarget(Fixture.EngineConfig.ConnectionString2!)
-            .WithTargetMigrationOrder(TargetMigrationOrder.Simultaneously)
+            .WithTargetMigrationOrder(TargetMigrationOrder.FileByFile)
             .WithMigrationErrorAction(MigrationErrorAction.Ignore)
             .InjectError("Release_2.0", "02_CreateTableD.sql")
             .BuildAsync();
@@ -48,7 +48,7 @@ public class MultiTargetTests : PostgreSqlTestBase
         ctx.AssertFileStatusForTarget("02_CreateTableH.sql", "MainDB", MigrationStatus.Migrated);
         ctx.AssertFileStatusForTarget("03_SeedDataD.sql", "MainDB", MigrationStatus.Migrated);
 
-        // T2 (SecondDB): R2/F2 has no record (skipped when T1 failed in Simultaneously), all others Migrated
+        // T2 (SecondDB): R2/F2 has no record (skipped when T1 failed in FileByFile), all others Migrated
         ctx.AssertFileStatusForTarget("01_CreateTableA.sql", "SecondDB", MigrationStatus.Migrated);
         ctx.AssertFileStatusForTarget("02_CreateTableB.sql", "SecondDB", MigrationStatus.Migrated);
         ctx.AssertFileStatusForTarget("03_SeedDataA.sql", "SecondDB", MigrationStatus.Migrated);
@@ -64,18 +64,18 @@ public class MultiTargetTests : PostgreSqlTestBase
     }
 
     /// <summary>
-    /// #33 Simultaneously mode with Rollback. Error in R2/F2 triggers rollback of both targets.
+    /// #33 FileByFile mode with Rollback. Error in R2/F2 triggers rollback of both targets.
     /// All files on both targets end up as NotMigrated.
     /// </summary>
     [Fact]
-    public async Task Simultaneously_Rollback_BothTargets()
+    public async Task FileByFile_Rollback_BothTargets()
     {
         Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
         Assert.SkipWhen(Fixture.EngineConfig.ConnectionString2 is null, "Second connection string not configured");
 
         await using var ctx = await CreateScenario()
             .WithMultiTarget(Fixture.EngineConfig.ConnectionString2!)
-            .WithTargetMigrationOrder(TargetMigrationOrder.Simultaneously)
+            .WithTargetMigrationOrder(TargetMigrationOrder.FileByFile)
             .WithMigrationErrorAction(MigrationErrorAction.Rollback)
             .InjectError("Release_2.0", "02_CreateTableD.sql")
             .BuildAsync();
@@ -101,24 +101,24 @@ public class MultiTargetTests : PostgreSqlTestBase
             }
         }
 
-        // R2/F2 (error file): T1=NotMigrated (rolled back), T2=NoRecord (never attempted in Simultaneously mode)
+        // R2/F2 (error file): T1=NotMigrated (rolled back), T2=NoRecord (never attempted in FileByFile mode)
         ctx.AssertFileStatusForTarget("02_CreateTableD.sql", "MainDB", MigrationStatus.NotMigrated);
     }
 
     /// <summary>
-    /// #34 Successively mode with Terminate. Error in R2/F2.
+    /// #34 TargetByTarget mode with Terminate. Error in R2/F2.
     /// T1: R1 Migrated, R2/F1 Migrated, R2/F2 Failed, rest no records.
     /// T2: R1 Migrated, R2 never started (no records for R2+).
     /// </summary>
     [Fact]
-    public async Task Successively_Terminate_SecondTargetNeverStarts()
+    public async Task TargetByTarget_Terminate_SecondTargetNeverStarts()
     {
         Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
         Assert.SkipWhen(Fixture.EngineConfig.ConnectionString2 is null, "Second connection string not configured");
 
         await using var ctx = await CreateScenario()
             .WithMultiTarget(Fixture.EngineConfig.ConnectionString2!)
-            .WithTargetMigrationOrder(TargetMigrationOrder.Successively)
+            .WithTargetMigrationOrder(TargetMigrationOrder.TargetByTarget)
             .WithMigrationErrorAction(MigrationErrorAction.Terminate)
             .InjectError("Release_2.0", "02_CreateTableD.sql")
             .BuildAsync();
@@ -145,18 +145,18 @@ public class MultiTargetTests : PostgreSqlTestBase
     }
 
     /// <summary>
-    /// #35 Successively mode with Rollback. Error in R2/F2.
+    /// #35 TargetByTarget mode with Rollback. Error in R2/F2.
     /// Both targets: all attempted files end up as NotMigrated.
     /// </summary>
     [Fact]
-    public async Task Successively_Rollback_BothTargets()
+    public async Task TargetByTarget_Rollback_BothTargets()
     {
         Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
         Assert.SkipWhen(Fixture.EngineConfig.ConnectionString2 is null, "Second connection string not configured");
 
         await using var ctx = await CreateScenario()
             .WithMultiTarget(Fixture.EngineConfig.ConnectionString2!)
-            .WithTargetMigrationOrder(TargetMigrationOrder.Successively)
+            .WithTargetMigrationOrder(TargetMigrationOrder.TargetByTarget)
             .WithMigrationErrorAction(MigrationErrorAction.Rollback)
             .InjectError("Release_2.0", "02_CreateTableD.sql")
             .BuildAsync();
@@ -190,7 +190,7 @@ public class MultiTargetTests : PostgreSqlTestBase
     /// Release_1.0 + Release_2.0 (6 records), SecondDB has Release_1.0, R2/F1 and the failed R2/F2 (5 records).
     /// </summary>
     [Fact]
-    public async Task Successively_Terminate_SecondTargetFails_RetryMigratesOnlyThePendingPairs()
+    public async Task TargetByTarget_Terminate_SecondTargetFails_RetryMigratesOnlyThePendingPairs()
     {
         Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
         Assert.SkipWhen(Fixture.EngineConfig.ConnectionString2 is null, "Second connection string not configured");
@@ -199,7 +199,7 @@ public class MultiTargetTests : PostgreSqlTestBase
 
         await using var ctx = await CreateScenario()
             .WithMultiTarget(secondDb)
-            .WithTargetMigrationOrder(TargetMigrationOrder.Successively)
+            .WithTargetMigrationOrder(TargetMigrationOrder.TargetByTarget)
             .WithMigrationErrorAction(MigrationErrorAction.Terminate)
             .BuildAsync();
 
@@ -241,12 +241,12 @@ public class MultiTargetTests : PostgreSqlTestBase
     }
 
     /// <summary>
-    /// Same failure in Simultaneously order (file by file, MainDB first): after the failure both targets
+    /// Same failure in FileByFile order (file by file, MainDB first): after the failure both targets
     /// hold Release_1.0 + R2/F1, MainDB also R2/F2, SecondDB the failed R2/F2 (10 records). Pending pairs:
     /// R2/F2 on SecondDB, R2/F3 on both, R3 + R4 on both = 1 + 2 + 12 = 15.
     /// </summary>
     [Fact]
-    public async Task Simultaneously_Terminate_SecondTargetFails_RetryMigratesOnlyThePendingPairs()
+    public async Task FileByFile_Terminate_SecondTargetFails_RetryMigratesOnlyThePendingPairs()
     {
         Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
         Assert.SkipWhen(Fixture.EngineConfig.ConnectionString2 is null, "Second connection string not configured");
@@ -255,7 +255,7 @@ public class MultiTargetTests : PostgreSqlTestBase
 
         await using var ctx = await CreateScenario()
             .WithMultiTarget(secondDb)
-            .WithTargetMigrationOrder(TargetMigrationOrder.Simultaneously)
+            .WithTargetMigrationOrder(TargetMigrationOrder.FileByFile)
             .WithMigrationErrorAction(MigrationErrorAction.Terminate)
             .BuildAsync();
         ctx.ExecuteOnConnection(secondDb, SqlDialect.GetCreateSimpleTableSql(dbType, "tabled"));
@@ -271,7 +271,7 @@ public class MultiTargetTests : PostgreSqlTestBase
         var retry = await ctx.MigrateUpAsync();
 
         retry.Success.Should().BeTrue($"the retry must migrate the lagging target: {retry.ErrorMessage}");
-        // Simultaneously reports one result per file (Successively one per file and target): R2/F2, R2/F3, R3 (3), R4 (3)
+        // FileByFile reports one result per file (TargetByTarget one per file and target): R2/F2, R2/F3, R3 (3), R4 (3)
         retry.TotalMigrations.Should().Be(8, "8 files still had at least one pending target; MainDB's R2/F2 was skipped (#8)");
         retry.MigrationResults.Should().OnlyContain(r => r.Success);
         ctx.AssertFileStatusForTarget("02_CreateTableD.sql", "SecondDB", MigrationStatus.Migrated);
@@ -284,7 +284,7 @@ public class MultiTargetTests : PostgreSqlTestBase
     }
 
     [Fact]
-    public async Task Successively_Terminate_SecondTargetFails_ThirdRunHasNothingToDo()
+    public async Task TargetByTarget_Terminate_SecondTargetFails_ThirdRunHasNothingToDo()
     {
         Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
         Assert.SkipWhen(Fixture.EngineConfig.ConnectionString2 is null, "Second connection string not configured");
@@ -293,7 +293,7 @@ public class MultiTargetTests : PostgreSqlTestBase
 
         await using var ctx = await CreateScenario()
             .WithMultiTarget(secondDb)
-            .WithTargetMigrationOrder(TargetMigrationOrder.Successively)
+            .WithTargetMigrationOrder(TargetMigrationOrder.TargetByTarget)
             .WithMigrationErrorAction(MigrationErrorAction.Terminate)
             .BuildAsync();
         ctx.ExecuteOnConnection(secondDb, SqlDialect.GetCreateSimpleTableSql(dbType, "tabled"));
@@ -313,7 +313,7 @@ public class MultiTargetTests : PostgreSqlTestBase
     }
 
     [Fact]
-    public async Task Successively_Terminate_SecondTargetFails_BaselineMarksOnlyThePendingPairs()
+    public async Task TargetByTarget_Terminate_SecondTargetFails_BaselineMarksOnlyThePendingPairs()
     {
         Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
         Assert.SkipWhen(Fixture.EngineConfig.ConnectionString2 is null, "Second connection string not configured");
@@ -322,7 +322,7 @@ public class MultiTargetTests : PostgreSqlTestBase
 
         await using var ctx = await CreateScenario()
             .WithMultiTarget(secondDb)
-            .WithTargetMigrationOrder(TargetMigrationOrder.Successively)
+            .WithTargetMigrationOrder(TargetMigrationOrder.TargetByTarget)
             .WithMigrationErrorAction(MigrationErrorAction.Terminate)
             .BuildAsync();
         ctx.ExecuteOnConnection(secondDb, SqlDialect.GetCreateSimpleTableSql(dbType, "tabled"));
@@ -387,7 +387,7 @@ public class MultiTargetTests : PostgreSqlTestBase
 
         await using var ctx = await CreateScenario()
             .WithMultiTarget(secondDb)
-            .WithTargetMigrationOrder(TargetMigrationOrder.Successively)
+            .WithTargetMigrationOrder(TargetMigrationOrder.TargetByTarget)
             .SetFileToml("Release_2.0", "02_CreateTableD.sql", "Targets", "[\"MainDB\"]")
             .BuildAsync();
 
@@ -426,7 +426,7 @@ public class MultiTargetTests : PostgreSqlTestBase
 
         await using var ctx = await CreateScenario()
             .WithMultiTarget(secondDb)
-            .WithTargetMigrationOrder(TargetMigrationOrder.Simultaneously)
+            .WithTargetMigrationOrder(TargetMigrationOrder.FileByFile)
             .SetMigSettings("Release_2.0/Backend/migsettings.txt", new Dictionary<string, string>
             {
                 ["Targets"] = "[\"SecondDB\"]"

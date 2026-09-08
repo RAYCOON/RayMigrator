@@ -8,7 +8,7 @@ Target groups organize related databases that receive the same migrations.
 |----------|------|----------|---------|-------------|
 | `Alias` | string | Yes | - | Unique identifier within product (Unicode letters, numbers, underscores; max 50 characters) |
 | `DatabaseType` | string | Yes | - | Database type for all targets in this group |
-| `TargetMigrationOrder` | string | No | Inherited from `TargetGroupDefaults` | Execution order: `Simultaneously` or `Successively`. Matching is case-insensitive: `Successively`, `successively` and `SUCCESSIVELY` are equivalent. |
+| `TargetMigrationOrder` | string | No | Inherited from `TargetGroupDefaults` | Execution order: `FileByFile` or `TargetByTarget`. Matching is case-insensitive: `TargetByTarget`, `successively` and `SUCCESSIVELY` are equivalent. |
 | `HashValidationScope` | string | No | Inherited from `TargetGroupDefaults` | Hash validation mode: `File`, `SqlBlocks`, or `Disabled`. Matching is case-insensitive: `SqlBlocks`, `sqlblocks` and `SQLBLOCKS` are equivalent. |
 | `StopRollbackOnMissingRollbackFile` | bool? | No | Inherited from `TargetGroupDefaults` | When `RequireRollbackFile=false`, controls whether an error-recovery rollback chain stops (`true`) or continues (`false`) when a rollback file is missing. Overrides the Product-level value for this TargetGroup. No effect on migrate-down. |
 | `UseCliToolAlias` | string | No | Inherited from `Product` | CLI tool alias for migration execution instead of the DAL. References a `CliTools[].Alias` defined at the `RayMigrator` root level. Can be overridden per Target. |
@@ -32,10 +32,12 @@ Additional database types can be added via external DAL plugins. All targets wit
 
 | Value | Description |
 |-------|-------------|
-| `Simultaneously` | Execute each migration on all targets before next migration |
-| `Successively` | Complete all migrations on one target before moving to next |
+| `FileByFile` | Execute each migration on all targets before next migration |
+| `TargetByTarget` | Complete all migrations on one target before moving to next |
 
-### Simultaneously
+The former names `Simultaneously` and `Successively` are still accepted in configuration files as aliases of `FileByFile` and `TargetByTarget` (#19); everything RayMigrator writes uses the current names.
+
+### FileByFile
 
 ```
 Migration 1 → Target 1
@@ -44,7 +46,7 @@ Migration 2 → Target 1
 Migration 2 → Target 2
 ```
 
-### Successively (Recommended Default)
+### TargetByTarget (Recommended Default)
 
 ```
 Migration 1 → Target 1
@@ -76,7 +78,7 @@ Configure defaults for all target groups:
   "RayMigrator": {
     "ProductDefaults": {
       "TargetGroupDefaults": {
-        "TargetMigrationOrder": "Successively",
+        "TargetMigrationOrder": "TargetByTarget",
         "HashValidationScope": "File",
         "StopRollbackOnMissingRollbackFile": true,
         "TargetDefaults": {
@@ -99,7 +101,7 @@ Configure defaults for all target groups:
   "TargetGroups": [{
     "Alias": "Backend",
     "DatabaseType": "SqlServer",
-    "TargetMigrationOrder": "Simultaneously",
+    "TargetMigrationOrder": "FileByFile",
     "HashValidationScope": "File",
     "Targets": [
       { "Alias": "Primary", "ConnectionString": "..." },
@@ -117,7 +119,7 @@ Configure defaults for all target groups:
     {
       "Alias": "Backend",
       "DatabaseType": "SqlServer",
-      "TargetMigrationOrder": "Simultaneously",
+      "TargetMigrationOrder": "FileByFile",
       "Targets": [
         { "Alias": "Backend1", "ConnectionString": "..." },
         { "Alias": "Backend2", "ConnectionString": "..." }
@@ -126,7 +128,7 @@ Configure defaults for all target groups:
     {
       "Alias": "Frontend",
       "DatabaseType": "SqlServer",
-      "TargetMigrationOrder": "Successively",
+      "TargetMigrationOrder": "TargetByTarget",
       "Targets": [
         { "Alias": "Frontend", "ConnectionString": "..." }
       ]

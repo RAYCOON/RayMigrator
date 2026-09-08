@@ -132,14 +132,14 @@ Rollback:  001_CreateUsers.rollback.sql</value></data>
   <data name="ProductDefaults_StopRollbackOnMissingRollbackFile_DefaultValue" xml:space="preserve"><value>true</value></data>
   <data name="ProductDefaults_StopRollbackOnMissingRollbackFile_InheritanceNote" xml:space="preserve"><value>Kann pro Produkt oder pro TargetGroup ueberschrieben werden. Wenn RequireRollbackFile true ist, ist diese Einstellung weniger relevant, da fehlende Rollback-Dateien bereits bei der Validierung erkannt werden.</value></data>
   <data name="ProductDefaults_TargetMigrationOrder_Title" xml:space="preserve"><value>Produkt-Standardwerte - Target Migrationsreihenfolge</value></data>
-  <data name="ProductDefaults_TargetMigrationOrder_Description" xml:space="preserve"><value>Ausfuehrungsreihenfolge fuer Targets innerhalb einer TargetGroup. Simultaneously: Datei zuerst. Successively: Target zuerst. Standard: Successively.</value></data>
-  <data name="ProductDefaults_TargetMigrationOrder_ValidValues" xml:space="preserve"><value>Simultaneously | Successively</value></data>
-  <data name="ProductDefaults_TargetMigrationOrder_DefaultValue" xml:space="preserve"><value>Successively</value></data>
-  <data name="ProductDefaults_TargetMigrationOrder_Examples" xml:space="preserve"><value>Simultaneously (Datei zuerst): Fuer jede Migrationsdatei diese auf ALLE Targets der Gruppe anwenden, bevor zur naechsten Datei gewechselt wird.
+  <data name="ProductDefaults_TargetMigrationOrder_Description" xml:space="preserve"><value>Ausfuehrungsreihenfolge fuer Targets innerhalb einer TargetGroup. FileByFile: Datei zuerst. TargetByTarget: Target zuerst. Standard: TargetByTarget.</value></data>
+  <data name="ProductDefaults_TargetMigrationOrder_ValidValues" xml:space="preserve"><value>FileByFile | TargetByTarget</value></data>
+  <data name="ProductDefaults_TargetMigrationOrder_DefaultValue" xml:space="preserve"><value>TargetByTarget</value></data>
+  <data name="ProductDefaults_TargetMigrationOrder_Examples" xml:space="preserve"><value>FileByFile (Datei zuerst): Fuer jede Migrationsdatei diese auf ALLE Targets der Gruppe anwenden, bevor zur naechsten Datei gewechselt wird.
   File1 → Target1, Target2, Target3
   File2 → Target1, Target2, Target3
 
-Successively (Target zuerst): Fuer jedes Target ALLE Migrationsdateien anwenden, bevor zum naechsten Target gewechselt wird.
+TargetByTarget (Target zuerst): Fuer jedes Target ALLE Migrationsdateien anwenden, bevor zum naechsten Target gewechselt wird.
   Target1 → File1, File2, File3
   Target2 → File1, File2, File3</value></data>
   <data name="ProductDefaults_TargetMigrationOrder_InheritanceNote" xml:space="preserve"><value>Dies ist der globale Standard fuer alle TargetGroups. Kann pro TargetGroup ueberschrieben werden.</value></data>
@@ -186,8 +186,8 @@ C:\Migrations\MyApp (absoluter Pfad)</value></data>
   <data name="TargetGroup_DatabaseType_ValidValues" xml:space="preserve"><value>SqlServer | PostgreSQL | MariaDb | MySql | Sqlite</value></data>
   <data name="TargetGroup_DatabaseType_InheritanceNote" xml:space="preserve"><value>Alle Targets innerhalb dieser Gruppe muessen dieselbe Datenbank-Engine verwenden. Die Migrationsdateien im entsprechenden Verzeichnis werden mit dem SQL-Dialekt dieser Engine ausgefuehrt.</value></data>
   <data name="TargetGroup_TargetMigrationOrder_Title" xml:space="preserve"><value>TargetGroup - Migrationsreihenfolge</value></data>
-  <data name="TargetGroup_TargetMigrationOrder_Description" xml:space="preserve"><value>Ueberschreibt die Standard-Ausfuehrungsreihenfolge fuer diese Gruppe. Simultaneously: Datei zuerst. Successively: Target zuerst.</value></data>
-  <data name="TargetGroup_TargetMigrationOrder_ValidValues" xml:space="preserve"><value>Simultaneously | Successively</value></data>
+  <data name="TargetGroup_TargetMigrationOrder_Description" xml:space="preserve"><value>Ueberschreibt die Standard-Ausfuehrungsreihenfolge fuer diese Gruppe. FileByFile: Datei zuerst. TargetByTarget: Target zuerst.</value></data>
+  <data name="TargetGroup_TargetMigrationOrder_ValidValues" xml:space="preserve"><value>FileByFile | TargetByTarget</value></data>
   <data name="TargetGroup_TargetMigrationOrder_InheritanceNote" xml:space="preserve"><value>Ueberschreibt den globalen ProductDefaults.TargetGroupDefaults.TargetMigrationOrder fuer diese spezifische Gruppe.</value></data>
   <data name="TargetGroup_HashValidationScope_Title" xml:space="preserve"><value>TargetGroup - Hash-Validierungsbereich</value></data>
   <data name="TargetGroup_HashValidationScope_Description" xml:space="preserve"><value>Ueberschreibt die Standard-Hash-Validierung fuer diese Gruppe. File, SqlBlocks oder Disabled.</value></data>

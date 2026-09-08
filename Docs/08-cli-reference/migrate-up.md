@@ -172,8 +172,8 @@ flowchart TD
 1. **Release Versions**: Processed in alphabetical order by directory name
 2. **Target Groups**: Processed in configuration order
 3. **Within each Target Group**: Execution depends on the `TargetMigrationOrder` configuration setting:
-   - **Simultaneously**: Each migration file is applied to all targets before the next file (file-first loop)
-   - **Successively**: Each target receives all migration files before the next target (target-first loop)
+   - **FileByFile**: Each migration file is applied to all targets before the next file (file-first loop)
+   - **TargetByTarget**: Each target receives all migration files before the next target (target-first loop)
 4. **Migration Files**: Processed in alphabetical order by relative path (case-insensitive)
 
 ### Per-File Execution (Phase 3)

@@ -95,12 +95,12 @@ public class ConfigFileMergerTests
     {
         var files = new List<string>
         {
-            """{"RayMigrator":{"ProductDefaults":{"TargetGroupDefaults":{"TargetMigrationOrder":"Successively","TargetDefaults":{"DbCommandTimeoutInSeconds":20}}}}}""",
+            """{"RayMigrator":{"ProductDefaults":{"TargetGroupDefaults":{"TargetMigrationOrder":"TargetByTarget","TargetDefaults":{"DbCommandTimeoutInSeconds":20}}}}}""",
             """{"RayMigrator":{"ProductDefaults":{"TargetGroupDefaults":{"TargetDefaults":{"DbCommandTimeoutInSeconds":60}}}}}"""
         };
 
         var result = ConfigFileMerger.MergeChain(files);
-        result.ProductDefaults.TargetGroupDefaults.TargetMigrationOrder.Should().Be("Successively"); // not overridden
+        result.ProductDefaults.TargetGroupDefaults.TargetMigrationOrder.Should().Be("TargetByTarget"); // not overridden
         result.ProductDefaults.TargetGroupDefaults.TargetDefaults.DbCommandTimeoutInSeconds.Should().Be(60); // overridden
     }
 }

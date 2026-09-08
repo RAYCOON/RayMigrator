@@ -386,16 +386,16 @@ public class PromotionEndToEndTests
     {
         var model = CreateModelWithTwoProducts();
         model.Products[0].TargetGroups[0].TargetMigrationOrder =
-            new OverridableValue<string> { IsOverridden = true, Value = "Simultaneously" };
+            new OverridableValue<string> { IsOverridden = true, Value = "FileByFile" };
         model.Products[1].TargetGroups[0].TargetMigrationOrder =
-            new OverridableValue<string> { IsOverridden = true, Value = "Simultaneously" };
+            new OverridableValue<string> { IsOverridden = true, Value = "FileByFile" };
 
         DefaultsPromoter.Promote(model);
         var json = ConfigurationSerializer.ToJson(model);
         var ray = JsonNode.Parse(json)?["RayMigrator"];
 
         ray!["ProductDefaults"]!["TargetGroupDefaults"]!["TargetMigrationOrder"]!.GetValue<string>()
-            .Should().Be("Simultaneously");
+            .Should().Be("FileByFile");
         foreach (var prodNode in ray["Products"]!.AsArray())
         {
             foreach (var tgNode in prodNode!["TargetGroups"]!.AsArray())
@@ -457,9 +457,9 @@ public class PromotionEndToEndTests
 
         // TargetGroup-level string overrides
         model.Products[0].TargetGroups[0].TargetMigrationOrder =
-            new OverridableValue<string> { IsOverridden = true, Value = "Simultaneously" };
+            new OverridableValue<string> { IsOverridden = true, Value = "FileByFile" };
         model.Products[1].TargetGroups[0].TargetMigrationOrder =
-            new OverridableValue<string> { IsOverridden = true, Value = "Simultaneously" };
+            new OverridableValue<string> { IsOverridden = true, Value = "FileByFile" };
         model.Products[0].TargetGroups[0].HashValidationScope =
             new OverridableValue<string> { IsOverridden = true, Value = "Header" };
         model.Products[1].TargetGroups[0].HashValidationScope =
@@ -496,7 +496,7 @@ public class PromotionEndToEndTests
 
         // Verify TargetGroupDefaults
         var tgd = pd["TargetGroupDefaults"];
-        tgd!["TargetMigrationOrder"]!.GetValue<string>().Should().Be("Simultaneously");
+        tgd!["TargetMigrationOrder"]!.GetValue<string>().Should().Be("FileByFile");
         tgd["HashValidationScope"]!.GetValue<string>().Should().Be("Header");
 
         // Verify TargetDefaults

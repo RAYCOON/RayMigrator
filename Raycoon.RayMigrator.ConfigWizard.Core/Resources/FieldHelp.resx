@@ -133,14 +133,14 @@ Rollback:  001_CreateUsers.rollback.sql</value></data>
   <data name="ProductDefaults_StopRollbackOnMissingRollbackFile_DefaultValue" xml:space="preserve"><value>true</value></data>
   <data name="ProductDefaults_StopRollbackOnMissingRollbackFile_InheritanceNote" xml:space="preserve"><value>Can be overridden per Product or per TargetGroup. When RequireRollbackFile is true, this setting is less relevant because missing rollback files are caught during validation.</value></data>
   <data name="ProductDefaults_TargetMigrationOrder_Title" xml:space="preserve"><value>Product Defaults - TargetMigrationOrder</value></data>
-  <data name="ProductDefaults_TargetMigrationOrder_Description" xml:space="preserve"><value>Execution order for targets within a target group. Simultaneously: file-first. Successively: target-first. Default: Successively.</value></data>
-  <data name="ProductDefaults_TargetMigrationOrder_ValidValues" xml:space="preserve"><value>Simultaneously | Successively</value></data>
-  <data name="ProductDefaults_TargetMigrationOrder_DefaultValue" xml:space="preserve"><value>Successively</value></data>
-  <data name="ProductDefaults_TargetMigrationOrder_Examples" xml:space="preserve"><value>Simultaneously (file-first): For each migration file, apply it to ALL targets in the group before moving to the next file.
+  <data name="ProductDefaults_TargetMigrationOrder_Description" xml:space="preserve"><value>Execution order for targets within a target group. FileByFile: file-first. TargetByTarget: target-first. Default: TargetByTarget.</value></data>
+  <data name="ProductDefaults_TargetMigrationOrder_ValidValues" xml:space="preserve"><value>FileByFile | TargetByTarget</value></data>
+  <data name="ProductDefaults_TargetMigrationOrder_DefaultValue" xml:space="preserve"><value>TargetByTarget</value></data>
+  <data name="ProductDefaults_TargetMigrationOrder_Examples" xml:space="preserve"><value>FileByFile (file-first): For each migration file, apply it to ALL targets in the group before moving to the next file.
   File1 -> Target1, Target2, Target3
   File2 -> Target1, Target2, Target3
 
-Successively (target-first): For each target, apply ALL migration files before moving to the next target.
+TargetByTarget (target-first): For each target, apply ALL migration files before moving to the next target.
   Target1 -> File1, File2, File3
   Target2 -> File1, File2, File3</value></data>
   <data name="ProductDefaults_TargetMigrationOrder_InheritanceNote" xml:space="preserve"><value>This is the global default for all TargetGroups. Can be overridden per TargetGroup.</value></data>
@@ -187,8 +187,8 @@ C:\Migrations\MyApp (absolute path)</value></data>
   <data name="TargetGroup_DatabaseType_ValidValues" xml:space="preserve"><value>SqlServer | PostgreSQL | MariaDb | MySql | Sqlite</value></data>
   <data name="TargetGroup_DatabaseType_InheritanceNote" xml:space="preserve"><value>All targets within this group must use the same database engine. The migration files in the corresponding directory will be executed using this engine's SQL dialect.</value></data>
   <data name="TargetGroup_TargetMigrationOrder_Title" xml:space="preserve"><value>Target Group - TargetMigrationOrder</value></data>
-  <data name="TargetGroup_TargetMigrationOrder_Description" xml:space="preserve"><value>Overrides the default execution order for this group. Simultaneously: file-first. Successively: target-first.</value></data>
-  <data name="TargetGroup_TargetMigrationOrder_ValidValues" xml:space="preserve"><value>Simultaneously | Successively</value></data>
+  <data name="TargetGroup_TargetMigrationOrder_Description" xml:space="preserve"><value>Overrides the default execution order for this group. FileByFile: file-first. TargetByTarget: target-first.</value></data>
+  <data name="TargetGroup_TargetMigrationOrder_ValidValues" xml:space="preserve"><value>FileByFile | TargetByTarget</value></data>
   <data name="TargetGroup_TargetMigrationOrder_InheritanceNote" xml:space="preserve"><value>Overrides the global ProductDefaults.TargetGroupDefaults.TargetMigrationOrder for this specific group.</value></data>
   <data name="TargetGroup_HashValidationScope_Title" xml:space="preserve"><value>Target Group - HashValidationScope</value></data>
   <data name="TargetGroup_HashValidationScope_Description" xml:space="preserve"><value>Overrides the default hash validation for this group. File, SqlBlocks, or Disabled.</value></data>

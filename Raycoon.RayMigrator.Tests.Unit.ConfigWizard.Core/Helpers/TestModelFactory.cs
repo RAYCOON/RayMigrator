@@ -119,7 +119,7 @@ internal static class TestModelFactory
             "ProductDefaults": {
               "MigrationErrorAction": "Terminate",
               "TargetGroupDefaults": {
-                "TargetMigrationOrder": "Successively",
+                "TargetMigrationOrder": "TargetByTarget",
                 "HashValidationScope": "File",
                 "TargetDefaults": {
                   "DbCommandTimeoutInSeconds": 20

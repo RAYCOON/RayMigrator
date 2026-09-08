@@ -3,7 +3,7 @@
 RayMigrator supports different execution modes that control how migrations are applied to target databases. This covers three orthogonal dimensions:
 
 1. **Operating Mode** (`OperatingMode` enum) — How the CLI connects to infrastructure (Standalone, ManagedLocal, or ManagedRemote)
-2. **Target Migration Order** — How files and targets are iterated within a TargetGroup (Simultaneously or Successively)
+2. **Target Migration Order** — How files and targets are iterated within a TargetGroup (FileByFile or TargetByTarget)
 3. **Run Mode** (`MigrationRunMode` enum) — Whether SQL is actually executed (Validate, Simulate, or Migrate)
 
 ## Operating Mode
@@ -43,18 +43,18 @@ By default, TargetGroups are processed in their configuration array order. This 
 The override applies to `migrate-up` and `baseline`. `migrate-down` always derives order from repository records and is not affected. See [Product Options — TargetGroupMigrationOrder](../06-configuration-reference/product-options.md#targetgroupmigrationorder) for validation rules and the full configuration reference.
 
 **Within each TargetGroup** (controlled by `TargetMigrationOrder`):
-- **Simultaneously**: file → target
-- **Successively**: target → file
+- **FileByFile**: file → target
+- **TargetByTarget**: target → file
 
 ### Example: 2 Releases, 2 TargetGroups
 
 ```
 Release 1.0:
-  Backend (Simultaneously):  File1→T1, File1→T2, File2→T1, File2→T2
-  Frontend (Successively):   T1→File3, T1→File4, T2→File3, T2→File4
+  Backend (FileByFile):  File1→T1, File1→T2, File2→T1, File2→T2
+  Frontend (TargetByTarget):   T1→File3, T1→File4, T2→File3, T2→File4
 Release 1.1:
-  Backend (Simultaneously):  File5→T1, File5→T2
-  Frontend (Successively):   T1→File6, T2→File6
+  Backend (FileByFile):  File5→T1, File5→T2
+  Frontend (TargetByTarget):   T1→File6, T2→File6
 ```
 
 This ensures that all TargetGroups complete a release before any TargetGroup starts the next release.
@@ -70,10 +70,10 @@ Whether a file is executed at all is decided **per file and target**: a `(file, 
 | Value | Name | Description |
 |-------|------|-------------|
 | 0 | Undefined | Not set |
-| 1 | Simultaneously | Execute on all targets per migration |
-| 2 | Successively | Complete all migrations per target |
+| 1 | FileByFile | Execute on all targets per migration |
+| 2 | TargetByTarget | Complete all migrations per target |
 
-### Simultaneously
+### FileByFile
 
 Execute each migration on all targets before moving to the next migration.
 
@@ -101,7 +101,7 @@ sequenceDiagram
 {
   "TargetGroups": [{
     "Alias": "Backend",
-    "TargetMigrationOrder": "Simultaneously"
+    "TargetMigrationOrder": "FileByFile"
   }]
 }
 ```
@@ -123,48 +123,48 @@ sequenceDiagram
 
 **Complete Example** (based on the RayMigratorTests product):
 
-The test product has 2 TargetGroups: **Backend** (`Simultaneously`, 2 targets) and **Frontend** (`Successively`, 1 target). Here is the full execution order across all 4 releases:
+The test product has 2 TargetGroups: **Backend** (`FileByFile`, 2 targets) and **Frontend** (`TargetByTarget`, 1 target). Here is the full execution order across all 4 releases:
 
 ```
 Release 1.0:
-  Backend (Simultaneously — file → target):
+  Backend (FileByFile — file → target):
     10_CreateDataModel.sql       → Backend1
     10_CreateDataModel.sql       → Backend2
     20_InsertMasterData.sql      → Backend1
     20_InsertMasterData.sql      → Backend2
-  Frontend (Successively — target → file):
+  Frontend (TargetByTarget — target → file):
     00_CreateDataModel.sql       → Frontend
 
 Release 1.1:
-  Backend (Simultaneously):
+  Backend (FileByFile):
     01_InsertDynamicData.sql     → Backend1
     01_InsertDynamicData.sql     → Backend2
-  Frontend (Successively):
+  Frontend (TargetByTarget):
     01_InsertDynamicData.sql     → Frontend
 
 Release 1.2:
-  Backend (Simultaneously):
+  Backend (FileByFile):
     00_AddSexOther.sql           → Backend1
     00_AddSexOther.sql           → Backend2
     01_AddLoginPersonOther.sql   → Backend1
     01_AddLoginPersonOther.sql   → Backend2
-  Frontend (Successively):
+  Frontend (TargetByTarget):
     01_AddUserProfileAndUserPreferences.sql → Frontend
 
 Release 1.3:
-  Backend (Simultaneously):
+  Backend (FileByFile):
     01_AddAlexLee2.sql           → Backend1
     01_AddAlexLee2.sql           → Backend2
-  Frontend (Successively):
+  Frontend (TargetByTarget):
     01_AddAlexLee2ProfileAndUserPreferences-Error.sql → Frontend  ← ERROR
 ```
 
 Key observations:
 - The **outer loop** is always Release → TargetGroup (config order). Backend completes before Frontend starts within each release.
-- **Backend** (Simultaneously): The inner loop is file → target. Each file is applied to all targets before the next file. Backend1 and Backend2 always have the same schema state.
-- **Frontend** has only 1 target, so `Simultaneously` vs `Successively` makes no difference here (see [Single Target Note](#single-target-note) below).
+- **Backend** (FileByFile): The inner loop is file → target. Each file is applied to all targets before the next file. Backend1 and Backend2 always have the same schema state.
+- **Frontend** has only 1 target, so `FileByFile` vs `TargetByTarget` makes no difference here (see [Single Target Note](#single-target-note) below).
 
-### Successively (Default)
+### TargetByTarget (Default)
 
 Complete all migrations on one target before moving to the next target.
 
@@ -194,7 +194,7 @@ sequenceDiagram
 {
   "TargetGroups": [{
     "Alias": "Backend",
-    "TargetMigrationOrder": "Successively"
+    "TargetMigrationOrder": "TargetByTarget"
   }]
 }
 ```
@@ -218,12 +218,12 @@ To make the difference between both modes visible, imagine the Frontend TargetGr
 
 ```
 Release 1.2:
-  Backend (Simultaneously — file → target):
+  Backend (FileByFile — file → target):
     00_AddSexOther.sql           → Backend1
     00_AddSexOther.sql           → Backend2
     01_AddLoginPersonOther.sql   → Backend1
     01_AddLoginPersonOther.sql   → Backend2
-  Frontend (Successively — target → file):
+  Frontend (TargetByTarget — target → file):
     01_AddUserProfileAndUserPreferences.sql → Frontend1
     01_AddUserProfileAndUserPreferences.sql → Frontend2
 ```
@@ -232,12 +232,12 @@ With only 1 file per TargetGroup per release, the difference is not visible. Rel
 
 ```
 Release 1.0:
-  Backend (Simultaneously — file → target):
+  Backend (FileByFile — file → target):
     10_CreateDataModel.sql       → Backend1
     10_CreateDataModel.sql       → Backend2
     20_InsertMasterData.sql      → Backend1
     20_InsertMasterData.sql      → Backend2
-  Frontend (Successively — target → file):
+  Frontend (TargetByTarget — target → file):
     00_CreateDataModel.sql       → Frontend1
     00_CreateDataModel.sql       → Frontend2
 ```
@@ -245,15 +245,15 @@ Release 1.0:
 If Frontend also had 2 files and 2 targets, the difference would be:
 
 ```
-Simultaneously (file → target):  FileA→T1, FileA→T2, FileB→T1, FileB→T2
-Successively   (target → file):  T1→FileA, T1→FileB, T2→FileA, T2→FileB
+FileByFile (file → target):  FileA→T1, FileA→T2, FileB→T1, FileB→T2
+TargetByTarget   (target → file):  T1→FileA, T1→FileB, T2→FileA, T2→FileB
 ```
 
 The inner loop is **target → file**: one target receives all migration files for the release before the next target starts.
 
 ### Single Target Note
 
-> **When a TargetGroup has only 1 target**, the `TargetMigrationOrder` setting has no effect on execution order. Both `Simultaneously` and `Successively` produce the same result because the inner loop (file→target or target→file) only has one element on one side. For example, the Frontend TargetGroup in the test product has a single target — switching it between `Simultaneously` and `Successively` would not change anything.
+> **When a TargetGroup has only 1 target**, the `TargetMigrationOrder` setting has no effect on execution order. Both `FileByFile` and `TargetByTarget` produce the same result because the inner loop (file→target or target→file) only has one element on one side. For example, the Frontend TargetGroup in the test product has a single target — switching it between `FileByFile` and `TargetByTarget` would not change anything.
 
 ## Run Mode
 
@@ -347,7 +347,7 @@ raymigrator migrate-down --product MyProduct --environment Production --to-relea
 
 ## Execution Flow Comparison
 
-### Simultaneously + Migrate
+### FileByFile + Migrate
 
 ```mermaid
 flowchart TD
@@ -365,7 +365,7 @@ flowchart TD
     G -->|Error| I
 ```
 
-### Successively + Migrate
+### TargetByTarget + Migrate
 
 ```mermaid
 flowchart TD
@@ -387,7 +387,7 @@ flowchart TD
     H -->|Error| K
 ```
 
-> **Note**: Both Simultaneously and Successively modes abort the TargetGroup and the entire migration run on error, **unless** `MigrationErrorAction` is `Ignore`. With `Ignore`, the failed file is marked as `Failed` and execution continues with the next file. For all other error actions (Terminate, Rollback, RollbackErrorOnly, RollbackRelease), the TargetGroup is aborted immediately and the caller handles rollback or termination.
+> **Note**: Both FileByFile and TargetByTarget modes abort the TargetGroup and the entire migration run on error, **unless** `MigrationErrorAction` is `Ignore`. With `Ignore`, the failed file is marked as `Failed` and execution continues with the next file. For all other error actions (Terminate, Rollback, RollbackErrorOnly, RollbackRelease), the TargetGroup is aborted immediately and the caller handles rollback or termination.
 
 ## Target Group Scope
 
@@ -400,7 +400,7 @@ Migration order is configured per **TargetGroup**, not globally:
     "TargetGroups": [
       {
         "Alias": "MainDatabases",
-        "TargetMigrationOrder": "Simultaneously",
+        "TargetMigrationOrder": "FileByFile",
         "Targets": [
           { "Alias": "Primary" },
           { "Alias": "Secondary" }
@@ -424,13 +424,13 @@ In this example:
 
 ## Best Practices
 
-### Use Simultaneously When:
+### Use FileByFile When:
 - Databases must be schema-consistent
 - Application queries span multiple databases
 - Sharded or replicated systems
 - Schema changes have cross-database dependencies
 
-### Use Successively When:
+### Use TargetByTarget When:
 - Databases are independent
 - Risk mitigation is priority
 - Blue/green deployment patterns
@@ -511,7 +511,7 @@ The execution order logic is implemented in `MigrationService.cs` (Services proj
 
 ### TargetGroupExecutionResult
 
-Internal result type returned by both `ExecuteTargetGroupSimultaneously` and `ExecuteTargetGroupSuccessively`:
+Internal result type returned by both `ExecuteTargetGroupFileByFile` and `ExecuteTargetGroupTargetByTarget`:
 
 ```csharp
 internal class TargetGroupExecutionResult
@@ -525,13 +525,13 @@ internal class TargetGroupExecutionResult
 }
 ```
 
-### ExecuteTargetGroupSimultaneously
+### ExecuteTargetGroupFileByFile
 
 Executes migrations in file-then-target order (`foreach file -> foreach target`). On error with `MigrationErrorAction.Ignore`, marks the file as `Failed` and continues to the next file. For all other error actions, aborts the TargetGroup immediately and returns the result to the caller for rollback handling.
 
-### ExecuteTargetGroupSuccessively
+### ExecuteTargetGroupTargetByTarget
 
-Executes migrations in target-then-file order (`foreach target -> foreach file`). Error handling is identical to `ExecuteTargetGroupSimultaneously`.
+Executes migrations in target-then-file order (`foreach target -> foreach file`). Error handling is identical to `ExecuteTargetGroupFileByFile`.
 
 ### MigrateUpAsync Phase 3
 
@@ -544,10 +544,10 @@ foreach release in orderedReleases:
                                       → product appsettings TargetGroupMigrationOrder
                                       → productOptions.TargetGroups (config array order)
     foreach targetGroup in orderedTargetGroups:
-        if targetGroup.TargetMigrationOrder == Simultaneously:
-            ExecuteTargetGroupSimultaneously(...)
+        if targetGroup.TargetMigrationOrder == FileByFile:
+            ExecuteTargetGroupFileByFile(...)
         else:
-            ExecuteTargetGroupSuccessively(...)
+            ExecuteTargetGroupTargetByTarget(...)
         if result failed → HandleMigrationError → abort entire run
 ```
 
@@ -559,7 +559,7 @@ foreach release in orderedReleases:
 foreach release in orderedReleases:
     orderedTargetGroups = resolve from: CLI → release migsettings → appsettings → config order
     foreach targetGroup in orderedTargetGroups:
-        if Simultaneously: foreach file -> foreach target -> BaselineFile()
+        if FileByFile: foreach file -> foreach target -> BaselineFile()
         else:              foreach target -> foreach file -> BaselineFile()
 ```
 
@@ -567,7 +567,7 @@ foreach release in orderedReleases:
 
 Two pure static helper methods expose the execution order logic without requiring `TemplateExecutor` or database access:
 
-- **`GetExecutionOrder(files, targetGroup)`** — Returns a `List<(int FileOrderId, string TargetAlias)>` representing the inner file/target iteration order for a single TargetGroup. Uses `Simultaneously` (file -> target) when `TargetMigrationOrderEnum == TargetMigrationOrder.Simultaneously`, otherwise falls back to `Successively` (target -> file), including for `Undefined`.
+- **`GetExecutionOrder(files, targetGroup)`** — Returns a `List<(int FileOrderId, string TargetAlias)>` representing the inner file/target iteration order for a single TargetGroup. Uses `FileByFile` (file -> target) when `TargetMigrationOrderEnum == TargetMigrationOrder.FileByFile`, otherwise falls back to `TargetByTarget` (target -> file), including for `Undefined`.
 
 - **`GetFullExecutionOrder(files, targetGroups, targetGroupMigrationOrder?)`** — Returns a `List<(int FileOrderId, string TargetGroupAlias, string TargetAlias)>` representing the complete execution order across all releases and TargetGroups. Iterates Release -> TargetGroup (config order or explicit order when `targetGroupMigrationOrder` is provided) -> delegates to `GetExecutionOrder()` for the inner loop.
 
@@ -576,5 +576,5 @@ Two pure static helper methods expose the execution order logic without requirin
 - [Error Handling](error-handling.md) - How errors are handled in each mode
 - [Migration State Machine](migration-state-machine.md) - State transitions
 - [Target Group Options](../06-configuration-reference/target-group-options.md) - TargetMigrationOrder configuration
-- [Migration Service](../04-service-layer/migration-service.md) - Implementation details for ExecuteTargetGroupSimultaneously/Successively
+- [Migration Service](../04-service-layer/migration-service.md) - Implementation details for ExecuteTargetGroupFileByFile/TargetByTarget
 - [Product Options](../06-configuration-reference/product-options.md) - MigrationErrorAction configuration

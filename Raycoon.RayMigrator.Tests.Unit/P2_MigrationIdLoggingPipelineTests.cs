@@ -47,7 +47,7 @@ public class MigrationRecordIdLoggingPipelineTests : IDisposable
                 RequireRollbackFile = false,
                 TargetGroupDefaults = new TargetGroupDefaultOptions
                 {
-                    TargetMigrationOrder = "Simultaneously",
+                    TargetMigrationOrder = "FileByFile",
                     HashValidationScope = "File",
                     TargetDefaults = new TargetDefaultsOptions
                     {
@@ -74,7 +74,7 @@ public class MigrationRecordIdLoggingPipelineTests : IDisposable
                         {
                             Alias = "Backend",
                             DatabaseType = "SqlServer",
-                            TargetMigrationOrder = "Simultaneously",
+                            TargetMigrationOrder = "FileByFile",
                             HashValidationScope = "File",
                             Targets = new List<TargetOptions>
                             {

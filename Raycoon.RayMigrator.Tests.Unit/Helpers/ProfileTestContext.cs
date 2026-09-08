@@ -44,7 +44,7 @@ internal static class ProfileTestContext
                 RequireRollbackFile = false,
                 TargetGroupDefaults = new TargetGroupDefaultOptions
                 {
-                    TargetMigrationOrder = "Simultaneously",
+                    TargetMigrationOrder = "FileByFile",
                     HashValidationScope = "File",
                     TargetDefaults = new TargetDefaultsOptions
                     {
@@ -71,7 +71,7 @@ internal static class ProfileTestContext
                         {
                             Alias = TargetGroupAlias,
                             DatabaseType = "Sqlite",
-                            TargetMigrationOrder = "Simultaneously",
+                            TargetMigrationOrder = "FileByFile",
                             HashValidationScope = "File",
                             Targets = new List<TargetOptions>
                             {

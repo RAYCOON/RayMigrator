@@ -527,8 +527,10 @@ Controls target iteration order within a TargetGroup.
 | Name | Value | Description |
 |------|-------|-------------|
 | `Undefined` | 0 | Invalid — not set |
-| `Simultaneously` | 1 | Execute on all targets per migration (file → target) |
-| `Successively` | 2 | Complete all migrations per target (target → file) |
+| `FileByFile` | 1 | Execute on all targets per migration (file → target) |
+| `TargetByTarget` | 2 | Complete all migrations per target (target → file) |
+
+The former names `Simultaneously` and `Successively` are still accepted in configuration files as aliases of `FileByFile` and `TargetByTarget` (#19); everything RayMigrator writes uses the current names.
 
 Source: `Raycoon.RayMigrator.Core/Configuration/Enums/TargetMigrationOrder.cs`
 

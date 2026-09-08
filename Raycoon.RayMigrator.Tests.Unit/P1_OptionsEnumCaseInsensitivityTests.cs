@@ -60,19 +60,19 @@ public class OptionsEnumCaseInsensitivityTests
     }
 
     [Theory]
-    [InlineData("simultaneously", TargetMigrationOrder.Simultaneously)]
-    [InlineData("SIMULTANEOUSLY", TargetMigrationOrder.Simultaneously)]
-    [InlineData("successively", TargetMigrationOrder.Successively)]
-    [InlineData("Successively", TargetMigrationOrder.Successively)]
+    [InlineData("simultaneously", TargetMigrationOrder.FileByFile)]
+    [InlineData("SIMULTANEOUSLY", TargetMigrationOrder.FileByFile)]
+    [InlineData("successively", TargetMigrationOrder.TargetByTarget)]
+    [InlineData("TargetByTarget", TargetMigrationOrder.TargetByTarget)]
     public void TargetGroupDefaults_TargetMigrationOrderEnum_IsCaseInsensitive(string value, TargetMigrationOrder expected)
     {
         new TargetGroupDefaultOptions { TargetMigrationOrder = value }.TargetMigrationOrderEnum.Should().Be(expected);
     }
 
     [Theory]
-    [InlineData("simultaneously", TargetMigrationOrder.Simultaneously)]
-    [InlineData("SIMULTANEOUSLY", TargetMigrationOrder.Simultaneously)]
-    [InlineData("successively", TargetMigrationOrder.Successively)]
+    [InlineData("simultaneously", TargetMigrationOrder.FileByFile)]
+    [InlineData("SIMULTANEOUSLY", TargetMigrationOrder.FileByFile)]
+    [InlineData("successively", TargetMigrationOrder.TargetByTarget)]
     public void TargetGroup_TargetMigrationOrderEnum_IsCaseInsensitive(string value, TargetMigrationOrder expected)
     {
         new TargetGroupOptions { TargetMigrationOrder = value }.TargetMigrationOrderEnum.Should().Be(expected);
@@ -290,7 +290,7 @@ public class OptionsEnumCaseInsensitivityTests
 
         var targetGroup = product.TargetGroups!.Single();
         targetGroup.HashValidationScopeEnum.Should().Be(HashValidationScope.Disabled);
-        targetGroup.TargetMigrationOrderEnum.Should().Be(TargetMigrationOrder.Successively, "merged from TargetGroupDefaults (\"successively\")");
+        targetGroup.TargetMigrationOrderEnum.Should().Be(TargetMigrationOrder.TargetByTarget, "merged from TargetGroupDefaults (\"successively\")");
 
         options.CliTools!.Single().InputModeEnum.Should().Be(CliToolInputMode.Stdin);
     }

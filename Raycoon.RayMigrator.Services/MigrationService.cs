@@ -261,12 +261,12 @@ public class MigrationService : IMigrationService
                     if (!filesByReleaseAndTG.TryGetValue(key, out var tgFiles) || tgFiles.Count == 0)
                         continue;
 
-                    // Dispatch to Simultaneously or Successively
-                    var result = targetGroup.TargetMigrationOrderEnum == TargetMigrationOrder.Simultaneously
-                        ? await ExecuteTargetGroupSimultaneously(
+                    // Dispatch to FileByFile or TargetByTarget
+                    var result = targetGroup.TargetMigrationOrderEnum == TargetMigrationOrder.FileByFile
+                        ? await ExecuteTargetGroupFileByFile(
                             tgFiles, targetGroup, productOptions, request,
                             successfullyMigratedRecords, migrationResults, existingRecords)
-                        : await ExecuteTargetGroupSuccessively(
+                        : await ExecuteTargetGroupTargetByTarget(
                             tgFiles, targetGroup, productOptions, request,
                             successfullyMigratedRecords, migrationResults, existingRecords);
 
@@ -410,18 +410,18 @@ public class MigrationService : IMigrationService
     #region TargetGroup Execution
 
     /// <summary>
-    /// Executes migrations in Simultaneously order: foreach file → foreach target.
+    /// Executes migrations in FileByFile order: foreach file → foreach target.
     /// An error aborts the entire TargetGroup unless MigrationErrorAction is Ignore,
     /// in which case the file is marked as Failed and execution continues.
     /// </summary>
-    internal async Task<TargetGroupExecutionResult> ExecuteTargetGroupSimultaneously(
+    internal async Task<TargetGroupExecutionResult> ExecuteTargetGroupFileByFile(
         List<MigrationFileInfo> files, TargetGroupOptions targetGroupOptions,
         ProductOptions productOptions, MigrateUpRequest request,
         List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)> successfullyMigratedRecords,
         List<MigrationFileResult> migrationResults,
         List<MigrationRecord> existingRecords)
     {
-        _logger.LogDebug("Executing TargetGroup {TargetGroup} in Simultaneously mode ({FileCount} files, {TargetCount} targets)",
+        _logger.LogDebug("Executing TargetGroup {TargetGroup} in FileByFile mode ({FileCount} files, {TargetCount} targets)",
             targetGroupOptions.Alias, files.Count, targetGroupOptions.Targets!.Count);
         var result = new TargetGroupExecutionResult();
 
@@ -648,18 +648,18 @@ public class MigrationService : IMigrationService
     }
 
     /// <summary>
-    /// Executes migrations in Successively order: foreach target → foreach file.
+    /// Executes migrations in TargetByTarget order: foreach target → foreach file.
     /// An error aborts the entire TargetGroup unless MigrationErrorAction is Ignore,
     /// in which case the file is marked as Failed and execution continues.
     /// </summary>
-    internal async Task<TargetGroupExecutionResult> ExecuteTargetGroupSuccessively(
+    internal async Task<TargetGroupExecutionResult> ExecuteTargetGroupTargetByTarget(
         List<MigrationFileInfo> files, TargetGroupOptions targetGroupOptions,
         ProductOptions productOptions, MigrateUpRequest request,
         List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)> successfullyMigratedRecords,
         List<MigrationFileResult> migrationResults,
         List<MigrationRecord> existingRecords)
     {
-        _logger.LogDebug("Executing TargetGroup {TargetGroup} in Successively mode ({FileCount} files, {TargetCount} targets)",
+        _logger.LogDebug("Executing TargetGroup {TargetGroup} in TargetByTarget mode ({FileCount} files, {TargetCount} targets)",
             targetGroupOptions.Alias, files.Count, targetGroupOptions.Targets!.Count);
         var result = new TargetGroupExecutionResult();
 
@@ -940,9 +940,9 @@ public class MigrationService : IMigrationService
         var result = new List<(int FileOrderId, string TargetAlias)>();
         var targets = targetGroup.Targets?.ToList() ?? new List<TargetOptions>();
 
-        if (targetGroup.TargetMigrationOrderEnum == TargetMigrationOrder.Simultaneously)
+        if (targetGroup.TargetMigrationOrderEnum == TargetMigrationOrder.FileByFile)
         {
-            // File → Target (Simultaneously)
+            // File → Target (FileByFile)
             foreach (var file in files)
             {
                 foreach (var target in targets)
@@ -953,7 +953,7 @@ public class MigrationService : IMigrationService
         }
         else
         {
-            // Target → File (Successively, default for Undefined)
+            // Target → File (TargetByTarget, default for Undefined)
             foreach (var target in targets)
             {
                 foreach (var file in files)
@@ -1392,9 +1392,9 @@ public class MigrationService : IMigrationService
                     if (!baselineFilesByReleaseAndTG.TryGetValue(key, out var tgFiles) || tgFiles.Count == 0)
                         continue;
 
-                    if (targetGroup.TargetMigrationOrderEnum == TargetMigrationOrder.Simultaneously)
+                    if (targetGroup.TargetMigrationOrderEnum == TargetMigrationOrder.FileByFile)
                     {
-                        // File → Target order (Simultaneously)
+                        // File → Target order (FileByFile)
                         foreach (var file in tgFiles)
                         {
                             foreach (var targetOptions in targetGroup.Targets!)
@@ -1405,7 +1405,7 @@ public class MigrationService : IMigrationService
                     }
                     else
                     {
-                        // Target → File order (Successively, default)
+                        // Target → File order (TargetByTarget, default)
                         foreach (var targetOptions in targetGroup.Targets!)
                         {
                             foreach (var file in tgFiles)
@@ -3168,7 +3168,7 @@ public class MigrationService : IMigrationService
     /// DDL statements on databases without transactional DDL support where UseTransaction provides limited protection,
     /// UseTransaction explicitly set when CLI tool execution bypasses transaction control,
     /// rollback actions without transaction wrapping, rollback actions without rollback files,
-    /// RunAlways files with hash validation enabled, and Simultaneously mode with rollback actions.
+    /// RunAlways files with hash validation enabled, and FileByFile mode with rollback actions.
     /// </summary>
     internal void LogMigrationSafetyWarnings(
         List<MigrationFileInfo> filesToMigrate,
@@ -3181,13 +3181,13 @@ public class MigrationService : IMigrationService
         {
             foreach (var tg in productOptions.TargetGroups)
             {
-                if (tg.TargetMigrationOrderEnum == TargetMigrationOrder.Simultaneously)
+                if (tg.TargetMigrationOrderEnum == TargetMigrationOrder.FileByFile)
                 {
                     if (IsRollbackAction(productOptions.MigrationErrorActionEnum))
                     {
                         _logger.LogWarning(
-                            "[Rule 2.12 SIMULTANEOUSLY_WITH_ROLLBACK] TargetGroup '{TargetGroupAlias}' uses TargetMigrationOrder=Simultaneously " +
-                            "with MigrationErrorAction={MigrationErrorAction}. Rollback in Simultaneously mode affects targets in " +
+                            "[Rule 2.12 SIMULTANEOUSLY_WITH_ROLLBACK] TargetGroup '{TargetGroupAlias}' uses TargetMigrationOrder=FileByFile " +
+                            "with MigrationErrorAction={MigrationErrorAction}. Rollback in FileByFile mode affects targets in " +
                             "interleaved order, which may produce inconsistent state across targets",
                             tg.Alias, productOptions.MigrationErrorActionEnum);
                         warningCount++;
@@ -5125,7 +5125,7 @@ public class MigrationService : IMigrationService
     #region Internal Types
 
     /// <summary>
-    /// Result of executing a TargetGroup's migrations (either Simultaneously or Successively).
+    /// Result of executing a TargetGroup's migrations (either FileByFile or TargetByTarget).
     /// </summary>
     internal class TargetGroupExecutionResult
     {

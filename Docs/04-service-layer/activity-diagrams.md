@@ -44,8 +44,8 @@ flowchart TD
     HasFiles -->|No| TGLoop
     HasFiles -->|Yes| OrderCheck{TargetMigrationOrder?}
 
-    OrderCheck -->|Simultaneously| ExecSimul["ExecuteTargetGroupSimultaneously()<br/>Loop: File → Target"]
-    OrderCheck -->|Successively| ExecSucc["ExecuteTargetGroupSuccessively()<br/>Loop: Target → File"]
+    OrderCheck -->|FileByFile| ExecSimul["ExecuteTargetGroupFileByFile()<br/>Loop: File → Target"]
+    OrderCheck -->|TargetByTarget| ExecSucc["ExecuteTargetGroupTargetByTarget()<br/>Loop: Target → File"]
 
     ExecSimul --> TGResult{result.Success?}
     ExecSucc --> TGResult
@@ -72,13 +72,13 @@ flowchart TD
     style FinalErr fill:#ffcdd2
 ```
 
-### TargetGroup Execution (Simultaneously Mode)
+### TargetGroup Execution (FileByFile Mode)
 
-In Simultaneously mode, the outer loop is files, the inner loop is targets. Each file is applied to all targets before moving to the next file.
+In FileByFile mode, the outer loop is files, the inner loop is targets. Each file is applied to all targets before moving to the next file.
 
 ```mermaid
 flowchart TD
-    Start([ExecuteTargetGroupSimultaneously]) --> FileLoop{"foreach File"}
+    Start([ExecuteTargetGroupFileByFile]) --> FileLoop{"foreach File"}
 
     FileLoop --> ResolveErr["Resolve MigrationErrorAction:<br/>file TOML override ?? product level"]
     ResolveErr --> TargetLoop{"foreach Target"}
@@ -277,8 +277,8 @@ flowchart TD
     HasFiles -->|No| TGLoop
 
     HasFiles -->|Yes| OrderCheck{TargetMigrationOrder?}
-    OrderCheck -->|Simultaneously| SimulOrder["File → Target order"]
-    OrderCheck -->|Successively| SuccOrder["Target → File order"]
+    OrderCheck -->|FileByFile| SimulOrder["File → Target order"]
+    OrderCheck -->|TargetByTarget| SuccOrder["Target → File order"]
 
     SimulOrder --> BaselineFile
     SuccOrder --> BaselineFile

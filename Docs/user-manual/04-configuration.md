@@ -74,7 +74,7 @@ This file defines the overall structure, product layout, and sensible defaults:
       "MigrationFilesEncoding": "UTF-8",
       "RequireRollbackFile": true,
       "TargetGroupDefaults": {
-        "TargetMigrationOrder": "Successively",
+        "TargetMigrationOrder": "TargetByTarget",
         "HashValidationScope": "File",
         "TargetDefaults": {
           "DbCommandTimeoutInSeconds": 20,
@@ -261,8 +261,8 @@ This reduces repetition. You only need to specify a value at the most specific l
 A target group represents a logical grouping of database targets that share migration files. In the traditional layout, the target group `Alias` must match a subdirectory name in each release directory. When a product has exactly one target group, the flat layout is also supported: migration files can be placed directly under the release directory without a target group subdirectory. For the full property table and layout details, see [Target Group Options](../06-configuration-reference/target-group-options.md) and [Directory Structure](../07-migration-files/directory-structure.md).
 
 **TargetMigrationOrder** controls iteration order for multi-target groups:
-- **Successively** (default) — All files on one target before the next target. Safer default.
-- **Simultaneously** — Each file on all targets before the next file. Keeps targets in sync.
+- **TargetByTarget** (default) — All files on one target before the next target. Safer default.
+- **FileByFile** — Each file on all targets before the next file. Keeps targets in sync.
 
 **HashValidationScope** controls integrity checking granularity:
 - **File** (default) — Hash entire file content. Strictest.
@@ -283,7 +283,7 @@ A target represents a single database instance that receives migrations. The req
     {
       "Alias": "Backend",
       "DatabaseType": "SqlServer",
-      "TargetMigrationOrder": "Simultaneously",
+      "TargetMigrationOrder": "FileByFile",
       "Targets": [
         {
           "Alias": "Primary",
@@ -410,7 +410,7 @@ Below is a complete `appsettings.json` for the BookStore tutorial with annotatio
       "MigrationFilesEncoding": "UTF-8",
       "RequireRollbackFile": true,
       "TargetGroupDefaults": {
-        "TargetMigrationOrder": "Successively",
+        "TargetMigrationOrder": "TargetByTarget",
         "HashValidationScope": "File",
         "TargetDefaults": {
           "DbCommandTimeoutInSeconds": 20,
@@ -440,7 +440,7 @@ Below is a complete `appsettings.json` for the BookStore tutorial with annotatio
           {
             "Alias": "Reporting",
             "DatabaseType": "PostgreSQL",
-            "TargetMigrationOrder": "Simultaneously",
+            "TargetMigrationOrder": "FileByFile",
             "Targets": [
               {
                 "Alias": "ReportDB",

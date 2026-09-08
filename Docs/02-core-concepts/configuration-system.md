@@ -127,7 +127,7 @@ Enum properties are stored as strings in JSON and parsed lazily. Each options cl
 |------|--------|
 | `MigrationErrorAction` | `Terminate` (10), `Rollback` (20), `RollbackErrorOnly` (21), `RollbackRelease` (22), `Ignore` (30) |
 | `RollbackErrorAction` | `Terminate` (10), `Ignore` (30) |
-| `TargetMigrationOrder` | `Simultaneously` (1), `Successively` (2) |
+| `TargetMigrationOrder` | `FileByFile` (1), `TargetByTarget` (2) |
 | `HashValidationScope` | `File` (1), `SqlBlocks` (2), `Disabled` (3) |
 | `CliToolInputMode` | `File` (1), `Stdin` (2) |
 
@@ -158,7 +158,7 @@ The inheritance cascade:
       "MigrationFilesExtension": "sql",
 
       "TargetGroupDefaults": {
-        "TargetMigrationOrder": "Successively",
+        "TargetMigrationOrder": "TargetByTarget",
         "HashValidationScope": "File",
 
         "TargetDefaults": {

@@ -35,7 +35,7 @@ All CLI-relevant enums are documented in the [Enum Reference](../08-cli-referenc
 - **MigrationRunMode** — Execution modes (`Undefined` = 0, `Validate` = 10, `Simulate` = 20, `Migrate` = 100)
 - **MigrationErrorAction** — Error handling (`Undefined` = 0, `Terminate` = 10, `Rollback` = 20, `RollbackErrorOnly` = 21, `RollbackRelease` = 22, `Ignore` = 30)
 - **RollbackErrorAction** — Rollback error handling (`Undefined` = 0, `Terminate` = 10, `Ignore` = 30). See [Error Handling](../02-core-concepts/error-handling.md#rollback-error-handling)
-- **TargetMigrationOrder** — Target iteration order (`Undefined` = 0, `Simultaneously` = 1, `Successively` = 2)
+- **TargetMigrationOrder** — Target iteration order (`Undefined` = 0, `FileByFile` = 1, `TargetByTarget` = 2)
 - **HashValidationScope** — Hash granularity (`Undefined` = 0, `File` = 1, `SqlBlocks` = 2, `Disabled` = 3)
 - **FixScope** — Fix scope (`Undefined` = 0, `All` = 1, `OrphanedRuns` = 2)
 - **MigrationStatus** — Per-migration record status (`Undefined` = 0, `Pending` = 10, `Executing` = 20, `Failed` = 30, `NotMigrated` = 50, `Migrated` = 100)
@@ -104,4 +104,4 @@ The five `MigrationErrorAction` strategies (`Terminate`, `Rollback`, `RollbackEr
 
 ## Execution Modes
 
-The three run modes (Validate, Simulate, Migrate) and migration order (Simultaneously, Successively) are documented in [Execution Modes](../02-core-concepts/execution-modes.md).
+The three run modes (Validate, Simulate, Migrate) and migration order (FileByFile, TargetByTarget) are documented in [Execution Modes](../02-core-concepts/execution-modes.md).

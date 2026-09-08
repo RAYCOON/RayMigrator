@@ -32,9 +32,8 @@ internal static class OptionsEnumParser
         where TEnum : struct, Enum
     {
         var allowedValues = typeof(TEnum).AllowedValues();
-        var match = raw is null
-            ? null
-            : allowedValues.FirstOrDefault(name => name.Equals(raw, StringComparison.OrdinalIgnoreCase));
+        // member names and their EnumAlias former names, case-insensitive (#19)
+        var match = typeof(TEnum).ResolveMemberName(raw);
 
         if (match is not null)
         {

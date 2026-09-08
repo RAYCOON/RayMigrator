@@ -40,14 +40,14 @@ public class TargetMigrationOrderExecutionTests
         };
     }
 
-    #region Simultaneously
+    #region FileByFile
 
     [Fact]
-    public void Simultaneously_IterationOrder_IsFileThenTarget()
+    public void FileByFile_IterationOrder_IsFileThenTarget()
     {
         // Arrange
         var files = new List<MigrationFileInfo> { CreateFile(1), CreateFile(2) };
-        var targetGroup = CreateTargetGroup("Simultaneously", ["T1", "T2"]);
+        var targetGroup = CreateTargetGroup("FileByFile", ["T1", "T2"]);
 
         // Act
         var order = MigrationService.GetExecutionOrder(files, targetGroup);
@@ -61,11 +61,11 @@ public class TargetMigrationOrderExecutionTests
     }
 
     [Fact]
-    public void Simultaneously_ThreeFilesThreeTargets_CorrectOrder()
+    public void FileByFile_ThreeFilesThreeTargets_CorrectOrder()
     {
         // Arrange
         var files = new List<MigrationFileInfo> { CreateFile(1), CreateFile(2), CreateFile(3) };
-        var targetGroup = CreateTargetGroup("Simultaneously", ["T1", "T2", "T3"]);
+        var targetGroup = CreateTargetGroup("FileByFile", ["T1", "T2", "T3"]);
 
         // Act
         var order = MigrationService.GetExecutionOrder(files, targetGroup);
@@ -86,16 +86,16 @@ public class TargetMigrationOrderExecutionTests
         order[8].Should().Be((3, "T3"));
     }
 
-    #endregion Simultaneously
+    #endregion FileByFile
 
-    #region Successively
+    #region TargetByTarget
 
     [Fact]
-    public void Successively_IterationOrder_IsTargetThenFile()
+    public void TargetByTarget_IterationOrder_IsTargetThenFile()
     {
         // Arrange
         var files = new List<MigrationFileInfo> { CreateFile(1), CreateFile(2) };
-        var targetGroup = CreateTargetGroup("Successively", ["T1", "T2"]);
+        var targetGroup = CreateTargetGroup("TargetByTarget", ["T1", "T2"]);
 
         // Act
         var order = MigrationService.GetExecutionOrder(files, targetGroup);
@@ -109,11 +109,11 @@ public class TargetMigrationOrderExecutionTests
     }
 
     [Fact]
-    public void Successively_ThreeFilesThreeTargets_CorrectOrder()
+    public void TargetByTarget_ThreeFilesThreeTargets_CorrectOrder()
     {
         // Arrange
         var files = new List<MigrationFileInfo> { CreateFile(1), CreateFile(2), CreateFile(3) };
-        var targetGroup = CreateTargetGroup("Successively", ["T1", "T2", "T3"]);
+        var targetGroup = CreateTargetGroup("TargetByTarget", ["T1", "T2", "T3"]);
 
         // Act
         var order = MigrationService.GetExecutionOrder(files, targetGroup);
@@ -134,7 +134,7 @@ public class TargetMigrationOrderExecutionTests
         order[8].Should().Be((3, "T3"));
     }
 
-    #endregion Successively
+    #endregion TargetByTarget
 
     #region Undefined / Defaults
 
@@ -142,8 +142,8 @@ public class TargetMigrationOrderExecutionTests
     public void UndefinedTargetMigrationOrderString_IsRejectedByGetter()
     {
         // "Undefined" is the "not set" sentinel, not a configurable value: the getter refuses it
-        // instead of silently treating it like Successively. The Undefined-enum path itself is
-        // covered by NullTargetMigrationOrder_DefaultsToSuccessively.
+        // instead of silently treating it like TargetByTarget. The Undefined-enum path itself is
+        // covered by NullTargetMigrationOrder_DefaultsToTargetByTarget.
         var files = new List<MigrationFileInfo> { CreateFile(1), CreateFile(2) };
         var targetGroup = CreateTargetGroup("Undefined", ["T1", "T2"]);
 
@@ -153,7 +153,7 @@ public class TargetMigrationOrderExecutionTests
     }
 
     [Fact]
-    public void NullTargetMigrationOrder_DefaultsToSuccessively()
+    public void NullTargetMigrationOrder_DefaultsToTargetByTarget()
     {
         // Arrange
         var files = new List<MigrationFileInfo> { CreateFile(1), CreateFile(2) };
@@ -172,7 +172,7 @@ public class TargetMigrationOrderExecutionTests
         // Act
         var order = MigrationService.GetExecutionOrder(files, targetGroup);
 
-        // Assert — defaults to Successively (target → file)
+        // Assert — defaults to TargetByTarget (target → file)
         order[0].Should().Be((1, "T1"));
         order[1].Should().Be((2, "T1"));
         order[2].Should().Be((1, "T2"));
@@ -188,8 +188,8 @@ public class TargetMigrationOrderExecutionTests
     {
         // Arrange
         var files = new List<MigrationFileInfo> { CreateFile(1), CreateFile(2), CreateFile(3) };
-        var simultaneously = CreateTargetGroup("Simultaneously", ["T1"]);
-        var successively = CreateTargetGroup("Successively", ["T1"]);
+        var simultaneously = CreateTargetGroup("FileByFile", ["T1"]);
+        var successively = CreateTargetGroup("TargetByTarget", ["T1"]);
 
         // Act
         var orderSimul = MigrationService.GetExecutionOrder(files, simultaneously);
@@ -212,7 +212,7 @@ public class TargetMigrationOrderExecutionTests
     {
         // Arrange
         var files = new List<MigrationFileInfo>();
-        var targetGroup = CreateTargetGroup("Simultaneously", ["T1", "T2"]);
+        var targetGroup = CreateTargetGroup("FileByFile", ["T1", "T2"]);
 
         // Act
         var order = MigrationService.GetExecutionOrder(files, targetGroup);
@@ -230,7 +230,7 @@ public class TargetMigrationOrderExecutionTests
         {
             Alias = "Backend",
             DatabaseType = "SqlServer",
-            TargetMigrationOrder = "Simultaneously",
+            TargetMigrationOrder = "FileByFile",
             Targets = new List<TargetOptions>()
         };
 
@@ -246,7 +246,7 @@ public class TargetMigrationOrderExecutionTests
     {
         // Arrange
         var files = new List<MigrationFileInfo> { CreateFile(1) };
-        var targetGroup = CreateTargetGroup("Simultaneously", ["T1"]);
+        var targetGroup = CreateTargetGroup("FileByFile", ["T1"]);
 
         // Act
         var order = MigrationService.GetExecutionOrder(files, targetGroup);
@@ -256,11 +256,11 @@ public class TargetMigrationOrderExecutionTests
     }
 
     [Fact]
-    public void FileOrderPreserved_SimultaneouslyMode()
+    public void FileOrderPreserved_FileByFileMode()
     {
         // Arrange — files with non-sequential order IDs
         var files = new List<MigrationFileInfo> { CreateFile(5), CreateFile(10), CreateFile(15) };
-        var targetGroup = CreateTargetGroup("Simultaneously", ["T1"]);
+        var targetGroup = CreateTargetGroup("FileByFile", ["T1"]);
 
         // Act
         var order = MigrationService.GetExecutionOrder(files, targetGroup);
@@ -270,11 +270,11 @@ public class TargetMigrationOrderExecutionTests
     }
 
     [Fact]
-    public void FileOrderPreserved_SuccessivelyMode()
+    public void FileOrderPreserved_TargetByTargetMode()
     {
         // Arrange — files with non-sequential order IDs
         var files = new List<MigrationFileInfo> { CreateFile(5), CreateFile(10), CreateFile(15) };
-        var targetGroup = CreateTargetGroup("Successively", ["T1", "T2"]);
+        var targetGroup = CreateTargetGroup("TargetByTarget", ["T1", "T2"]);
 
         // Act
         var order = MigrationService.GetExecutionOrder(files, targetGroup);
@@ -308,9 +308,9 @@ public class TargetMigrationOrderExecutionTests
     #region GetFullExecutionOrder — Release-based ordering
 
     [Fact]
-    public void FullOrder_Simultaneously_MultiRelease_ReleaseByRelease()
+    public void FullOrder_FileByFile_MultiRelease_ReleaseByRelease()
     {
-        // Arrange: 2 releases, 2 target groups, Simultaneously mode
+        // Arrange: 2 releases, 2 target groups, FileByFile mode
         var files = new List<MigrationFileInfo>
         {
             CreateFile(1, "Release 1.0", "Backend"),
@@ -321,8 +321,8 @@ public class TargetMigrationOrderExecutionTests
 
         var targetGroups = new List<TargetGroupOptions>
         {
-            CreateTargetGroup("Simultaneously", ["T1", "T2"], "Backend"),
-            CreateTargetGroup("Simultaneously", ["T1", "T2"], "Frontend"),
+            CreateTargetGroup("FileByFile", ["T1", "T2"], "Backend"),
+            CreateTargetGroup("FileByFile", ["T1", "T2"], "Frontend"),
         };
 
         // Act
@@ -345,9 +345,9 @@ public class TargetMigrationOrderExecutionTests
     }
 
     [Fact]
-    public void FullOrder_Successively_MultiRelease_ReleaseByRelease()
+    public void FullOrder_TargetByTarget_MultiRelease_ReleaseByRelease()
     {
-        // Arrange: 2 releases, 2 target groups, Successively mode
+        // Arrange: 2 releases, 2 target groups, TargetByTarget mode
         var files = new List<MigrationFileInfo>
         {
             CreateFile(1, "Release 1.0", "Backend"),
@@ -358,8 +358,8 @@ public class TargetMigrationOrderExecutionTests
 
         var targetGroups = new List<TargetGroupOptions>
         {
-            CreateTargetGroup("Successively", ["T1", "T2"], "Backend"),
-            CreateTargetGroup("Successively", ["T1", "T2"], "Frontend"),
+            CreateTargetGroup("TargetByTarget", ["T1", "T2"], "Backend"),
+            CreateTargetGroup("TargetByTarget", ["T1", "T2"], "Frontend"),
         };
 
         // Act
@@ -384,7 +384,7 @@ public class TargetMigrationOrderExecutionTests
     [Fact]
     public void FullOrder_MixedModes_RespectsPerTargetGroupMode()
     {
-        // Arrange: Backend=Simultaneously, Frontend=Successively, 2 files per TG per release
+        // Arrange: Backend=FileByFile, Frontend=TargetByTarget, 2 files per TG per release
         var files = new List<MigrationFileInfo>
         {
             CreateFile(1, "Release 1.0", "Backend"),
@@ -395,8 +395,8 @@ public class TargetMigrationOrderExecutionTests
 
         var targetGroups = new List<TargetGroupOptions>
         {
-            CreateTargetGroup("Simultaneously", ["T1", "T2"], "Backend"),
-            CreateTargetGroup("Successively", ["T1", "T2"], "Frontend"),
+            CreateTargetGroup("FileByFile", ["T1", "T2"], "Backend"),
+            CreateTargetGroup("TargetByTarget", ["T1", "T2"], "Frontend"),
         };
 
         // Act
@@ -404,12 +404,12 @@ public class TargetMigrationOrderExecutionTests
 
         // Assert
         order.Should().HaveCount(8);
-        // Backend Simultaneously: file→target (file1→T1,T2, file2→T1,T2)
+        // Backend FileByFile: file→target (file1→T1,T2, file2→T1,T2)
         order[0].Should().Be((1, "Backend", "T1"));
         order[1].Should().Be((1, "Backend", "T2"));
         order[2].Should().Be((2, "Backend", "T1"));
         order[3].Should().Be((2, "Backend", "T2"));
-        // Frontend Successively: target→file (T1→file3,file4, T2→file3,file4)
+        // Frontend TargetByTarget: target→file (T1→file3,file4, T2→file3,file4)
         order[4].Should().Be((3, "Frontend", "T1"));
         order[5].Should().Be((4, "Frontend", "T1"));
         order[6].Should().Be((3, "Frontend", "T2"));
@@ -428,7 +428,7 @@ public class TargetMigrationOrderExecutionTests
 
         var targetGroups = new List<TargetGroupOptions>
         {
-            CreateTargetGroup("Simultaneously", ["T1", "T2"], "Backend"),
+            CreateTargetGroup("FileByFile", ["T1", "T2"], "Backend"),
         };
 
         // Act
@@ -455,7 +455,7 @@ public class TargetMigrationOrderExecutionTests
 
         var targetGroups = new List<TargetGroupOptions>
         {
-            CreateTargetGroup("Simultaneously", ["T1"], "Backend"),
+            CreateTargetGroup("FileByFile", ["T1"], "Backend"),
         };
 
         // Act
@@ -480,8 +480,8 @@ public class TargetMigrationOrderExecutionTests
 
         var targetGroups = new List<TargetGroupOptions>
         {
-            CreateTargetGroup("Simultaneously", ["T1"], "Backend"),
-            CreateTargetGroup("Simultaneously", ["T1"], "Frontend"),
+            CreateTargetGroup("FileByFile", ["T1"], "Backend"),
+            CreateTargetGroup("FileByFile", ["T1"], "Frontend"),
         };
 
         // Act
@@ -505,8 +505,8 @@ public class TargetMigrationOrderExecutionTests
 
         var targetGroups = new List<TargetGroupOptions>
         {
-            CreateTargetGroup("Simultaneously", ["T1"], "Frontend"),  // Frontend FIRST in config
-            CreateTargetGroup("Simultaneously", ["T1"], "Backend"),   // Backend second
+            CreateTargetGroup("FileByFile", ["T1"], "Frontend"),  // Frontend FIRST in config
+            CreateTargetGroup("FileByFile", ["T1"], "Backend"),   // Backend second
         };
 
         // Act

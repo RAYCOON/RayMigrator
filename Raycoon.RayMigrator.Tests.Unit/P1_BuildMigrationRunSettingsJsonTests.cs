@@ -56,7 +56,7 @@ public class BuildMigrationRunSettingsJsonTests : IDisposable
                 RequireRollbackFile = false,
                 TargetGroupDefaults = new TargetGroupDefaultOptions
                 {
-                    TargetMigrationOrder = "Simultaneously",
+                    TargetMigrationOrder = "FileByFile",
                     HashValidationScope = "File",
                     TargetDefaults = new TargetDefaultsOptions
                     {
@@ -83,7 +83,7 @@ public class BuildMigrationRunSettingsJsonTests : IDisposable
                         {
                             Alias = "Backend",
                             DatabaseType = "SqlServer",
-                            TargetMigrationOrder = "Simultaneously",
+                            TargetMigrationOrder = "FileByFile",
                             HashValidationScope = "File",
                             Targets = new List<TargetOptions>
                             {
@@ -114,7 +114,7 @@ public class BuildMigrationRunSettingsJsonTests : IDisposable
                         {
                             Alias = "Other",
                             DatabaseType = "PostgreSQL",
-                            TargetMigrationOrder = "Successively",
+                            TargetMigrationOrder = "TargetByTarget",
                             HashValidationScope = "File",
                             Targets = new List<TargetOptions>
                             {
@@ -329,7 +329,7 @@ public class BuildMigrationRunSettingsJsonTests : IDisposable
         defaults.GetProperty("RequireRollbackFile").GetBoolean().Should().BeFalse();
 
         var tgDefaults = defaults.GetProperty("TargetGroupDefaults");
-        tgDefaults.GetProperty("TargetMigrationOrder").GetString().Should().Be("Simultaneously");
+        tgDefaults.GetProperty("TargetMigrationOrder").GetString().Should().Be("FileByFile");
         tgDefaults.GetProperty("HashValidationScope").GetString().Should().Be("File");
 
         var tDefaults = tgDefaults.GetProperty("TargetDefaults");

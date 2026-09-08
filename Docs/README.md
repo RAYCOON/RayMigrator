@@ -37,7 +37,7 @@ Domain model and business logic fundamentals.
 - [migration-state-machine.md](02-core-concepts/migration-state-machine.md) - State transitions
 - [configuration-system.md](02-core-concepts/configuration-system.md) - Options pattern hierarchy
 - [hash-validation.md](02-core-concepts/hash-validation.md) - File/config/blocks hashing
-- [execution-modes.md](02-core-concepts/execution-modes.md) - Operating modes, migration order (Simultaneously/Successively), and run modes (Validate/Simulate/Migrate)
+- [execution-modes.md](02-core-concepts/execution-modes.md) - Operating modes, migration order (FileByFile/TargetByTarget), and run modes (Validate/Simulate/Migrate)
 - [error-handling.md](02-core-concepts/error-handling.md) - Error actions and rollback
 - [error-scenarios-and-recovery.md](02-core-concepts/error-scenarios-and-recovery.md) - Error scenario matrix and recovery procedures
 - [resilience.md](02-core-concepts/resilience.md) - Retry, recovery, orphaned run detection

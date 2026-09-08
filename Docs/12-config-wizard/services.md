@@ -83,7 +83,7 @@ WizardValidationResult ValidateUseCliToolAliasReferences(ConfigurationModel mode
 | `DatabaseType` | `SqlServer`, `PostgreSQL`, `MariaDb`, `MySql`, `Sqlite` (warns if `SchemaName` is set for Sqlite) |
 | `MigrationErrorAction` | `Terminate`, `Rollback`, `RollbackErrorOnly`, `RollbackRelease`, `Ignore` |
 | `RollbackErrorAction` | `Terminate`, `Ignore` |
-| `TargetMigrationOrder` | `Simultaneously`, `Successively` |
+| `TargetMigrationOrder` | `FileByFile`, `TargetByTarget` |
 | `HashValidationScope` | `File`, `SqlBlocks`, `Disabled` |
 | `MinimumLevel` (DatabaseLogging) | `Trace`, `Debug`, `Information`, `Warning`, `Error`, `Critical`, `None` |
 | `MinimumLevel` (Serilog) | `Verbose`, `Debug`, `Information`, `Warning`, `Error`, `Fatal` |

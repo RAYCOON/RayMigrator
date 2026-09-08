@@ -17,9 +17,9 @@ public class OptionsEnumPropertyTests
     [Fact]
     public void TargetMigrationOrderEnum_ValidString_ReturnsCorrectEnum()
     {
-        var options = new TargetGroupOptions { TargetMigrationOrder = "Simultaneously" };
+        var options = new TargetGroupOptions { TargetMigrationOrder = "FileByFile" };
 
-        options.TargetMigrationOrderEnum.Should().Be(TargetMigrationOrder.Simultaneously);
+        options.TargetMigrationOrderEnum.Should().Be(TargetMigrationOrder.FileByFile);
     }
 
     [Fact]
@@ -30,7 +30,7 @@ public class OptionsEnumPropertyTests
         var act = () => options.TargetMigrationOrderEnum;
 
         act.Should().Throw<ConfigurationValidationException>()
-            .WithMessage("*Invalid value [InvalidValue] for property [TargetMigrationOrder]. Allowed values: [Simultaneously, Successively].*");
+            .WithMessage("*Invalid value [InvalidValue] for property [TargetMigrationOrder]. Allowed values: [FileByFile, TargetByTarget].*");
     }
 
     [Fact]
@@ -44,12 +44,12 @@ public class OptionsEnumPropertyTests
     [Fact]
     public void TargetMigrationOrderEnum_SecondAccess_ReturnsCachedValue()
     {
-        var options = new TargetGroupOptions { TargetMigrationOrder = "Successively" };
+        var options = new TargetGroupOptions { TargetMigrationOrder = "TargetByTarget" };
 
         var first = options.TargetMigrationOrderEnum;
         var second = options.TargetMigrationOrderEnum;
 
-        first.Should().Be(TargetMigrationOrder.Successively);
+        first.Should().Be(TargetMigrationOrder.TargetByTarget);
         second.Should().Be(first);
     }
 

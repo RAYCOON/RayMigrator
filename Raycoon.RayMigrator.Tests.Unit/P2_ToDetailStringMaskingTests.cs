@@ -48,7 +48,7 @@ public class ToDetailStringMaskingTests
                     {
                         Alias = "Backend",
                         DatabaseType = "SqlServer",
-                        TargetMigrationOrder = "Successively",
+                        TargetMigrationOrder = "TargetByTarget",
                         HashValidationScope = "File",
                         Targets = new[]
                         {

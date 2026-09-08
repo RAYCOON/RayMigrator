@@ -440,8 +440,8 @@ public class ZipExportServiceTests
     [Fact]
     public void RemoveRedundantOverrides_DeeplyNestedPartialMatch_OnlyMatchingFieldPruned()
     {
-        var child = """{"RayMigrator":{"ProductDefaults":{"TargetGroupDefaults":{"TargetMigrationOrder":"Simultaneously","HashValidationScope":"Header"}}}}""";
-        var parent = """{"RayMigrator":{"ProductDefaults":{"TargetGroupDefaults":{"TargetMigrationOrder":"Simultaneously"}}}}""";
+        var child = """{"RayMigrator":{"ProductDefaults":{"TargetGroupDefaults":{"TargetMigrationOrder":"FileByFile","HashValidationScope":"Header"}}}}""";
+        var parent = """{"RayMigrator":{"ProductDefaults":{"TargetGroupDefaults":{"TargetMigrationOrder":"FileByFile"}}}}""";
 
         var result = ZipExportService.RemoveRedundantOverrides(child, parent);
         var tgd = JsonNode.Parse(result)?["RayMigrator"]?["ProductDefaults"]?["TargetGroupDefaults"];

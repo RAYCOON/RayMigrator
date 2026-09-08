@@ -82,16 +82,16 @@ public class DefaultsPromoterTests
         model.Products.Clear();
 
         var p1 = TestModelFactory.CreateValidProduct("App1");
-        p1.TargetGroups[0].TargetMigrationOrder = new OverridableValue<string> { IsOverridden = true, Value = "Simultaneously" };
+        p1.TargetGroups[0].TargetMigrationOrder = new OverridableValue<string> { IsOverridden = true, Value = "FileByFile" };
         model.Products.Add(p1);
 
         var p2 = TestModelFactory.CreateValidProduct("App2");
-        p2.TargetGroups[0].TargetMigrationOrder = new OverridableValue<string> { IsOverridden = true, Value = "Simultaneously" };
+        p2.TargetGroups[0].TargetMigrationOrder = new OverridableValue<string> { IsOverridden = true, Value = "FileByFile" };
         model.Products.Add(p2);
 
         var results = DefaultsPromoter.Promote(model);
         results.Should().Contain(r => r.PropertyName == "TargetMigrationOrder" && r.Level == "TargetGroupDefaults");
-        model.ProductDefaults.TargetGroupDefaults.TargetMigrationOrder.Should().Be("Simultaneously");
+        model.ProductDefaults.TargetGroupDefaults.TargetMigrationOrder.Should().Be("FileByFile");
     }
 
     [Fact]

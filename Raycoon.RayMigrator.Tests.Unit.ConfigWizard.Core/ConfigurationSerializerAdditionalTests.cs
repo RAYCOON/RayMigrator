@@ -189,13 +189,13 @@ public class ConfigurationSerializerAdditionalTests
     {
         var model = TestModelFactory.CreateValidModel();
         model.Products[0].TargetGroups[0].TargetMigrationOrder =
-            new OverridableValue<string> { IsOverridden = true, Value = "Simultaneously" };
+            new OverridableValue<string> { IsOverridden = true, Value = "FileByFile" };
 
         var json = ConfigurationSerializer.ToJson(model);
         var roundTripped = ConfigurationSerializer.LoadFromJson(json);
 
         roundTripped.Products[0].TargetGroups[0].TargetMigrationOrder.IsOverridden.Should().BeTrue();
-        roundTripped.Products[0].TargetGroups[0].TargetMigrationOrder.Value.Should().Be("Simultaneously");
+        roundTripped.Products[0].TargetGroups[0].TargetMigrationOrder.Value.Should().Be("FileByFile");
     }
 
     // ── IsModified flag ───────────────────────────────────────────────
@@ -278,7 +278,7 @@ public class ConfigurationSerializerAdditionalTests
             "ProductDefaults": {
               "MigrationErrorAction": "Terminate",
               "TargetGroupDefaults": {
-                "TargetMigrationOrder": "Successively",
+                "TargetMigrationOrder": "TargetByTarget",
                 "HashValidationScope": "File",
                 "TargetDefaults": { "DbCommandTimeoutInSeconds": 20 }
               }

@@ -86,8 +86,8 @@
                            ValueChanged="async v => { Model.ProductDefaults.TargetGroupDefaults.TargetMigrationOrder = v; await NotifyChanged(); }"
                            Label="@L.Get("ProductDefaults.TargetMigrationOrder")"
                            Variant="Variant.Outlined">
-                    <MudSelectItem T="string" Value="@("Simultaneously")">Simultaneously</MudSelectItem>
-                    <MudSelectItem T="string" Value="@("Successively")">Successively</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("FileByFile")">FileByFile</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("TargetByTarget")">TargetByTarget</MudSelectItem>
                 </MudSelect>
                 <FieldHelpIcon FieldKey="ProductDefaults_TargetMigrationOrder" />
             </MudStack>

@@ -491,7 +491,7 @@ public class RayMigratorOptionsValidatorTests
             Alias = alias,
             DatabaseType = dbType,
             // Effective values required by RULE_8_2/8_3.
-            TargetMigrationOrder = "Simultaneously",
+            TargetMigrationOrder = "FileByFile",
             HashValidationScope = "File",
             Targets = targets.ToList(),
         };

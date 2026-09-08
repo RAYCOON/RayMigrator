@@ -590,7 +590,7 @@ Engine tests (`Raycoon.RayMigrator.Tests.Engine`) embed their database connectio
         {
           "Alias": "Backend",
           "DatabaseType": "SqlServer",
-          "TargetMigrationOrder": "Simultaneously",
+          "TargetMigrationOrder": "FileByFile",
           "HashValidationScope": "SqlBlocks",
           "Targets": [
             {

@@ -218,8 +218,8 @@ The type of migration operation currently being performed (`MigrationOperation` 
 ### Target Migration Order
 How migrations execute across multiple targets (`TargetMigrationOrder` enum):
 - **Undefined** (0): Invalid value
-- **Simultaneously** (1): One migration at a time across all targets
-- **Successively** (2): All migrations on one target before moving to next
+- **FileByFile** (1): One migration at a time across all targets
+- **TargetByTarget** (2): All migrations on one target before moving to next
 
 ### MigrationRecoveryException
 An exception thrown during migration recovery operations (e.g., fixing orphaned runs or resuming interrupted migrations). Properties include `MigrationRunId` (nullable `int?`) and `MigrationRecordId` (nullable `int?`). Defined in `CustomExceptions.cs` in the Shared project.

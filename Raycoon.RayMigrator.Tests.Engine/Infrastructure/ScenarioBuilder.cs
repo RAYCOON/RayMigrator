@@ -234,7 +234,7 @@ public class ScenarioBuilder
     }
 
     /// <summary>
-    /// Sets the TargetMigrationOrder (Simultaneously or Successively) for target group execution.
+    /// Sets the TargetMigrationOrder (FileByFile or TargetByTarget) for target group execution.
     /// </summary>
     public ScenarioBuilder WithTargetMigrationOrder(TargetMigrationOrder order)
     {
@@ -547,7 +547,7 @@ public class ScenarioBuilder
         if (_targetMigrationOrder.HasValue)
             targetGroupDefaults["TargetMigrationOrder"] = _targetMigrationOrder.Value.ToString();
         else
-            targetGroupDefaults["TargetMigrationOrder"] = TargetMigrationOrder.Simultaneously.ToString();
+            targetGroupDefaults["TargetMigrationOrder"] = TargetMigrationOrder.FileByFile.ToString();
 
         // Build ProductDefaults
         var productDefaults = new Dictionary<string, object>

@@ -59,10 +59,10 @@ sequenceDiagram
     loop For each Release
         Svc->>Svc: ResolveTargetGroupMigrationOrder()<br/>(CLI > migsettings > appsettings > config array order)
         loop For each TargetGroup (in resolved order)
-            alt TargetMigrationOrder = Simultaneously
-                Svc->>Svc: ExecuteTargetGroupSimultaneously()<br/>(File → Target loop)
-            else TargetMigrationOrder = Successively
-                Svc->>Svc: ExecuteTargetGroupSuccessively()<br/>(Target → File loop)
+            alt TargetMigrationOrder = FileByFile
+                Svc->>Svc: ExecuteTargetGroupFileByFile()<br/>(File → Target loop)
+            else TargetMigrationOrder = TargetByTarget
+                Svc->>Svc: ExecuteTargetGroupTargetByTarget()<br/>(Target → File loop)
             end
             Svc->>Tmpl: RepositoryMigrationInsert()
             Svc->>Target: Execute SQL blocks

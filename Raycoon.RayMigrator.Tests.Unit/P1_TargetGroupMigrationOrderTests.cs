@@ -27,7 +27,7 @@ public class TargetGroupMigrationOrderTests
         };
     }
 
-    private static TargetGroupOptions CreateTargetGroup(string alias, string targetMigrationOrder = "Simultaneously")
+    private static TargetGroupOptions CreateTargetGroup(string alias, string targetMigrationOrder = "FileByFile")
     {
         return new TargetGroupOptions
         {

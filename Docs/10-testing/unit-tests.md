@@ -303,7 +303,7 @@ Raycoon.RayMigrator.Tests.Unit/
 | `P1_SqliteTypeConventionsTests` | `SqliteTypeConventionsTests` | DAL-020: SQLite templates must not contain the `AUTOINCREMENT` keyword (regression guard — `INTEGER PRIMARY KEY` already provides rowid aliasing) |
 | `P1_SqlTemplateStructureTests` | `SqlTemplateStructureTests` | SQL template file structure and placeholder validation |
 | `P1_TargetGroupMigrationOrderTests` | `TargetGroupMigrationOrderTests` | `ParseTargetGroupMigrationOrder` (comma-separated CLI parsing), `ValidateAndReorder` (alias validation, case-sensitivity, partial/duplicate lists), TOML integration, and `GetFullExecutionOrder` with custom order |
-| `P1_TargetMigrationOrderExecutionTests` | `TargetMigrationOrderExecutionTests` | `TargetMigrationOrder` (Simultaneously vs Successively) execution order |
+| `P1_TargetMigrationOrderExecutionTests` | `TargetMigrationOrderExecutionTests` | `TargetMigrationOrder` (FileByFile vs TargetByTarget) execution order |
 | `P1_TemplateCacheCfgValidationTests` | `TemplateCacheCfgValidationTests` | `TemplateCache` configuration validation against available templates |
 | `P1_TemplateExecutorEnvironmentIdTests` | `TemplateExecutorEnvironmentIdTests` | `TemplateExecutor` parameter binding for the EnvironmentId FK feature: verifies the five flipped methods bind `@EnvironmentId` (int) and not a text `@Environment` parameter to `IDal` |
 | `P1_TryFinalizeCompletedMigrationTests` | `TryFinalizeCompletedMigrationTests` | Migration finalization (status updates after execution) |
