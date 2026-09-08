@@ -5,7 +5,7 @@ All notable changes to RayMigrator are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 RayMigrator follows Semantic Versioning where applicable.
 
-## [Unreleased]
+## [0.12.0] — 2026-09-08
 
 ### Added
 
@@ -43,7 +43,6 @@ RayMigrator follows Semantic Versioning where applicable.
   repositories receive the row on their next run). Error-recovery rollbacks
   take the run mode from the request that started the run instead of the
   context. (#6)
-
 
 - `validate-hash` compared the files on disk against an empty record set:
   the repository query used the command's own `Validate` run mode as the
@@ -124,12 +123,12 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ### Changed
 
-- Migration files and `migsettings.txt` files that already carry a
-  restrictive `Targets` value stop running on the targets they do not name
-  after this upgrade; the value used to be ignored. Anyone who used the key
-  as pure documentation must widen it to `["*"]` or remove it. A value that
-  names a target alias which does not exist in the TargetGroup now aborts
-  the run instead of being stored silently. (#10)
+- **Breaking (behaviour):** migration files and `migsettings.txt` files that
+  already carry a restrictive `Targets` value stop running on the targets they
+  do not name after this upgrade; the value used to be ignored. Anyone who
+  used the key as pure documentation must widen it to `["*"]` or remove it. A
+  value that names a target alias which does not exist in the TargetGroup now
+  aborts the run instead of being stored silently. (#10)
 - `validate-hash` now runs in `Migrate` mode like the other non-migrate
   commands; `--run-mode` is a `migrate-up` / `migrate-down` concept and no
   longer leaks into other commands (no user-visible option changes).
@@ -140,11 +139,21 @@ RayMigrator follows Semantic Versioning where applicable.
   sink gates on the enricher's new `DbLogEnabled` property instead of
   `RunModeId`; the `info` history header column `Command` is now
   `Operation`. (#6)
-- A migration file that contains bytes invalid for its encoding is now a hard
-  error instead of being executed with replacement characters. Repositories
-  that were migrated with such files carry the hash of the garbled text; after
-  correcting `MigrationFilesEncoding` run `update-hash` once to store the
-  hash of the correctly decoded text. (#4)
+- **Breaking (behaviour):** a migration file that contains bytes invalid for
+  its encoding is now a hard error instead of being executed with replacement
+  characters. Repositories that were migrated with such files carry the hash
+  of the garbled text; after correcting `MigrationFilesEncoding` run
+  `update-hash` once to store the hash of the correctly decoded text. (#4)
+- **Breaking (API / external DALs):** `IMigrationContextFactory.Create` takes
+  the `MigrationCommand` before the run mode, and a `MigrationContext` with
+  `RunMode = Undefined` or `Command = None` is rejected;
+  `TemplateExecutor.RepositoryMigrationSelect()` lost its `overrideRunMode`
+  parameter; the update-hash result reports `UpdatedRecords` next to
+  `UpdatedFiles`; every DAL must ship the two new templates
+  `Repository_Product_Select` and `Repository_Environment_Select` (required
+  template count 20), otherwise `TemplateCache` reports them as missing at
+  startup, and its `Repository_CheckCreate` must seed `MigrationOperation`
+  row 110 (`Baseline`). (#6, #7, #9)
 
 ## [0.11.1] — 2026-09-05
 
