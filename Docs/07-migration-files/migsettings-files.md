@@ -47,6 +47,8 @@ Migsettings files (`.txt`) use the `[RayMigrator]` section header directly as pl
 
 Migsettings files support ten of the eleven TOML parameters available in migration files: all parameters except `Description`, which is accepted without error (since both migsettings and migration files share the same TOML parser) but has no effect in migsettings files — it is only meaningful in individual migration file TOML headers. The `TargetGroupMigrationOrder` parameter is also supported and is meaningful at the release level.
 
+Migsettings files are always read as UTF-8 (a byte-order mark is accepted). The product's `MigrationFilesEncoding` applies to migration files only; a migsettings file saved in another encoding (e.g. `windows-1252` with umlauts in a comment) aborts the run with a `MigrationFileParsingException` that names the file.
+
 **migsettings.txt** (plain TOML, no SQL comment wrapper):
 
 ```toml

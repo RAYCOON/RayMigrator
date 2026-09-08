@@ -240,6 +240,32 @@ public class RayEncodingAttributeTests
         result.Should().NotBe(ValidationResult.Success);
     }
 
+    [Theory]
+    [InlineData("windows-1252")]
+    [InlineData("cp1252")]
+    [InlineData("iso-8859-1")]
+    [InlineData("UTF-16")]
+    [InlineData("UTF-32")]
+    public void CodePageAndUnicodeNames_ReturnSuccess(string encodingName)
+    {
+        // windows-1252 / cp1252 need the CodePagesEncodingProvider; the product registers it itself (#4)
+        var attr = new RayEncodingAttribute();
+        var result = Validate(attr, encodingName);
+        result.Should().Be(ValidationResult.Success);
+    }
+
+    [Theory]
+    [InlineData("ANSI")]
+    [InlineData("UTF-8-BOM")]
+    public void NamesThatAreNotEncodings_ReturnErrorPointingToValidNames(string encodingName)
+    {
+        // 'ANSI' is the locale-dependent Windows system code page, 'UTF-8-BOM' is an editor label — neither is an encoding name (#4)
+        var attr = new RayEncodingAttribute();
+        var result = Validate(attr, encodingName);
+        result.Should().NotBe(ValidationResult.Success);
+        result!.ErrorMessage.Should().Contain("windows-1252").And.NotContain("RegisterProvider");
+    }
+
     [Fact]
     public void NullInput_ReturnsError()
     {

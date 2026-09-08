@@ -295,16 +295,29 @@ internal static class WizardOnlyChecks
             result.AddError(path, "Only letters and underscores are allowed.");
     }
 
+    // Code-page encodings such as windows-1252 need the CodePagesEncodingProvider (shared framework);
+    // the engine registers it the same way, so the wizard accepts exactly what the engine accepts (#4).
+    // Lazy<T> blocks concurrent callers until the registration has completed; a set-flag-then-register
+    // pattern let a second thread call GetEncoding before the provider was in place.
+    private static readonly Lazy<bool> CodePagesRegistered = new(() =>
+    {
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        return true;
+    });
+
     private static void ValidateEncoding(string value, string path, WizardValidationResult result)
     {
         if (string.IsNullOrWhiteSpace(value)) return;
+
+        _ = CodePagesRegistered.Value;
+
         try
         {
             Encoding.GetEncoding(value);
         }
         catch
         {
-            result.AddError(path, $"Invalid encoding '{value}'. Use a valid encoding like UTF-8.");
+            result.AddError(path, $"Invalid encoding '{value}'. Use a .NET encoding name such as UTF-8, UTF-16, UTF-32, ASCII, iso-8859-1 or windows-1252. A byte-order mark is detected automatically; 'UTF-8-BOM' and 'ANSI' are not encoding names.");
         }
     }
 }

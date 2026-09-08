@@ -16,6 +16,8 @@ public class Program
     public static async Task<int> Main(string[] args)
     {
         Thread.CurrentThread.CurrentUICulture = CultureInfo.InvariantCulture;
+        // Code-page encodings (e.g. windows-1252 for MigrationFilesEncoding) need the provider registered once (#4)
+        EncodingSupport.EnsureCodePagesRegistered();
 
         try
         {

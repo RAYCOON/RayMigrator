@@ -257,9 +257,13 @@ Or per product:
 }
 ```
 
-The value must be a valid .NET encoding name (e.g., `UTF-8`, `ASCII`, `iso-8859-1`). Some encodings (e.g., `windows-1252`) require `System.Text.Encoding.RegisterProvider(CodePagesEncodingProvider.Instance)` on .NET. If the encoding name is invalid, a `ConfigurationValidationException` is thrown at startup.
+The value must be a valid .NET encoding name, e.g. `UTF-8`, `UTF-16`, `UTF-32`, `ASCII`, `iso-8859-1` or `windows-1252`. Code-page encodings such as `windows-1252` work out of the box; RayMigrator registers the code-page provider itself. `UTF-8-BOM` and `ANSI` are not encoding names: a byte-order mark is detected automatically (see below), and "ANSI" means the locale-dependent Windows system code page, so use the concrete code page instead (`windows-1252` for Western European Windows). If the encoding name is invalid, a `ConfigurationValidationException` is thrown at startup.
 
-The encoding is used when reading migration file content from disk. Hash computation and TOML parsing operate on the decoded string content, so changing the encoding does not affect hash validation as long as the file content decodes to the same string.
+**Byte-order mark.** Each file is checked for a BOM (UTF-8, UTF-16 LE/BE, UTF-32 LE/BE). A BOM overrides the configured encoding for that file and is not part of the decoded text, so saving a file with or without BOM yields the same content hash.
+
+**Strict decoding.** Files are decoded strictly. A byte sequence that is not valid for the encoding (typically a `windows-1252` file with umlauts read as `UTF-8`) aborts the run during file discovery, before any migration file is executed, with a `MigrationFileParsingException` that names the file, the encoding, the offending bytes and their byte offset. Fix it by setting `MigrationFilesEncoding` to the encoding the files are actually saved in, or by re-saving the files as UTF-8. Versions before this check replaced invalid bytes with U+FFFD and hashed the garbled text; if a repository was migrated that way, run `update-hash` once after correcting the encoding so the stored hashes match the correctly decoded files.
+
+The encoding is used when reading migration file content from disk. Hash computation and TOML parsing operate on the decoded string content, so changing the encoding does not affect hash validation as long as the file content decodes to the same string. `migsettings.txt` files are always read as UTF-8 (a BOM is accepted); `MigrationFilesEncoding` does not apply to them.
 
 ## Skipped Files
 

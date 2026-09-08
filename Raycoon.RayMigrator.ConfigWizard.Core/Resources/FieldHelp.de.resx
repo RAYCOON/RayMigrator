@@ -120,9 +120,9 @@ Ignore: Rollback-Fehler protokollieren und mit dem Rollback weiterer Dateien for
 Migration: 001_CreateUsers.sql
 Rollback:  001_CreateUsers.rollback.sql</value></data>
   <data name="ProductDefaults_MigrationFilesEncoding_Title" xml:space="preserve"><value>Produkt-Standardwerte - Dateikodierung</value></data>
-  <data name="ProductDefaults_MigrationFilesEncoding_Description" xml:space="preserve"><value>Zeichenkodierung zum Lesen von Migrationsdateien. Standard: UTF-8.</value></data>
+  <data name="ProductDefaults_MigrationFilesEncoding_Description" xml:space="preserve"><value>Zeichenkodierung zum Lesen von Migrationsdateien ohne Byte-Order-Mark. Standard: UTF-8. Eine Byte-Order-Mark (UTF-8, UTF-16, UTF-32) wird automatisch erkannt und hat Vorrang vor dieser Einstellung. Dateien mit Bytefolgen, die in der konfigurierten Kodierung ungültig sind, brechen den Lauf ab, bevor SQL ausgeführt wird. migsettings.txt-Dateien sind immer UTF-8.</value></data>
   <data name="ProductDefaults_MigrationFilesEncoding_DefaultValue" xml:space="preserve"><value>UTF-8</value></data>
-  <data name="ProductDefaults_MigrationFilesEncoding_ValidValues" xml:space="preserve"><value>UTF-8 | UTF-8-BOM | ASCII | UTF-16 | UTF-32</value></data>
+  <data name="ProductDefaults_MigrationFilesEncoding_ValidValues" xml:space="preserve"><value>UTF-8 | UTF-16 | UTF-32 | ASCII | iso-8859-1 | windows-1252</value></data>
   <data name="ProductDefaults_RequireRollbackFile_Title" xml:space="preserve"><value>Produkt-Standardwerte - Rollback-Datei erforderlich</value></data>
   <data name="ProductDefaults_RequireRollbackFile_Description" xml:space="preserve"><value>Ob jede Migrationsdatei eine zugehoerige Rollback-Datei haben muss. Standard: true.</value></data>
   <data name="ProductDefaults_RequireRollbackFile_DefaultValue" xml:space="preserve"><value>true</value></data>

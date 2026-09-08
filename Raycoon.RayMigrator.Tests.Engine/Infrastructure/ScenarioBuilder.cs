@@ -31,6 +31,7 @@ public class ScenarioBuilder
     private int? _targetMaxRetries;
     private int? _targetRetryDelayMs;
     private int? _targetCommandTimeoutSeconds;
+    private string? _migrationFilesEncoding;
 
     public ScenarioBuilder(EngineConfig engineConfig)
     {
@@ -217,6 +218,31 @@ public class ScenarioBuilder
     public ScenarioBuilder WithMultiTarget(string secondConnectionString)
     {
         _secondConnectionString = secondConnectionString;
+        return this;
+    }
+
+    /// <summary>
+    /// Sets ProductDefaults.MigrationFilesEncoding for the scenario (default UTF-8). Used with
+    /// <see cref="WithFileBytes"/> to provide files in a specific encoding (#4).
+    /// </summary>
+    public ScenarioBuilder WithMigrationFilesEncoding(string encodingName)
+    {
+        _migrationFilesEncoding = encodingName;
+        return this;
+    }
+
+    /// <summary>
+    /// Replaces the content of a file in the scenario's working directory with raw bytes, e.g. a migration
+    /// file saved as windows-1252 or with a UTF-8 BOM. The path is relative to the working directory.
+    /// </summary>
+    public ScenarioBuilder WithFileBytes(string relativeFilePath, byte[] bytes)
+    {
+        _fileMutations.Add(workDir =>
+        {
+            string fullPath = Path.Combine(workDir, relativeFilePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+            File.WriteAllBytes(fullPath, bytes);
+        });
         return this;
     }
 
@@ -477,7 +503,7 @@ public class ScenarioBuilder
             ["MigrationErrorAction"] = (_migrationErrorAction ?? MigrationErrorAction.Terminate).ToString(),
             ["MigrationFilesExtension"] = "sql",
             ["MigrationRollbackFilesPreExtension"] = "rollback",
-            ["MigrationFilesEncoding"] = "UTF-8",
+            ["MigrationFilesEncoding"] = _migrationFilesEncoding ?? "UTF-8",
             ["RequireRollbackFile"] = _requireRollbackFile ?? true,
             ["TargetGroupDefaults"] = targetGroupDefaults
         };

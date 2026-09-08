@@ -4,6 +4,10 @@ using MudBlazor.Services;
 using Raycoon.RayMigrator.ConfigWizard.Web;
 using Raycoon.RayMigrator.ConfigWizard.Web.Services;
 
+// Code-page encodings (e.g. windows-1252 for MigrationFilesEncoding) need the provider registered once,
+// so the wizard's encoding validation accepts exactly what the engine accepts (#4)
+System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");

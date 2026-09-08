@@ -67,7 +67,7 @@ The `Alias` pattern for CLI tools is slightly different from Product/TargetGroup
 | Value | Enum Value | Description |
 |-------|------------|-------------|
 | `File` | `1` | The file path is passed as a command-line argument via the `{FilePath}` placeholder in `ArgumentTemplate`. Used by tools like `sqlcmd` (`-i`), `psql` (`-f`), `sqlite3` (`-init`). |
-| `Stdin` | `2` | The file content is piped to the process via standard input (`Process.StandardInput`). Used by tools like `mysql` and `mariadb` that read SQL from stdin. |
+| `Stdin` | `2` | The file content is piped to the process via standard input (`Process.StandardInput`) as UTF-8 without a byte-order mark, independent of the console code page. Used by tools like `mysql` and `mariadb` that read SQL from stdin. |
 
 The `CliToolInputMode` enum also defines `Undefined = 0`, which falls back to `File` behavior at runtime.
 
@@ -258,7 +258,7 @@ With `InputMode: Stdin`, RayMigrator reads the migration file on the host and pi
 }
 ```
 
-**How it works:** RayMigrator reads the migration file from disk, then pipes its content to `docker exec -i my_postgres_container psql ...` via standard input. The `-i` flag on `docker exec` keeps stdin open so the piped content reaches `psql` inside the container.
+**How it works:** RayMigrator reads the migration file from disk (decoded with `MigrationFilesEncoding`), then pipes its content as UTF-8 to `docker exec -i my_postgres_container psql ...` via standard input. The `-i` flag on `docker exec` keeps stdin open so the piped content reaches `psql` inside the container. Make sure the tool expects UTF-8 on stdin (e.g. `PGCLIENTENCODING=UTF8` for `psql`, `--default-character-set=utf8mb4` for `mysql`).
 
 ### File Mode via Bash Wrapper
 

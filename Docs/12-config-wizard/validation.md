@@ -106,7 +106,7 @@ A small set of checks lives outside the shared catalog because they are meaningf
 |-------|-------|
 | Repository | `DatabaseType` must be one of `SqlServer`, `PostgreSQL`, `MariaDb`, `MySql`, `Sqlite`. Numeric fields (`DbCommandTimeoutInSeconds`, `DbCommandMaxRetries`, `DbCommandWaitTimeInMsBeforeRetry`) must be ≥ 0. |
 | DatabaseLogging | Same `DatabaseType` set; `MinimumLevel` must be one of `Trace`, `Debug`, `Information`, `Warning`, `Error`, `Critical`, `None`. Sqlite + non-empty `SchemaName` is a warning. |
-| ProductDefaults | `MigrationErrorAction` must be one of `Terminate`, `Rollback`, `RollbackErrorOnly`, `RollbackRelease`, `Ignore`. `RollbackErrorAction` must be one of `Terminate`, `Ignore`. File extensions must match `^[a-zA-Z_]+$`. `MigrationFilesEncoding` must resolve via `Encoding.GetEncoding(...)`. |
+| ProductDefaults | `MigrationErrorAction` must be one of `Terminate`, `Rollback`, `RollbackErrorOnly`, `RollbackRelease`, `Ignore`. `RollbackErrorAction` must be one of `Terminate`, `Ignore`. File extensions must match `^[a-zA-Z_]+$`. `MigrationFilesEncoding` must be a .NET encoding name; code pages such as `windows-1252` are accepted (the wizard registers the code-page provider like the engine), `UTF-8-BOM` and `ANSI` are rejected with a hint to the valid names. |
 | Product | `Alias` must match `^(?=.{1,50}$)[\p{L}\p{N}_]+$`. `MigrationFilesRootDirectory` must be non-empty. `TargetGroups` must contain at least one entry. |
 | TargetGroup | Same alias pattern; `DatabaseType` required; `Targets` must contain at least one entry. Warns if `TargetMigrationOrder` is overridden on a single-target TargetGroup. |
 | Target | Same alias pattern; `ConnectionString` required. |

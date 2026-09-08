@@ -2055,6 +2055,11 @@ public class MigrationService : IMigrationService
                 migrationFiles.Add(migrationFile);
                 fileOrderId++;
             }
+            catch (MigrationFileParsingException)
+            {
+                // Already a complete, user-facing message (e.g. the strict-decoding error from ReadMigrationText, #4)
+                throw;
+            }
             catch (Exception ex)
             {
                 _logger.LogDebug(ex, "Failed to parse migration file {RelativePath}", relativePath);
@@ -2104,9 +2109,11 @@ public class MigrationService : IMigrationService
         string relativePath = Path.GetRelativePath(rootDirectory, fullPath);
         string filename = Path.GetFileName(fullPath);
 
-        // Read file content
+        // Read file content: BOM-aware, strict decoding with the configured encoding (#4)
         var encoding = GetFileEncoding(productOptions.MigrationFilesEncoding);
-        string fileContent = File.ReadAllText(fullPath, encoding);
+        string fileContent = ReadMigrationText(fullPath, encoding,
+            productOptions.MigrationFilesEncoding ?? "UTF-8", relativePath,
+            $"Check MigrationFilesEncoding for product [{productOptions.Alias}] or re-save the file in the configured encoding.");
 
         // Extract TOML metadata and SQL content
         ExtractTomlAndSql(fileContent, out string? tomlContent, out string sqlContent);
@@ -2708,11 +2715,15 @@ public class MigrationService : IMigrationService
         // Build arguments with placeholder substitution
         var resolvedArguments = ResolveCliToolArguments(cliToolOptions, targetOptions, file.FullPath);
 
-        // Read file content for Stdin mode
+        // Read file content for Stdin mode with the product's MigrationFilesEncoding — the same decoding the
+        // hash was computed from (#4). The executor pipes the text to the tool as UTF-8 without BOM.
         string? fileContent = null;
         if (cliToolOptions.InputModeEnum == CliToolInputMode.Stdin)
         {
-            fileContent = await File.ReadAllTextAsync(file.FullPath);
+            var productOptions = _options.Value.Products!.First(p => p.Alias == _ctxAccessor.Current.RayMigratorConsoleOptions.Product);
+            fileContent = ReadMigrationText(file.FullPath, GetFileEncoding(productOptions.MigrationFilesEncoding),
+                productOptions.MigrationFilesEncoding ?? "UTF-8", file.FilenameWithRelativePath,
+                $"Check MigrationFilesEncoding for product [{productOptions.Alias}] or re-save the file in the configured encoding.");
         }
 
         var request = new CliToolExecutionRequest
@@ -3621,24 +3632,76 @@ public class MigrationService : IMigrationService
     }
 
     /// <summary>
-    /// Gets the encoding for reading migration files.
+    /// Gets the encoding for reading migration files. The returned encoding is strict: its decoder throws on
+    /// byte sequences that are invalid for the encoding instead of replacing them silently (#4).
     /// </summary>
     internal static Encoding GetFileEncoding(string? encodingName)
     {
-        if (string.IsNullOrWhiteSpace(encodingName))
-            return Encoding.UTF8;
-
         try
         {
-            return Encoding.GetEncoding(encodingName);
+            return EncodingSupport.GetStrictEncoding(encodingName);
         }
         catch (Exception ex)
         {
             throw new ConfigurationValidationException(
                 $"The configured MigrationFilesEncoding '{encodingName}' is not a valid encoding name. " +
-                $"Some encodings (e.g. 'windows-1252') require System.Text.Encoding.RegisterProvider(CodePagesEncodingProvider.Instance) on .NET Core. " +
-                $"Please use a valid encoding name like 'UTF-8' or 'iso-8859-1'.", ex);
+                EncodingSupport.ValidNamesHint, ex);
         }
+    }
+
+    /// <summary>
+    /// Reads a text file for migration processing (#4):
+    /// a byte-order mark (UTF-32 LE/BE, UTF-8, UTF-16 LE/BE) is detected, stripped and overrides
+    /// <paramref name="configuredEncoding"/>; otherwise the configured encoding is used. Decoding is strict:
+    /// a byte sequence that is invalid for the encoding aborts with a <see cref="MigrationFileParsingException"/>
+    /// that names the file, the encoding and the offending bytes, so garbled text never reaches a database or
+    /// the repository hash. The returned text never contains the BOM, so hashes of BOM and non-BOM variants
+    /// of the same content are identical.
+    /// </summary>
+    /// <param name="fullPath">The file to read.</param>
+    /// <param name="configuredEncoding">The strict encoding to use when the file has no BOM.</param>
+    /// <param name="encodingLabel">How to name the encoding in the error message (e.g. the configured name).</param>
+    /// <param name="fileLabel">How to name the file in the error message (e.g. its relative path).</param>
+    /// <param name="hint">What the user can do about it (appended to the error message).</param>
+    internal static string ReadMigrationText(string fullPath, Encoding configuredEncoding, string encodingLabel, string fileLabel, string hint)
+    {
+        byte[] bytes = File.ReadAllBytes(fullPath);
+        (Encoding encoding, int bomLength, string label) = DetectByteOrderMark(bytes) is { } bom
+            ? (bom.Encoding, bom.Length, bom.Label + " (byte-order mark)")
+            : (configuredEncoding, 0, encodingLabel);
+
+        try
+        {
+            return encoding.GetString(bytes, bomLength, bytes.Length - bomLength);
+        }
+        catch (DecoderFallbackException ex)
+        {
+            string invalidBytes = ex.BytesUnknown != null ? BitConverter.ToString(ex.BytesUnknown).Replace('-', ' ') : "?";
+            // ex.Index is relative to the decoded span; add the BOM length to report an absolute file offset
+            string offset = ex.Index >= 0 ? (ex.Index + bomLength).ToString() : "?";
+            throw new MigrationFileParsingException(
+                $"File [{fileLabel}] cannot be decoded as [{label}]: invalid byte sequence [{invalidBytes}] at byte offset {offset}. {hint}",
+                TemplateResultCode.MigrationFileParsingFailed);
+        }
+    }
+
+    /// <summary>
+    /// Detects a Unicode byte-order mark. UTF-32 LE is checked before UTF-16 LE because its BOM starts with
+    /// the UTF-16 LE BOM bytes; StreamReader gets this wrong when the configured encoding is UTF-16.
+    /// </summary>
+    internal static (Encoding Encoding, int Length, string Label)? DetectByteOrderMark(byte[] bytes)
+    {
+        if (bytes.Length >= 4 && bytes[0] == 0xFF && bytes[1] == 0xFE && bytes[2] == 0x00 && bytes[3] == 0x00)
+            return (new UTF32Encoding(bigEndian: false, byteOrderMark: false, throwOnInvalidCharacters: true), 4, "UTF-32 LE");
+        if (bytes.Length >= 4 && bytes[0] == 0x00 && bytes[1] == 0x00 && bytes[2] == 0xFE && bytes[3] == 0xFF)
+            return (new UTF32Encoding(bigEndian: true, byteOrderMark: false, throwOnInvalidCharacters: true), 4, "UTF-32 BE");
+        if (bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF)
+            return (EncodingSupport.StrictUtf8, 3, "UTF-8");
+        if (bytes.Length >= 2 && bytes[0] == 0xFF && bytes[1] == 0xFE)
+            return (new UnicodeEncoding(bigEndian: false, byteOrderMark: false, throwOnInvalidBytes: true), 2, "UTF-16 LE");
+        if (bytes.Length >= 2 && bytes[0] == 0xFE && bytes[1] == 0xFF)
+            return (new UnicodeEncoding(bigEndian: true, byteOrderMark: false, throwOnInvalidBytes: true), 2, "UTF-16 BE");
+        return null;
     }
 
     /// <summary>
@@ -3908,7 +3971,10 @@ public class MigrationService : IMigrationService
     internal MigSettingsEntry ParseMigSettingsFile(string filePath)
     {
         var entry = new MigSettingsEntry();
-        var content = File.ReadAllText(filePath);
+        // migsettings.txt is a RayMigrator settings file (TOML): always UTF-8, a BOM is accepted,
+        // MigrationFilesEncoding does not apply to it. Decoding is strict (#4).
+        var content = ReadMigrationText(filePath, EncodingSupport.StrictUtf8, "UTF-8", filePath,
+            "migsettings.txt files must be saved as UTF-8 (a byte-order mark is accepted); MigrationFilesEncoding does not apply to them.");
 
         // Strip the [RayMigrator] header
         var sectionMatch = Regex.Match(content, @"\[RayMigrator\]\s*\n?(.*)", RegexOptions.Singleline);

@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using System.Text;
 
 namespace Raycoon.RayMigrator.Core.Configuration.Validation.RayAttributes;
 
@@ -29,12 +28,12 @@ public class RayEncodingAttribute : ValidationAttribute
         {
             try
             {
-                _ = Encoding.GetEncoding(encodingString);
+                _ = EncodingSupport.GetStrictEncoding(encodingString);
                 return ValidationResult.Success;
             }
-            catch(Exception ex)
+            catch (Exception)
             {
-                return new ValidationResult($"Invalid encoding string [{value}] for property [{validationContext.MemberName}]. Please use a valid encoding string like 'UTF-8'. Some encodings (e.g. 'windows-1252') require System.Text.Encoding.RegisterProvider(CodePagesEncodingProvider.Instance) on .NET Core. Exception: " + ex.Message, memberNames);
+                return new ValidationResult($"Invalid encoding string [{value}] for property [{validationContext.MemberName}]. {EncodingSupport.ValidNamesHint}", memberNames);
             }
         }
         

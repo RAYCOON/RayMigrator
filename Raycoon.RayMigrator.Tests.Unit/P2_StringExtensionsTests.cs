@@ -615,7 +615,8 @@ public class GetFileEncodingTests
     {
         var result = MigrationService.GetFileEncoding(null);
 
-        result.Should().Be(System.Text.Encoding.UTF8);
+        result.WebName.Should().Be("utf-8");
+        result.DecoderFallback.Should().BeOfType<System.Text.DecoderExceptionFallback>("the default decoder must be strict (#4)");
     }
 
     [Fact]
@@ -640,7 +641,8 @@ public class GetFileEncodingTests
     {
         var result = MigrationService.GetFileEncoding("");
 
-        result.Should().Be(System.Text.Encoding.UTF8);
+        result.WebName.Should().Be("utf-8");
+        result.DecoderFallback.Should().BeOfType<System.Text.DecoderExceptionFallback>("the default decoder must be strict (#4)");
     }
 
     [Fact]
@@ -652,15 +654,39 @@ public class GetFileEncodingTests
     }
 
     [Fact]
-    public void WindowsEncoding_ThrowsConfigurationValidationException()
+    public void WindowsEncoding_ReturnsCodePage1252()
     {
-        // windows-1252 is not registered by default on .NET Core without CodePagesEncodingProvider.
-        // GetFileEncoding must throw instead of silently falling back to UTF-8.
-        var act = () => MigrationService.GetFileEncoding("windows-1252");
+        // The product registers the CodePagesEncodingProvider itself (#4); a CLI user could never do that.
+        var result = MigrationService.GetFileEncoding("windows-1252");
+
+        result.CodePage.Should().Be(1252);
+        result.DecoderFallback.Should().BeOfType<System.Text.DecoderExceptionFallback>();
+    }
+
+    [Theory]
+    [InlineData("ANSI")]
+    [InlineData("UTF-8-BOM")]
+    public void NotAnEncodingName_ThrowsConfigurationValidationException(string name)
+    {
+        var act = () => MigrationService.GetFileEncoding(name);
 
         act.Should().Throw<ConfigurationValidationException>()
-            .WithMessage("*windows-1252*")
-            .WithMessage("*CodePagesEncodingProvider*");
+            .WithMessage($"*'{name}'*")
+            .WithMessage("*windows-1252*", "the message must point to a valid code-page name")
+            .Which.Message.Should().NotContain("RegisterProvider", "registration is the product's job, not the user's");
+    }
+
+    [Fact]
+    public void ConfiguredEncoding_IsStrict_DecoderThrowsOnInvalidBytes()
+    {
+        var utf8 = MigrationService.GetFileEncoding("UTF-8");
+        var ascii = MigrationService.GetFileEncoding("ASCII");
+
+        var decodeLatin1AsUtf8 = () => utf8.GetString(new byte[] { 0x47, 0x72, 0xFC, 0xDF, 0x65 }); // "Grüße" in windows-1252
+        var decodeUmlautAsAscii = () => ascii.GetString(new byte[] { 0xC3, 0xA4 });                 // "ä" in UTF-8
+
+        decodeLatin1AsUtf8.Should().Throw<System.Text.DecoderFallbackException>();
+        decodeUmlautAsAscii.Should().Throw<System.Text.DecoderFallbackException>();
     }
 
     [Fact]

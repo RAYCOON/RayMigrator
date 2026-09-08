@@ -462,6 +462,55 @@ public class ProductDefaultsPostConfigureOptionsTests
         var act = () => postConfigure.PostConfigure(null, options);
 
         act.Should().Throw<ConfigurationValidationException>()
-            .WithMessage("*NOT-A-VALID-ENCODING*");
+            .WithMessage("*NOT-A-VALID-ENCODING*")
+            .WithMessage("*windows-1252*", "the message names valid encodings (#4)")
+            .Which.Message.Should().NotContain("RegisterProvider", "the product registers the code-page provider itself (#4)");
     }
+
+    #region MigrationFilesEncoding merge (#4)
+
+    private static RayMigratorOptions CreateOptionsWithEncodings(string? defaultEncoding, string? productEncoding)
+    {
+        var options = CreateOptionsWithDefaults();
+        options.ProductDefaults!.MigrationFilesEncoding = defaultEncoding;
+        options.Products!.First().MigrationFilesEncoding = productEncoding;
+        return options;
+    }
+
+    [Fact]
+    public void CodePageDefaultEncoding_IsAcceptedAndCopiedToProductWithoutEncoding()
+    {
+        // windows-1252 used to throw here because the code-page provider was not registered (#4)
+        var options = CreateOptionsWithEncodings("windows-1252", null);
+
+        new ProductDefaultsPostConfigureOptions().PostConfigure(null, options);
+
+        options.Products!.First().MigrationFilesEncoding.Should().Be("windows-1252");
+    }
+
+    [Fact]
+    public void DefaultEncoding_DoesNotOverrideProductEncoding()
+    {
+        var options = CreateOptionsWithEncodings("windows-1252", "iso-8859-1");
+
+        new ProductDefaultsPostConfigureOptions().PostConfigure(null, options);
+
+        options.Products!.First().MigrationFilesEncoding.Should().Be("iso-8859-1");
+    }
+
+    [Theory]
+    [InlineData("ANSI")]
+    [InlineData("UTF-8-BOM")]
+    public void NotAnEncodingNameAsDefault_ThrowsConfigurationValidationException(string encodingName)
+    {
+        var options = CreateOptionsWithEncodings(encodingName, null);
+
+        var act = () => new ProductDefaultsPostConfigureOptions().PostConfigure(null, options);
+
+        act.Should().Throw<ConfigurationValidationException>()
+            .WithMessage($"*{encodingName}*")
+            .WithMessage("*windows-1252*");
+    }
+
+    #endregion
 }

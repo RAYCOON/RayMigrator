@@ -213,16 +213,20 @@ Individual products inherit from defaults unless overridden. During startup, `Pr
 
 ## File Encoding
 
-Any valid .NET encoding name accepted by `System.Text.Encoding.GetEncoding()` can be used. Some encodings (e.g. `windows-1252`) require `System.Text.Encoding.RegisterProvider(CodePagesEncodingProvider.Instance)` on .NET Core.
+Any valid .NET encoding name accepted by `System.Text.Encoding.GetEncoding()` can be used, including code-page encodings such as `windows-1252` (RayMigrator registers the code-page provider itself). `UTF-8-BOM` and `ANSI` are not encoding names.
 
 Common values:
 
 | Value | Description |
 |-------|-------------|
 | `UTF-8` | UTF-8 (default, recommended) |
+| `UTF-16` | UTF-16 (`Unicode` is an alias) |
+| `UTF-32` | UTF-32 |
 | `ASCII` | ASCII |
-| `Unicode` | UTF-16 |
 | `iso-8859-1` | Latin-1 Western European |
+| `windows-1252` | Windows Western European ("ANSI" on Western European Windows) |
+
+A byte-order mark in a file overrides the configured encoding for that file and is stripped before hashing. Files are decoded strictly: bytes that are invalid for the encoding abort the run before any file is executed, naming the file and the encoding. `migsettings.txt` files are always read as UTF-8. See [File Encoding](../07-migration-files/file-naming.md#file-encoding) for details.
 
 ## Directory Structure
 

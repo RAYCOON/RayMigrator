@@ -1,4 +1,3 @@
-using System.Text;
 using Microsoft.Extensions.Options;
 using Raycoon.RayMigrator.Core.Configuration.Enums;
 using Raycoon.RayMigrator.Core.Configuration.Options;
@@ -196,15 +195,14 @@ public class ProductDefaultsPostConfigureOptions : IPostConfigureOptions<RayMigr
     {
         try
         {
-            _ = Encoding.GetEncoding(migrationFilesEncoding);
+            _ = EncodingSupport.GetStrictEncoding(migrationFilesEncoding);
             return true;
         }
         catch (Exception ex)
         {
             throw new ConfigurationValidationException(
                 $"The ProductDefaults.MigrationFilesEncoding value '{migrationFilesEncoding}' is not a valid encoding name. " +
-                $"Some encodings (e.g. 'windows-1252') require System.Text.Encoding.RegisterProvider(CodePagesEncodingProvider.Instance) on .NET Core. " +
-                $"Please use a valid encoding name like 'UTF-8' or 'iso-8859-1'.", ex);
+                EncodingSupport.ValidNamesHint, ex);
         }
     }
 

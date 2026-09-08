@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using Microsoft.Extensions.Logging;
 using Raycoon.RayMigrator.Core.Configuration.Enums;
 using Raycoon.RayMigrator.Core.Configuration.Options;
@@ -54,7 +55,13 @@ public class CliToolExecutor : ICliToolExecutor
         _logger = logger;
     }
 
-    public async Task<CliToolExecutionResult> ExecuteAsync(CliToolExecutionRequest request, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Builds the process start info. In Stdin mode the content is piped as UTF-8 without BOM regardless of
+    /// the console code page: without an explicit StandardInputEncoding .NET uses Console.InputEncoding, which
+    /// is the OEM code page (e.g. 850) on a classic Windows console, so umlauts reached psql/mysql as cp850
+    /// bytes and characters outside that code page became '?' (#4).
+    /// </summary>
+    internal static ProcessStartInfo CreateStartInfo(CliToolExecutionRequest request)
     {
         var psi = new ProcessStartInfo
         {
@@ -66,6 +73,16 @@ public class CliToolExecutor : ICliToolExecutor
             RedirectStandardError = true,
             RedirectStandardInput = request.InputMode == CliToolInputMode.Stdin
         };
+
+        if (psi.RedirectStandardInput)
+            psi.StandardInputEncoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+
+        return psi;
+    }
+
+    public async Task<CliToolExecutionResult> ExecuteAsync(CliToolExecutionRequest request, CancellationToken cancellationToken = default)
+    {
+        var psi = CreateStartInfo(request);
 
         // Note: Arguments are NOT logged because they may contain passwords from CliToolParameters.
         // Only the executable path and filename are logged for traceability.

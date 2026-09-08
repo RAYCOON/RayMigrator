@@ -64,6 +64,35 @@ RayMigrator follows Semantic Versioning where applicable.
   left the others stale; it now updates the record of every target and
   reports `UpdatedFiles` (files) and `UpdatedRecords` (file/target pairs).
   A deleted file is counted as removed once instead of once per target. (#9)
+- Migration files were decoded with a replacing decoder: bytes that are not
+  valid for the configured `MigrationFilesEncoding` (typically a windows-1252
+  file with umlauts under the `UTF-8` default) were silently turned into
+  U+FFFD, executed in that garbled form and hashed in that garbled form, so
+  the data on the target was wrong and `validate-hash` still reported `Valid`.
+  Files are now read strictly: an invalid byte sequence aborts the run before
+  any file is executed with a `MigrationFileParsingException` that names the
+  file, the encoding, the offending bytes and the byte offset. A byte-order
+  mark (UTF-8, UTF-16 LE/BE, UTF-32 LE/BE) is detected per file, overrides
+  the configured encoding and is never part of the hashed text, so re-saving a
+  file with or without BOM does not change its hash. Code-page encodings such
+  as `windows-1252` are accepted directly; the CodePagesEncodingProvider is
+  registered by the console host, the ConfigWizard and the engine itself, so
+  the "register the provider" advice is gone from the error message and the
+  docs. The ConfigWizard's field help advertised `UTF-8-BOM`, which its own
+  validator rejected; it now lists real encoding names and explains that
+  `UTF-8-BOM` and `ANSI` are not encodings. `migsettings.txt` files are always
+  read as UTF-8 (a BOM is accepted) regardless of `MigrationFilesEncoding`.
+  In CLI-tool `Stdin` mode the SQL is now piped as UTF-8 without BOM instead
+  of the console input code page (cp850 on a classic Windows console), which
+  garbled non-ASCII characters on the way to `psql`/`mysql`. (#4)
+
+### Changed
+
+- A migration file that contains bytes invalid for its encoding is now a hard
+  error instead of being executed with replacement characters. Repositories
+  that were migrated with such files carry the hash of the garbled text; after
+  correcting `MigrationFilesEncoding` run `update-hash` once to store the
+  hash of the correctly decoded text. (#4)
 
 ## [0.11.1] — 2026-09-05
 
