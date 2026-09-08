@@ -213,6 +213,7 @@ The type of migration operation currently being performed (`MigrationOperation` 
 - **Rollback** (5): Performing rollback of previously applied migrations
 - **MigrateDown** (50): Performing down-migration
 - **MigrateUp** (100): Performing up-migration
+- **Baseline** (110): Marking migration files as migrated without executing them (baseline command)
 
 ### Target Migration Order
 How migrations execute across multiple targets (`TargetMigrationOrder` enum):

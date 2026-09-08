@@ -9,6 +9,27 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ### Fixed
 
+- `info`, `update-hash`, `fix` and `validate-hash` no longer require every
+  target database to be reachable at start-up. The start-up connection check,
+  the DatabaseLogging sink and the product/environment bookkeeping used to be
+  steered by the hidden `MigrationRunMode` each CLI handler assigned to its
+  command (`Migrate` for `info`, `Validate` for `validate-hash`), so a
+  read-only status query aborted when a target it never touches was down,
+  every `info` call filled the audit log while `validate-hash` left no trace,
+  and a read-only command on a fresh repository registered product and
+  environment as a side effect. Side effects now follow a per-command
+  `CommandProfile` (`MigrationCommandExtensions.GetProfile()`): `info` and
+  `validate-hash` no longer write DatabaseLogging rows and no longer insert
+  product/environment rows, `fix --dry-run` no longer writes DatabaseLogging
+  rows either, while `update-hash`, `baseline` and `fix` still do.
+  Baseline runs are shown as `Baseline` under **Operation** in the `info`
+  run history instead of `MigrateUp` (new `MigrationOperation.Baseline = 110`,
+  seeded into the `MigrationOperation` lookup table of every DAL; existing
+  repositories receive the row on their next run). Error-recovery rollbacks
+  take the run mode from the request that started the run instead of the
+  context. (#6)
+
+
 - `validate-hash` compared the files on disk against an empty record set:
   the repository query used the command's own `Validate` run mode as the
   `MigrationRunModeId` filter, but records are only ever written in
@@ -88,6 +109,16 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ### Changed
 
+- `validate-hash` now runs in `Migrate` mode like the other non-migrate
+  commands; `--run-mode` is a `migrate-up` / `migrate-down` concept and no
+  longer leaks into other commands (no user-visible option changes).
+  `ParseRunMode()` throws for an unknown value instead of falling back to
+  `Migrate`; a `MigrationContext` built with `RunMode = Undefined` or
+  `Command = None` is rejected; `IMigrationContextFactory.Create` takes the
+  `MigrationCommand` instead of hard-coding `MigrateUp`. The DatabaseLogging
+  sink gates on the enricher's new `DbLogEnabled` property instead of
+  `RunModeId`; the `info` history header column `Command` is now
+  `Operation`. (#6)
 - A migration file that contains bytes invalid for its encoding is now a hard
   error instead of being executed with replacement characters. Repositories
   that were migrated with such files carry the hash of the garbled text; after

@@ -40,7 +40,7 @@ All CLI-relevant enums are documented in the [Enum Reference](../08-cli-referenc
 - **FixIssues** — Fix scope (`Undefined` = 0, `All` = 1, `OrphanedRuns` = 2)
 - **MigrationStatus** — Per-migration record status (`Undefined` = 0, `Pending` = 10, `Executing` = 20, `Failed` = 30, `NotMigrated` = 50, `Migrated` = 100)
 - **MigrationRunResult** — Per-run result status (`Undefined` = 0, `Running` = 10, `Error` = 90, `Ok` = 100)
-- **MigrationOperation** — Repository operation types (`Undefined` = 0, `Rollback` = 5, `MigrateDown` = 50, `MigrateUp` = 100). Used in the `MigrationOperation` lookup table in the repository.
+- **MigrationOperation** — Repository operation types (`Undefined` = 0, `Rollback` = 5, `MigrateDown` = 50, `MigrateUp` = 100, `Baseline` = 110). Used in the `MigrationOperation` lookup table in the repository.
 - **CliToolInputMode** — How SQL files are passed to external CLI tools (`Undefined` = 0, `File` = 1, `Stdin` = 2). Default: `File`. See [CLI Tools Options](../06-configuration-reference/cli-tools-options.md)
 
 ---

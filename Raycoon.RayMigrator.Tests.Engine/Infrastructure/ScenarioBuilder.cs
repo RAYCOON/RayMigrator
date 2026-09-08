@@ -24,6 +24,8 @@ public class ScenarioBuilder
         TargetMigrationOrder? order, HashValidationScope? hashScope)> _additionalTargetGroups = new();
     private bool _databaseLogging;
     private string _databaseLoggingMinLevel = "Debug";
+    private string? _mainTargetConnectionString;
+    private string _serilogMinimumLevel = "Warning";
     private readonly List<Dictionary<string, object>> _cliTools = new();
     private string? _useCliToolAlias;
     private Dictionary<string, string>? _targetCliToolParameters;
@@ -385,6 +387,27 @@ public class ScenarioBuilder
     }
 
     /// <summary>
+    /// Sets Serilog's global minimum level (default: Warning). The DatabaseLogging sink only sees events that pass
+    /// this level first, so tests that assert on MigrationLog rows of a successful command need Information.
+    /// </summary>
+    public ScenarioBuilder WithSerilogMinimumLevel(string level)
+    {
+        _serilogMinimumLevel = level;
+        return this;
+    }
+
+    /// <summary>
+    /// Replaces the connection string of the main target (MainDB) while the repository keeps using the
+    /// fixture's connection string. The target is neither cleaned nor touched by the builder, so an
+    /// unreachable connection string can be used to prove that a command never connects to its targets (#6).
+    /// </summary>
+    public ScenarioBuilder WithTargetConnectionString(string connectionString)
+    {
+        _mainTargetConnectionString = connectionString;
+        return this;
+    }
+
+    /// <summary>
     /// Sets the DbCommandMaxRetries and DbCommandWaitTimeInMsBeforeRetry for target execution.
     /// </summary>
     public ScenarioBuilder WithTargetMaxRetries(int maxRetries, int retryDelayMs = 250)
@@ -411,7 +434,8 @@ public class ScenarioBuilder
     public async Task<ScenarioContext> BuildAsync(
         MigrationCommand command = MigrationCommand.MigrateUp,
         MigrationRunMode mode = MigrationRunMode.Migrate,
-        string? toRelease = null)
+        string? toRelease = null,
+        bool? fixDryRun = null)
     {
         // 1. Create temp directory
         string workDir = Path.Combine(Path.GetTempPath(), "RayMigrator_EngineTests", Guid.NewGuid().ToString());
@@ -439,7 +463,7 @@ public class ScenarioBuilder
 
         // 6. Build host
         var host = new EngineTestHost();
-        host.Build(configPath, productAlias, command, mode, toRelease);
+        host.Build(configPath, productAlias, command, mode, toRelease, fixDryRun: fixDryRun);
 
         // 7. Create query helper
         var queryHelper = new RepositoryQueryHelper(_engineConfig.DatabaseType, _engineConfig.ConnectionString, _engineConfig.SchemaName);
@@ -458,7 +482,7 @@ public class ScenarioBuilder
         var mainTarget = new Dictionary<string, object>
         {
             ["Alias"] = "MainDB",
-            ["ConnectionString"] = _engineConfig.ConnectionString
+            ["ConnectionString"] = _mainTargetConnectionString ?? _engineConfig.ConnectionString
         };
         if (_targetCliToolParameters != null)
             mainTarget["CliToolParameters"] = _targetCliToolParameters;
@@ -587,7 +611,7 @@ public class ScenarioBuilder
         {
             ["MinimumLevel"] = new Dictionary<string, object>
             {
-                ["Default"] = "Warning"
+                ["Default"] = _serilogMinimumLevel
             },
             ["WriteTo"] = new List<Dictionary<string, object>>
             {

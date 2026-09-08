@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
+using Raycoon.RayMigrator.Core.Configuration.Enums;
 using Raycoon.RayMigrator.Core.Configuration.Options;
 using Raycoon.RayMigrator.Database.Common;
+using Raycoon.RayMigrator.Shared.Exceptions;
 
 namespace Raycoon.RayMigrator.Core;
 
@@ -16,8 +18,22 @@ public class MigrationContext
     /// <param name="rayMigratorConsoleOptions"></param>
     /// <param name="rayMigratorVersion"></param>
     /// <param name="migrationState"></param>
+    /// <exception cref="ConfigurationValidationException">
+    /// <paramref name="rayMigratorConsoleOptions"/> still carries the "not set" sentinels <see cref="MigrationCommand.None"/>
+    /// or <see cref="MigrationRunMode.Undefined"/>. A context built with them can only produce wrong stamps and wrong side effects (#6).
+    /// </exception>
     public MigrationContext(RayMigratorOptions rayMigratorOptions, RayMigratorConsoleOptions rayMigratorConsoleOptions, string rayMigratorVersion, MigrationState? migrationState = null)
     {
+        if (rayMigratorConsoleOptions.Command == MigrationCommand.None)
+        {
+            throw new ConfigurationValidationException($"Cannot build a MigrationContext: Command is [{MigrationCommand.None}]. Set the command before creating the context.");
+        }
+
+        if (rayMigratorConsoleOptions.RunMode == MigrationRunMode.Undefined)
+        {
+            throw new ConfigurationValidationException($"Cannot build a MigrationContext: RunMode is [{MigrationRunMode.Undefined}]. Set the run mode (Migrate for every command except migrate-up/migrate-down with --run-mode) before creating the context.");
+        }
+
         RayMigratorOptions = rayMigratorOptions;
         RayMigratorConsoleOptions = rayMigratorConsoleOptions;
         RayMigratorVersion = rayMigratorVersion;

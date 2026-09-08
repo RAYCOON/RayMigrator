@@ -133,6 +133,7 @@ This template is **not executed immediately**. It is first used when the Serilog
    | 5 | Rollback | Performing Rollback of current MigrationRun |
    | 50 | MigrateDown | Performing Down-Migration |
    | 100 | MigrateUp | Performing Up-Migration |
+   | 110 | Baseline | Marking migration files as migrated without executing them (baseline command) |
 
    **MigrationRunResult** (used by MigrationRun only):
    | Id | Name | Description |

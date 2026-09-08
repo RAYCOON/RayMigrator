@@ -34,7 +34,7 @@ ExistingMigrationRecordId  = "INTEGER | REQUIRED | 0 = INSERT new record, >0 = U
 ProductId            = "INTEGER | REQUIRED | Product ID from Product table"
 MigrationRunId       = "INTEGER | REQUIRED | Parent MigrationRun ID"
 MigrationRunModeId   = "INTEGER | REQUIRED | Run mode: 10=Validate, 20=Simulate, 100=Migrate"
-MigrationOperationId = "INTEGER | REQUIRED | Operation: 5=Rollback, 50=MigrateDown, 100=MigrateUp"
+MigrationOperationId = "INTEGER | REQUIRED | Operation: 5=Rollback, 50=MigrateDown, 100=MigrateUp, 110=Baseline"
 MigrationStatusId    = "INTEGER | REQUIRED | Initial status (should be 10=Pending)"
 EnvironmentId        = "INTEGER | REQUIRED | Environment ID from Environment table"
 ReleaseVersion       = "TEXT | REQUIRED | Release version from folder path"

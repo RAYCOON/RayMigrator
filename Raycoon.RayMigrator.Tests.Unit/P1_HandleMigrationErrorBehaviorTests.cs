@@ -26,7 +26,7 @@ public class HandleMigrationErrorBehaviorTests
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
         method.Should().NotBeNull("HandleMigrationError should exist");
 
-        var task = (Task)method!.Invoke(service, new object[] { productOptions, file, failedMigrationRecordId, successRecords })!;
+        var task = (Task)method!.Invoke(service, new object[] { productOptions, file, failedMigrationRecordId, successRecords, MigrationRunMode.Migrate })!;
         await task;
     }
 

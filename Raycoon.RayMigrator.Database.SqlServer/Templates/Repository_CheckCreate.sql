@@ -104,6 +104,13 @@ BEGIN TRY
 				RETURN;
 			END;
 
+			-- Master data added after the initial release (idempotent upgrade of existing repositories)
+			IF NOT EXISTS (SELECT 1 FROM [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationOperation] WHERE [Id] = 110)
+			BEGIN
+				INSERT INTO [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationOperation] ([Id], [Name], [Description])
+				VALUES (110, 'Baseline', 'Marking migration files as migrated without executing them (baseline command)');
+			END;
+
 			-- Try to get VersionId
 			SELECT 
 				@VersionId = Id
@@ -383,7 +390,8 @@ ALTER TABLE [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRunMeta] ADD CONSTRA
 
 execute sys.sp_addextendedproperty  @name=N'MS_Description', @value=N'- Rollback (MigrateDown) = 5
 - MigrateDown = 50
-- MigrateUp = 100' , @level0type=N'SCHEMA',@level0name=N'{CFG:SchemaName}', @level1type=N'TABLE',@level1name=N'{CFG:TableBaseName}MigrationOperation';;
+- MigrateUp = 100
+- Baseline = 110' , @level0type=N'SCHEMA',@level0name=N'{CFG:SchemaName}', @level1type=N'TABLE',@level1name=N'{CFG:TableBaseName}MigrationOperation';;
 
 
 execute sys.sp_addextendedproperty  @name=N'MS_Description', @value=N'Running = 10, Error = 90, Ok = 100' , @level0type=N'SCHEMA',@level0name=N'{CFG:SchemaName}', @level1type=N'TABLE',@level1name=N'{CFG:TableBaseName}MigrationRunResult';;
@@ -541,7 +549,8 @@ execute sys.sp_addextendedproperty  @name=N'MS_Description', @value=N'The number
 		VALUES
 			(5, 'Rollback', 'Performing Rollback of current MigrationRun'),
 			(50, 'MigrateDown', 'Performing Down-Migration'),
-			(100, 'MigrateUp', 'Performing Up-Migration');
+			(100, 'MigrateUp', 'Performing Up-Migration'),
+			(110, 'Baseline', 'Marking migration files as migrated without executing them (baseline command)');
 
 		-- Data for Table "MigrationRunResult"
 		INSERT INTO [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRunResult] ([Id], [Name], [Description])

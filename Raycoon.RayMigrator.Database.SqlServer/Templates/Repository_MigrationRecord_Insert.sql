@@ -38,7 +38,7 @@ ExistingMigrationRecordId = "INT | REQUIRED | 0 = INSERT new record, >0 = UPDATE
 ProductId           = "INT | REQUIRED | Product ID from Product table"
 MigrationRunId      = "INT | REQUIRED | Parent MigrationRun ID"
 MigrationRunModeId  = "TINYINT | REQUIRED | Run mode: 10=Validate, 20=Simulate, 100=Migrate"
-MigrationOperationId= "TINYINT | REQUIRED | Operation: 5=Rollback, 50=MigrateDown, 100=MigrateUp"
+MigrationOperationId= "TINYINT | REQUIRED | Operation: 5=Rollback, 50=MigrateDown, 100=MigrateUp, 110=Baseline"
 MigrationStatusId   = "TINYINT | REQUIRED | Initial status (should be 10=Pending)"
 EnvironmentId       = "INT | REQUIRED | Environment ID from Environment table"
 ReleaseVersion      = "NVARCHAR(100) | REQUIRED | Release version from folder path"
@@ -64,7 +64,7 @@ Note2 = "No commas allowed in error messages"
 Note3 = "Use SYSUTCDATETIME() for StartedAt timestamp"
 Note4 = "FileUpBlocksMigrated initialized to 0 - updated by Repository_MigrationRecord_Update"
 Note5 = "MigrationStatusId values: 10=Pending, 20=Executing, 30=Failed, 50=NotMigrated, 100=Migrated"
-Note6 = "MigrationOperationId values: 5=Rollback, 50=MigrateDown, 100=MigrateUp"
+Note6 = "MigrationOperationId values: 5=Rollback, 50=MigrateDown, 100=MigrateUp, 110=Baseline"
 ================================================================================
 */
 

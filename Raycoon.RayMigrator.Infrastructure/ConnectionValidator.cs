@@ -15,7 +15,8 @@ namespace Raycoon.RayMigrator.Core.Configuration.Validation;
 public static class ConnectionValidator
 {
     /// <summary>
-    /// 
+    /// Validates the DatabaseLogging connection string and, when the command writes database-log rows
+    /// (<see cref="CommandProfile.WritesDatabaseLog"/>), opens a connection to prove the log database is reachable.
     /// </summary>
     /// <param name="rayMigratorOptions"></param>
     /// <param name="dalInstance"></param>
@@ -25,7 +26,7 @@ public static class ConnectionValidator
     {
         try
         {
-            bool tryEstablishConnection = rayMigratorConsoleOptions.RunMode == MigrationRunMode.Migrate;
+            bool tryEstablishConnection = rayMigratorConsoleOptions.GetProfile().WritesDatabaseLog;
             dalInstance!.CheckConnectionStringOrValidateConnection(tryEstablishConnection);
         }
         catch (Exception ex)
@@ -40,13 +41,17 @@ public static class ConnectionValidator
     }
 
     /// <summary>
-    /// 
+    /// Validates every target's connection string and, when the command touches the targets
+    /// (<see cref="CommandProfile.ConnectsToTargets"/>), opens a connection to each of them. Commands that only
+    /// read or write the repository (info, validate-hash, update-hash, fix, baseline) start even when a target is down (#6).
     /// </summary>
     /// <param name="ctx"></param>
     /// <param name="logger"></param>
     /// <exception cref="ApplicationStartupException"></exception>
     public static void ValidateTargetConnections(MigrationContext ctx, ILogger logger)
     {
+        bool tryEstablishConnection = ctx.RayMigratorConsoleOptions.GetProfile().ConnectsToTargets;
+
         foreach (TargetGroupOptions targetGroupOptions in ctx.ProductTargetGroupOptionsEnumerable!)
         {
             foreach (TargetOptions targetOptions in targetGroupOptions.Targets!)
@@ -55,7 +60,6 @@ public static class ConnectionValidator
                 {
                     try
                     {
-                        bool tryEstablishConnection = (ctx.RayMigratorConsoleOptions.RunMode == MigrationRunMode.Migrate || ctx.RayMigratorConsoleOptions.RunMode == MigrationRunMode.Simulate);
 
                         logger.LogDebug(MigrationEvent.ValidateConnectionStrings,
                             "Validating [{DatabaseType}]-ConnectionString for TargetGroup [{TargetGroupAlias}] and Target [{TargetAlias}]",

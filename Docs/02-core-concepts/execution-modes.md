@@ -267,6 +267,22 @@ The behavior of each mode is determined by extension methods on `MigrationRunMod
 | `ShouldWriteRepository()` | false | false | **true** |
 | `ShouldReadRepository()` | false | **true** | **true** |
 
+`--run-mode` applies to `migrate-up` and `migrate-down` only; every other command runs in `Migrate` mode and decides its side effects by command. The single source for those decisions is `MigrationCommandExtensions.GetProfile()` (`Raycoon.RayMigrator.Core/Extensions/MigrationCommandExtensions.cs`), which returns a `CommandProfile` per command (#6). The start-up connection check (`ConnectionValidator`), the DatabaseLogging sink gate (`DbLogEnabled`, emitted by `MigrationContextEnricher`) and the product/environment bookkeeping in `MigrationService` all read the profile instead of the run mode:
+
+| Command | RunMode | ExecutesMigrations | ConnectsToTargets | ReadsRepository | WritesRepository | WritesDatabaseLog |
+|---------|---------|:-:|:-:|:-:|:-:|:-:|
+| `migrate-up` / `migrate-down` | Migrate | yes | yes | yes | yes | yes |
+| `migrate-up` / `migrate-down` | Simulate | yes | yes | yes | no | no |
+| `migrate-up` / `migrate-down` | Validate | yes | no | no | no | no |
+| `baseline` | Migrate | no | no | yes | yes | yes |
+| `update-hash` | Migrate | no | no | yes | yes | yes |
+| `fix` | Migrate | no | no | yes | yes | yes |
+| `fix --dry-run` | Migrate | no | no | yes | no | no |
+| `info` | Migrate | no | no | yes | no | no |
+| `validate-hash` | Migrate | no | no | yes | no | no |
+
+A command that does not connect to the targets starts even when a target database is unreachable. A command that does not write the repository looks the product and environment up read-only (`Repository_Product_Select` / `Repository_Environment_Select`) instead of registering them, so a read-only command on a fresh repository leaves no rows behind. `RepositoryCheckCreate` still runs for every command because the read paths need the tables. The `MigrationRunModeId` stamped into `MigrationRun` / `MigrationRecord` / `MigrationLog` rows is still the context run mode, i.e. `100` for everything that writes records.
+
 ### Migrate (Default)
 
 Execute actual database changes.
@@ -327,7 +343,7 @@ raymigrator migrate-down --product MyProduct --environment Production --to-relea
 - Checking rollback file completeness
 - Environments where database access is not available
 
-> **Note**: The `validate-hash` command is a separate command that validates file hashes against repository records (exit code `1` for `Modified` or `Missing` files, `0` otherwise; unmigrated files are listed as `New` and do not affect the exit code). The `--run-mode validate` option for `migrate-up`/`migrate-down` is a different feature that validates file structure without any database access. Internally `validate-hash` runs with `RunMode = Validate`, but the repository record query always reads `Migrate`-mode records regardless of the command's run mode, because records are only ever written in `Migrate` mode.
+> **Note**: The `validate-hash` command is a separate command that validates file hashes against repository records (exit code `1` for `Modified` or `Missing` files, `0` otherwise; unmigrated files are listed as `New` and do not affect the exit code). The `--run-mode validate` option for `migrate-up`/`migrate-down` is a different feature that validates file structure without any database access. Internally `validate-hash` runs in `Migrate` mode like every other non-migrate command (#6); its side effects (repository read-only, no target connections, no audit log) come from its command profile, and the repository record query always reads `Migrate`-mode records because records are only ever written in `Migrate` mode (#5).
 
 ## Execution Flow Comparison
 

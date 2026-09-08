@@ -5,10 +5,11 @@ using Raycoon.RayMigrator.Core.Configuration.Options;
 namespace Raycoon.RayMigrator.Tests.Unit;
 
 /// <summary>
-/// Pins which <see cref="MigrationRunMode"/> each CLI verb runs in (#5).
-/// Only migrate-up and migrate-down expose --run-mode; every other verb gets a fixed run mode
-/// from its handler. The mapping is implicit in <see cref="CommandLineConfiguration"/> and used to be
-/// unobservable — until validate-hash's <see cref="MigrationRunMode.Validate"/> leaked into the
+/// Pins which <see cref="MigrationRunMode"/> each CLI verb runs in (#5, #6).
+/// Only migrate-up and migrate-down expose --run-mode; every other verb runs in
+/// <see cref="MigrationRunMode.Migrate"/> and decides its side effects through its command profile (#6).
+/// The mapping is implicit in <see cref="CommandLineConfiguration"/> and used to be
+/// unobservable — until validate-hash's former <see cref="MigrationRunMode.Validate"/> leaked into the
 /// repository query filter (#5). Any change to this mapping must be a conscious one.
 /// </summary>
 public class CommandRunModeMappingTests
@@ -22,7 +23,7 @@ public class CommandRunModeMappingTests
     }
 
     [Theory]
-    [InlineData("validate-hash", MigrationCommand.ValidateHash, MigrationRunMode.Validate)]
+    [InlineData("validate-hash", MigrationCommand.ValidateHash, MigrationRunMode.Migrate)]
     [InlineData("update-hash", MigrationCommand.UpdateHash, MigrationRunMode.Migrate)]
     [InlineData("info", MigrationCommand.Info, MigrationRunMode.Migrate)]
     [InlineData("baseline", MigrationCommand.Baseline, MigrationRunMode.Migrate)]
@@ -35,6 +36,18 @@ public class CommandRunModeMappingTests
         config.ParsedOptions!.Command.Should().Be(expectedCommand);
         config.ParsedOptions.RunMode.Should().Be(expectedRunMode,
             $"the run mode of '{verb}' is fixed by its CLI handler and must not change unnoticed");
+    }
+
+    [Fact]
+    public async Task FixDryRun_KeepsMigrateRunMode_AndSetsFixDryRun()
+    {
+        // fix --dry-run is the fix command's own dry-run concept; it does not borrow --run-mode simulate (#6).
+        var (config, _) = await ParseAsync("fix", "-p", "P", "-env", "Dev", "--dry-run");
+
+        config.ParsedOptions.Should().NotBeNull();
+        config.ParsedOptions!.Command.Should().Be(MigrationCommand.FixIssues);
+        config.ParsedOptions.RunMode.Should().Be(MigrationRunMode.Migrate);
+        config.ParsedOptions.FixDryRun.Should().BeTrue();
     }
 
     [Theory]

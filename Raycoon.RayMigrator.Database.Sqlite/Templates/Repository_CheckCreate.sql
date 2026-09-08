@@ -249,7 +249,8 @@ INSERT OR IGNORE INTO "{CFG:TableBaseName}MigrationRunMode" ("Id", "Name", "Desc
 INSERT OR IGNORE INTO "{CFG:TableBaseName}MigrationOperation" ("Id", "Name", "Description") VALUES
     (5, 'Rollback', 'Performing Rollback of current MigrationRun'),
     (50, 'MigrateDown', 'Performing Down-Migration'),
-    (100, 'MigrateUp', 'Performing Up-Migration');
+    (100, 'MigrateUp', 'Performing Up-Migration'),
+    (110, 'Baseline', 'Marking migration files as migrated without executing them (baseline command)');
 
 INSERT OR IGNORE INTO "{CFG:TableBaseName}MigrationRunResult" ("Id", "Name", "Description") VALUES
     (10, 'Running', 'Migration process is currently running'),

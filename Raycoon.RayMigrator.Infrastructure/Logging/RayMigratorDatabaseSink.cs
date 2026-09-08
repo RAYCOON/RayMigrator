@@ -42,12 +42,16 @@ public class RayMigratorDatabaseSink : ILogEventSink, IDisposable
         if (logEvent.Level < _minimumLevel)
             return;
 
-        // Only write to database in Migrate mode.
-        // Early pipeline logs without RunModeId (null) pass through — they are
-        // emitted before the run mode is known and carry infrastructure context only.
-        var runModeId = GetByteProperty(logEvent, "RunModeId");
-        if (runModeId.HasValue && runModeId.Value != (byte)MigrationRunMode.Migrate)
+        // Only write to database when the command's profile says so (DbLogEnabled, emitted by
+        // MigrationContextEnricher from CommandProfile.WritesDatabaseLog): migrate-up/-down in Migrate mode,
+        // update-hash, baseline and fix - not info, validate-hash, simulate/validate runs or fix --dry-run (#6).
+        // Early pipeline logs without the property (null) pass through - they are
+        // emitted before the context is known and carry infrastructure context only.
+        var dbLogEnabled = GetBoolProperty(logEvent, "DbLogEnabled");
+        if (dbLogEnabled.HasValue && !dbLogEnabled.Value)
             return;
+
+        var runModeId = GetByteProperty(logEvent, "RunModeId");
 
         var writer = _writer;
         if (writer == null || !writer.IsInitialized)
@@ -60,7 +64,6 @@ public class RayMigratorDatabaseSink : ILogEventSink, IDisposable
         if (logEvent.Exception != null)
             message += $"\nException:\n{logEvent.Exception}\n";
 
-        // runModeId already retrieved above for the Migrate-mode gate
         var productId = GetNullableIntProperty(logEvent, "ProductId");
         var environmentId = GetNullableIntProperty(logEvent, "EnvironmentId");
         var migrationRunId = GetNullableIntProperty(logEvent, "MigrationRunId");
@@ -111,6 +114,16 @@ public class RayMigratorDatabaseSink : ILogEventSink, IDisposable
         {
             if (sv.Value is int i) return i;
             if (sv.Value != null && int.TryParse(sv.Value.ToString(), out var parsed)) return parsed;
+        }
+        return null;
+    }
+
+    private static bool? GetBoolProperty(LogEvent logEvent, string name)
+    {
+        if (logEvent.Properties.TryGetValue(name, out var value) && value is ScalarValue sv)
+        {
+            if (sv.Value is bool b) return b;
+            if (sv.Value != null && bool.TryParse(sv.Value.ToString(), out var parsed)) return parsed;
         }
         return null;
     }

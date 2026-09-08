@@ -9,10 +9,18 @@ namespace Raycoon.RayMigrator.Core;
 /// </summary>
 public interface IMigrationContextFactory
 {
+    /// <summary>
+    /// Creates a context for one command. The command is stamped into the MigrationRun settings snapshot and
+    /// drives the command's side effects (see <see cref="Configuration.Enums.CommandProfile"/>), so it must be the
+    /// command that is actually executed (#6). <paramref name="runMode"/> is only a choice for
+    /// <see cref="MigrationCommand.MigrateUp"/> / <see cref="MigrationCommand.MigrateDown"/>; pass
+    /// <see cref="MigrationRunMode.Migrate"/> for every other command.
+    /// </summary>
     MigrationContext Create(
         RayMigratorOptions options,
         string product,
         string environment,
+        MigrationCommand command,
         MigrationRunMode runMode,
         string version,
         string? targetReleaseVersion = null,
@@ -28,6 +36,7 @@ public class MigrationContextFactory : IMigrationContextFactory
         RayMigratorOptions options,
         string product,
         string environment,
+        MigrationCommand command,
         MigrationRunMode runMode,
         string version,
         string? targetReleaseVersion = null,
@@ -35,7 +44,7 @@ public class MigrationContextFactory : IMigrationContextFactory
     {
         var consoleOptions = new RayMigratorConsoleOptions
         {
-            Command = MigrationCommand.MigrateUp, // Will be overridden per operation
+            Command = command,
             Product = product,
             Environment = environment,
             RunMode = runMode,

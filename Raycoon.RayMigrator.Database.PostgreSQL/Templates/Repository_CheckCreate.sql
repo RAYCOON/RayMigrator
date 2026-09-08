@@ -86,6 +86,11 @@ BEGIN
             RAISE EXCEPTION '-10,RayMigrator repository incomplete or corrupt. Repository contains [%] tables instead of [11].', v_number_of_tables_found;
         END IF;
 
+        -- Master data added after the initial release (idempotent upgrade of existing repositories)
+        INSERT INTO {CFG:SchemaName}.{CFG:TableBaseName}migration_operation (id, name, description)
+        VALUES (110, 'Baseline', 'Marking migration files as migrated without executing them (baseline command)')
+        ON CONFLICT (id) DO NOTHING;
+
         -- Try to get VersionId
         SELECT id INTO v_version_id
         FROM {CFG:SchemaName}.{CFG:TableBaseName}migrator_meta
@@ -314,7 +319,7 @@ BEGIN
     ALTER TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_run_meta ADD CONSTRAINT fk_migration_run_meta_migration_run FOREIGN KEY (migration_run_id) REFERENCES {CFG:SchemaName}.{CFG:TableBaseName}migration_run(id) ON DELETE NO ACTION ON UPDATE NO ACTION;
 
     -- Table and column comments (equivalent to SQL Server extended properties)
-    COMMENT ON TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_operation IS 'Rollback (MigrateDown) = 5, MigrateDown = 50, MigrateUp = 100';
+    COMMENT ON TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_operation IS 'Rollback (MigrateDown) = 5, MigrateDown = 50, MigrateUp = 100, Baseline = 110';
     COMMENT ON TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_run_result IS 'Running = 10, Error = 90, Ok = 100';
     COMMENT ON TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_run_mode IS 'Validate = 10, Simulate = 20, Migrate = 100';
     COMMENT ON TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_status IS 'Pending = 10 (Initial insert), Executing = 20 (Block-level execution in progress), Failed = 30 (Migration failed), NotMigrated = 50 (Not yet performed / RolledBack / Skipped / Ignored), Migrated = 100 (MigrateUp successful)';
@@ -332,7 +337,8 @@ BEGIN
     VALUES
         (5, 'Rollback', 'Performing Rollback of current MigrationRun'),
         (50, 'MigrateDown', 'Performing Down-Migration'),
-        (100, 'MigrateUp', 'Performing Up-Migration');
+        (100, 'MigrateUp', 'Performing Up-Migration'),
+        (110, 'Baseline', 'Marking migration files as migrated without executing them (baseline command)');
 
     INSERT INTO {CFG:SchemaName}.{CFG:TableBaseName}migration_run_result (id, name, description)
     VALUES

@@ -11,9 +11,11 @@ using Serilog.Parsing;
 namespace Raycoon.RayMigrator.Tests.Unit;
 
 /// <summary>
-/// P2: Tests for RayMigratorDatabaseSink.Emit() run-mode filter.
-/// Verifies that database logging only occurs in Migrate mode (RunModeId = 100).
-/// Early-pipeline logs without RunModeId (null) pass through.
+/// P2: Tests for RayMigratorDatabaseSink.Emit() gate.
+/// Database logging follows the command profile: MigrationContextEnricher emits <c>DbLogEnabled</c>
+/// (CommandProfile.WritesDatabaseLog) and the sink drops every event that carries <c>DbLogEnabled = false</c> (#6).
+/// <c>RunModeId</c> is still stored in the log row but no longer decides anything.
+/// Early-pipeline logs without the property (null) pass through.
 /// </summary>
 public class RayMigratorDatabaseSinkTests
 {
@@ -85,12 +87,12 @@ public class RayMigratorDatabaseSinkTests
 
     #endregion
 
-    #region RunModeId Filter — should enqueue
+    #region DbLogEnabled gate — should enqueue
 
     [Fact]
-    public void Emit_WithRunModeIdMigrate_EnqueuesLogEntry()
+    public void Emit_WithDbLogEnabledTrue_EnqueuesLogEntry()
     {
-        // Arrange
+        // Arrange — what the enricher emits for update-hash, baseline, fix and migrate-up/-down in Migrate mode
         var (sink, dal) = CreateInitializedSink();
         bool dalCalled = false;
         dal.When(x => x.ExecuteNonQuery(Arg.Any<string>(), Arg.Any<IDalSettings>(), Arg.Any<DalParameterList>()))
@@ -98,6 +100,7 @@ public class RayMigratorDatabaseSinkTests
 
         var logEvent = CreateLogEvent(
             LogEventLevel.Information,
+            ("DbLogEnabled", true),
             ("RunModeId", (byte)MigrationRunMode.Migrate));
 
         // Act
@@ -105,37 +108,33 @@ public class RayMigratorDatabaseSinkTests
 
         // Assert — DAL is called, proving the log entry was not filtered out
         WaitForCondition(() => dalCalled).Should().BeTrue(
-            "RunModeId = Migrate (100) must pass the run-mode filter and reach the DAL");
+            "DbLogEnabled = true must pass the gate and reach the DAL");
     }
 
     [Fact]
-    public void Emit_WithoutRunModeId_EnqueuesLogEntry()
+    public void Emit_WithoutDbLogEnabled_EnqueuesLogEntry()
     {
-        // Arrange — no RunModeId property simulates early-pipeline logs
+        // Arrange — no DbLogEnabled/RunModeId property simulates early-pipeline logs
         var (sink, dal) = CreateInitializedSink();
         bool dalCalled = false;
         dal.When(x => x.ExecuteNonQuery(Arg.Any<string>(), Arg.Any<IDalSettings>(), Arg.Any<DalParameterList>()))
            .Do(_ => dalCalled = true);
 
         var logEvent = CreateLogEvent(LogEventLevel.Information
-            /* no RunModeId property */);
+            /* no DbLogEnabled property */);
 
         // Act
         sink.Emit(logEvent);
 
-        // Assert — null RunModeId is treated as an early-pipeline log and must pass through
+        // Assert — a missing DbLogEnabled is treated as an early-pipeline log and must pass through
         WaitForCondition(() => dalCalled).Should().BeTrue(
-            "logs without RunModeId (null) must pass through to capture early pipeline context");
+            "logs without DbLogEnabled (null) must pass through to capture early pipeline context");
     }
 
-    #endregion
-
-    #region RunModeId Filter — should NOT enqueue
-
     [Fact]
-    public void Emit_WithRunModeIdSimulate_DoesNotEnqueueLogEntry()
+    public void Emit_WithRunModeIdSimulate_ButNoDbLogEnabled_EnqueuesLogEntry()
     {
-        // Arrange
+        // Arrange — RunModeId alone no longer gates anything; only the enricher's DbLogEnabled does (#6)
         var (sink, dal) = CreateInitializedSink();
         bool dalCalled = false;
         dal.When(x => x.ExecuteNonQuery(Arg.Any<string>(), Arg.Any<IDalSettings>(), Arg.Any<DalParameterList>()))
@@ -148,18 +147,23 @@ public class RayMigratorDatabaseSinkTests
         // Act
         sink.Emit(logEvent);
 
-        // Give the background queue a brief window — if the filter is broken the DAL would be called
-        Thread.Sleep(200);
-
-        // Assert — Simulate mode must be silently dropped
-        dalCalled.Should().BeFalse(
-            "RunModeId = Simulate (20) must be filtered out; DB logging is only allowed in Migrate mode");
+        // Assert
+        WaitForCondition(() => dalCalled).Should().BeTrue(
+            "RunModeId is a stamp, not a gate; without DbLogEnabled the event passes through");
     }
 
-    [Fact]
-    public void Emit_WithRunModeIdValidate_DoesNotEnqueueLogEntry()
+    #endregion
+
+    #region DbLogEnabled gate — should NOT enqueue
+
+    [Theory]
+    [InlineData((byte)MigrationRunMode.Migrate)]
+    [InlineData((byte)MigrationRunMode.Simulate)]
+    [InlineData((byte)MigrationRunMode.Validate)]
+    public void Emit_WithDbLogEnabledFalse_DoesNotEnqueueLogEntry(byte runModeId)
     {
-        // Arrange
+        // Arrange — what the enricher emits for info, validate-hash, fix --dry-run, simulate and validate runs.
+        // Migrate + false is the info/validate-hash case: they run in Migrate mode and must still stay silent.
         var (sink, dal) = CreateInitializedSink();
         bool dalCalled = false;
         dal.When(x => x.ExecuteNonQuery(Arg.Any<string>(), Arg.Any<IDalSettings>(), Arg.Any<DalParameterList>()))
@@ -167,16 +171,18 @@ public class RayMigratorDatabaseSinkTests
 
         var logEvent = CreateLogEvent(
             LogEventLevel.Information,
-            ("RunModeId", (byte)MigrationRunMode.Validate));
+            ("DbLogEnabled", false),
+            ("RunModeId", runModeId));
 
         // Act
         sink.Emit(logEvent);
 
+        // Give the background queue a brief window — if the gate is broken the DAL would be called
         Thread.Sleep(200);
 
-        // Assert — Validate mode must be silently dropped
+        // Assert
         dalCalled.Should().BeFalse(
-            "RunModeId = Validate (10) must be filtered out; DB logging is only allowed in Migrate mode");
+            $"DbLogEnabled = false must be silently dropped regardless of RunModeId ({runModeId})");
     }
 
     #endregion
@@ -194,7 +200,8 @@ public class RayMigratorDatabaseSinkTests
 
         var logEvent = CreateLogEvent(
             LogEventLevel.Verbose,
-            ("RunModeId", (byte)MigrationRunMode.Migrate)); // correct run mode, wrong level
+            ("DbLogEnabled", true),
+            ("RunModeId", (byte)MigrationRunMode.Migrate)); // gate open, wrong level
 
         // Act
         sink.Emit(logEvent);
@@ -203,7 +210,7 @@ public class RayMigratorDatabaseSinkTests
 
         // Assert — minimum-level guard must still reject the entry
         dalCalled.Should().BeFalse(
-            "a log event below the sink's minimum level must be dropped even when RunModeId = Migrate");
+            "a log event below the sink's minimum level must be dropped even when DbLogEnabled = true");
     }
 
     #endregion
@@ -217,6 +224,7 @@ public class RayMigratorDatabaseSinkTests
         var sink = new RayMigratorDatabaseSink(LogEventLevel.Debug);
         var logEvent = CreateLogEvent(
             LogEventLevel.Information,
+            ("DbLogEnabled", true),
             ("RunModeId", (byte)MigrationRunMode.Migrate));
 
         // Act & Assert — must not throw even when no writer is attached

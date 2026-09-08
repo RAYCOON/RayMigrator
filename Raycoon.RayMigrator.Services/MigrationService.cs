@@ -134,7 +134,7 @@ public class MigrationService : IMigrationService
                 {
                     // Simulate never ran the CheckInsert templates above, so ProductId/EnvironmentId must be
                     // resolved read-only here; otherwise the select would run with id 0 and find nothing (#7).
-                    if (!request.RunMode.ShouldWriteRepository() && !await ResolveRepositoryIdsReadOnlyAsync(request.RunMode))
+                    if (!request.RunMode.ShouldWriteRepository() && !await ResolveRepositoryIdsReadOnlyAsync($"{request.RunMode} mode"))
                     {
                         existingRecords = new List<MigrationRecord>();
                         filesToMigrate = migrationFiles;
@@ -281,7 +281,7 @@ public class MigrationService : IMigrationService
                             // Both modes: error aborts entire run
                             await HandleMigrationError(
                                 productOptions, result.FailedFile!, result.FailedMigrationRecordId,
-                                successfullyMigratedRecords);
+                                successfullyMigratedRecords, request.RunMode);
 
                             await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(MigrationRunResult.Error));
                         }
@@ -1080,7 +1080,7 @@ public class MigrationService : IMigrationService
             {
                 // Simulate never ran the CheckInsert templates above, so ProductId/EnvironmentId must be
                 // resolved read-only here; otherwise the select would run with id 0 and find nothing (#7).
-                if (!request.RunMode.ShouldWriteRepository() && !await ResolveRepositoryIdsReadOnlyAsync(request.RunMode))
+                if (!request.RunMode.ShouldWriteRepository() && !await ResolveRepositoryIdsReadOnlyAsync($"{request.RunMode} mode"))
                 {
                     existingRecords = new List<MigrationRecord>();
                 }
@@ -1241,15 +1241,15 @@ public class MigrationService : IMigrationService
             }
 
             // --- Phase 1: Initialization ---
-            await Task.Run(() => _templateExecutor.RepositoryCheckCreate());
-            await Task.Run(() => _templateExecutor.RepositoryProductCheckInsert());
-            await Task.Run(() => _templateExecutor.RepositoryEnvironmentCheckInsert());
+            await InitializeRepositoryAsync();
 
-            // Create migration run with settings snapshot (auto-fixes orphaned runs if needed)
+            // Create migration run with settings snapshot (auto-fixes orphaned runs if needed).
+            // Baseline runs and their records are stamped MigrationOperation.Baseline so that the run history
+            // can tell them apart from real up-migrations (#6).
             _ctxAccessor.Current.MigrationState.MigrationRunResult = MigrationRunResult.Running;
-            _ctxAccessor.Current.MigrationState.MigrationOperation = MigrationOperation.MigrateUp;
+            _ctxAccessor.Current.MigrationState.MigrationOperation = MigrationOperation.Baseline;
             _logger.LogDebug("State initialized: MigrationRunResult={MigrationRunResult}, MigrationOperation={MigrationOperation}",
-                MigrationRunResult.Running, MigrationOperation.MigrateUp);
+                MigrationRunResult.Running, MigrationOperation.Baseline);
             var settingsJson = BuildMigrationRunSettingsJson(_ctxAccessor.Current);
             _logger.LogTrace("MigrationRun settings snapshot:\n{SettingsJson}", settingsJson);
             await RepositoryMigrationRunInsertWithAutoFix(settingsJson);
@@ -1846,7 +1846,8 @@ public class MigrationService : IMigrationService
         ProductOptions productOptions,
         MigrationFileInfo failedFile,
         int failedMigrationRecordId,
-        List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)> successfullyMigratedRecords)
+        List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)> successfullyMigratedRecords,
+        MigrationRunMode runMode)
     {
         var errorAction = failedFile.MigrationErrorActionOverride ?? productOptions.MigrationErrorActionEnum;
 
@@ -1865,7 +1866,7 @@ public class MigrationService : IMigrationService
 
             case MigrationErrorAction.RollbackErrorOnly:
                 _logger.LogInformation("MigrationErrorAction=RollbackErrorOnly: Rolling back only the failed migration file.");
-                await RollbackSingleMigration(productOptions, failedFile, failedMigrationRecordId);
+                await RollbackSingleMigration(productOptions, failedFile, failedMigrationRecordId, runMode);
                 break;
 
             case MigrationErrorAction.Rollback:
@@ -1903,7 +1904,7 @@ public class MigrationService : IMigrationService
                     });
                 }
 
-                await ExecuteRollbackForMigrations(recordsToRollback, productOptions, _ctxAccessor.Current.RayMigratorConsoleOptions.RunMode, isErrorRecovery: true);
+                await ExecuteRollbackForMigrations(recordsToRollback, productOptions, runMode, isErrorRecovery: true);
                 break;
 
             case MigrationErrorAction.RollbackRelease:
@@ -1942,7 +1943,7 @@ public class MigrationService : IMigrationService
                     });
                 }
 
-                await ExecuteRollbackForMigrations(releaseRecords, productOptions, _ctxAccessor.Current.RayMigratorConsoleOptions.RunMode, isErrorRecovery: true);
+                await ExecuteRollbackForMigrations(releaseRecords, productOptions, runMode, isErrorRecovery: true);
                 break;
 
             case MigrationErrorAction.Ignore:
@@ -1963,7 +1964,8 @@ public class MigrationService : IMigrationService
     private async Task RollbackSingleMigration(
         ProductOptions productOptions,
         MigrationFileInfo failedFile,
-        int failedMigrationRecordId)
+        int failedMigrationRecordId,
+        MigrationRunMode runMode)
     {
         var singleRecord = new List<MigrationRecord>
         {
@@ -1979,7 +1981,7 @@ public class MigrationService : IMigrationService
             }
         };
 
-        await ExecuteRollbackForMigrations(singleRecord, productOptions, _ctxAccessor.Current.RayMigratorConsoleOptions.RunMode, isErrorRecovery: true);
+        await ExecuteRollbackForMigrations(singleRecord, productOptions, runMode, isErrorRecovery: true);
     }
 
     #endregion Shared Rollback Execution
@@ -3261,7 +3263,7 @@ public class MigrationService : IMigrationService
     /// False when either row does not exist yet — the caller then treats every migration file as pending,
     /// which is the same outcome Migrate mode would produce on its first run.
     /// </returns>
-    private async Task<bool> ResolveRepositoryIdsReadOnlyAsync(MigrationRunMode runMode)
+    private async Task<bool> ResolveRepositoryIdsReadOnlyAsync(string reader)
     {
         bool productFound = await Task.Run(() => _templateExecutor.RepositoryProductSelect());
         bool environmentFound = await Task.Run(() => _templateExecutor.RepositoryEnvironmentSelect());
@@ -3276,9 +3278,54 @@ public class MigrationService : IMigrationService
             _ => "environment"
         };
         _logger.LogInformation(
-            "Repository has no record for the {Missing} yet (product {Product}, environment {Environment}); {RunMode} mode treats all migration files as pending.",
-            missing, _ctxAccessor.Current.RayMigratorConsoleOptions.Product, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, runMode);
+            "Repository has no record for the {Missing} yet (product {Product}, environment {Environment}); {Reader} reads an empty repository and treats all migration files as pending.",
+            missing, _ctxAccessor.Current.RayMigratorConsoleOptions.Product, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, reader);
         return false;
+    }
+
+    /// <summary>
+    /// Phase 1 of every non-migrate command: makes sure the repository schema exists and resolves
+    /// <c>MigrationState.ProductId</c> / <c>EnvironmentId</c>. Commands whose <see cref="CommandProfile"/> writes the
+    /// repository register product and environment (<c>*_CheckInsert</c>); read-only commands (info, validate-hash,
+    /// fix --dry-run) only look them up, so a read-only command on a fresh repository leaves no rows behind (#6).
+    /// <c>RepositoryCheckCreate</c> stays unconditional: it is idempotent and the read paths need the tables.
+    /// </summary>
+    /// <returns>
+    /// True when both ids are resolved. False when a read-only command found no product/environment row yet;
+    /// the ids stay 0 and the caller must treat the repository as empty instead of querying with id 0.
+    /// </returns>
+    private async Task<bool> InitializeRepositoryAsync()
+    {
+        await Task.Run(() => _templateExecutor.RepositoryCheckCreate());
+
+        var consoleOptions = _ctxAccessor.Current.RayMigratorConsoleOptions;
+        if (consoleOptions.GetProfile().WritesRepository)
+        {
+            await Task.Run(() => _templateExecutor.RepositoryProductCheckInsert());
+            await Task.Run(() => _templateExecutor.RepositoryEnvironmentCheckInsert());
+            return true;
+        }
+
+        return await ResolveRepositoryIdsReadOnlyAsync($"the read-only {consoleOptions.Command} command");
+    }
+
+    /// <summary>
+    /// Derives the <see cref="MigrationOperation"/> of a MigrationRun from the records it wrote. The MigrationRun
+    /// row has no operation column; every record of a run carries the operation the run was started with.
+    /// A run without records (nothing pending, validation failure before the first file) is reported as
+    /// <see cref="MigrationOperation.MigrateUp"/>.
+    /// </summary>
+    internal static MigrationOperation DeriveRunOperation(IEnumerable<MigrationRecord> runRecords)
+    {
+        var records = runRecords as ICollection<MigrationRecord> ?? runRecords.ToList();
+
+        if (records.Any(r => r.MigrationOperationId == MigrationOperation.Baseline))
+            return MigrationOperation.Baseline;
+
+        if (records.Any(r => r.MigrationOperationId == MigrationOperation.MigrateDown))
+            return MigrationOperation.MigrateDown;
+
+        return MigrationOperation.MigrateUp;
     }
 
     /// <summary>
@@ -4261,9 +4308,7 @@ public class MigrationService : IMigrationService
             }
 
             // --- Phase 1: Initialization ---
-            await Task.Run(() => _templateExecutor.RepositoryCheckCreate());
-            await Task.Run(() => _templateExecutor.RepositoryProductCheckInsert());
-            await Task.Run(() => _templateExecutor.RepositoryEnvironmentCheckInsert());
+            bool repositoryHasProduct = await InitializeRepositoryAsync();
 
             // --- Phase 2: File Discovery ---
             var productOptions = _options.Value.Products!.First(p => p.Alias == request.ProductAlias);
@@ -4275,7 +4320,9 @@ public class MigrationService : IMigrationService
             migrationFiles = FilterByTargetGroups(migrationFiles, request.TargetGroupAliases);
 
             // --- Phase 3: Query existing records from repository ---
-            var existingRecords = await Task.Run(() => _templateExecutor.RepositoryMigrationSelect());
+            var existingRecords = repositoryHasProduct
+                ? await Task.Run(() => _templateExecutor.RepositoryMigrationSelect())
+                : new List<MigrationRecord>();
 
             // --- Phase 4: Compare files with repository records ---
             var issues = new List<HashValidationIssue>();
@@ -4440,9 +4487,7 @@ public class MigrationService : IMigrationService
             }
 
             // --- Phase 1: Initialization ---
-            await Task.Run(() => _templateExecutor.RepositoryCheckCreate());
-            await Task.Run(() => _templateExecutor.RepositoryProductCheckInsert());
-            await Task.Run(() => _templateExecutor.RepositoryEnvironmentCheckInsert());
+            await InitializeRepositoryAsync();
 
             // --- Phase 2: File Discovery ---
             var productOptions = _options.Value.Products!.First(p => p.Alias == request.ProductAlias);
@@ -4562,12 +4607,12 @@ public class MigrationService : IMigrationService
             _logger.LogDebug("Getting migration status for product {Product}", productAlias);
 
             // --- Phase 1: Initialization ---
-            await Task.Run(() => _templateExecutor.RepositoryCheckCreate());
-            await Task.Run(() => _templateExecutor.RepositoryProductCheckInsert());
-            await Task.Run(() => _templateExecutor.RepositoryEnvironmentCheckInsert());
+            bool repositoryHasProduct = await InitializeRepositoryAsync();
 
             // --- Phase 2: Query repository ---
-            var existingRecords = await Task.Run(() => _templateExecutor.RepositoryMigrationSelect());
+            var existingRecords = repositoryHasProduct
+                ? await Task.Run(() => _templateExecutor.RepositoryMigrationSelect())
+                : new List<MigrationRecord>();
 
             // --- Phase 3: File discovery ---
             var productOptions = _options.Value.Products!.First(p => p.Alias == productAlias);
@@ -4676,12 +4721,12 @@ public class MigrationService : IMigrationService
                 productAlias, limit);
 
             // --- Phase 1: Initialization ---
-            await Task.Run(() => _templateExecutor.RepositoryCheckCreate());
-            await Task.Run(() => _templateExecutor.RepositoryProductCheckInsert());
-            await Task.Run(() => _templateExecutor.RepositoryEnvironmentCheckInsert());
+            bool repositoryHasProduct = await InitializeRepositoryAsync();
 
             // --- Phase 2: Query MigrationRun records ---
-            var rows = await Task.Run(() => _templateExecutor.RepositoryMigrationRunSelect(limit));
+            var rows = repositoryHasProduct
+                ? await Task.Run(() => _templateExecutor.RepositoryMigrationRunSelect(limit))
+                : new List<Dictionary<string, object?>>();
 
             // --- Phase 3: Build history ---
             var runs = new List<MigrationRunInfo>();
@@ -4697,9 +4742,6 @@ public class MigrationService : IMigrationService
                     : null;
                 string? toRelease = row["ToReleaseVersion"]?.ToString();
 
-                // Determine operation from run mode (MigrateUp is default for Migrate run mode)
-                var operation = MigrationOperation.MigrateUp;
-
                 // Count migrations for this run from the Migration table
                 var existingRecords = await Task.Run(() => _templateExecutor.RepositoryMigrationSelect());
                 var runMigrations = existingRecords.Where(r => r.MigrationRunId == runId).ToList();
@@ -4708,11 +4750,8 @@ public class MigrationService : IMigrationService
                 int successfulMigrations = runMigrations.Count(r => r.MigrationStatusId == MigrationStatus.Migrated);
                 int failedMigrations = runMigrations.Count(r => r.MigrationStatusId == MigrationStatus.Failed);
 
-                // Detect MigrateDown from migration records
-                if (runMigrations.Any(r => r.MigrationOperationId == MigrationOperation.MigrateDown))
-                {
-                    operation = MigrationOperation.MigrateDown;
-                }
+                // The MigrationRun row has no operation column; derive it from the records the run wrote.
+                var operation = DeriveRunOperation(runMigrations);
 
                 runs.Add(new MigrationRunInfo
                 {
@@ -4766,16 +4805,15 @@ public class MigrationService : IMigrationService
             }
 
             // --- Phase 1: Repository initialization ---
-            await Task.Run(() => _templateExecutor.RepositoryCheckCreate());
-            await Task.Run(() => _templateExecutor.RepositoryProductCheckInsert());
-            await Task.Run(() => _templateExecutor.RepositoryEnvironmentCheckInsert());
+            bool repositoryHasProduct = await InitializeRepositoryAsync();
 
             int productId = _ctxAccessor.Current.MigrationState.ProductId;
             int environmentId = _ctxAccessor.Current.MigrationState.EnvironmentId;
 
             // --- Phase 2: Query orphaned runs ---
-            var orphanedRows = await Task.Run(() =>
-                _templateExecutor.RepositoryMigrationRunSelectOrphaned(productId, environmentId));
+            var orphanedRows = repositoryHasProduct
+                ? await Task.Run(() => _templateExecutor.RepositoryMigrationRunSelectOrphaned(productId, environmentId))
+                : new List<Dictionary<string, object?>>();
 
             // Environment text is run-constant (WHERE constraint filters by EnvironmentId);
             // fill from request rather than a redundant JOIN to the Environment table.

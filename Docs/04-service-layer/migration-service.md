@@ -145,8 +145,13 @@ Identifies the type of operation being performed.
 | `Rollback` | 5 | Performing rollback |
 | `MigrateDown` | 50 | Performing down-migration |
 | `MigrateUp` | 100 | Performing up-migration |
+| `Baseline` | 110 | Marking migration files as migrated without executing them (`baseline` command) |
 
 Source: `Raycoon.RayMigrator.Core/Configuration/Enums/MigrationOperation.cs`
+
+`BaselineAsync` stamps its run and records with `Baseline`; `GetHistoryAsync` derives a run's operation from its records via `MigrationService.DeriveRunOperation()` (`Baseline` → `MigrateDown` → otherwise `MigrateUp`), because the `MigrationRun` row has no operation column.
+
+Every non-migrate command starts with `InitializeRepositoryAsync()`: `RepositoryCheckCreate` always runs, but product and environment are only registered (`*_CheckInsert`) when the command's `CommandProfile.WritesRepository` is true; `info`, `validate-hash` and `fix --dry-run` look them up read-only and treat a repository without them as empty (#6). The error-recovery rollbacks (`HandleMigrationError`, `RollbackSingleMigration`) take the run mode from the request that started the run, not from the context.
 
 ### MigrationRunResult
 

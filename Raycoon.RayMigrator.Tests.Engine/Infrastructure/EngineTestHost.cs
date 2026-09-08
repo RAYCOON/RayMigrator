@@ -48,7 +48,8 @@ public sealed class EngineTestHost : IDisposable
         MigrationCommand command,
         MigrationRunMode runMode,
         string? targetReleaseVersion = null,
-        string environment = "Docker")
+        string environment = "Docker",
+        bool? fixDryRun = null)
     {
         // Resolve migration files root directory (solution root / Testing / MigrationFiles)
         string solutionRoot = FindSolutionRoot();
@@ -73,7 +74,8 @@ public sealed class EngineTestHost : IDisposable
             RunMode = runMode,
             TargetReleaseVersion = targetReleaseVersion,
             ShowStartupInfo = false,
-            RevealSensitiveData = false
+            RevealSensitiveData = false,
+            FixDryRun = fixDryRun
         };
 
         // Configure Serilog
@@ -278,6 +280,11 @@ public sealed class EngineTestHost : IDisposable
         LogLevel.Critical => LogEventLevel.Fatal,
         _ => LogEventLevel.Information
     };
+
+    /// <summary>
+    /// Flushes the asynchronous DatabaseLogWriter queue so that tests can assert on MigrationLog rows.
+    /// </summary>
+    public void FlushDatabaseLog(TimeSpan? timeout = null) => _dbLogWriter?.Flush(timeout ?? TimeSpan.FromSeconds(30));
 
     public void Dispose()
     {

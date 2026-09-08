@@ -3,6 +3,7 @@ using System.CommandLine.Help;
 using System.CommandLine.Invocation;
 using System.Globalization;
 using Raycoon.RayMigrator.Core.Configuration.Enums;
+using Raycoon.RayMigrator.Shared.Exceptions;
 
 namespace Raycoon.RayMigrator.Core.Configuration.Options;
 
@@ -522,7 +523,9 @@ public class CommandLineConfiguration
                 Command = MigrationCommand.ValidateHash,
                 Product = ResolveEnvironmentVariable(parseResult.GetValue(command.Options.OfType<Option<string>>().First(o => o.Name == "--product"))!),
                 Environment = ResolveEnvironmentVariable(parseResult.GetValue(command.Options.OfType<Option<string>>().First(o => o.Name == "--environment"))!),
-                RunMode = MigrationRunMode.Validate,
+                // --run-mode is a migrate-up/migrate-down concept; every other command runs in Migrate mode and
+                // decides its side effects through its CommandProfile (#6).
+                RunMode = MigrationRunMode.Migrate,
                 TargetReleaseVersion = null,
                 ShowStartupInfo = parseResult.GetValue(showInfoOption),
                 RevealSensitiveData = parseResult.GetValue(revealSensitiveDataOption),
@@ -640,9 +643,12 @@ public class CommandLineConfiguration
     }
 
     /// <summary>
-    /// Parses a string to MigrationRunMode enum
+    /// Parses a string to MigrationRunMode enum. The option validator rejects unknown values with a friendly
+    /// System.CommandLine error before this runs; the throw only guards direct calls so that no unknown value can
+    /// silently fall back to <see cref="MigrationRunMode.Migrate"/>, the most dangerous mode (#6).
     /// </summary>
-    private static MigrationRunMode ParseRunMode(string value)
+    /// <exception cref="ConfigurationValidationException">The value is not migrate, simulate or validate.</exception>
+    internal static MigrationRunMode ParseRunMode(string value)
     {
         var normalizedValue = ResolveEnvironmentVariable(value).ToLowerInvariant();
         return normalizedValue switch
@@ -650,7 +656,7 @@ public class CommandLineConfiguration
             "migrate" => MigrationRunMode.Migrate,
             "simulate" => MigrationRunMode.Simulate,
             "validate" => MigrationRunMode.Validate,
-            _ => MigrationRunMode.Migrate
+            _ => throw new ConfigurationValidationException($"Invalid value [{value}] for --run-mode. Allowed values: [migrate, simulate, validate].")
         };
     }
 

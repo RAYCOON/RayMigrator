@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Raycoon.RayMigrator.Core;
 using Raycoon.RayMigrator.Core.Configuration;
 using Raycoon.RayMigrator.Core.Configuration.Enums;
 using Raycoon.RayMigrator.Services.Abstractions;
@@ -27,6 +28,18 @@ public class ScenarioContext : IAsyncDisposable
     /// </summary>
     public string WorkDirectory => _workDir;
 
+    /// <summary>
+    /// Returns the host's migration service and binds the host's MigrationContext to the ambient
+    /// <see cref="MigrationLoggingContext"/> of the current async flow. EngineTestHost sets the AsyncLocal inside
+    /// <c>Build</c>, which runs in the builder's async flow and is therefore invisible to the test method; without this
+    /// binding the enricher sees no context and the DatabaseLogging sink lets every event through (#6).
+    /// </summary>
+    private IMigrationService Service()
+    {
+        MigrationLoggingContext.Current = _host.MigrationContext;
+        return _host.MigrationService;
+    }
+
     internal ScenarioContext(
         EngineTestHost host,
         RepositoryQueryHelper queryHelper,
@@ -45,12 +58,16 @@ public class ScenarioContext : IAsyncDisposable
 
     /// <summary>
     /// Executes Migrate-Up, optionally limited to a specific release.
+    /// <paramref name="runMode"/> defaults to the run mode the host was built with; an explicit value that differs
+    /// from it rebuilds the host first, so the request and the context never disagree about the run mode (#6).
     /// </summary>
     public async Task<MigrationOperationResult> MigrateUpAsync(
         string? toRelease = null, bool allowOutOfOrder = false,
         string[]? targetGroupAliases = null, MigrationRunMode? runMode = null,
         string[]? targetGroupMigrationOrder = null)
     {
+        var effectiveRunMode = await AlignHostRunModeAsync(MigrationCommand.MigrateUp, runMode, toRelease);
+
         using var maskScope = SensitiveDataMasker.BeginScope(revealSensitiveData: false);
         SensitiveDataMasker.RegisterSensitiveData(_host.RayMigratorOptions);
 
@@ -59,25 +76,29 @@ public class ScenarioContext : IAsyncDisposable
             ProductAlias = _productAlias,
             Environment = _environment,
             TargetReleaseVersion = toRelease,
-            RunMode = runMode ?? MigrationRunMode.Migrate,
+            RunMode = effectiveRunMode,
             ShowInfo = false,
             RevealSensitiveData = false,
             AllowOutOfOrder = allowOutOfOrder,
             TargetGroupAliases = targetGroupAliases,
             TargetGroupMigrationOrder = targetGroupMigrationOrder
         };
-        var result = await _host.MigrationService.MigrateUpAsync(request);
+        var result = await Service().MigrateUpAsync(request);
         _lastResult = result;
         return result;
     }
 
     /// <summary>
     /// Executes Migrate-Down to the specified release version.
+    /// <paramref name="runMode"/> defaults to the run mode the host was built with; an explicit value that differs
+    /// from it rebuilds the host first, so the request and the context never disagree about the run mode (#6).
     /// </summary>
     public async Task<MigrationOperationResult> MigrateDownAsync(
         string toRelease, string[]? targetGroupAliases = null, MigrationRunMode? runMode = null,
         bool revealSensitiveData = false)
     {
+        var effectiveRunMode = await AlignHostRunModeAsync(MigrationCommand.MigrateDown, runMode, toRelease);
+
         using var maskScope = SensitiveDataMasker.BeginScope(revealSensitiveData);
         SensitiveDataMasker.RegisterSensitiveData(_host.RayMigratorOptions);
 
@@ -86,12 +107,12 @@ public class ScenarioContext : IAsyncDisposable
             ProductAlias = _productAlias,
             Environment = _environment,
             TargetReleaseVersion = toRelease,
-            RunMode = runMode ?? MigrationRunMode.Migrate,
+            RunMode = effectiveRunMode,
             ShowInfo = false,
             RevealSensitiveData = revealSensitiveData,
             TargetGroupAliases = targetGroupAliases
         };
-        var result = await _host.MigrationService.MigrateDownAsync(request);
+        var result = await Service().MigrateDownAsync(request);
         _lastResult = result;
         return result;
     }
@@ -115,7 +136,7 @@ public class ScenarioContext : IAsyncDisposable
             TargetGroupAliases = targetGroupAliases,
             TargetGroupMigrationOrder = targetGroupMigrationOrder
         };
-        var result = await _host.MigrationService.BaselineAsync(request);
+        var result = await Service().BaselineAsync(request);
         _lastResult = result;
         return result;
     }
@@ -134,7 +155,7 @@ public class ScenarioContext : IAsyncDisposable
             RevealSensitiveData = false,
             TargetGroupAliases = targetGroupAliases
         };
-        var result = await _host.MigrationService.ValidateHashAsync(request);
+        var result = await Service().ValidateHashAsync(request);
         _lastResult = result;
         return result;
     }
@@ -151,7 +172,7 @@ public class ScenarioContext : IAsyncDisposable
             RevealSensitiveData = false,
             TargetGroupAliases = targetGroupAliases
         };
-        var result = await _host.MigrationService.UpdateHashAsync(request);
+        var result = await Service().UpdateHashAsync(request);
         _lastResult = result;
         return result;
     }
@@ -162,7 +183,7 @@ public class ScenarioContext : IAsyncDisposable
     /// </summary>
     public async Task<MigrationStatusInfo> InfoAsync()
     {
-        var result = await _host.MigrationService.GetStatusAsync(_productAlias);
+        var result = await Service().GetStatusAsync(_productAlias);
         return result;
     }
 
@@ -171,7 +192,7 @@ public class ScenarioContext : IAsyncDisposable
     /// </summary>
     public async Task<MigrationHistory> GetHistoryAsync(int limit = 100)
     {
-        var result = await _host.MigrationService.GetHistoryAsync(_productAlias, limit);
+        var result = await Service().GetHistoryAsync(_productAlias, limit);
         return result;
     }
 
@@ -196,7 +217,7 @@ public class ScenarioContext : IAsyncDisposable
             ShowInfo = false,
             RevealSensitiveData = false
         };
-        var result = await _host.MigrationService.FixIssuesAsync(request);
+        var result = await Service().FixIssuesAsync(request);
         _lastResult = result;
         return result;
     }
@@ -212,16 +233,45 @@ public class ScenarioContext : IAsyncDisposable
     }
 
     /// <summary>
+    /// Returns the ProductId of the scenario's product from the repository, or -1 when no product row exists.
+    /// </summary>
+    public int GetProductId() => _queryHelper.GetProductId(_productAlias);
+
+    /// <summary>
+    /// The console options of the current host, i.e. the command, run mode and flags the MigrationContext was built with.
+    /// </summary>
+    public Core.Configuration.Options.RayMigratorConsoleOptions HostConsoleOptions => _host.MigrationContext.RayMigratorConsoleOptions;
+
+    /// <summary>
     /// Rebuilds the DI container for a different command/mode without cleaning databases.
     /// Used for multi-step test scenarios (e.g., Migrate-Up then Migrate-Down).
     /// </summary>
-    public Task RebuildForAsync(MigrationCommand command, MigrationRunMode mode, string? toRelease = null, string? environment = null)
+    public Task RebuildForAsync(MigrationCommand command, MigrationRunMode mode, string? toRelease = null, string? environment = null, bool? fixDryRun = null)
     {
         _environment = environment ?? "Docker";
         _host.Dispose();
         _host = new EngineTestHost();
-        _host.Build(_configPath, _productAlias, command, mode, toRelease, _environment);
+        _host.Build(_configPath, _productAlias, command, mode, toRelease, _environment, fixDryRun);
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Resolves the run mode a migrate request runs in and keeps the host's MigrationContext in sync with it.
+    /// Without an explicit <paramref name="runMode"/> the host's run mode is used. An explicit run mode that differs
+    /// from the host's rebuilds the host for <paramref name="command"/>, because the execution path reads the run
+    /// mode from the request while every stamp and log gate reads it from the context (#6).
+    /// </summary>
+    private async Task<MigrationRunMode> AlignHostRunModeAsync(MigrationCommand command, MigrationRunMode? runMode, string? toRelease)
+    {
+        var hostOptions = HostConsoleOptions;
+        var effective = runMode ?? hostOptions.RunMode;
+
+        if (effective != hostOptions.RunMode || hostOptions.Command != command)
+        {
+            await RebuildForAsync(command, effective, toRelease ?? hostOptions.TargetReleaseVersion, _environment);
+        }
+
+        return effective;
     }
 
     /// <summary>
@@ -445,6 +495,11 @@ public class ScenarioContext : IAsyncDisposable
     /// Counts all MigrationLog entries in the repository.
     /// </summary>
     public int CountLogEntries() => _queryHelper.CountLogEntries();
+
+    /// <summary>
+    /// Flushes the host's DatabaseLogWriter queue; call before asserting on <see cref="CountLogEntries"/>.
+    /// </summary>
+    public void FlushDatabaseLog() => _host.FlushDatabaseLog();
 
     /// <summary>
     /// Counts MigrationLog entries at a specific log level.

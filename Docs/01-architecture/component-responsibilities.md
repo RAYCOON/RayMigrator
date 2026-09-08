@@ -284,7 +284,7 @@ public string TargetAlias { get; set; }
 
 **Purpose**: Factory for creating `MigrationContext` instances.
 
-**Implementation**: `MigrationContextFactory` — creates a `MigrationContext` from `RayMigratorOptions`, product, environment, run mode, version, and optional parameters.
+**Implementation**: `MigrationContextFactory` — creates a `MigrationContext` from `RayMigratorOptions`, product, environment, command, run mode, version, and optional parameters. The command is a parameter since #6 (it used to be hard-coded to `MigrateUp`), so a programmatic `MigrateDown` is stamped correctly into the MigrationRun settings snapshot.
 
 ### `RayMigratorHostMode`
 **Location**: `Raycoon.RayMigrator.Core/RayMigratorHostMode.cs`
@@ -596,7 +596,7 @@ Each DAL is a separate project (not a subdirectory of the Database project):
 | `MigrationCommand` | None (0), MigrateUp (1), MigrateDown (2), ValidateHash (3), UpdateHash (4), Info (5), Baseline (6), FixIssues (7) |
 | `OperatingMode` | Standalone, ManagedLocal, ManagedRemote |
 | `MigrationRunMode` | Undefined (0), Validate (10), Simulate (20), Migrate (100) |
-| `MigrationOperation` | Undefined (0), Rollback (5), MigrateDown (50), MigrateUp (100) |
+| `MigrationOperation` | Undefined (0), Rollback (5), MigrateDown (50), MigrateUp (100), Baseline (110) |
 | `MigrationRunResult` | Undefined (0), Running (10), Error (90), Ok (100) |
 | `MigrationStatus` | Undefined (0), Pending (10), Executing (20), Failed (30), NotMigrated (50), Migrated (100) |
 | `MigrationErrorAction` | Undefined (0), Terminate (10), Rollback (20), RollbackErrorOnly (21), RollbackRelease (22), Ignore (30) |

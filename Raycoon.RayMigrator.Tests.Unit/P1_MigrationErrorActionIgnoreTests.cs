@@ -183,7 +183,7 @@ public class MigrationErrorActionIgnoreHandleMigrationErrorTests
         method.Should().NotBeNull("HandleMigrationError should exist");
 
         // It's async, so we get a Task back
-        var task = (Task)method!.Invoke(service, new object[] { productOptions, file, 42, successRecords })!;
+        var task = (Task)method!.Invoke(service, new object[] { productOptions, file, 42, successRecords, MigrationRunMode.Migrate })!;
         await task;
 
         // Should have logged the debug message
@@ -213,7 +213,7 @@ public class MigrationErrorActionIgnoreHandleMigrationErrorTests
         var method = typeof(MigrationService).GetMethod("HandleMigrationError",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 
-        var task = (Task)method!.Invoke(service, new object[] { productOptions, file, 42, successRecords })!;
+        var task = (Task)method!.Invoke(service, new object[] { productOptions, file, 42, successRecords, MigrationRunMode.Migrate })!;
         await task;
 
         // Should NOT contain any rollback-related log messages

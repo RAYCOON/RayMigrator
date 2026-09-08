@@ -369,6 +369,7 @@ All migration commands (migrate-up, migrate-down, validate-hash, update-hash, in
 ## Checklist
 
 - [ ] Add value to `MigrationCommand` enum (Core)
+- [ ] Add a row for it to `MigrationCommandExtensions.GetProfile()` (Core) — the `CommandProfile` decides whether the command connects to targets, writes the repository and writes DatabaseLogging rows; `P0_CommandProfileTests` fails for a command without a profile. Non-migrate commands run with `RunMode = MigrationRunMode.Migrate`
 - [ ] Create request/response classes in `Models/` (Services.Abstractions)
 - [ ] Add method to `IMigrationService` interface (Services.Abstractions)
 - [ ] Implement service method in `MigrationService` (Services)

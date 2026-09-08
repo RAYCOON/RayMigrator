@@ -89,7 +89,7 @@ The repository contains these tables:
 | `MigrationRecord` | One record per migration file per target. Records file path, hash, status, execution timestamps. |
 | `MigrationRecordHistory` | Audit log for MigrationRecord entries. Each time a migration reaches a terminal state (Migrated, Failed, or NotMigrated), the current state of that `MigrationRecord` row is copied here. The original `MigrationRecord` is retained and may be reused (reset) on future runs. See [Repository Schema](../03-database-layer/repository-schema.md). |
 | `MigrationRunMode` | Lookup table for run modes: Validate (10), Simulate (20), Migrate (100). |
-| `MigrationOperation` | Lookup table for operation types: Rollback (5), MigrateDown (50), MigrateUp (100). |
+| `MigrationOperation` | Lookup table for operation types: Rollback (5), MigrateDown (50), MigrateUp (100), Baseline (110). |
 | `MigrationRunResult` | Lookup table for run outcomes: Running (10), Error (90), Ok (100). |
 | `MigrationStatus` | Lookup table for per-file statuses (see next section). |
 

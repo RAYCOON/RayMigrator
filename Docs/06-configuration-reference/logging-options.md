@@ -8,7 +8,7 @@ Optional logging to a database for centralized log storage.
 
 Database logging is activated by the presence of the `DatabaseLogging` section in the configuration. If the section is omitted, database logging is disabled.
 
-> **Run mode restriction**: The DatabaseLogging sink (DB sink) only writes log entries when running in `Migrate` mode. In `Validate` and `Simulate` modes the sink is silent — no database connections are made for logging purposes and no log entries are written to the logging database. Console and file logging (Serilog) always writes in all modes.
+> **Command restriction**: The DatabaseLogging sink (DB sink) only writes log entries for commands that change state: `migrate-up` / `migrate-down` in `Migrate` mode, `update-hash`, `baseline` and `fix`. For `info`, `validate-hash`, `fix --dry-run` and `migrate-up` / `migrate-down` in `Validate` or `Simulate` mode the sink is silent — no connection to the logging database is opened and no log entries are written (`CommandProfile.WritesDatabaseLog`, #6). Console and file logging (Serilog) always writes for all commands.
 
 ### Properties
 

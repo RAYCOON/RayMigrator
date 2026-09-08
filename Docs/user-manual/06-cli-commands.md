@@ -100,6 +100,8 @@ raymigrator validate-hash -p BookStore -env Production
 
 Key options: `--scope` (File/SqlBlocks/Disabled), `--target-group`. See [validate-hash Reference](../08-cli-reference/validate-hash.md) for the full option table.
 
+Database access: repository only, read-only (target databases do not have to be reachable). Audit log (DatabaseLogging): no.
+
 Exit code contract: `0` when every migrated file is `Valid` (files that are not migrated yet are listed as `New` and do not affect the exit code); `1` when at least one file is `Modified` or `Missing`. Pipelines can gate on the exit code alone.
 
 > **Tip:** Run validate-hash in your CI/CD pipeline on every commit to catch unauthorized changes to migration files early.
@@ -116,6 +118,8 @@ raymigrator update-hash -p BookStore -env Production
 
 Key options: `--target-group`. See [update-hash Reference](../08-cli-reference/update-hash.md) for the full option table.
 
+Database access: repository only, writes hashes (target databases do not have to be reachable). Audit log (DatabaseLogging): yes.
+
 > **Warning:** Only use update-hash after carefully verifying that the file changes are intentional.
 
 ---
@@ -127,6 +131,8 @@ Show which migrations have been applied, which are pending, and the overall stat
 ```bash
 raymigrator info -p BookStore -env Production
 ```
+
+Database access: repository only, read-only (target databases do not have to be reachable). Audit log (DatabaseLogging): no. The run history lists each run's **Operation** (`MigrateUp`, `MigrateDown`, `Baseline`) next to its RunMode.
 
 ---
 
@@ -140,6 +146,8 @@ raymigrator baseline -p BookStore -env Production
 
 Key options: `--to-release`, `--target-group`, `--target-group-migration-order` (`-tgmo`). See [Baseline Reference](../08-cli-reference/command-reference.md#baseline) for the full option table.
 
+Database access: repository only, writes MigrationRun/MigrationRecord rows stamped with operation `Baseline` (no SQL is executed on the targets, so they do not have to be reachable). Audit log (DatabaseLogging): yes.
+
 ---
 
 ## Fix -- Repair Repository Issues
@@ -151,6 +159,8 @@ raymigrator fix -p BookStore -env Production --dry-run
 ```
 
 Key options: `--scope` (OrphanedRuns/All), `--older-than`, `--dry-run`, `--last-migration-status`. See [Fix Reference](../08-cli-reference/command-reference.md#fix) for the full option table.
+
+Database access: repository only (target databases do not have to be reachable); `--dry-run` is read-only. Audit log (DatabaseLogging): yes, but not with `--dry-run`.
 
 > **Tip:** Always use `--dry-run` first to preview what Fix would change.
 

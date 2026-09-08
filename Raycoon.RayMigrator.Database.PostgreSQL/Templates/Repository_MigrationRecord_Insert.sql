@@ -34,7 +34,7 @@ ExistingMigrationRecordId  = "INT | REQUIRED | 0 = INSERT new record, >0 = UPDAT
 ProductId            = "INT | REQUIRED | Product ID from Product table"
 MigrationRunId       = "INT | REQUIRED | Parent MigrationRun ID"
 MigrationRunModeId   = "SMALLINT | REQUIRED | Run mode: 10=Validate, 20=Simulate, 100=Migrate"
-MigrationOperationId = "SMALLINT | REQUIRED | Operation: 5=Rollback, 50=MigrateDown, 100=MigrateUp"
+MigrationOperationId = "SMALLINT | REQUIRED | Operation: 5=Rollback, 50=MigrateDown, 100=MigrateUp, 110=Baseline"
 MigrationStatusId    = "SMALLINT | REQUIRED | Initial status (should be 10=Pending)"
 EnvironmentId        = "INT | REQUIRED | Environment ID from Environment table"
 ReleaseVersion       = "VARCHAR(100) | REQUIRED | Release version from folder path"

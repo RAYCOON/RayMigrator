@@ -350,7 +350,7 @@ private async Task<int> ExecuteInfoAsync()
     {
         var sb = new StringBuilder();
         sb.AppendLine($"--- Last {history.Runs.Count} Migration Runs ---");
-        sb.AppendLine($"  {"RunId",7}  {"Command",-12}  {"RunMode",-10}  {"Result",-9}  {"# Migrations",12}  {"StartedAt",-19}  {"FinishedAt",-19}  {"DurationInMs",12}");
+        sb.AppendLine($"  {"RunId",7}  {"Operation",-12}  {"RunMode",-10}  {"Result",-9}  {"# Migrations",12}  {"StartedAt",-19}  {"FinishedAt",-19}  {"DurationInMs",12}");
         sb.AppendLine($"  {new string('─', 7)}  {new string('─', 12)}  {new string('─', 10)}  {new string('─', 9)}  {new string('─', 12)}  {new string('─', 19)}  {new string('─', 19)}  {new string('─', 12)}");
         foreach (var run in history.Runs)
         {

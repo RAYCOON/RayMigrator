@@ -242,6 +242,8 @@ Raycoon.RayMigrator.Tests.Unit/
 | `P0_FileClassificationTests` | `FileClassificationTests` | Migration file discovery, rollback file matching, environment/target filtering |
 | `P0_LineEndingTests` | `LineEndingExtractTomlAndSqlTests`, `LineEndingParseTomlConfigTests`, `LineEndingSplitSqlIntoBlocksTests`, `LineEndingHashSensitivityTests` | Line ending normalization across platforms (CRLF, LF, CR) |
 | `P0_MigrationRunModeExtensionsTests` | `MigrationRunModeExtensionsTests` | `MigrationRunMode` enum extension methods |
+| `P0_CommandProfileTests` | `CommandProfileTests` | Command × side-effect matrix of `MigrationCommandExtensions.GetProfile()`; every `MigrationCommand` except `None` has a profile, `None` throws (#6) |
+| `P0_ParseRunModeTests` | `ParseRunModeTests` | `ParseRunMode()` accepts migrate/simulate/validate case-insensitively and throws for anything else; `-rm bogus` is a parse error (#6) |
 | `P0_ShouldSkipBlockSplittingTests` | `ShouldSkipBlockSplittingTests` | `MigrationService.ShouldSkipBlockSplitting` — CLI tools execute files as single units, bypassing SQL block splitting |
 | `P0_SplitSqlIntoBlocksTests` | `SplitSqlIntoBlocksTests` | SQL statement splitting by engine separator (`GO` for SqlServer, `;` for others) |
 | `P0_TomlParsingTests` | `ExtractTomlAndSqlTests`, `ParseTomlConfigTests`, `ParseTomlEnumTests`, `GetValidEnumValuesTests` | TOML metadata header parsing from migration file comments |
@@ -274,6 +276,8 @@ Raycoon.RayMigrator.Tests.Unit/
 | `P1_FlatLayoutAmbiguityTests` | `FlatLayoutAmbiguityTests` | Flat migration directory layout ambiguity detection (`ValidateFlatLayoutAmbiguity`) and target group alias casing validation (`ValidateTargetGroupAliasCasing`) |
 | `P1_HandleMigrationErrorBehaviorTests` | `HandleMigrationErrorBehaviorTests` | Error handling dispatch based on `MigrationErrorAction` |
 | `P1_MigrationContextCloneTests` | `MigrationContextCloneTests` | Regression coverage for `MigrationContext.Clone`: ensures `EnvironmentId`, `MigratorMetaId`, and `MigrationEvent` propagate to the cloned instance |
+| `P1_MigrationContextGuardTests` | `MigrationContextGuardTests` | `MigrationContext` rejects `RunMode = Undefined` / `Command = None`; `MigrationContextFactory.Create` stamps the requested command (#6) |
+| `P1_ConnectionValidatorProfileTests` | `ConnectionValidatorProfileTests` | `ConnectionValidator` opens target / logging connections only when the command profile says so — read-only commands start against an unreachable Sqlite target (#6) |
 | `P1_MigrationErrorActionIgnoreTests` | `MigrationErrorActionIgnoreParsingTests`, `MigrationErrorActionIgnoreMigSettingsTests`, `MigrationErrorActionIgnoreHandleMigrationErrorTests`, `MigrationErrorActionIgnoreFullHierarchyTests` | `MigrationErrorAction.Ignore` behavior (continue after error) |
 | `P1_MigrationErrorActionInheritanceTests` | `MigrationErrorActionOverrideResolutionTests`, `MigrationErrorActionTomlMigSettingsMergeTests`, `MigrationErrorActionMultiLevelMigSettingsTests`, `MigrationErrorActionFullHierarchyTests` | `MigrationErrorAction` inheritance chain (product -> release -> targetgroup -> file) |
 | `P1_MigrationSafetyWarningTests` | `MigrationSafetyWarningTests` | Safety warnings for dangerous migration configurations |
@@ -315,10 +319,12 @@ Raycoon.RayMigrator.Tests.Unit/
 | `P2_MigrationAlreadyRunningTests` | `MigrationAlreadyRunningTests` | Running migration run guard (prevents concurrent executions) |
 | `P2_MigrationFileSqlLoggingTests` | `MigrationFileSqlLoggingTests` | SQL content logging during migration execution |
 | `P2_MigrationIdLoggingPipelineTests` | `MigrationRecordIdLoggingPipelineTests` | MigrationRecordId enrichment in Serilog log context |
+| `P2_DbLogEnabledLoggingPipelineTests` | `DbLogEnabledLoggingPipelineTests` | `MigrationContextEnricher` emits `DbLogEnabled` from the command profile (info/validate-hash/fix --dry-run/simulate: false; update-hash/baseline/fix/migrate: true) (#6) |
+| `P2_MigrationHistoryOperationTests` | `MigrationHistoryOperationTests` | `MigrationOperation.Baseline` (110) and `MigrationService.DeriveRunOperation()` for the info run history (#6) |
 | `P2_MySqlMariaDbIdentifierCasingTests` | `MySqlMariaDbIdentifierCasingTests` | DAL-018 regression guard: zero backtick-quoted PascalCase identifiers in any of the 18 MySQL/MariaDB templates (outside TOML/comments and SELECT aliases); confirms reader-output SELECT templates expose the expected number of PascalCase output aliases (Strategy B) |
 | `P2_OptionsEnumPropertyTests` | `OptionsEnumPropertyTests` | Enum property validation in options classes |
 | `P2_PostgreSqlIdentifierCasingTests` | `PostgreSqlIdentifierCasingTests` | DAL-017 regression guard: zero double-quoted PascalCase identifiers in any of the 18 PostgreSQL templates (outside TOML/comments and SELECT aliases); confirms reader-output SELECT templates expose the expected number of PascalCase output aliases (Strategy B) |
-| `P2_RayMigratorDatabaseSinkTests` | `RayMigratorDatabaseSinkTests` | `RayMigratorDatabaseSink.Emit()` run-mode filter — database logging only fires in Migrate mode (RunModeId=100); early-pipeline logs without RunModeId (null) pass through |
+| `P2_RayMigratorDatabaseSinkTests` | `RayMigratorDatabaseSinkTests` | `RayMigratorDatabaseSink.Emit()` gate — events carrying `DbLogEnabled = false` are dropped, `true` is enqueued, early-pipeline logs without the property pass through; `RunModeId` is a stamp, not a gate (#6) |
 | `P2_StringExtensionsTests` | `StringExtensionsPathTests`, `PlaceholderReplacementTests`, `GetFileEncodingTests` | String extension methods (SHA-256, path parsing, connection string utilities) |
 | `P2_TemplateResultCodeTests` | `TemplateResultCodeTests` | Template execution result code interpretation |
 | `P2_ToDetailStringMaskingTests` | `ToDetailStringMaskingTests` | `ToDetailString()` output masking for sensitive data |

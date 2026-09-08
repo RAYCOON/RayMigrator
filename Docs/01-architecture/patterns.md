@@ -301,8 +301,8 @@ A factory creates `MigrationContext` instances (CLI creates one at startup):
 public interface IMigrationContextFactory
 {
     MigrationContext Create(RayMigratorOptions options, string product, string environment,
-        MigrationRunMode runMode, string version, string? targetReleaseVersion = null,
-        bool revealSensitiveData = false);
+        MigrationCommand command, MigrationRunMode runMode, string version,
+        string? targetReleaseVersion = null, bool revealSensitiveData = false);
 }
 ```
 
@@ -464,7 +464,7 @@ public interface IMigrationContextFactory
 {
     MigrationContext Create(
         RayMigratorOptions options, string product, string environment,
-        MigrationRunMode runMode, string version,
+        MigrationCommand command, MigrationRunMode runMode, string version,
         string? targetReleaseVersion = null, bool revealSensitiveData = false);
 }
 

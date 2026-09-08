@@ -86,7 +86,7 @@ ProductId           = "INT | REQUIRED | Product ID from Product table"
 EnvironmentId       = "INT | REQUIRED | Environment ID from Environment table"
 MigrationRunId      = "INT | REQUIRED | Parent MigrationRun ID"
 MigrationRunModeId  = "TINYINT | REQUIRED | Run mode: 10=Validate, 20=Simulate, 100=Migrate"
-MigrationOperationId= "TINYINT | REQUIRED | Operation: 5=Rollback, 50=MigrateDown, 100=MigrateUp"
+MigrationOperationId= "TINYINT | REQUIRED | Operation: 5=Rollback, 50=MigrateDown, 100=MigrateUp, 110=Baseline"
 # ... additional parameters
 
 [ReturnValues]

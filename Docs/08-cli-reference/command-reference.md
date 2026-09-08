@@ -63,7 +63,7 @@ raymigrator migrate-up --product <alias> --environment <env> [--run-mode <mode>]
 
 **--environment**: Matched case-sensitively. Used to load `appsettings.{Environment}.json` and `appsettings.{Product}.{Environment}.json` configuration files.
 
-**--run-mode**: Validated case-insensitively. Accepts `"Migrate"`, `"Simulate"`, and `"Validate"`; any other value produces a validation error. Parsed via `ParseRunMode()` into the corresponding `MigrationRunMode` enum value.
+**--run-mode**: Validated case-insensitively. Accepts `"Migrate"`, `"Simulate"`, and `"Validate"`; any other value produces a validation error. Parsed via `ParseRunMode()` into the corresponding `MigrationRunMode` enum value; `ParseRunMode()` itself throws a `ConfigurationValidationException` for an unknown value instead of silently falling back to `Migrate` (#6).
 
 **--target-group**: Filters execution to specific target groups. Can be specified multiple times to select a subset (e.g., `-tg Backend -tg Frontend`). If omitted, all target groups are processed. Alias matching is case-insensitive. An error is thrown if a specified alias does not exist in the product configuration.
 
@@ -211,7 +211,9 @@ raymigrator validate-hash --product <alias> --environment <env> [--scope <scope>
 
 **Handler:** `RayMigratorService.ExecuteValidateHashAsync()` → `IMigrationService.ValidateHashAsync(ValidateHashRequest)`
 
-**Internal state:** `Command` is set to `MigrationCommand.ValidateHash`. `RunMode` is forced to `MigrationRunMode.Validate`. `TargetReleaseVersion` is set to `null`.
+**Internal state:** `Command` is set to `MigrationCommand.ValidateHash`. `RunMode` is set to `MigrationRunMode.Migrate` like for every non-migrate command (#6; it used to be `Validate`). `TargetReleaseVersion` is set to `null`.
+
+**Side effects:** repository read-only, no target connections, no DatabaseLogging rows (see the command profile matrix in [Execution Modes](../02-core-concepts/execution-modes.md#run-mode)).
 
 **Exit code logic:** Returns `1` if `result.InvalidFiles > 0` or `result.MissingFiles > 0`, otherwise `0`.
 
@@ -260,7 +262,9 @@ raymigrator update-hash --product <alias> --environment <env> [--target-group <g
 
 **Handler:** `RayMigratorService.ExecuteUpdateHashAsync()` → `IMigrationService.UpdateHashAsync(UpdateHashRequest)`
 
-**Internal state:** `Command` is set to `MigrationCommand.UpdateHash`. `RunMode` is forced to `MigrationRunMode.Migrate`. `TargetReleaseVersion` is set to `null`. `HashValidationScope` is set to `null`.
+**Internal state:** `Command` is set to `MigrationCommand.UpdateHash`. `RunMode` is set to `MigrationRunMode.Migrate`. `TargetReleaseVersion` is set to `null`. `HashValidationScope` is set to `null`.
+
+**Side effects:** repository read/write, no target connections, DatabaseLogging rows are written.
 
 ### Examples
 
@@ -294,6 +298,8 @@ raymigrator info --product <alias> --environment <env> [global-options]
 **Handler:** `RayMigratorService.ExecuteInfoAsync()` → `IMigrationService.GetStatusAsync(productAlias)` + `IMigrationService.GetHistoryAsync(productAlias, 10)`
 
 **Internal state:** `Command` is set to `MigrationCommand.Info`. `RunMode` is set to `MigrationRunMode.Migrate`. `TargetReleaseVersion` is set to `null`. `HashValidationScope` is set to `null`.
+
+**Side effects:** repository read-only (product and environment are looked up, not registered), no target connections, no DatabaseLogging rows. The run history column **Operation** shows `MigrateUp`, `MigrateDown` or `Baseline`.
 
 ### Example
 
@@ -338,6 +344,8 @@ raymigrator baseline --product <alias> --environment <env> [--to-release <versio
 **Handler:** `RayMigratorService.ExecuteBaselineAsync()` → `IMigrationService.BaselineAsync(BaselineRequest)`
 
 **Internal state:** `Command` is set to `MigrationCommand.Baseline`. `RunMode` is set to `MigrationRunMode.Migrate`. `HashValidationScope` is set to `null`.
+
+**Side effects:** repository read/write (MigrationRun and MigrationRecord rows stamped `MigrationOperation.Baseline`), no target connections, DatabaseLogging rows are written.
 
 ### Usage Scenarios
 
@@ -412,6 +420,8 @@ raymigrator fix --product <alias> --environment <env> [--scope <scope>] [--older
 
 `Command` is set to `MigrationCommand.FixIssues`. `RunMode` is set to `MigrationRunMode.Migrate`. `TargetReleaseVersion` is set to `null`. `HashValidationScope` is set to `null`.
 
+**Side effects:** repository read/write, no target connections, DatabaseLogging rows are written. With `--dry-run` the command is read-only and writes no DatabaseLogging rows.
+
 ### Examples
 
 ```bash
@@ -461,6 +471,8 @@ Controls the execution behavior.
 | `Migrate` | 100 | Validates, then performs actual migrations against target databases |
 
 Source: `Raycoon.RayMigrator.Core/Configuration/Enums/MigrationRunMode.cs`
+
+`--run-mode` exists on `migrate-up` and `migrate-down` only. Every other command runs in `Migrate` mode and decides its side effects through its `CommandProfile` (`MigrationCommandExtensions.GetProfile()`, see [Execution Modes](../02-core-concepts/execution-modes.md#run-mode)). A `MigrationContext` rejects `Undefined` (and `MigrationCommand.None`) with a `ConfigurationValidationException`.
 
 ### HashValidationScope
 
@@ -585,6 +597,7 @@ Represents the type of migration operation (displayed in the Info command's migr
 | `Rollback` | 5 | Performing rollback (error recovery during migrate-up) |
 | `MigrateDown` | 50 | Performing down-migration (explicit migrate-down command) |
 | `MigrateUp` | 100 | Performing up-migration (migrate-up command) |
+| `Baseline` | 110 | Marking migration files as migrated without executing them (baseline command) |
 
 Source: `Raycoon.RayMigrator.Core/Configuration/Enums/MigrationOperation.cs`
 

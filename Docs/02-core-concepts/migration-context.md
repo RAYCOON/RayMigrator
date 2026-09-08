@@ -263,6 +263,7 @@ sequenceDiagram
 | `Rollback` (5) | Error recovery rollback |
 | `MigrateDown` (50) | Rollback to version |
 | `MigrateUp` (100) | Forward migration |
+| `Baseline` (110) | Baseline (records written without executing SQL) |
 
 ### MigrationRunResult
 

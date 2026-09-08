@@ -1,4 +1,5 @@
 using Raycoon.RayMigrator.Core;
+using Raycoon.RayMigrator.Core.Extensions;
 using Serilog.Core;
 using Serilog.Events;
 
@@ -22,6 +23,7 @@ public class MigrationContextEnricher : ILogEventEnricher
         var environment = ctx.RayMigratorConsoleOptions.Environment ?? string.Empty;
         var environmentId = state.EnvironmentId;
         var runModeId = (byte)ctx.RayMigratorConsoleOptions.RunMode;
+        var dbLogEnabled = ctx.RayMigratorConsoleOptions.GetProfile().WritesDatabaseLog;
         var migrationRunId = state.MigrationRunId;
         var targetGroupAlias = state.TargetGroupAlias ?? string.Empty;
         var targetAlias = state.TargetAlias ?? string.Empty;
@@ -41,8 +43,10 @@ public class MigrationContextEnricher : ILogEventEnricher
         logEvent.AddPropertyIfAbsent(propertyFactory.CreateProperty("MigrationFileId", fileOrderId));
         logEvent.AddPropertyIfAbsent(propertyFactory.CreateProperty("MigrationBlockId", fileBlockId));
 
-        // Additional properties for database sink
+        // Additional properties for database sink.
+        // DbLogEnabled is the sink's gate: it follows the command's profile, not the run mode (#6).
         logEvent.AddPropertyIfAbsent(propertyFactory.CreateProperty("RunModeId", runModeId));
+        logEvent.AddPropertyIfAbsent(propertyFactory.CreateProperty("DbLogEnabled", dbLogEnabled));
         logEvent.AddPropertyIfAbsent(propertyFactory.CreateProperty("ProductId", productId));
         logEvent.AddPropertyIfAbsent(propertyFactory.CreateProperty("EnvironmentId", environmentId));
         logEvent.AddPropertyIfAbsent(propertyFactory.CreateProperty("MigrationRecordId", migrationRecordId));

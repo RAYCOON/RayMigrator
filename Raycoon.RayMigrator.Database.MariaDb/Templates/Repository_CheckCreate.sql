@@ -251,7 +251,8 @@ INSERT IGNORE INTO {CFG:TableBaseName}migration_run_mode (id, name, description)
 INSERT IGNORE INTO {CFG:TableBaseName}migration_operation (id, name, description) VALUES
     (5, 'Rollback', 'Performing Rollback of current MigrationRun'),
     (50, 'MigrateDown', 'Performing Down-Migration'),
-    (100, 'MigrateUp', 'Performing Up-Migration');
+    (100, 'MigrateUp', 'Performing Up-Migration'),
+    (110, 'Baseline', 'Marking migration files as migrated without executing them (baseline command)');
 
 INSERT IGNORE INTO {CFG:TableBaseName}migration_run_result (id, name, description) VALUES
     (10, 'Running', 'Migration process is currently running'),
