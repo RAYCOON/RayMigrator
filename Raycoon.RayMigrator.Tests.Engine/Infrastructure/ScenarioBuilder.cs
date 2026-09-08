@@ -170,6 +170,34 @@ public class ScenarioBuilder
     }
 
     /// <summary>
+    /// Replaces one block of a multi-block migration file (GO-separated, SQL Server style) with custom SQL.
+    /// Unlike <see cref="InjectErrorAtBlock"/> the replacement can be valid SQL that only fails because of the
+    /// database state (e.g. an INSERT into a table that does not exist yet), which keeps the file hash stable
+    /// between two runs and therefore exercises the block-level resume path.
+    /// </summary>
+    public ScenarioBuilder ReplaceBlock(string release, string filename, int blockIndex, string replacementSql)
+    {
+        _fileMutations.Add(workDir =>
+        {
+            string filePath = Path.Combine(workDir, release, "Backend", filename);
+            string content = File.ReadAllText(filePath);
+            var (toml, sql) = ExtractTomlAndSql(content);
+
+            string[] blocks = Regex.Split(sql, @"(?m)^\s*GO\s*$", RegexOptions.IgnoreCase);
+
+            if (blockIndex < 0 || blockIndex >= blocks.Length)
+                throw new ArgumentOutOfRangeException(nameof(blockIndex),
+                    $"Block index {blockIndex} is out of range. File has {blocks.Length} blocks.");
+
+            blocks[blockIndex] = Environment.NewLine + replacementSql + Environment.NewLine;
+
+            string reassembled = string.Join(Environment.NewLine + "GO" + Environment.NewLine, blocks);
+            File.WriteAllText(filePath, toml + Environment.NewLine + Environment.NewLine + reassembled + Environment.NewLine);
+        });
+        return this;
+    }
+
+    /// <summary>
     /// Sets the MigrationErrorAction for the scenario.
     /// </summary>
     public ScenarioBuilder WithMigrationErrorAction(MigrationErrorAction action)

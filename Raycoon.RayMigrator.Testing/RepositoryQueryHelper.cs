@@ -241,6 +241,28 @@ public class RepositoryQueryHelper
     }
 
     /// <summary>
+    /// Gets the count of MigrationLog entries whose MigrationEventId differs from the given event id.
+    /// </summary>
+    public int CountLogEntriesWithEventIdOtherThan(int eventId)
+    {
+        if (!DalFactory.TryGetDal(_databaseType, _repositoryConnectionString, out IDal? dal))
+            return -1;
+
+        string qualifiedTable = GetQualifiedTableName("MigrationLog");
+        string sql = $"SELECT COUNT(*) FROM {qualifiedTable} WHERE {QuoteColumn("MigrationEventId")} <> {eventId}";
+
+        try
+        {
+            object? result = dal!.ExecuteScalarAsync(sql, QuerySettings, null).GetAwaiter().GetResult();
+            return Convert.ToInt32(result);
+        }
+        catch
+        {
+            return -1;
+        }
+    }
+
+    /// <summary>
     /// Gets the MigrationOperationId from the latest MigrationRun.
     /// </summary>
     public int GetLatestMigrationRunOperation()

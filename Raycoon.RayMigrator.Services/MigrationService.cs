@@ -488,6 +488,8 @@ public class MigrationService : IMigrationService
                     _ctxAccessor.Current.MigrationState.FileOrderId = file.FileOrderId;
                     _ctxAccessor.Current.MigrationState.TargetGroupAlias = file.TargetGroupAlias;
                     _ctxAccessor.Current.MigrationState.TargetAlias = targetOptions.Alias!;
+                    _ctxAccessor.Current.MigrationState.FileBlockId = 0;
+                    _ctxAccessor.Current.MigrationState.FileBlocksCommitted = 0;
 
                     // Check if this file+target can resume from a previous partial execution
                     int startFromBlock = FindResumableBlock(file, targetOptions.Alias!, existingRecords);
@@ -522,8 +524,11 @@ public class MigrationService : IMigrationService
 
                         if (request.RunMode.ShouldWriteRepository())
                         {
+                            // Ignore mode attempts every block and skips the failed ones, so the committed blocks are
+                            // not a contiguous prefix. Store the total so that FindResumableBlock never resumes this
+                            // record; the next run re-executes the whole file (#11).
                             await Task.Run(() => _templateExecutor.RepositoryMigrationUpdate(
-                                migrationRecordId, MigrationStatus.Failed, _ctxAccessor.Current.MigrationState.FileBlockId));
+                                migrationRecordId, MigrationStatus.Failed, file.FileUpBlocksTotal));
                         }
 
                         break; // Skip remaining targets for this file
@@ -581,7 +586,7 @@ public class MigrationService : IMigrationService
                     {
                         await Task.Run(() => _templateExecutor.RepositoryMigrationUpdate(
                             _ctxAccessor.Current.MigrationState.MigrationRecordId, MigrationStatus.Failed,
-                            _ctxAccessor.Current.MigrationState.FileBlockId));
+                            ignoreErrors ? file.FileUpBlocksTotal : _ctxAccessor.Current.MigrationState.FileBlocksCommitted));
                     }
                 }
                 catch (Exception updateEx)
@@ -730,6 +735,8 @@ public class MigrationService : IMigrationService
                     _ctxAccessor.Current.MigrationState.FileOrderId = file.FileOrderId;
                     _ctxAccessor.Current.MigrationState.TargetGroupAlias = file.TargetGroupAlias;
                     _ctxAccessor.Current.MigrationState.TargetAlias = targetOptions.Alias!;
+                    _ctxAccessor.Current.MigrationState.FileBlockId = 0;
+                    _ctxAccessor.Current.MigrationState.FileBlocksCommitted = 0;
 
                     // Check if this file+target can resume from a previous partial execution
                     int startFromBlock = FindResumableBlock(file, targetOptions.Alias!, existingRecords);
@@ -762,8 +769,11 @@ public class MigrationService : IMigrationService
 
                         if (request.RunMode.ShouldWriteRepository())
                         {
+                            // Ignore mode attempts every block and skips the failed ones, so the committed blocks are
+                            // not a contiguous prefix. Store the total so that FindResumableBlock never resumes this
+                            // record; the next run re-executes the whole file (#11).
                             await Task.Run(() => _templateExecutor.RepositoryMigrationUpdate(
-                                migrationRecordId, MigrationStatus.Failed, _ctxAccessor.Current.MigrationState.FileBlockId));
+                                migrationRecordId, MigrationStatus.Failed, file.FileUpBlocksTotal));
                         }
 
                         result.FailCount++;
@@ -815,7 +825,7 @@ public class MigrationService : IMigrationService
                         {
                             await Task.Run(() => _templateExecutor.RepositoryMigrationUpdate(
                                 _ctxAccessor.Current.MigrationState.MigrationRecordId, MigrationStatus.Failed,
-                                _ctxAccessor.Current.MigrationState.FileBlockId));
+                                ignoreErrors ? file.FileUpBlocksTotal : _ctxAccessor.Current.MigrationState.FileBlocksCommitted));
                         }
                     }
                     catch (Exception updateEx)
@@ -1886,7 +1896,7 @@ public class MigrationService : IMigrationService
                     TargetGroupAlias = failedFile.TargetGroupAlias,
                     TargetAlias = _ctxAccessor.Current.MigrationState.TargetAlias,
                     MigrationStatusId = MigrationStatus.Failed,
-                    FileUpBlocksMigrated = _ctxAccessor.Current.MigrationState.FileBlockId
+                    FileUpBlocksMigrated = _ctxAccessor.Current.MigrationState.FileBlocksCommitted
                 });
 
                 // Add successful migrations in reverse order
@@ -1923,7 +1933,7 @@ public class MigrationService : IMigrationService
                     TargetGroupAlias = failedFile.TargetGroupAlias,
                     TargetAlias = _ctxAccessor.Current.MigrationState.TargetAlias,
                     MigrationStatusId = MigrationStatus.Failed,
-                    FileUpBlocksMigrated = _ctxAccessor.Current.MigrationState.FileBlockId
+                    FileUpBlocksMigrated = _ctxAccessor.Current.MigrationState.FileBlocksCommitted
                 });
 
                 // Add successful records from same release in reverse order
@@ -1977,7 +1987,7 @@ public class MigrationService : IMigrationService
                 TargetGroupAlias = failedFile.TargetGroupAlias,
                 TargetAlias = _ctxAccessor.Current.MigrationState.TargetAlias,
                 MigrationStatusId = MigrationStatus.Failed,
-                FileUpBlocksMigrated = _ctxAccessor.Current.MigrationState.FileBlockId
+                FileUpBlocksMigrated = _ctxAccessor.Current.MigrationState.FileBlocksCommitted
             }
         };
 
@@ -2849,6 +2859,10 @@ public class MigrationService : IMigrationService
             return await ExecuteSqlBlocksAtomic(file, targetDal!, dalSettings, migrationRecordId, runMode, startFromBlock);
         }
 
+        // Blocks before startFromBlock were committed by a previous run (FindResumableBlock); every block that
+        // succeeds below commits on its own, so the committed count advances block by block (#11).
+        _ctxAccessor.Current.MigrationState.FileBlocksCommitted = startFromBlock;
+
         for (int blockIndex = startFromBlock; blockIndex < file.SqlBlocks.Count; blockIndex++)
         {
             string sqlBlock = ReplaceEnvironmentVariablesInSqlBlock(
@@ -2868,6 +2882,7 @@ public class MigrationService : IMigrationService
                 {
                     await targetDal!.ExecuteNonQueryAsync(sqlBlock, dalSettings);
                     succeededBlocks++;
+                    _ctxAccessor.Current.MigrationState.FileBlocksCommitted = blockIndex + 1;
                 }
                 catch (Exception blockEx)
                 {
@@ -2881,6 +2896,7 @@ public class MigrationService : IMigrationService
             {
                 await targetDal!.ExecuteNonQueryAsync(sqlBlock, dalSettings);
                 succeededBlocks++;
+                _ctxAccessor.Current.MigrationState.FileBlocksCommitted = blockIndex + 1;
             }
 
             // Update block progress in repository
@@ -2911,6 +2927,10 @@ public class MigrationService : IMigrationService
         _logger.LogDebug(
             "Using atomic shared connection for {Filename} (target and repository share the same database)",
             file.Filename);
+
+        // Every block below runs inside one transaction: until it commits, nothing beyond the resume offset is
+        // on the target, so a failure must record startFromBlock committed blocks, not the failing block (#11).
+        _ctxAccessor.Current.MigrationState.FileBlocksCommitted = startFromBlock;
 
         while (true)
         {
@@ -2955,6 +2975,7 @@ public class MigrationService : IMigrationService
                 }
 
                 await transaction.CommitAsync();
+                _ctxAccessor.Current.MigrationState.FileBlocksCommitted = file.FileUpBlocksTotal;
                 return (succeededBlocks, 0, true);
             }
             catch (Exception ex)

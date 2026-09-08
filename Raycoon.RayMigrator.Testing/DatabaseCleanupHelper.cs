@@ -70,6 +70,7 @@ IF OBJECT_ID('dbo.Person', 'U') IS NOT NULL DROP TABLE [dbo].[Person];
 IF OBJECT_ID('dbo.Login', 'U') IS NOT NULL DROP TABLE [dbo].[Login];
 IF OBJECT_ID('dbo.Sex', 'U') IS NOT NULL DROP TABLE [dbo].[Sex];
 IF OBJECT_ID('dbo.MigSettingsMarker', 'U') IS NOT NULL DROP TABLE [dbo].[MigSettingsMarker];
+IF OBJECT_ID('dbo.ResumeProbe', 'U') IS NOT NULL DROP TABLE [dbo].[ResumeProbe];
 
 IF OBJECT_ID('dbo.TableY4', 'U') IS NOT NULL DROP TABLE [dbo].[TableY4];
 IF OBJECT_ID('dbo.TableX4', 'U') IS NOT NULL DROP TABLE [dbo].[TableX4];

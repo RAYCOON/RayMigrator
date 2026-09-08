@@ -13,8 +13,8 @@ public class SqlServerBlockLevelTests : SqlServerTestBase
 
     /// <summary>
     /// #50 Error at block index 2 (third GO block) of 03_SeedDataA.sql with Terminate.
-    /// Blocks 0 and 1 succeed, block 2 fails.
-    /// FileUpBlocksMigrated=3 (1-based: block being processed), FileUpBlocksTotal=3, Status=Failed.
+    /// Blocks 0 and 1 succeed, block 2 fails. Repository and target share one database, so the file runs in one
+    /// transaction that is rolled back: nothing is committed, FileUpBlocksMigrated=0 (#11), FileUpBlocksTotal=3, Status=Failed.
     /// </summary>
     [Fact]
     public async Task ErrorAtBlock2Of3_Terminate()
@@ -35,15 +35,14 @@ public class SqlServerBlockLevelTests : SqlServerTestBase
         ctx.AssertMigrationRecord("03_SeedDataA.sql", new MigrationRecordExpectation
         {
             MigrationStatusId = (int)MigrationStatus.Failed,
-            FileUpBlocksMigrated = 3,
+            FileUpBlocksMigrated = 0,
             FileUpBlocksTotal = 3
         });
     }
 
     /// <summary>
     /// #51 Error at block index 1 (second GO block) of 03_SeedDataA.sql with Terminate.
-    /// Block 0 succeeds, block 1 fails.
-    /// FileUpBlocksMigrated=2 (1-based: block being processed), FileUpBlocksTotal=3, Status=Failed.
+    /// Block 0 succeeds, block 1 fails. Atomic execution rolls block 0 back: FileUpBlocksMigrated=0 (#11), FileUpBlocksTotal=3, Status=Failed.
     /// </summary>
     [Fact]
     public async Task ErrorAtBlock1Of3_Terminate()
@@ -64,7 +63,7 @@ public class SqlServerBlockLevelTests : SqlServerTestBase
         ctx.AssertMigrationRecord("03_SeedDataA.sql", new MigrationRecordExpectation
         {
             MigrationStatusId = (int)MigrationStatus.Failed,
-            FileUpBlocksMigrated = 2,
+            FileUpBlocksMigrated = 0,
             FileUpBlocksTotal = 3
         });
     }
@@ -72,7 +71,7 @@ public class SqlServerBlockLevelTests : SqlServerTestBase
     /// <summary>
     /// #52 Error at block index 0 (first GO block) of 03_SeedDataA.sql with Terminate.
     /// No blocks succeed.
-    /// FileUpBlocksMigrated=1 (1-based: block being processed), FileUpBlocksTotal=3, Status=Failed.
+    /// FileUpBlocksMigrated=0 (committed blocks, #11), FileUpBlocksTotal=3, Status=Failed.
     /// </summary>
     [Fact]
     public async Task ErrorAtBlock0Of3_Terminate()
@@ -93,14 +92,14 @@ public class SqlServerBlockLevelTests : SqlServerTestBase
         ctx.AssertMigrationRecord("03_SeedDataA.sql", new MigrationRecordExpectation
         {
             MigrationStatusId = (int)MigrationStatus.Failed,
-            FileUpBlocksMigrated = 1,
+            FileUpBlocksMigrated = 0,
             FileUpBlocksTotal = 3
         });
     }
 
     /// <summary>
     /// #53 Error at block index 2 of 03_SeedDataA.sql with Rollback.
-    /// After rollback: R1/F3 UpDone=3 (1-based: block being processed), UpTotal=3, Status=NotMigrated, DownDone=DownTotal (complete rollback).
+    /// After rollback: R1/F3 UpDone=0 (atomic execution committed nothing, #11), UpTotal=3, Status=NotMigrated, DownDone=DownTotal (complete rollback).
     /// R1/F1 and R1/F2 also rolled back to NotMigrated.
     /// </summary>
     [Fact]
@@ -123,7 +122,7 @@ public class SqlServerBlockLevelTests : SqlServerTestBase
         ctx.AssertMigrationRecord("03_SeedDataA.sql", new MigrationRecordExpectation
         {
             MigrationStatusId = (int)MigrationStatus.NotMigrated,
-            FileUpBlocksMigrated = 3,
+            FileUpBlocksMigrated = 0,
             FileUpBlocksTotal = 3
         });
 
@@ -140,7 +139,7 @@ public class SqlServerBlockLevelTests : SqlServerTestBase
 
     /// <summary>
     /// #54 Error at block index 1 of 03_SeedDataA.sql with Rollback.
-    /// R1/F3: UpDone=2 (1-based: block being processed), UpTotal=3, Status=NotMigrated.
+    /// R1/F3: UpDone=0 (atomic execution committed nothing, #11), UpTotal=3, Status=NotMigrated.
     /// R1/F1 and R1/F2: also NotMigrated (rolled back).
     /// </summary>
     [Fact]
@@ -163,7 +162,7 @@ public class SqlServerBlockLevelTests : SqlServerTestBase
         ctx.AssertMigrationRecord("03_SeedDataA.sql", new MigrationRecordExpectation
         {
             MigrationStatusId = (int)MigrationStatus.NotMigrated,
-            FileUpBlocksMigrated = 2,
+            FileUpBlocksMigrated = 0,
             FileUpBlocksTotal = 3
         });
 

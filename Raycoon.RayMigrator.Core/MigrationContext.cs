@@ -59,6 +59,7 @@ public class MigrationContext
                 FilenameWithRelativePath = migrationState.FilenameWithRelativePath,
                 FileOrderId = migrationState.FileOrderId,
                 FileBlockId = migrationState.FileBlockId,
+                FileBlocksCommitted = migrationState.FileBlocksCommitted,
                 MigrationRunResult = migrationState.MigrationRunResult,
                 MigrationOperation = migrationState.MigrationOperation,
                 MigrationStatus = migrationState.MigrationStatus,

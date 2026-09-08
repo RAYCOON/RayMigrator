@@ -452,7 +452,11 @@ public class TemplateExecutor
     /// </summary>
     /// <param name="migrationRecordId">The migration record ID to update.</param>
     /// <param name="migrationStatus">The migration status.</param>
-    /// <param name="fileUpBlocksMigrated">Number of blocks successfully migrated.</param>
+    /// <param name="fileUpBlocksMigrated">
+    /// Number of leading blocks that are committed on the target. For a <see cref="MigrationStatus.Failed"/> record this
+    /// is what the next run skips when it resumes the file (<c>FindResumableBlock</c>), so it must never include the
+    /// block that failed (#11). Ignore-mode failures store the total to opt out of resuming.
+    /// </param>
     /// <exception cref="TemplateExecutionException"></exception>
     public void RepositoryMigrationUpdate(int migrationRecordId, MigrationStatus migrationStatus, int fileUpBlocksMigrated)
     {

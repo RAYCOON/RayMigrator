@@ -444,6 +444,17 @@ public class ScenarioContext : IAsyncDisposable
     }
 
     /// <summary>
+    /// Asserts the row count of a user-created table on a specific connection string,
+    /// e.g. when the target database differs from the repository database.
+    /// </summary>
+    public void AssertRowCountOnConnection(string connectionString, string tableName, int expected)
+    {
+        int count = _queryHelper.CountRows(connectionString, tableName, useRepositorySchema: false);
+        count.Should().Be(expected,
+            $"Row count for '{tableName}' on the specified connection");
+    }
+
+    /// <summary>
     /// Asserts whether a user-created table exists on a specific connection string.
     /// Used for multi-database scenarios (e.g., Frontend on a different database).
     /// </summary>
@@ -505,6 +516,12 @@ public class ScenarioContext : IAsyncDisposable
     /// Counts MigrationLog entries at a specific log level.
     /// </summary>
     public int CountLogEntriesAtLevel(int logLevelId) => _queryHelper.CountLogEntriesAtLevel(logLevelId);
+
+    /// <summary>
+    /// Counts MigrationLog entries whose MigrationEventId differs from <paramref name="eventId"/>.
+    /// Used to prove that the EventId of a logger call actually reaches the DatabaseLog row.
+    /// </summary>
+    public int CountLogEntriesWithEventIdOtherThan(int eventId) => _queryHelper.CountLogEntriesWithEventIdOtherThan(eventId);
 
     /// <summary>
     /// Counts Migration records belonging to a specific target group.

@@ -5,6 +5,20 @@ All notable changes to RayMigrator are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 RayMigrator follows Semantic Versioning where applicable.
 
+## [Unreleased]
+
+### Fixed
+
+- Block-level resume no longer skips the block that failed. A `Failed`
+  `MigrationRecord` now stores the number of blocks that are committed on the
+  target in `FileUpBlocksMigrated` (0 when the file ran in one transaction that
+  was rolled back), and the next `migrate-up` resumes with the first block that
+  is not. Until now the record stored the 1-based index of the failing block,
+  so the resume started one block too late and the file was marked `Migrated`
+  although that block never ran. Records written under
+  `MigrationErrorAction = Ignore` keep storing the total and are re-executed as
+  a whole, as before. (#11)
+
 ## [0.12.0] — 2026-09-08
 
 ### Added
