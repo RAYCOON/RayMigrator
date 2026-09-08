@@ -30,7 +30,7 @@ TableBaseName = "Table name prefix from Logging configuration (e.g., '' or 'Log_
 # SQL parameters bound at runtime
 LogLevelId       = "SMALLINT | REQUIRED | Log level: 0=Trace, 1=Debug, 2=Info, 3=Warning, 4=Error, 5=Critical"
 MigrationEventId = "INT | OPTIONAL | Event type ID from MigrationEvent table"
-RunModeId        = "SMALLINT | OPTIONAL | Run mode: 10=Validate, 20=Simulate, 100=Migrate"
+RunModeId        = "SMALLINT | OPTIONAL | Run mode of the command (always 100=Migrate: Validate and Simulate runs never write rows, #19)"
 ProductId        = "INT | OPTIONAL | Product ID if available"
 EnvironmentId    = "INT | OPTIONAL | Environment ID if available"
 MigrationRunId   = "INT | OPTIONAL | MigrationRun ID if available"

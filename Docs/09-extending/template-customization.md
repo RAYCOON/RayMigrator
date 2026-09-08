@@ -85,7 +85,7 @@ ExistingMigrationRecordId = "INT | REQUIRED | 0 = INSERT new record, >0 = UPDATE
 ProductId           = "INT | REQUIRED | Product ID from Product table"
 EnvironmentId       = "INT | REQUIRED | Environment ID from Environment table"
 MigrationRunId      = "INT | REQUIRED | Parent MigrationRun ID"
-MigrationRunModeId  = "TINYINT | REQUIRED | Run mode: 10=Validate, 20=Simulate, 100=Migrate"
+MigrationRunModeId  = "TINYINT | REQUIRED | Run mode of the command (always 100=Migrate: Validate and Simulate runs never write rows, #19)"
 MigrationOperationId= "TINYINT | REQUIRED | Operation: 5=Rollback, 50=MigrateDown, 100=MigrateUp, 110=Baseline"
 # ... additional parameters
 

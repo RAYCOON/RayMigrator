@@ -19,6 +19,7 @@ using Raycoon.RayMigrator.Infrastructure.Logging;
 using Raycoon.RayMigrator.Services;
 using Raycoon.RayMigrator.Shared.Exceptions;
 using Serilog;
+using Raycoon.RayMigrator.Core.Logging;
 
 namespace Raycoon.RayMigrator.Pipeline;
 

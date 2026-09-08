@@ -36,7 +36,6 @@ public class MigrationState
     // Migration Process: Step / Result
     public MigrationRunResult MigrationRunResult { get; set; }
     public MigrationOperation MigrationOperation { get; set; }
-    public MigrationStatus MigrationStatus { get; set; }
     
     // Migration Process: TargetGroup- / Target-settings
     public string TargetGroupAlias { get; set; } = string.Empty;

@@ -1,7 +1,9 @@
 namespace Raycoon.RayMigrator.Core.Configuration.Enums;
 
 /// <summary>
-/// The operating mode of RayMigrator, determined by bootstrap configuration.
+/// The operating mode of RayMigrator, determined by bootstrap configuration. Part of the Core package contract
+/// consumed by RayMigrator Studio (Admin-DB and thin-client modes); the Engine itself always runs in
+/// <see cref="Standalone"/> mode and never reads this enum. There is no CLI option or configuration key for it (#19).
 /// </summary>
 public enum OperatingMode
 {

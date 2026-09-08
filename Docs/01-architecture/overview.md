@@ -210,7 +210,7 @@ Common types used across all layers. Has no project references.
 - Constants (`InternalConstants`, `TemplateResultCode`)
 - `AssemblyInfoHelper` - Version and assembly metadata utility (`GetRayMigratorVersion`, `GetAsciiLogoLines`, `GetAsciiHeader`)
 
-> **Note**: Enumerations (`MigrationCommand`, `MigrationErrorAction`, `RollbackErrorAction`, `TargetMigrationOrder`, `MigrationRunMode`, `MigrationOperation`, `MigrationRunResult`, `MigrationStatus`, `HashValidationScope`, `FixScope`, `OperatingMode`, `CliToolInputMode`) and the `MigrationEvent` class (static `EventId` constants) reside in the **Core** layer (`Raycoon.RayMigrator.Core/Configuration/Enums/`), not the Shared layer. The `TemplateType` enum resides in `Raycoon.RayMigrator.Core/Templates/`. Request/Response DTOs reside in `Services.Abstractions`.
+> **Note**: Enumerations (`MigrationCommand`, `MigrationErrorAction`, `RollbackErrorAction`, `TargetMigrationOrder`, `MigrationRunMode`, `MigrationOperation`, `MigrationRunResult`, `MigrationStatus`, `HashValidationScope`, `FixScope`, `OperatingMode`, `CliToolInputMode`) reside in the **Core** layer (`Raycoon.RayMigrator.Core/Configuration/Enums/`), not the Shared layer; the `MigrationEvent` class (static `EventId` constants) lives in `Raycoon.RayMigrator.Core/Logging/` and the `CommandProfile` record struct in `Raycoon.RayMigrator.Core/Configuration/` (#19). The `TemplateType` enum resides in `Raycoon.RayMigrator.Core/Templates/`. Request/Response DTOs reside in `Services.Abstractions`.
 
 ## Dependency Flow
 

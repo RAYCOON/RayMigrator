@@ -39,4 +39,14 @@ public class MigrationRunModeExtensionsTests
     {
         runMode.ShouldReadRepository().Should().Be(expected);
     }
+
+    [Theory]
+    [InlineData(MigrationRunMode.Undefined, false)]
+    [InlineData(MigrationRunMode.Validate, false)]
+    [InlineData(MigrationRunMode.Simulate, true)]
+    [InlineData(MigrationRunMode.Migrate, true)]
+    public void ShouldConnectToTargets_ReturnsExpectedValue(MigrationRunMode runMode, bool expected)
+    {
+        runMode.ShouldConnectToTargets().Should().Be(expected);
+    }
 }

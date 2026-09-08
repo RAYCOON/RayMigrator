@@ -5,6 +5,8 @@ using Raycoon.RayMigrator.Core.Configuration.Options;
 using Raycoon.RayMigrator.Database;
 using Raycoon.RayMigrator.Database.Common;
 using Raycoon.RayMigrator.Shared.Exceptions;
+using Raycoon.RayMigrator.Core.Logging;
+using Raycoon.RayMigrator.Core.Configuration;
 
 namespace Raycoon.RayMigrator.Core.Configuration.Validation;
 

@@ -24,4 +24,11 @@ public static class MigrationRunModeExtensions
     /// </summary>
     public static bool ShouldReadRepository(this MigrationRunMode runMode)
         => runMode >= MigrationRunMode.Simulate;
+
+    /// <summary>
+    /// Whether the start-up connection check opens a connection to every target database.
+    /// True for Simulate and Migrate; Validate never touches a target (#19).
+    /// </summary>
+    public static bool ShouldConnectToTargets(this MigrationRunMode runMode)
+        => runMode >= MigrationRunMode.Simulate;
 }

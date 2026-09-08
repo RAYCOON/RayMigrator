@@ -2,6 +2,8 @@ using Microsoft.Extensions.Logging;
 using Raycoon.RayMigrator.Core.Configuration.Enums;
 using Serilog.Core;
 using Serilog.Events;
+using Raycoon.RayMigrator.Core.Logging;
+using Raycoon.RayMigrator.Core.Configuration;
 
 namespace Raycoon.RayMigrator.Infrastructure.Logging;
 

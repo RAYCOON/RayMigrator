@@ -31,7 +31,7 @@ TableBaseName = "Table name prefix from Repository configuration"
 [Parameters]
 ProductId          = "INT | REQUIRED | Product ID from Product table"
 EnvironmentId      = "INT | REQUIRED | Environment ID from Environment table"
-MigrationRunModeId = "TINYINT UNSIGNED | REQUIRED | Run mode: 10=Validate, 20=Simulate, 100=Migrate"
+MigrationRunModeId = "TINYINT UNSIGNED | REQUIRED | Run mode of the command (always 100=Migrate: Validate and Simulate runs never write rows, #19)"
 MigratorMetaId     = "INT | REQUIRED | Version ID from MigratorMeta table"
 MigrationRunResultId  = "TINYINT UNSIGNED | REQUIRED | Initial result status (should be 10=Running)"
 FromReleaseVersion = "VARCHAR(100) | OPTIONAL | Starting release version for the migration range"

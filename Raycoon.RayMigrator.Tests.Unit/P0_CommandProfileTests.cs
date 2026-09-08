@@ -3,6 +3,7 @@ using Raycoon.RayMigrator.Core.Configuration.Enums;
 using Raycoon.RayMigrator.Core.Extensions;
 using Raycoon.RayMigrator.Shared.Exceptions;
 using Raycoon.RayMigrator.Tests.Unit.Helpers;
+using Raycoon.RayMigrator.Core.Configuration;
 
 namespace Raycoon.RayMigrator.Tests.Unit;
 
@@ -13,26 +14,26 @@ namespace Raycoon.RayMigrator.Tests.Unit;
 public class CommandProfileTests
 {
     [Theory]
-    //          command                     run mode                   dry  exec   conn   read   write  dblog
-    [InlineData(MigrationCommand.MigrateUp,    MigrationRunMode.Migrate,  false, true,  true,  true,  true,  true)]
-    [InlineData(MigrationCommand.MigrateUp,    MigrationRunMode.Simulate, false, true,  true,  true,  false, false)]
-    [InlineData(MigrationCommand.MigrateUp,    MigrationRunMode.Validate, false, true,  false, false, false, false)]
-    [InlineData(MigrationCommand.MigrateDown,  MigrationRunMode.Migrate,  false, true,  true,  true,  true,  true)]
-    [InlineData(MigrationCommand.MigrateDown,  MigrationRunMode.Simulate, false, true,  true,  true,  false, false)]
-    [InlineData(MigrationCommand.MigrateDown,  MigrationRunMode.Validate, false, true,  false, false, false, false)]
-    [InlineData(MigrationCommand.Baseline,     MigrationRunMode.Migrate,  false, false, false, true,  true,  true)]
-    [InlineData(MigrationCommand.UpdateHash,   MigrationRunMode.Migrate,  false, false, false, true,  true,  true)]
-    [InlineData(MigrationCommand.FixIssues,    MigrationRunMode.Migrate,  false, false, false, true,  true,  true)]
-    [InlineData(MigrationCommand.FixIssues,    MigrationRunMode.Migrate,  true,  false, false, true,  false, false)]
-    [InlineData(MigrationCommand.Info,         MigrationRunMode.Migrate,  false, false, false, true,  false, false)]
-    [InlineData(MigrationCommand.ValidateHash, MigrationRunMode.Migrate,  false, false, false, true,  false, false)]
+    //          command                     run mode                   dry  conn   write  dblog
+    [InlineData(MigrationCommand.MigrateUp,    MigrationRunMode.Migrate,  false, true, true, true)]
+    [InlineData(MigrationCommand.MigrateUp,    MigrationRunMode.Simulate, false, true, false, false)]
+    [InlineData(MigrationCommand.MigrateUp,    MigrationRunMode.Validate, false, false, false, false)]
+    [InlineData(MigrationCommand.MigrateDown,  MigrationRunMode.Migrate,  false, true, true, true)]
+    [InlineData(MigrationCommand.MigrateDown,  MigrationRunMode.Simulate, false, true, false, false)]
+    [InlineData(MigrationCommand.MigrateDown,  MigrationRunMode.Validate, false, false, false, false)]
+    [InlineData(MigrationCommand.Baseline,     MigrationRunMode.Migrate,  false, false, true, true)]
+    [InlineData(MigrationCommand.UpdateHash,   MigrationRunMode.Migrate,  false, false, true, true)]
+    [InlineData(MigrationCommand.FixIssues,    MigrationRunMode.Migrate,  false, false, true, true)]
+    [InlineData(MigrationCommand.FixIssues,    MigrationRunMode.Migrate,  true, false, false, false)]
+    [InlineData(MigrationCommand.Info,         MigrationRunMode.Migrate,  false, false, false, false)]
+    [InlineData(MigrationCommand.ValidateHash, MigrationRunMode.Migrate,  false, false, false, false)]
     public void GetProfile_MatchesSideEffectMatrix(
         MigrationCommand command, MigrationRunMode runMode, bool fixDryRun,
-        bool executesMigrations, bool connectsToTargets, bool readsRepository, bool writesRepository, bool writesDatabaseLog)
+        bool connectsToTargets, bool writesRepository, bool writesDatabaseLog)
     {
         var profile = MigrationCommandExtensions.GetProfile(command, runMode, fixDryRun);
 
-        profile.Should().Be(new CommandProfile(executesMigrations, connectsToTargets, readsRepository, writesRepository, writesDatabaseLog),
+        profile.Should().Be(new CommandProfile(connectsToTargets, writesRepository, writesDatabaseLog),
             $"the side effects of '{command}' in '{runMode}' mode{(fixDryRun ? " (dry run)" : "")} are part of the product contract");
     }
 
@@ -105,10 +106,9 @@ public class CommandProfileTests
         {
             var profile = MigrationCommandExtensions.GetProfile(MigrationCommand.MigrateUp, runMode);
 
-            profile.ReadsRepository.Should().Be(runMode.ShouldReadRepository());
+            profile.ConnectsToTargets.Should().Be(runMode.ShouldConnectToTargets());
             profile.WritesRepository.Should().Be(runMode.ShouldWriteRepository());
             profile.WritesDatabaseLog.Should().Be(runMode.ShouldWriteRepository());
-            profile.ExecutesMigrations.Should().BeTrue();
         }
     }
 }

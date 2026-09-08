@@ -265,7 +265,7 @@ public string TargetAlias { get; set; }
 ### `MigrationStateSnapshot`
 **Location**: `Raycoon.RayMigrator.Core/MigrationStateSnapshot.cs`
 
-**Purpose**: Immutable snapshot of `MigrationState` properties used for structured logging. The snapshot captures all state properties (`ProductId`, `MigrationRunId`, `MigrationRecordId`, file metadata, `MigrationRunResult`, `MigrationOperation`, `MigrationStatus`, target group/target aliases, `HashValidationScope`) as `init`-only properties.
+**Purpose**: Immutable snapshot of `MigrationState` properties used for structured logging. The snapshot captures all state properties (`ProductId`, `MigrationRunId`, `MigrationRecordId`, file metadata, `MigrationRunResult`, `MigrationOperation`, target group/target aliases, `HashValidationScope`) as `init`-only properties.
 
 > **Note**: `MigrationContext.Clone` creates a new `MigrationContext` with a deep-copied `MigrationState`, not a `MigrationStateSnapshot`. The `MigrationStateSnapshot` class is a separate lightweight type for log enrichment.
 
@@ -606,7 +606,7 @@ Each DAL is a separate project (not a subdirectory of the Database project):
 | `FixScope` | Undefined (0), All (1), OrphanedRuns (2) |
 | `CliToolInputMode` | Undefined (0), File (1), Stdin (2) |
 
-> **Note**: `MigrationEvent` resides in the same `Configuration/Enums/` directory but is a **class** (not an enum). It defines static `EventId` constants used for structured logging (e.g., `CommandLineParsing` = 10, `TemplateExecutionRepositoryCheckCreate` = 100, `RayMigratorServiceShutdown` = 1000).
+> **Note**: `MigrationEvent` is a static **class** in `Raycoon.RayMigrator.Core/Logging/` (namespace `Raycoon.RayMigrator.Core.Logging`), `CommandProfile` a record struct in `Raycoon.RayMigrator.Core/Configuration/`; neither lives in `Configuration/Enums/` any more (#19). `MigrationEvent` defines static `EventId` constants used for structured logging (e.g., `CommandLineParsing` = 10, `TemplateExecutionRepositoryCheckCreate` = 100, `RayMigratorServiceShutdown` = 1000).
 
 **Location**: `Raycoon.RayMigrator.Core/Templates/`
 

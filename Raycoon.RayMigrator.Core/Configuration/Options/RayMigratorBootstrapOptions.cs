@@ -4,6 +4,7 @@ namespace Raycoon.RayMigrator.Core.Configuration.Options;
 /// Bootstrap configuration for RayMigrator. Contains only the minimal settings needed
 /// to initialize the Admin-DB and configure logging.
 /// This is loaded from appsettings.json before any migration-specific configuration.
+/// Part of the Core package contract consumed by RayMigrator Studio; the Engine never binds it (#19).
 /// </summary>
 public class RayMigratorBootstrapOptions
 {

@@ -7,6 +7,8 @@ using Raycoon.RayMigrator.Database.Common;
 using Raycoon.RayMigrator.Infrastructure.Logging;
 using Serilog.Events;
 using Serilog.Parsing;
+using Raycoon.RayMigrator.Core.Logging;
+using Raycoon.RayMigrator.Core.Configuration;
 
 namespace Raycoon.RayMigrator.Tests.Unit;
 

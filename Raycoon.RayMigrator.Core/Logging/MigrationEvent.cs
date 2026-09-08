@@ -1,6 +1,6 @@
 using Microsoft.Extensions.Logging;
 
-namespace Raycoon.RayMigrator.Core.Configuration.Enums;
+namespace Raycoon.RayMigrator.Core.Logging;
 
 /// <summary>
 /// Catalogue of the <see cref="EventId"/>s RayMigrator logs with. The Id is persisted as

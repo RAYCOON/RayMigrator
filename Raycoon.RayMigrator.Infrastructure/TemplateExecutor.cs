@@ -11,6 +11,7 @@ using Raycoon.RayMigrator.Database;
 using Raycoon.RayMigrator.Database.Common;
 using Raycoon.RayMigrator.Shared.Constants;
 using Raycoon.RayMigrator.Shared.Exceptions;
+using Raycoon.RayMigrator.Core.Logging;
 
 namespace Raycoon.RayMigrator.Core;
 

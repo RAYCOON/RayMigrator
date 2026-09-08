@@ -654,6 +654,12 @@ public class CliToolOptions
     [RayEnum(typeof(Enums.CliToolInputMode), isRequired: false)]
     public string? InputMode { get; set; }
 
+    /// <summary>
+    /// The input mode of a tool without <see cref="InputMode"/>. <c>CliToolDefinitionsRule</c> in the Validation
+    /// project (no project references by design) repeats the value as the literal "File" (#19).
+    /// </summary>
+    public const CliToolInputMode DefaultInputMode = Enums.CliToolInputMode.File;
+
     private bool _isInputModeInitialized;
     private CliToolInputMode _inputMode;
 
@@ -666,7 +672,7 @@ public class CliToolOptions
 
             if (string.IsNullOrWhiteSpace(InputMode))
             {
-                return Enums.CliToolInputMode.File;
+                return DefaultInputMode;
             }
 
             _inputMode = OptionsEnumParser.ParseOrThrow<Enums.CliToolInputMode>(InputMode, nameof(InputMode));

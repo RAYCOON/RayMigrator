@@ -27,6 +27,7 @@ internal sealed class CliToolDefinitionsRule : IValidationRule
 
     private static void CheckFilePathPlacement(CliToolInput tool, ValidationReport report)
     {
+        // "File" mirrors CliToolOptions.DefaultInputMode in Core; this project has no project references by design (#19)
         var effectiveMode = string.IsNullOrWhiteSpace(tool.InputMode) ? "File" : tool.InputMode!;
         var template = tool.ArgumentTemplate ?? "";
         var hasFilePath = template.Contains("{FilePath}", StringComparison.Ordinal);

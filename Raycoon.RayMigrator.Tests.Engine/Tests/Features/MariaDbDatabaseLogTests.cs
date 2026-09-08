@@ -1,6 +1,7 @@
 using Raycoon.RayMigrator.Core.Configuration.Enums;
 using Raycoon.RayMigrator.Tests.Engine.Fixtures;
 using Raycoon.RayMigrator.Tests.Engine.Infrastructure;
+using Raycoon.RayMigrator.Core.Logging;
 
 namespace Raycoon.RayMigrator.Tests.Engine.Tests.Features;
 

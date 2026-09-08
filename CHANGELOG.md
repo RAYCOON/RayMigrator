@@ -20,6 +20,19 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ### Changed
 
+- Enum housekeeping (#19). `CommandProfile` moved from
+  `Raycoon.RayMigrator.Core.Configuration.Enums` to
+  `Raycoon.RayMigrator.Core.Configuration` and lost its two fields without a
+  consumer (`ExecutesMigrations`, `ReadsRepository`); `MigrationEvent` moved to
+  `Raycoon.RayMigrator.Core.Logging`. `MigrationRunModeExtensions` gained
+  `ShouldConnectToTargets()`, which the profile uses instead of a raw
+  comparison. The never-assigned `MigrationState.MigrationStatus` property was
+  removed. `CliToolOptions.DefaultInputMode` names the input mode of a tool
+  without `InputMode`. `OperatingMode`, `RayMigratorBootstrapOptions` and
+  `AdminDbOptions` stay as the contract consumed by RayMigrator Studio; their
+  documentation now says that the Engine never reads them. The SQL template
+  headers no longer list `10=Validate, 20=Simulate` for `MigrationRunModeId`,
+  which is always 100 because those run modes never write rows.
 - The enum behind `fix --scope` is named `FixScope` (formerly `FixIssues`, a
   name shared with the command, the request and the service method), and the
   console option `RayMigratorConsoleOptions.FixIssues` is `FixScope`. The CLI

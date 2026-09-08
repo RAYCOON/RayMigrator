@@ -29,7 +29,7 @@ TableBaseName = "Table name prefix from Repository configuration"
 [Parameters]
 ProductId          = "INTEGER | REQUIRED | Product ID from Product table"
 EnvironmentId      = "INTEGER | REQUIRED | Environment ID from Environment table"
-MigrationRunModeId = "INTEGER | REQUIRED | Run mode: 10=Validate, 20=Simulate, 100=Migrate"
+MigrationRunModeId = "INTEGER | REQUIRED | Run mode of the command (always 100=Migrate: Validate and Simulate runs never write rows, #19)"
 MigratorMetaId     = "INTEGER | REQUIRED | Version ID from MigratorMeta table"
 MigrationRunResultId  = "INTEGER | REQUIRED | Initial result status (should be 10=Running)"
 FromReleaseVersion = "TEXT | OPTIONAL | Starting release version for the migration range"

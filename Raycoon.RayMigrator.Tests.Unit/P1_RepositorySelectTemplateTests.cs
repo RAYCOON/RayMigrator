@@ -1,6 +1,7 @@
 using AwesomeAssertions;
 using Raycoon.RayMigrator.Core.Configuration.Enums;
 using Raycoon.RayMigrator.Core.Templates;
+using Raycoon.RayMigrator.Core.Logging;
 
 namespace Raycoon.RayMigrator.Tests.Unit;
 

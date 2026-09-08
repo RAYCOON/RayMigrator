@@ -275,7 +275,6 @@ public class MigrationContext
                 FileBlockId = migrationState.FileBlockId,
                 MigrationRunResult = migrationState.MigrationRunResult,
                 MigrationOperation = migrationState.MigrationOperation,
-                MigrationStatus = migrationState.MigrationStatus,
                 TargetGroupAlias = migrationState.TargetGroupAlias,
                 HashValidationScope = migrationState.HashValidationScope,
                 TargetAlias = migrationState.TargetAlias

@@ -27,7 +27,7 @@ TableBaseName = "Table name prefix from Logging configuration (e.g., '' or 'Log_
 [Parameters]
 LogLevelId       = "INTEGER | REQUIRED | Log level: 0=Trace, 1=Debug, 2=Info, 3=Warning, 4=Error, 5=Critical"
 MigrationEventId = "INTEGER | OPTIONAL | Event type ID from MigrationEvent table"
-RunModeId        = "INTEGER | OPTIONAL | Run mode: 10=Validate, 20=Simulate, 100=Migrate"
+RunModeId        = "INTEGER | OPTIONAL | Run mode of the command (always 100=Migrate: Validate and Simulate runs never write rows, #19)"
 ProductId        = "INTEGER | OPTIONAL | Product ID if available"
 EnvironmentId    = "INTEGER | OPTIONAL | Environment ID if available"
 MigrationRunId   = "INTEGER | OPTIONAL | MigrationRun ID if available"
