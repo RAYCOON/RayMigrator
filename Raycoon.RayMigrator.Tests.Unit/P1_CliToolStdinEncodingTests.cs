@@ -74,7 +74,7 @@ public class CliToolStdinEncodingTests : IDisposable
             .WithMessage("*[Release 1.0/Backend/001_umlaut.sql]*")
             .WithMessage("*[ASCII]*")
             .WithMessage("*product [P]*");
-        await executor.DidNotReceiveWithAnyArgs().ExecuteAsync(default!, default);
+        await executor.DidNotReceiveWithAnyArgs().ExecuteAsync(default!, TestContext.Current.CancellationToken);
     }
 
     private static byte[] EncodingSupportBytes(string text) => Raycoon.RayMigrator.Core.Configuration.EncodingSupport.StrictUtf8.GetBytes(text);
