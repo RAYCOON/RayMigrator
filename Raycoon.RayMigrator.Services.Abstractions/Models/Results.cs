@@ -83,7 +83,10 @@ public class HashValidationIssue
 public class HashUpdateResult : OperationResult
 {
     public string ProductAlias { get; set; } = string.Empty;
+    /// <summary>Distinct files whose stored hashes were updated on at least one target.</summary>
     public int UpdatedFiles { get; set; }
+    /// <summary>Repository records (one per file and target) whose hashes were updated (#9).</summary>
+    public int UpdatedRecords { get; set; }
     public int NewFiles { get; set; }
     public int RemovedFiles { get; set; }
     public List<string> UpdatedFileNames { get; set; } = new List<string>();

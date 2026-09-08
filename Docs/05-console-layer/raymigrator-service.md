@@ -267,8 +267,8 @@ private async Task<int> ExecuteUpdateHashAsync()
         return 1;
     }
 
-    _logger.LogInformation("Update-Hash completed. Updated: {Updated}, New: {New}, Removed: {Removed}",
-        result.UpdatedFiles, result.NewFiles, result.RemovedFiles);
+    _logger.LogInformation("Update-Hash completed. Updated: {Updated} file(s) / {UpdatedRecords} record(s), New: {New}, Removed: {Removed}",
+        result.UpdatedFiles, result.UpdatedRecords, result.NewFiles, result.RemovedFiles);
 
     return 0;
 }

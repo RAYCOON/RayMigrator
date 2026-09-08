@@ -38,7 +38,8 @@ public class TemplateExecutorEnvironmentIdTests
         int environmentId = TestEnvironmentId,
         int productId = TestProductId,
         MigrationRunMode runMode = MigrationRunMode.Migrate,
-        string scalarResult = "1,ok")
+        string scalarResult = "1,ok",
+        List<Dictionary<string, object?>>? readerRows = null)
     {
         var dal = Substitute.For<IDal>();
         DalParameterList? captured = null;
@@ -54,7 +55,7 @@ public class TemplateExecutorEnvironmentIdTests
            .Returns(callInfo =>
            {
                captured = callInfo.ArgAt<DalParameterList>(2);
-               return Task.FromResult(new List<Dictionary<string, object?>>());
+               return Task.FromResult(readerRows ?? new List<Dictionary<string, object?>>());
            });
 
         var ctx = BuildContext(environmentId, productId, runMode);
@@ -413,6 +414,49 @@ public class TemplateExecutorEnvironmentIdTests
 
         found.Should().BeFalse();
         ContextOf(executor).MigrationState.EnvironmentId.Should().Be(0);
+    }
+
+    #endregion
+
+    #region RepositoryMigrationSelect — config hash normalisation (#9)
+
+    private static Dictionary<string, object?> RecordRow(object? fileUpConfigHash, object? fileDownConfigHash) => new()
+    {
+        ["Id"] = 1, ["ProductId"] = TestProductId, ["MigrationRunId"] = 1,
+        ["MigrationOperationId"] = (byte)MigrationOperation.MigrateUp, ["MigrationStatusId"] = (byte)MigrationStatus.Migrated,
+        ["ReleaseVersion"] = "Release 1.0", ["TargetGroupAlias"] = "Backend", ["TargetAlias"] = "MainDB",
+        ["Filename"] = "10_Create.sql", ["FileOrderId"] = 1,
+        ["FileUpHash"] = "abc", ["FileUpConfigHash"] = fileUpConfigHash, ["FileUpBlocksHash"] = "def",
+        ["FileUpBlocksMigrated"] = 1, ["FileUpBlocksTotal"] = 1, ["MigrateDownFileExists"] = false,
+        ["FileDownHash"] = null, ["FileDownConfigHash"] = fileDownConfigHash, ["FileDownBlocksHash"] = null,
+        ["FileDownBlocksMigrated"] = null, ["FileDownBlocksTotal"] = null
+    };
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(null)]
+    public void RepositoryMigrationSelect_EmptyOrNullConfigHash_IsReadAsNull(string? stored)
+    {
+        // The insert templates store a missing TOML block as ""; a freshly parsed file without TOML has null.
+        // Reading "" back as null keeps repository and file comparable (#9).
+        var (executor, _, _) = CreateExecutor(readerRows: new List<Dictionary<string, object?>> { RecordRow(stored, stored) });
+
+        var records = executor.RepositoryMigrationSelect();
+
+        records.Should().ContainSingle();
+        records[0].FileUpConfigHash.Should().BeNull();
+        records[0].FileDownConfigHash.Should().BeNull();
+    }
+
+    [Fact]
+    public void RepositoryMigrationSelect_NonEmptyConfigHash_IsKept()
+    {
+        var (executor, _, _) = CreateExecutor(readerRows: new List<Dictionary<string, object?>> { RecordRow("cfg-up", "cfg-down") });
+
+        var records = executor.RepositoryMigrationSelect();
+
+        records[0].FileUpConfigHash.Should().Be("cfg-up");
+        records[0].FileDownConfigHash.Should().Be("cfg-down");
     }
 
     #endregion

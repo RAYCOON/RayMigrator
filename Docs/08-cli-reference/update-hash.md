@@ -59,11 +59,11 @@ flowchart TD
     B --> C["Phase 2: Discover Files & Calculate Hashes"]
     C --> D["Phase 3: Query Existing Records (status=Migrated)"]
     D --> E{For Each File}
-    E --> F{"Match in Repository?\n(Filename + Release + TargetGroup)"}
+    E --> F{"Migrated records in Repository?\n(Filename + Release + TargetGroup, one per Target)"}
     F -->|No match| G[Count as New]
-    F -->|Match found| H{Hashes differ?}
+    F -->|Match found| H{"Hashes differ on any target?\n(null and empty config hash are equal)"}
     H -->|No| I[Skip]
-    H -->|Yes| J[Update Repository Hashes]
+    H -->|Yes| J["Update every stale target record\n(UpdatedFiles + UpdatedRecords)"]
     G --> K{More Files?}
     I --> K
     J --> K
@@ -84,28 +84,29 @@ All three hash fields are always updated together, regardless of the `HashValida
 
 ## Output Format
 
-Per-file progress lines are emitted for each file whose hashes changed:
+Per-file progress lines are emitted for each file whose hashes changed, naming the targets whose records were updated (one repository record exists per file and target):
 
 ```
-Updating hashes for migration 001_CreateTable.sql (Release: Release 1.0, TargetGroup: Backend)
-Updating hashes for migration 002_InsertData.sql (Release: Release 1.0, TargetGroup: Backend)
+Updating hashes for migration 001_CreateTable.sql (Release: Release 1.0, TargetGroup: Backend) on target(s) [MainDB, SecondDB]
+Updating hashes for migration 002_InsertData.sql (Release: Release 1.0, TargetGroup: Backend) on target(s) [MainDB, SecondDB]
 ```
 
 The summary line:
 
 ```
-Update-Hash completed. Updated: 2, New: 0, Removed: 0
+Update-Hash completed. Updated: 2 file(s) / 4 record(s), New: 0, Removed: 0
 ```
 
-The summary reports three categories:
+The summary reports these categories:
 
 | Category | Meaning |
 |----------|---------|
-| Updated | Files whose hashes were recalculated and stored |
+| Updated (files) | Files whose hashes were recalculated and stored on at least one target |
+| Updated (records) | Repository records (file × target) that were updated; with one target per TargetGroup equal to the file count |
 | New | Files on disk that are not yet migrated in the repository |
-| Removed | Files recorded in the repository (status `Migrated`) but no longer on disk |
+| Removed | Files recorded in the repository (status `Migrated`) but no longer on disk, counted once per file regardless of the number of targets |
 
-Files whose hashes have not changed are silently skipped.
+Files whose hashes have not changed are silently skipped. A file without a `[RayMigrator]` TOML block has no config hash; the repository stores that as an empty value and the comparison treats it as equal, so `update-hash` reports `Updated: 0` on an unchanged repository (#9).
 
 ## Use Cases
 

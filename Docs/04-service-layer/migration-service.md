@@ -283,9 +283,10 @@ Returned by `UpdateHashAsync`:
 public class HashUpdateResult : OperationResult
 {
     public string ProductAlias { get; set; } = string.Empty;
-    public int UpdatedFiles { get; set; }
+    public int UpdatedFiles { get; set; }      // distinct files updated on at least one target
+    public int UpdatedRecords { get; set; }    // repository records (file x target) updated (#9)
     public int NewFiles { get; set; }
-    public int RemovedFiles { get; set; }
+    public int RemovedFiles { get; set; }      // counted once per file, not once per target record
     public List<string> UpdatedFileNames { get; set; } = new List<string>();
 }
 ```
@@ -748,7 +749,7 @@ Updates stored hashes in the repository to match current file contents (after ap
 1. **Phase 1**: Repository initialization (`RepositoryCheckCreate`, `RepositoryProductCheckInsert`, `RepositoryEnvironmentCheckInsert`)
 2. **Phase 2**: File discovery and optional target group filtering
 3. **Phase 3**: Query existing records
-4. **Phase 4**: For each file with a matching Migrated record, compare all three hashes (`FileUpHash`, `FileUpConfigHash`, `FileUpBlocksHash`). If any differ, call `RepositoryMigrationUpdateHash`. Also counts files missing from disk.
+4. **Phase 4**: For each file, take its Migrated records (one per target) and compare all three hashes (`FileUpHash`, `FileUpConfigHash`, `FileUpBlocksHash`) per record via `HashesDiffer`; `null` and an empty config hash are treated as equal (a file without a TOML block). Call `RepositoryMigrationUpdateHash` for every stale record. Also counts files missing from disk, once per file.
 5. **Phase 5**: Return `HashUpdateResult` with updated/new/removed counts
 
 ### GetStatusAsync Flow

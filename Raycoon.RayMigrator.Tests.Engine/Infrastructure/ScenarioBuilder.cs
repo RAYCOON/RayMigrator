@@ -221,6 +221,37 @@ public class ScenarioBuilder
     }
 
     /// <summary>
+    /// Strips the leading /* [RayMigrator] ... */ TOML block from every migration and rollback file of the
+    /// scenario, so the files have no config hash (null) — the shipped default for a plain .sql file.
+    /// The engine fixtures all carry a TOML block, which hid the empty-string-vs-null config-hash bug (#9).
+    /// Stripping the block also drops its settings (e.g. <c>UseTransaction = false</c>), so the defaults apply:
+    /// UseTransaction = true, all environments, RunAlways = false. That is harmless on every engine
+    /// (MySQL/MariaDB commit DDL implicitly, the others support transactional DDL); restrict to one release
+    /// to keep the scenario as close to the standard fixture as possible.
+    /// </summary>
+    public ScenarioBuilder WithoutTomlHeaders(string? release = null)
+    {
+        _fileMutations.Add(workDir =>
+        {
+            string root = release == null ? workDir : Path.Combine(workDir, release);
+            int stripped = 0;
+            foreach (string filePath in Directory.EnumerateFiles(root, "*.sql", SearchOption.AllDirectories))
+            {
+                string content = File.ReadAllText(filePath);
+                int start = content.IndexOf("/*", StringComparison.Ordinal);
+                int end = start >= 0 ? content.IndexOf("*/", start, StringComparison.Ordinal) : -1;
+                if (start < 0 || end < 0 || !content.Substring(start, end - start).Contains("[RayMigrator]"))
+                    continue;
+                File.WriteAllText(filePath, content.Substring(end + 2).TrimStart('\r', '\n'));
+                stripped++;
+            }
+            if (stripped == 0)
+                throw new InvalidOperationException($"WithoutTomlHeaders stripped no header under '{root}' — the fixture layout changed and the TOML-less scenario would silently test the wrong thing.");
+        });
+        return this;
+    }
+
+    /// <summary>
     /// Creates a .migsettings file at the specified relative path with key-value entries.
     /// </summary>
     public ScenarioBuilder SetMigSettings(string relativeFilePath, Dictionary<string, string> entries)

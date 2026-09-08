@@ -3393,6 +3393,20 @@ public class MigrationService : IMigrationService
     }
 
     /// <summary>
+    /// Whether any of the three stored up-hashes of a record differs from the file on disk.
+    /// Config hashes are compared with <c>null</c> and empty string treated as equal: a file without a TOML
+    /// block has a <c>null</c> config hash, older repositories store that as "" (#9).
+    /// </summary>
+    internal static bool HashesDiffer(MigrationRecord record, MigrationFileInfo file) =>
+        record.FileUpHash != file.FileUpHash ||
+        record.FileUpBlocksHash != file.FileUpBlocksHash ||
+        !ConfigHashesEqual(record.FileUpConfigHash, file.FileUpConfigHash);
+
+    /// <summary>Config-hash equality where <c>null</c> and "" both mean "no TOML block" (#9).</summary>
+    internal static bool ConfigHashesEqual(string? stored, string? current) =>
+        string.Equals(stored ?? string.Empty, current ?? string.Empty, StringComparison.Ordinal);
+
+    /// <summary>
     /// Whether the file is already applied on the given target: a Migrated record for file + target exists
     /// and its hash matches under the given scope. <paramref name="migratedRecord"/> is the Migrated record
     /// when one exists (also when its hash no longer matches), otherwise null.
@@ -4377,68 +4391,65 @@ public class MigrationService : IMigrationService
             var existingRecords = await Task.Run(() => _templateExecutor.RepositoryMigrationSelect());
 
             // --- Phase 4: Compare and update hashes ---
+            // One Migrated record per file and target: every target's record is compared and updated (#9).
             var updatedFileNames = new List<string>();
             int updatedFiles = 0;
+            int updatedRecords = 0;
             int newFiles = 0;
 
             foreach (var file in migrationFiles)
             {
-                var matchingRecord = existingRecords.FirstOrDefault(r =>
-                    r.Filename == file.Filename &&
-                    r.ReleaseVersion == file.ReleaseVersion &&
-                    r.TargetGroupAlias == file.TargetGroupAlias &&
-                    r.MigrationStatusId == MigrationStatus.Migrated);
+                var migratedRecordsForFile = existingRecords
+                    .Where(r =>
+                        r.Filename == file.Filename &&
+                        r.ReleaseVersion == file.ReleaseVersion &&
+                        r.TargetGroupAlias == file.TargetGroupAlias &&
+                        r.MigrationStatusId == MigrationStatus.Migrated)
+                    .ToList();
 
-                if (matchingRecord == null)
+                if (migratedRecordsForFile.Count == 0)
                 {
                     // File not in repository - count as new
                     newFiles++;
                     continue;
                 }
 
-                // Check if hashes differ
-                bool hashChanged = matchingRecord.FileUpHash != file.FileUpHash ||
-                                   matchingRecord.FileUpConfigHash != file.FileUpConfigHash ||
-                                   matchingRecord.FileUpBlocksHash != file.FileUpBlocksHash;
+                var staleRecords = migratedRecordsForFile.Where(r => HashesDiffer(r, file)).ToList();
+                if (staleRecords.Count == 0)
+                    continue;
 
-                if (hashChanged)
+                _logger.LogInformation(
+                    "Updating hashes for migration {Filename} (Release: {Release}, TargetGroup: {TargetGroup}) on target(s) [{Targets}]",
+                    file.Filename, file.ReleaseVersion, file.TargetGroupAlias, string.Join(", ", staleRecords.Select(r => r.TargetAlias)));
+
+                foreach (var record in staleRecords)
                 {
-                    _logger.LogInformation(
-                        "Updating hashes for migration {Filename} (Release: {Release}, TargetGroup: {TargetGroup})",
-                        file.Filename, file.ReleaseVersion, file.TargetGroupAlias);
-
                     await Task.Run(() => _templateExecutor.RepositoryMigrationUpdateHash(
-                        matchingRecord.Id,
+                        record.Id,
                         file.FileUpHash,
                         file.FileUpConfigHash,
                         file.FileUpBlocksHash));
-
-                    updatedFiles++;
-                    updatedFileNames.Add(file.Filename);
+                    updatedRecords++;
                 }
+
+                updatedFiles++;
+                updatedFileNames.Add(file.Filename);
             }
 
-            // Count removed files (in repository but not on disk)
-            int removedFiles = 0;
-            var migratedRecords = existingRecords
+            // Count removed files (in repository but not on disk) — once per file, not once per target record
+            var migratedFileKeys = existingRecords
                 .Where(r => r.MigrationStatusId == MigrationStatus.Migrated)
                 .Where(r => request.TargetGroupAliases == null || request.TargetGroupAliases.Length == 0 ||
                     request.TargetGroupAliases.Any(alias =>
                         string.Equals(r.TargetGroupAlias, alias, StringComparison.OrdinalIgnoreCase)))
+                .Select(r => (r.ReleaseVersion, r.TargetGroupAlias, r.Filename))
+                .Distinct()
                 .ToList();
 
-            foreach (var record in migratedRecords)
-            {
-                bool fileExistsOnDisk = migrationFiles.Any(f =>
-                    f.Filename == record.Filename &&
-                    f.ReleaseVersion == record.ReleaseVersion &&
-                    f.TargetGroupAlias == record.TargetGroupAlias);
-
-                if (!fileExistsOnDisk)
-                {
-                    removedFiles++;
-                }
-            }
+            int removedFiles = migratedFileKeys.Count(key => !migrationFiles.Any(f =>
+                f.Filename == key.Filename &&
+                f.ReleaseVersion == key.ReleaseVersion &&
+                f.TargetGroupAlias == key.TargetGroupAlias));
 
             // --- Phase 5: Build result ---
             var result = new HashUpdateResult
@@ -4447,18 +4458,19 @@ public class MigrationService : IMigrationService
                 ProductAlias = request.ProductAlias,
                 Duration = DateTime.UtcNow - startTime,
                 UpdatedFiles = updatedFiles,
+                UpdatedRecords = updatedRecords,
                 NewFiles = newFiles,
                 RemovedFiles = removedFiles,
                 UpdatedFileNames = updatedFileNames,
                 Messages = new List<string>
                 {
-                    $"Hash update completed: {updatedFiles} updated, {newFiles} new (not yet migrated), {removedFiles} missing from disk"
+                    $"Hash update completed: {updatedFiles} file(s) / {updatedRecords} record(s) updated, {newFiles} new (not yet migrated), {removedFiles} missing from disk"
                 }
             };
 
             _logger.LogInformation(
-                "Update-Hash completed for product {Product}: {Updated} updated, {New} new, {Removed} missing",
-                request.ProductAlias, updatedFiles, newFiles, removedFiles);
+                "Update-Hash completed for product {Product}: {Updated} file(s) / {UpdatedRecords} record(s) updated, {New} new, {Removed} missing",
+                request.ProductAlias, updatedFiles, updatedRecords, newFiles, removedFiles);
 
             return result;
         }

@@ -54,6 +54,16 @@ RayMigrator follows Semantic Versioning where applicable.
   compares a file's release with the highest migrated release of each pending
   target so that a lagging target catching up is not blocked. With a single
   target per TargetGroup nothing changes. (#8)
+- `update-hash` reported and wrote an update for every migration file
+  without a TOML header on every run: the repository stores a missing config
+  hash as an empty string while a parsed file carries `null`, and the two were
+  compared with `!=`. Stored config hashes are now read back as `null` when
+  empty and the comparison treats both as "no TOML block", so `update-hash`
+  converges (`Updated: 0` on an unchanged repository). In TargetGroups with
+  several targets `update-hash` updated only the first target's record and
+  left the others stale; it now updates the record of every target and
+  reports `UpdatedFiles` (files) and `UpdatedRecords` (file/target pairs).
+  A deleted file is counted as removed once instead of once per target. (#9)
 
 ## [0.11.1] — 2026-09-05
 
