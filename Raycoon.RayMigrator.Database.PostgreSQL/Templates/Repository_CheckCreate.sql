@@ -91,6 +91,10 @@ BEGIN
         VALUES (110, 'Baseline', 'Marking migration files as migrated without executing them (baseline command)')
         ON CONFLICT (id) DO NOTHING;
 
+        INSERT INTO {CFG:SchemaName}.{CFG:TableBaseName}migration_run_result (id, name, description)
+        VALUES (50, 'PartialSuccess', 'Migration(s) finished but at least one file was skipped or left Failed')
+        ON CONFLICT (id) DO NOTHING;
+
         -- Try to get VersionId
         SELECT id INTO v_version_id
         FROM {CFG:SchemaName}.{CFG:TableBaseName}migrator_meta
@@ -320,7 +324,7 @@ BEGIN
 
     -- Table and column comments (equivalent to SQL Server extended properties)
     COMMENT ON TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_operation IS 'Rollback (MigrateDown) = 5, MigrateDown = 50, MigrateUp = 100, Baseline = 110';
-    COMMENT ON TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_run_result IS 'Running = 10, Error = 90, Ok = 100';
+    COMMENT ON TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_run_result IS 'Running = 10, PartialSuccess = 50, Error = 90, Ok = 100';
     COMMENT ON TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_run_mode IS 'Validate = 10, Simulate = 20, Migrate = 100';
     COMMENT ON TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_status IS 'Pending = 10 (Initial insert), Executing = 20 (Block-level execution in progress), Failed = 30 (Migration failed), NotMigrated = 50 (Not yet performed / RolledBack / Skipped / Ignored), Migrated = 100 (MigrateUp successful)';
     COMMENT ON TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_record IS 'Represents all migration-files found at time of last migration attempt';
@@ -343,6 +347,7 @@ BEGIN
     INSERT INTO {CFG:SchemaName}.{CFG:TableBaseName}migration_run_result (id, name, description)
     VALUES
         (10, 'Running', 'Migration process is currently running'),
+        (50, 'PartialSuccess', 'Migration(s) finished but at least one file was skipped or left Failed'),
         (90, 'Error', 'Migration(s) stopped due to error(s)'),
         (100, 'Ok', 'Migration(s) successfully executed');
 

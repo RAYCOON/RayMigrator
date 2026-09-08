@@ -308,7 +308,11 @@ public class MigrationService : IMigrationService
             }
 
             // --- Phase 5: Finalization ---
-            var finalResult = failedMigrations > 0 ? MigrationRunResult.Error : MigrationRunResult.Ok;
+            // An aborted run returned above with Error. Reaching this point with failed files means the run
+            // continued past them (MigrationErrorAction=Ignore): every other file was applied, the failed ones are
+            // marked Failed, and the run is persisted as PartialSuccess. Success stays false, so the CLI exit code
+            // is 1 as before (#18).
+            var finalResult = failedMigrations > 0 ? MigrationRunResult.PartialSuccess : MigrationRunResult.Ok;
             if (request.RunMode.ShouldWriteRepository())
             {
                 await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(finalResult));
@@ -317,7 +321,7 @@ public class MigrationService : IMigrationService
             if (failedMigrations > 0)
             {
                 _logger.LogError(
-                    "Migrate-Up completed with errors for product {Product}: {Successful} succeeded, {Failed} failed",
+                    "Migrate-Up completed with errors for product {Product}: {Successful} succeeded, {Failed} failed (MigrationErrorAction=Ignore)",
                     request.ProductAlias, successfulMigrations, failedMigrations);
 
                 return new MigrationOperationResult
@@ -327,7 +331,7 @@ public class MigrationService : IMigrationService
                     ProductAlias = request.ProductAlias,
                     Environment = request.Environment,
                     Operation = MigrationOperation.MigrateUp,
-                    Result = MigrationRunResult.Error,
+                    Result = finalResult,
                     TotalMigrations = successfulMigrations + failedMigrations,
                     SuccessfulMigrations = successfulMigrations,
                     FailedMigrations = failedMigrations,
@@ -1190,7 +1194,9 @@ public class MigrationService : IMigrationService
                 migrationsToRollback, productOptions, request.RunMode);
 
             // --- Phase 4: Finalization ---
-            var finalResult = rollbackResult.AllSuccessful ? MigrationRunResult.Ok : MigrationRunResult.Error;
+            // Error when a rollback failed; PartialSuccess when the chain skipped a missing rollback file or ignored
+            // a failed rollback (record stays Migrated / Failed); Ok only when every record was rolled back (#18).
+            var finalResult = rollbackResult.RunResult;
             if (request.RunMode.ShouldWriteRepository())
             {
                 await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(finalResult));
@@ -4774,21 +4780,22 @@ public class MigrationService : IMigrationService
                 pendingMigrations += targetAliases.Count(t => !IsAppliedOnTarget(file, t, existingRecords, scope, out _));
             }
 
-            // Last migration date
+            // Last run: the persisted result and timestamps of the newest MigrationRun row of the product.
+            // Deriving them from the migration records is wrong: migrate-down does not own the records it rolls
+            // back, and the status of an arbitrary record says nothing about how the run ended (#14).
             DateTime? lastMigrationDate = null;
-            if (existingRecords.Count > 0)
+            MigrationRunResult? lastRunResult = null;
+            var lastRun = repositoryHasProduct
+                ? (await Task.Run(() => _templateExecutor.RepositoryMigrationRunSelect(1))).FirstOrDefault()
+                : null;
+            if (lastRun != null)
             {
-                // Use the most recent record's MigrationRunId to approximate via the run
-                var lastRunId = existingRecords.Max(r => r.MigrationRunId);
-                lastMigrationDate = DateTime.UtcNow; // Approximation since Migration table doesn't expose FinishedAt via select
+                lastRunResult = (MigrationRunResult)Convert.ToByte(lastRun["MigrationRunResultId"]);
+                var finishedAt = lastRun["FinishedAt"];
+                lastMigrationDate = finishedAt != null && finishedAt != DBNull.Value
+                    ? Convert.ToDateTime(finishedAt)
+                    : Convert.ToDateTime(lastRun["StartedAt"]);
             }
-
-            // Last run result (derive from MigrationStatus: Migrated→Ok, Failed→Error)
-            MigrationRunResult? lastRunResult = existingRecords
-                .OrderByDescending(r => r.MigrationRunId)
-                .Select(r => r.MigrationStatusId == MigrationStatus.Migrated ? MigrationRunResult.Ok : MigrationRunResult.Error)
-                .Cast<MigrationRunResult?>()
-                .FirstOrDefault();
 
             // Build target group status
             var targetGroups = new Dictionary<string, TargetGroupStatus>();
@@ -5085,13 +5092,27 @@ public class MigrationService : IMigrationService
     {
         public int SuccessCount { get; set; }
         public int FailCount { get; set; }
+
+        /// <summary>
+        /// Files the chain got past without a clean rollback: a missing rollback file that was skipped, or a
+        /// rollback that failed under RollbackErrorAction=Ignore. They do not fail the operation, but the run is
+        /// persisted as <see cref="MigrationRunResult.PartialSuccess"/> instead of Ok (#18).
+        /// </summary>
+        public int WarningCount { get; set; }
+
         public bool AllSuccessful => FailCount == 0;
+
+        public MigrationRunResult RunResult => FailCount > 0
+            ? MigrationRunResult.Error
+            : WarningCount > 0 ? MigrationRunResult.PartialSuccess : MigrationRunResult.Ok;
+
         public string? ErrorMessage { get; set; }
         public List<string> Messages { get; set; } = new();
         public List<MigrationFileResult> FileResults { get; set; } = new();
 
         public void AddWarning(string filename, string message)
         {
+            WarningCount++;
             Messages.Add($"WARNING [{filename}]: {message}");
         }
 

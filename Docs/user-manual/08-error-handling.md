@@ -102,7 +102,7 @@ Migration 003 ✗ (Failed — error ignored)
 Migration 004 ✓ (Migrated — execution continues)
 ```
 
-> **Warning:** With Ignore, the migration run will report as Error (90) since at least one file failed, but all other files will still be executed.
+> **Warning:** With Ignore, the migration run is persisted as PartialSuccess (50) because at least one file failed; all other files are still executed and the CLI exit code is 1. An aborted run is Error (90).
 
 ---
 

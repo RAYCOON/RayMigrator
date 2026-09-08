@@ -487,7 +487,7 @@ All scenarios use a standard 3-release, 9-file migration set unless otherwise no
 |---------|-------|
 | MigrationErrorAction | Ignore |
 | Error Position | R2F2 |
-| MigrationRunResult | Error (90) |
+| MigrationRunResult | PartialSuccess (50) |
 
 | File | Status |
 |------|--------|
@@ -499,11 +499,11 @@ All scenarios use a standard 3-release, 9-file migration set unless otherwise no
 
 **DB State**: All tables exist. TableB has 0 rows (INSERT transaction rolled back). TableD has 1 row. All other operations succeeded.
 
-**Inconsistency**: **Logical inconsistency** — R2F2 failed but later files that may depend on R2F2's data executed successfully. The `MigrationRunResult` is `Error` (90) even though most files succeeded.
+**Inconsistency**: **Logical inconsistency** — R2F2 failed but later files that may depend on R2F2's data executed successfully. The `MigrationRunResult` is `PartialSuccess` (50), not `Error`: the run finished, but a file was left `Failed`.
 
 **Recovery**: Fix `02_InsertDataB.sql`, re-run `migrate-up`. Only the `Failed` file is retried; all `Migrated` files are skipped.
 
-> **Note**: With `Ignore`, the `MigrationRunResult` is always `Error` (90) when any file failed, even though execution continued and completed for all other files.
+> **Note**: With `Ignore`, the `MigrationRunResult` is `PartialSuccess` (50) when any file failed: execution continued and completed for all other files, the failed ones are `Failed`. The CLI exit code is still 1. An aborted run (Terminate, Rollback) is `Error` (90).
 
 ---
 

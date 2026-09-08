@@ -138,7 +138,7 @@ public class SqlServerResumeTests : SqlServerTestBase
         // Run 1: blocks 1 and 3 succeed, block 2 is skipped, file is Failed, run continues
         await ctx.MigrateUpAsync("Release_1.0");
         ctx.AssertSuccess(false);
-        ctx.AssertRunResult(MigrationRunResult.Error);
+        ctx.AssertRunResult(MigrationRunResult.PartialSuccess);
         ctx.AssertFileStatus("03_SeedDataA.sql", MigrationStatus.Failed);
         ctx.AssertRowCount("TableA", 2);
 

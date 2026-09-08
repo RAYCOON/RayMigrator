@@ -609,6 +609,7 @@ Represents the final result of a MigrationRun record (displayed by the Info comm
 |------|-------|-------------|
 | `Undefined` | 0 | Invalid -- not set |
 | `Running` | 10 | Migration process is currently running |
+| `PartialSuccess` | 50 | Finished, but at least one file was skipped or left Failed (migrate-up with `Ignore`, migrate-down that skipped a missing rollback file or ignored a failed rollback) |
 | `Error` | 90 | Migration(s) stopped due to error(s) |
 | `Ok` | 100 | Migration(s) successfully executed and finished |
 

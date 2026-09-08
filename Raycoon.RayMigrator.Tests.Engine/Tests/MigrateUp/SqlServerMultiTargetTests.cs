@@ -31,7 +31,7 @@ public class SqlServerMultiTargetTests : SqlServerTestBase
         await ctx.MigrateUpAsync();
 
         ctx.AssertSuccess(false);
-        ctx.AssertRunResult(MigrationRunResult.Error);
+        ctx.AssertRunResult(MigrationRunResult.PartialSuccess);
         ctx.AssertRunCount(1);
 
         // T1 (MainDB): R2/F2 Failed, all others Migrated

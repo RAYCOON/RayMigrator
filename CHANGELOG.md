@@ -7,7 +7,23 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ## [Unreleased]
 
+### Added
+
+- `MigrationRunResult.PartialSuccess` (50). A `migrate-up` that continued
+  past a failed file with `MigrationErrorAction = Ignore`, and a
+  `migrate-down` that skipped a missing rollback file
+  (`RequireRollbackFile = false`) or ignored a failed rollback
+  (`RollbackErrorAction = Ignore`), are now persisted as `PartialSuccess`
+  instead of `Error` / `Ok`. `info` shows the value in the run history. The CLI
+  exit codes are unchanged (1 for migrate-up, 0 for migrate-down). The
+  repository lookup table is upgraded idempotently on the next start. (#18)
+
 ### Fixed
+
+- `info` reads `LastRunResult` and the last migration date from the newest
+  `MigrationRun` row instead of deriving them from an arbitrary migration
+  record; a failed migrate-down no longer shows `Ok` and a clean one no longer
+  shows `Error`. (#14)
 
 - DatabaseLogging now stores the EventId of every logger call in
   `MigrationLog.MigrationEventId`. The sink read a Serilog property that is

@@ -40,9 +40,9 @@ public class SqliteErrorTests : SqliteTestBase
         ctx.AssertSuccess(true); // RequireRollbackFile=false -> AddWarning (not AddFailure) -> Success=true
         ctx.AssertRunCount(2);
 
-        // Run 1 Ok, Run 2 Ok (missing rollback with RequireRB=false is a warning, not a failure)
+        // Run 1 Ok, Run 2 PartialSuccess (missing rollback with RequireRB=false is a warning, not a failure)
         ctx.AssertMigrationRun(1, new MigrationRunExpectation { MigrationRunResultId = (int)MigrationRunResult.Ok });
-        ctx.AssertMigrationRun(2, new MigrationRunExpectation { MigrationRunResultId = (int)MigrationRunResult.Ok });
+        ctx.AssertMigrationRun(2, new MigrationRunExpectation { MigrationRunResultId = (int)MigrationRunResult.PartialSuccess });
 
         // R1: Still Migrated (not in rollback scope)
         ctx.AssertFileStatuses(
@@ -223,9 +223,9 @@ public class SqliteErrorTests : SqliteTestBase
         ctx.AssertSuccess(true); // RollbackErrorAction=Ignore -> AddWarning (not AddFailure) -> Success=true
         ctx.AssertRunCount(2);
 
-        // Run 1 Ok, Run 2 Ok (broken rollback with Ignore is a warning, not a failure)
+        // Run 1 Ok, Run 2 PartialSuccess (broken rollback with Ignore is a warning, not a failure)
         ctx.AssertMigrationRun(1, new MigrationRunExpectation { MigrationRunResultId = (int)MigrationRunResult.Ok });
-        ctx.AssertMigrationRun(2, new MigrationRunExpectation { MigrationRunResultId = (int)MigrationRunResult.Ok });
+        ctx.AssertMigrationRun(2, new MigrationRunExpectation { MigrationRunResultId = (int)MigrationRunResult.PartialSuccess });
 
         // R1: Migrated (R1 IS the target release -- not included in rollback chain)
         ctx.AssertFileStatuses(

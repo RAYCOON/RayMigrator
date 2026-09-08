@@ -28,7 +28,7 @@ public class MySqlIgnoreTests : MySqlTestBase
         await ctx.MigrateUpAsync();
 
         ctx.AssertSuccess(false);
-        ctx.AssertRunResult(MigrationRunResult.Error);
+        ctx.AssertRunResult(MigrationRunResult.PartialSuccess);
         ctx.AssertRunCount(1);
 
         ctx.AssertFileStatuses(
@@ -53,7 +53,7 @@ public class MySqlIgnoreTests : MySqlTestBase
 
     /// <summary>
     /// #25 Two errors in different releases with Ignore. Both are Failed, all others Migrated.
-    /// R1/F3=Failed, R3/F2=Failed, everything else=Migrated. RunResult=Error.
+    /// R1/F3=Failed, R3/F2=Failed, everything else=Migrated. RunResult=PartialSuccess (the run continued past the failure, #18).
     /// </summary>
     [Fact]
     public async Task MultipleErrors_AllIgnored()
@@ -69,7 +69,7 @@ public class MySqlIgnoreTests : MySqlTestBase
         await ctx.MigrateUpAsync();
 
         ctx.AssertSuccess(false);
-        ctx.AssertRunResult(MigrationRunResult.Error);
+        ctx.AssertRunResult(MigrationRunResult.PartialSuccess);
         ctx.AssertRunCount(1);
 
         ctx.AssertFileStatuses(

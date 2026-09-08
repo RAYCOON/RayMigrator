@@ -597,7 +597,7 @@ Each DAL is a separate project (not a subdirectory of the Database project):
 | `OperatingMode` | Standalone, ManagedLocal, ManagedRemote |
 | `MigrationRunMode` | Undefined (0), Validate (10), Simulate (20), Migrate (100) |
 | `MigrationOperation` | Undefined (0), Rollback (5), MigrateDown (50), MigrateUp (100), Baseline (110) |
-| `MigrationRunResult` | Undefined (0), Running (10), Error (90), Ok (100) |
+| `MigrationRunResult` | Undefined (0), Running (10), PartialSuccess (50), Error (90), Ok (100) |
 | `MigrationStatus` | Undefined (0), Pending (10), Executing (20), Failed (30), NotMigrated (50), Migrated (100) |
 | `MigrationErrorAction` | Undefined (0), Terminate (10), Rollback (20), RollbackErrorOnly (21), RollbackRelease (22), Ignore (30) |
 | `RollbackErrorAction` | Undefined (0), Terminate (10), Ignore (30) |
