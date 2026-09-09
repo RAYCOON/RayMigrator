@@ -119,8 +119,6 @@ public class CommandVerbCasingTests
     [Theory]
     [InlineData("file", HashValidationScope.File)]
     [InlineData("File", HashValidationScope.File)]
-    [InlineData("sqlblock", HashValidationScope.SqlBlocks)]
-    [InlineData("SqlBlock", HashValidationScope.SqlBlocks)]
     [InlineData("sqlblocks", HashValidationScope.SqlBlocks)]
     [InlineData("SqlBlocks", HashValidationScope.SqlBlocks)]
     [InlineData("disabled", HashValidationScope.Disabled)]
@@ -131,6 +129,15 @@ public class CommandVerbCasingTests
 
         parse.Errors.Should().BeEmpty();
         config.ParsedOptions!.HashValidationScope.Should().Be(expected);
+    }
+
+    [Fact]
+    public async Task ValidateHashScope_RejectsTheFormerSingularSpelling()
+    {
+        var (_, parse) = await ParseAsync("validate-hash", "-p", "P", "-env", "Dev", "--scope", "sqlblock");
+
+        parse.Errors.Should().ContainSingle(e => e.Message.Contains("--scope") && e.Message.Contains("file, sqlblocks, disabled"),
+            "sqlblock was a tolerated second spelling; only the lower-cased enum name sqlblocks is accepted (#21)");
     }
 
     [Theory]

@@ -71,7 +71,7 @@ public class ParseScopeTests
     [Theory]
     [InlineData("file", HashValidationScope.File)]
     [InlineData("FILE", HashValidationScope.File)]
-    [InlineData("sqlblock", HashValidationScope.SqlBlocks)]
+    [InlineData("sqlblocks", HashValidationScope.SqlBlocks)]
     [InlineData("SqlBlocks", HashValidationScope.SqlBlocks)]
     [InlineData("disabled", HashValidationScope.Disabled)]
     public void ParseHashValidationScope_AcceptsKnownValuesCaseInsensitively(string value, HashValidationScope expected)
@@ -83,12 +83,13 @@ public class ParseScopeTests
     [InlineData("bogus")]
     [InlineData("")]
     [InlineData("2")]
+    [InlineData("sqlblock")] // the former second spelling; only the lower-cased enum name sqlblocks is accepted (#21)
     public void ParseHashValidationScope_ThrowsForUnknownValue(string value)
     {
         var act = () => CommandLineConfiguration.ParseHashValidationScope(value);
 
         act.Should().Throw<ConfigurationValidationException>("an unknown scope must never silently become File")
-           .WithMessage("*Invalid value*--scope*file, sqlblock, disabled*");
+           .WithMessage("*Invalid value*--scope*file, sqlblocks, disabled*");
     }
 
     [Theory]

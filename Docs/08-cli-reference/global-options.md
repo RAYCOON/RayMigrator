@@ -145,7 +145,7 @@ Context-dependent scope option, used by two commands:
 | Value | Description |
 |-------|-------------|
 | `file` | Validate hash of the entire migration file |
-| `sqlblock` / `sqlblocks` | Validate hash of SQL content only (ignoring TOML metadata changes). Both forms are accepted. |
+| `sqlblocks` | Validate hash of SQL content only (ignoring TOML metadata changes). The value is the lower-cased enum name `SqlBlocks`; the former second spelling `sqlblock` is rejected (#21). |
 | `disabled` | Skip hash validation entirely (all files counted as valid) |
 
 **Fix:** Fix scope. Default: `orphanedruns`.

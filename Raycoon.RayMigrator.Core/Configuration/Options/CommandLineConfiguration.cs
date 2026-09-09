@@ -245,7 +245,7 @@ public class CommandLineConfiguration
         // Optional parameters
         var scopeOption = new Option<string>("--scope", "-s")
         {
-            Description = "Hash validation scope override for every TargetGroup (file, sqlblocks or disabled; sqlblock is accepted too). If omitted, uses per-TargetGroup config."
+            Description = "Hash validation scope override for every TargetGroup (file, sqlblocks or disabled). If omitted, uses per-TargetGroup config."
         };
 
         scopeOption.Validators.Add(result =>
@@ -254,9 +254,9 @@ public class CommandLineConfiguration
             if (value != null)
             {
                 var normalizedValue = ResolveEnvironmentVariable(value).ToLowerInvariant();
-                if (normalizedValue != "file" && normalizedValue != "sqlblock" && normalizedValue != "sqlblocks" && normalizedValue != "disabled")
+                if (normalizedValue != "file" && normalizedValue != "sqlblocks" && normalizedValue != "disabled")
                 {
-                    result.AddError($"Invalid value for --scope: {value}. Valid values are: file, sqlblock, disabled.");
+                    result.AddError($"Invalid value for --scope: {value}. Valid values are: file, sqlblocks, disabled.");
                 }
             }
         });
@@ -665,17 +665,16 @@ public class CommandLineConfiguration
     /// validator rejects unknown values first; the throw guards direct calls so that no unknown value can silently
     /// fall back to <see cref="HashValidationScope.File"/>, the same rule as <see cref="ParseRunMode"/> (#17).
     /// </summary>
-    /// <exception cref="ConfigurationValidationException">The value is not file, sqlblock(s) or disabled.</exception>
+    /// <exception cref="ConfigurationValidationException">The value is not file, sqlblocks or disabled (the lower-cased enum names; #21).</exception>
     internal static HashValidationScope ParseHashValidationScope(string value)
     {
         var normalizedValue = ResolveEnvironmentVariable(value).ToLowerInvariant();
         return normalizedValue switch
         {
             "file" => HashValidationScope.File,
-            "sqlblock" => HashValidationScope.SqlBlocks,
             "sqlblocks" => HashValidationScope.SqlBlocks,
             "disabled" => HashValidationScope.Disabled,
-            _ => throw new ConfigurationValidationException($"Invalid value [{value}] for --scope. Allowed values: [file, sqlblock, disabled].")
+            _ => throw new ConfigurationValidationException($"Invalid value [{value}] for --scope. Allowed values: [file, sqlblocks, disabled].")
         };
     }
 

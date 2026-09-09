@@ -20,6 +20,10 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ### Changed
 
+- **Breaking (CLI):** `validate-hash --scope` accepts `sqlblocks` only, the
+  lower-cased enum name like every other CLI value; the former second spelling
+  `sqlblock` is rejected with `Allowed values: [file, sqlblocks, disabled]`.
+  (#21)
 - Builds outside the release workflows identify themselves as pre-releases of
   the version RayMigrator is working towards, with the commit hash:
   `0.14.0-dev+39b6fa3` (`VersionSuffix` `dev` in `Directory.Build.props`, the

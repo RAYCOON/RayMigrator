@@ -224,7 +224,7 @@ raymigrator validate-hash --product <alias> --environment <env> [--scope <scope>
 raymigrator validate-hash --product MyProduct --environment Production
 
 # Validate SQL block-level hashes
-raymigrator validate-hash -p MyProduct -env Prod -s sqlblock
+raymigrator validate-hash -p MyProduct -env Prod -s sqlblocks
 
 # Quiet mode for CI/CD
 raymigrator validate-hash -p MyProduct -env Prod --startup-info false
