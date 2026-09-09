@@ -2,9 +2,9 @@
 
 Professional database migration framework that manages versioned schema migrations across multiple database engines.
 
-> **Maturity notice — 0.13.x**
+> **Maturity notice — 0.14.x**
 >
-> RayMigrator 0.13.x is a pre-1.0 release. Its behaviour has not yet been proven
+> RayMigrator 0.14.x is a pre-1.0 release. Its behaviour has not yet been proven
 > across a broad range of real-world production workloads.
 >
 > Database migrations are inherently irreversible: a failed or partially applied
