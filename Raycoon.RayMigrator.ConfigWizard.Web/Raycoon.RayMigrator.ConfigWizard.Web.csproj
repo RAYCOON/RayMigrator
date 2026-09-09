@@ -9,7 +9,6 @@
     <Company>RAYCOON.com GmbH</Company>
     <Product>RayMigrator ConfigWizard Web</Product>
     <Copyright>Copyright (c) 2023-$([System.DateTime]::Now.Year) $(Company)</Copyright>
-    <Version>$(RayMigratorVersion)</Version>
     <Authors>Daniel Pavic</Authors>
     <Description>Blazor WebAssembly configuration wizard for RayMigrator</Description>
   </PropertyGroup>

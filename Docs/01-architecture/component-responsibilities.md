@@ -619,7 +619,7 @@ Each DAL is a separate project (not a subdirectory of the Database project):
 ### `AssemblyInfoHelper`
 **Location**: `Raycoon.RayMigrator.Shared/AssemblyInfoHelper.cs`
 
-**Purpose**: Provides assembly version information shared across projects. Key methods: `GetRayMigratorVersion()`, `GetAsciiLogoLines(string version)`, `GetAsciiHeader()`.
+**Purpose**: Provides assembly version information shared across projects. Key methods: `GetRayMigratorVersion()` (the InformationalVersion of the engine assembly, never the entry assembly, so a host such as RayMigrator Studio reports the engine version), `FormatVersion(string)` (bare version for release builds, `<version>-dev+<7-char hash>` for builds outside the release workflows), `GetAsciiLogoLines(string version)`, `GetAsciiHeader()`.
 
 > **Note**: The Console project has its own local `AssemblyInfoHelper` class (`Raycoon.RayMigrator.Console/AssemblyInfoHelper.cs`) with `GetAssemblyInfo()` and `GetRayMigratorVersion()` methods that delegate to `Shared.AssemblyInfoHelper`. This is used for startup banner display.
 

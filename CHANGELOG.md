@@ -20,6 +20,23 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ### Changed
 
+- Builds outside the release workflows identify themselves as pre-releases of
+  the version RayMigrator is working towards, with the commit hash:
+  `0.14.0-dev+39b6fa3` (`VersionSuffix` `dev` in `Directory.Build.props`, the
+  hash the SDK already appends to the InformationalVersion, shortened to seven
+  characters by `AssemblyInfoHelper.FormatVersion`). Release builds keep the
+  bare tag version. The string appears in the banner, the start-up log, the
+  settings snapshot and `MigratorMeta.RayMigratorVersion`, so a repository
+  created by a develop build names the exact commit whose templates created
+  it. `RayMigratorVersion` in `Directory.Build.props` and the Licensed Work
+  line in `LICENSE.md` are now bumped right after a release instead of right
+  before it.
+- **Breaking (behaviour, hosts):** `AssemblyInfoHelper.GetRayMigratorVersion`
+  reads the InformationalVersion of the engine assembly instead of the entry
+  assembly. RayMigrator Studio, which passes this value to
+  `IMigrationContextFactory.Create`, therefore records the engine version in
+  `MigratorMeta` instead of its own; until now a Studio-managed repository
+  claimed to be created by RayMigrator "0.9.x".
 - **Breaking (behaviour):** repositories and log databases are no longer
   upgraded in place. `Repository_CheckCreate` of all five DALs writes the
   lookup master data (`MigrationRunMode`, `MigrationOperation`,

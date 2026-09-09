@@ -9,15 +9,35 @@ namespace Raycoon.RayMigrator.Shared;
 public static class AssemblyInfoHelper
 {
     /// <summary>
-    /// Gets the RayMigrator version string from the entry assembly's InformationalVersion attribute.
+    /// Gets the RayMigrator engine version: the InformationalVersion of this (engine) assembly, formatted by
+    /// <see cref="FormatVersion"/>. Deliberately not the entry assembly, so that a host such as RayMigrator
+    /// Studio reports and records the engine version it embeds, not its own.
     /// </summary>
     public static string GetRayMigratorVersion()
     {
-        var assembly = Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly();
-        var versionAttribute = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>();
-        var informationalVersion = versionAttribute?.InformationalVersion ?? "";
-        var versionParts = informationalVersion.Split('+');
-        return versionParts.Length > 0 ? versionParts[0] : "";
+        var versionAttribute = typeof(AssemblyInfoHelper).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>();
+        return FormatVersion(versionAttribute?.InformationalVersion ?? "");
+    }
+
+    /// <summary>
+    /// Formats an InformationalVersion for display and for the repository (MigratorMeta.RayMigratorVersion).
+    /// A release build ("0.14.0+&lt;sha&gt;") yields the bare version. A pre-release build ("0.14.0-dev+&lt;sha&gt;",
+    /// the VersionSuffix set in Directory.Build.props for every build outside the release workflows) keeps the
+    /// first seven characters of the commit hash the SDK appended, because the hash is what identifies such a
+    /// build: "0.14.0-dev+39b6fa3". Without hash the pre-release label stands alone ("0.14.0-dev").
+    /// </summary>
+    public static string FormatVersion(string informationalVersion)
+    {
+        var plus = informationalVersion.IndexOf('+');
+        if (plus < 0)
+            return informationalVersion;
+
+        var version = informationalVersion[..plus];
+        var metadata = informationalVersion[(plus + 1)..];
+        if (!version.Contains('-') || metadata.Length == 0)
+            return version;
+
+        return version + "+" + (metadata.Length > 7 ? metadata[..7] : metadata);
     }
 
     /// <summary>

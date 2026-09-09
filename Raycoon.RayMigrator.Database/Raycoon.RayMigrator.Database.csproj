@@ -6,7 +6,6 @@
         <LangVersion>default</LangVersion>
         <TargetFrameworks>net10.0;net9.0;net8.0</TargetFrameworks>
         <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
-        <Version>$(RayMigratorVersion)</Version>
         <Title>Raycoon RayMigrator Database Access Layer</Title>
         <RepositoryUrl>https://github.com/RAYCOON/RayMigrator-DAL</RepositoryUrl>
         <PackageId>Raycoon.RayMigrator.Database</PackageId>

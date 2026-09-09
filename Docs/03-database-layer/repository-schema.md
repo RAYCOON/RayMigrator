@@ -192,7 +192,7 @@ The `Repository_CheckCreate` template creates **11 tables** (4 lookup + 7 data).
 
 ### MigratorMeta
 
-Lists the RayMigrator versions that have used the repository. `Repository_CheckCreate` inserts a row on the first run of each RayMigrator version (per `RepositoryDatabaseType`), and every `MigrationRun` references the row of the version that executed it. The first row (lowest `Id`) is the version that created the repository and therefore identifies its schema: RayMigrator never upgrades a repository in place, so a schema or master-data change in a newer version means drop and recreate. There is no separate schema version constant.
+Lists the RayMigrator versions that have used the repository. `Repository_CheckCreate` inserts a row on the first run of each RayMigrator version (per `RepositoryDatabaseType`), and every `MigrationRun` references the row of the version that executed it. The first row (lowest `Id`) is the version that created the repository and therefore identifies its schema: RayMigrator never upgrades a repository in place, so a schema or master-data change in a newer version means drop and recreate. There is no separate schema version constant. Release builds write the bare version (`0.14.0`); builds outside the release workflows write the pre-release form with the commit hash (`0.14.0-dev+39b6fa3`), so a repository created from `develop` names the exact commit whose templates created it.
 
 | Column | Type | Description |
 |--------|------|-------------|

@@ -34,12 +34,19 @@ jobs:
       - name: Verify legal pages are live (§ 5 DDG / terms incorporation)
         run: .github/scripts/check-legal-pages.sh
 
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${TAG#v}" >> "$GITHUB_OUTPUT"
+        env:
+          TAG: ${{ github.event.workflow_run.head_branch }}
+
       - name: Publish ConfigWizard.Web
         run: >
           dotnet publish
           Raycoon.RayMigrator.ConfigWizard.Web/Raycoon.RayMigrator.ConfigWizard.Web.csproj
           -c Release
           -o publish-output
+          -p:Version=${{ steps.version.outputs.VERSION }}
 
       - name: Deploy to Azure Static Web Apps
         uses: Azure/static-web-apps-deploy@v1

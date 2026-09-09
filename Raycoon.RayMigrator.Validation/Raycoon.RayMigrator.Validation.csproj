@@ -6,7 +6,6 @@
         <LangVersion>default</LangVersion>
         <TargetFrameworks>net10.0;net9.0;net8.0</TargetFrameworks>
         <PackageId>Raycoon.RayMigrator.Validation</PackageId>
-        <Version>$(RayMigratorVersion)</Version>
         <Authors>RAYCOON.com GmbH</Authors>
         <Description>Shared validation rule catalog for RayMigrator (WASM-safe, dependency-free). Licensed under BUSL-1.1 with Additional Use Grant — see LICENSE.md.</Description>
         <IsPackable>true</IsPackable>

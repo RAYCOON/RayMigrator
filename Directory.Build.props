@@ -1,7 +1,12 @@
 <Project>
   <PropertyGroup>
-    <RayMigratorVersion>0.13.0</RayMigratorVersion>
-    <Version>$(RayMigratorVersion)</Version>
+    <!-- The version RayMigrator is working towards (bumped right after each release, together with the
+         Licensed Work line in LICENSE.md). Builds outside the release workflows are pre-releases of it:
+         VersionSuffix "dev" plus the commit hash the SDK appends to the InformationalVersion, e.g.
+         0.14.0-dev+39b6fa3. The release workflows pass -p:Version=<tag>, which replaces prefix and suffix. -->
+    <RayMigratorVersion>0.14.0</RayMigratorVersion>
+    <VersionPrefix>$(RayMigratorVersion)</VersionPrefix>
+    <VersionSuffix Condition="'$(VersionSuffix)' == ''">dev</VersionSuffix>
     <!-- NuGet Metadata (global for all packages) -->
     <Authors>Daniel Pavic (RAYCOON.com GmbH)</Authors>
     <Company>RAYCOON.com GmbH</Company>
