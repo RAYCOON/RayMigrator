@@ -21,7 +21,7 @@ namespace Raycoon.RayMigrator.Core.Extensions;
 /// Baseline                 Migrate   no        yes     yes
 /// UpdateHash               Migrate   no        yes     yes
 /// FixIssues                Migrate   no        yes     yes
-/// FixIssues --dry-run      Migrate   no        no      no
+/// FixIssues                Simulate  no        no      no
 /// Info                     Migrate   no        no      no
 /// ValidateHash             Migrate   no        no      no
 /// </code>
@@ -32,17 +32,19 @@ namespace Raycoon.RayMigrator.Core.Extensions;
 public static class MigrationCommandExtensions
 {
     /// <summary>
-    /// Returns the <see cref="CommandProfile"/> for the command (and run mode / dry-run flag) in <paramref name="options"/>.
+    /// Returns the <see cref="CommandProfile"/> for the command and run mode in <paramref name="options"/>.
     /// </summary>
     /// <exception cref="ConfigurationValidationException">The command has no profile (<see cref="MigrationCommand.None"/> or an unknown value).</exception>
     public static CommandProfile GetProfile(this RayMigratorConsoleOptions options)
-        => GetProfile(options.Command, options.RunMode, options.FixDryRun ?? false);
+        => GetProfile(options.Command, options.RunMode);
 
     /// <summary>
-    /// Returns the <see cref="CommandProfile"/> for a command, its run mode and (for <see cref="MigrationCommand.FixIssues"/>) the dry-run flag.
+    /// Returns the <see cref="CommandProfile"/> for a command and its run mode. The run mode matters for
+    /// <see cref="MigrationCommand.MigrateUp"/>, <see cref="MigrationCommand.MigrateDown"/> and
+    /// <see cref="MigrationCommand.FixIssues"/> (<c>fix</c> previews with Simulate, #22); every other command runs in Migrate mode.
     /// </summary>
-    /// <exception cref="ConfigurationValidationException">The command has no profile (<see cref="MigrationCommand.None"/> or an unknown value).</exception>
-    public static CommandProfile GetProfile(MigrationCommand command, MigrationRunMode runMode, bool fixDryRun = false) => command switch
+    /// <exception cref="ConfigurationValidationException">The command has no profile (<see cref="MigrationCommand.None"/> or an unknown value), or the run mode is not valid for the command.</exception>
+    public static CommandProfile GetProfile(MigrationCommand command, MigrationRunMode runMode) => command switch
     {
         // Undefined is the "not set" sentinel. Deriving a profile from it would yield a validate-like profile
         // (no connect, no read, no write) for a command the caller meant to run for real (#17).
@@ -60,8 +62,12 @@ public static class MigrationCommandExtensions
         MigrationCommand.UpdateHash => new CommandProfile(
             ConnectsToTargets: false, WritesRepository: true, WritesDatabaseLog: true),
 
+        // fix repairs in Migrate mode and only lists in Simulate mode; Validate has no meaning for it (#22).
+        MigrationCommand.FixIssues when runMode is MigrationRunMode.Undefined or MigrationRunMode.Validate =>
+            throw new ConfigurationValidationException($"No command profile for [{command}] with run mode [{runMode}]. Choose migrate or simulate."),
+
         MigrationCommand.FixIssues => new CommandProfile(
-            ConnectsToTargets: false, WritesRepository: !fixDryRun, WritesDatabaseLog: !fixDryRun),
+            ConnectsToTargets: false, WritesRepository: runMode.ShouldWriteRepository(), WritesDatabaseLog: runMode.ShouldWriteRepository()),
 
         MigrationCommand.Info => new CommandProfile(
             ConnectsToTargets: false, WritesRepository: false, WritesDatabaseLog: false),

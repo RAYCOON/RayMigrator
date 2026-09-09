@@ -319,7 +319,7 @@ Raycoon.RayMigrator.Tests.Unit/
 | `P2_MigrationAlreadyRunningTests` | `MigrationAlreadyRunningTests` | Running migration run guard (prevents concurrent executions) |
 | `P2_MigrationFileSqlLoggingTests` | `MigrationFileSqlLoggingTests` | SQL content logging during migration execution |
 | `P2_MigrationIdLoggingPipelineTests` | `MigrationRecordIdLoggingPipelineTests` | MigrationRecordId enrichment in Serilog log context |
-| `P2_DbLogEnabledLoggingPipelineTests` | `DbLogEnabledLoggingPipelineTests` | `MigrationContextEnricher` emits `DbLogEnabled` from the command profile (info/validate-hash/fix --dry-run/simulate: false; update-hash/baseline/fix/migrate: true) (#6) |
+| `P2_DbLogEnabledLoggingPipelineTests` | `DbLogEnabledLoggingPipelineTests` | `MigrationContextEnricher` emits `DbLogEnabled` from the command profile (info/validate-hash/fix --run-mode simulate/simulate: false; update-hash/baseline/fix/migrate: true) (#6) |
 | `P2_MigrationHistoryOperationTests` | `MigrationHistoryOperationTests` | `MigrationOperation.Baseline` (110) and `MigrationService.DeriveRunOperation()` for the info run history (#6) |
 | `P2_MySqlMariaDbIdentifierCasingTests` | `MySqlMariaDbIdentifierCasingTests` | DAL-018 regression guard: zero backtick-quoted PascalCase identifiers in any of the 18 MySQL/MariaDB templates (outside TOML/comments and SELECT aliases); confirms reader-output SELECT templates expose the expected number of PascalCase output aliases (Strategy B) |
 | `P2_OptionsEnumPropertyTests` | `OptionsEnumPropertyTests` | Enum property validation in options classes |

@@ -161,7 +161,7 @@ All request types are in `Models/Requests.cs`, all result types are in `Models/R
 | `TargetGroupStatus` | Status of a target group (Alias, DatabaseType, CurrentRelease, ExecutedMigrations, LastMigrationDate, Targets). |
 | `MigrationHistory` | Migration run history (Runs: List<MigrationRunInfo>). |
 | `MigrationRunInfo` | Information about a migration run (MigrationRunId, RunId, StartedAt, CompletedAt, Operation, Result, RunMode, InitiatedBy, TotalMigrations, SuccessfulMigrations, FailedMigrations, ToRelease). |
-| `FixIssuesResult` | Result of Fix command (WasDryRun, OrphanedRunsFound, OrphanedRunsFixed, OrphanedRuns: List<OrphanedRunInfo>). |
+| `FixIssuesResult` | Result of Fix command (WasSimulated, OrphanedRunsFound, OrphanedRunsFixed, OrphanedRuns: List<OrphanedRunInfo>). |
 | `OrphanedRunInfo` | Information about an orphaned MigrationRun entry (MigrationRunId, Environment, EnvironmentId, StartedAt, MinutesRunning, MigrationRunModeId, WasFixed). |
 
 ### CLI Tool Execution

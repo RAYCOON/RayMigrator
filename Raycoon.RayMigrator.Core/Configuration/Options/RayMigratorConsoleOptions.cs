@@ -72,11 +72,6 @@ public class RayMigratorConsoleOptions
     public int? FixOlderThanMinutes { get; init; }
 
     /// <summary>
-    /// Fix command: Only show what would be fixed, don't actually fix
-    /// </summary>
-    public bool? FixDryRun { get; init; }
-
-    /// <summary>
     /// Fix command: Status to assign to orphaned migrations (Migrated or NotMigrated)
     /// </summary>
     public MigrationStatus? FixAssumedMigrationStatus { get; init; }

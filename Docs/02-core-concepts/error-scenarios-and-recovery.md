@@ -946,7 +946,7 @@ When a migration run fails, follow these steps in order:
 
 4. **Check for orphaned runs** — If the process crashed:
    ```bash
-   raymigrator fix -p MyProduct -env Production --dry-run
+   raymigrator fix -p MyProduct -env Production --run-mode simulate
    ```
 
 5. **Fix the root cause** — Correct the SQL error in the migration file

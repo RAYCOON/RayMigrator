@@ -212,7 +212,7 @@ WHERE migration_run_result_id = 10
 | Exit code 4 | Missing or invalid configuration | Check appsettings.json exists with valid Serilog section |
 | Exit code 5 | Bad CLI arguments | Check command syntax with `--help` |
 | Hash mismatch | File modified after execution | Run `update-hash` if intentional, or restore original file |
-| "Orphaned run" warning | Previous run interrupted | Run `fix` command (use `--dry-run` first to preview) |
+| "Orphaned run" warning | Previous run interrupted | Run `fix` command (use `--run-mode simulate` first to preview) |
 | Connection timeout | Network or DB issue | Check connection string, increase `DbCommandTimeoutInSeconds` |
 | Migration stuck in Executing | Process crashed mid-migration | Run `Fix --scope all` |
 | "Another migration is already running" | Concurrent RayMigrator instance or orphaned run | Wait for the other instance to finish, or run `Fix --scope orphanedruns` |
@@ -459,7 +459,7 @@ The `fix` command resolves repository inconsistencies, most commonly orphaned mi
 
 ```bash
 # Preview what would be fixed (no changes applied)
-raymigrator fix -p MyProduct -env Production --dry-run
+raymigrator fix -p MyProduct -env Production --run-mode simulate
 
 # Fix orphaned runs older than 60 minutes (default)
 raymigrator fix -p MyProduct -env Production
@@ -488,7 +488,7 @@ raymigrator fix -p MyProduct -env Production --last-migration-status migrated
 raymigrator fix -p MyProduct -env Production --last-migration-status not-migrated
 ```
 
-> **Tip:** Always use `--dry-run` first to preview what the Fix command would change before applying fixes in production.
+> **Tip:** Always use `--run-mode simulate` first to preview what the Fix command would change before applying fixes in production.
 
 ---
 

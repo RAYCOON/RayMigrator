@@ -39,15 +39,32 @@ public class CommandRunModeMappingTests
     }
 
     [Fact]
-    public async Task FixDryRun_KeepsMigrateRunMode_AndSetsFixDryRun()
+    public async Task FixSimulate_SetsSimulateRunMode()
     {
-        // fix --dry-run is the fix command's own dry-run concept; it does not borrow --run-mode simulate (#6).
-        var (config, _) = await ParseAsync("fix", "-p", "P", "-env", "Dev", "--dry-run");
+        // fix previews through --run-mode simulate like migrate-up / migrate-down; --dry-run is gone (#22).
+        var (config, parse) = await ParseAsync("fix", "-p", "P", "-env", "Dev", "--run-mode", "simulate");
 
+        parse.Errors.Should().BeEmpty();
         config.ParsedOptions.Should().NotBeNull();
         config.ParsedOptions!.Command.Should().Be(MigrationCommand.FixIssues);
-        config.ParsedOptions.RunMode.Should().Be(MigrationRunMode.Migrate);
-        config.ParsedOptions.FixDryRun.Should().BeTrue();
+        config.ParsedOptions.RunMode.Should().Be(MigrationRunMode.Simulate);
+    }
+
+    [Fact]
+    public async Task FixValidate_IsRejected()
+    {
+        var (_, parse) = await ParseAsync("fix", "-p", "P", "-env", "Dev", "--run-mode", "validate");
+
+        parse.Errors.Should().ContainSingle(e => e.Message.Contains("--run-mode") && e.Message.Contains("migrate, simulate"),
+            "fix repairs or lists; validate has no meaning for it (#22)");
+    }
+
+    [Fact]
+    public async Task FixDryRun_IsNoLongerAnOption()
+    {
+        var (_, parse) = await ParseAsync("fix", "-p", "P", "-env", "Dev", "--dry-run");
+
+        parse.Errors.Should().NotBeEmpty("--dry-run was replaced by --run-mode simulate without an alias (#22)");
     }
 
     [Theory]
@@ -88,7 +105,6 @@ public class CommandRunModeMappingTests
     [InlineData("update-hash")]
     [InlineData("info")]
     [InlineData("baseline")]
-    [InlineData("fix")]
     public async Task NonMigrateVerb_DoesNotAcceptRunModeOption(string verb)
     {
         var (config, parse) = await ParseAsync(verb, "-p", "P", "-env", "Dev", "-rm", "simulate");

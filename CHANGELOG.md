@@ -20,6 +20,14 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ### Changed
 
+- **Breaking (CLI / API):** `fix --dry-run` is replaced by `fix --run-mode
+  simulate`, the preview every other command already uses: `simulate` lists
+  the orphaned runs that would be repaired, writes nothing and leaves no
+  DatabaseLogging rows; `migrate` (default) repairs; `validate` is rejected
+  for `fix`. The parallel plumbing is gone: `RayMigratorConsoleOptions.FixDryRun`,
+  `FixIssuesRequest.DryRun` (now `RunMode`, which must match the context like
+  every other request), `FixIssuesResult.WasDryRun` (now `WasSimulated`) and
+  the `fixDryRun` parameter of `MigrationCommandExtensions.GetProfile`. (#22)
 - **Breaking (CLI):** `validate-hash --scope` accepts `sqlblocks` only, the
   lower-cased enum name like every other CLI value; the former second spelling
   `sqlblock` is rejected with `Allowed values: [file, sqlblocks, disabled]`.

@@ -411,11 +411,25 @@ public class CommandLineConfiguration
             DefaultValueFactory = _ => 60
         };
 
-        var dryRunOption = new Option<bool>("--dry-run")
+        // fix previews through --run-mode simulate like migrate-up / migrate-down; it has no switch of its own (#22).
+        var runModeOption = new Option<string>("--run-mode", "-rm")
         {
-            Description = "Only show what would be fixed without applying changes",
-            DefaultValueFactory = _ => false
+            Description = "Execution mode: migrate repairs, simulate lists what would be repaired without applying changes",
+            DefaultValueFactory = _ => "migrate"
         };
+
+        runModeOption.Validators.Add(result =>
+        {
+            var value = result.GetValueOrDefault<string>();
+            if (value != null)
+            {
+                var normalizedValue = ResolveEnvironmentVariable(value).ToLowerInvariant();
+                if (normalizedValue != "migrate" && normalizedValue != "simulate")
+                {
+                    result.AddError($"Invalid value for --run-mode: {value}. Valid values are: migrate, simulate.");
+                }
+            }
+        });
 
         var lastMigrationStatusOption = new Option<string>("--last-migration-status", "-lms")
         {
@@ -440,7 +454,7 @@ public class CommandLineConfiguration
         command.Options.Add(environmentOption);
         command.Options.Add(scopeOption);
         command.Options.Add(olderThanOption);
-        command.Options.Add(dryRunOption);
+        command.Options.Add(runModeOption);
         command.Options.Add(lastMigrationStatusOption);
 
         return command;
@@ -523,7 +537,7 @@ public class CommandLineConfiguration
                 Command = MigrationCommand.ValidateHash,
                 Product = ResolveEnvironmentVariable(parseResult.GetValue(command.Options.OfType<Option<string>>().First(o => o.Name == "--product"))!),
                 Environment = ResolveEnvironmentVariable(parseResult.GetValue(command.Options.OfType<Option<string>>().First(o => o.Name == "--environment"))!),
-                // --run-mode is a migrate-up/migrate-down concept; every other command runs in Migrate mode and
+                // --run-mode is a migrate-up/migrate-down/fix concept; every other command runs in Migrate mode and
                 // decides its side effects through its CommandProfile (#6).
                 RunMode = MigrationRunMode.Migrate,
                 TargetReleaseVersion = null,
@@ -619,7 +633,8 @@ public class CommandLineConfiguration
             var scope = ParseFixScope(scopeString);
 
             var olderThan = parseResult.GetValue(command.Options.OfType<Option<int>>().First(o => o.Name == "--older-than"));
-            var dryRun = parseResult.GetValue(command.Options.OfType<Option<bool>>().First(o => o.Name == "--dry-run"));
+            var runModeString = parseResult.GetValue(command.Options.OfType<Option<string>>().First(o => o.Name == "--run-mode")) ?? "migrate";
+            var runMode = ParseRunMode(runModeString);
             var lastMigrationStatusString = parseResult.GetValue(command.Options.OfType<Option<string>>().First(o => o.Name == "--last-migration-status")) ?? "not-migrated";
             var lastMigrationStatus = ParseLastMigrationStatus(lastMigrationStatusString);
 
@@ -628,14 +643,13 @@ public class CommandLineConfiguration
                 Command = MigrationCommand.FixIssues,
                 Product = ResolveEnvironmentVariable(parseResult.GetValue(command.Options.OfType<Option<string>>().First(o => o.Name == "--product"))!),
                 Environment = ResolveEnvironmentVariable(parseResult.GetValue(command.Options.OfType<Option<string>>().First(o => o.Name == "--environment"))!),
-                RunMode = MigrationRunMode.Migrate,
+                RunMode = runMode,
                 TargetReleaseVersion = null,
                 ShowStartupInfo = parseResult.GetValue(showInfoOption),
                 RevealSensitiveData = parseResult.GetValue(revealSensitiveDataOption),
                 HashValidationScope = null,
                 FixScope = scope,
                 FixOlderThanMinutes = olderThan,
-                FixDryRun = dryRun,
                 FixAssumedMigrationStatus = lastMigrationStatus,
                 ConfigDir = ResolveConfigDir(parseResult.GetValue(configDirOption)),
             };

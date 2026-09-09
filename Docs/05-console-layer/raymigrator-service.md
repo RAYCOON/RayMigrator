@@ -373,7 +373,7 @@ private async Task<int> ExecuteInfoAsync()
 
 ### ExecuteFixIssuesAsync
 
-Fixes repository inconsistencies such as orphaned migration runs. Supports a dry-run mode to preview what would be fixed without making changes:
+Fixes repository inconsistencies such as orphaned migration runs. With `--run-mode simulate` it previews what would be fixed without making changes:
 
 ```csharp
 private async Task<int> ExecuteFixIssuesAsync()
@@ -387,7 +387,7 @@ private async Task<int> ExecuteFixIssuesAsync()
         Environment = _consoleOptions.Environment!,
         Scope = _consoleOptions.FixScope ?? FixScope.OrphanedRuns,
         OlderThanMinutes = _consoleOptions.FixOlderThanMinutes ?? 60,
-        DryRun = _consoleOptions.FixDryRun ?? false,
+        RunMode = _consoleOptions.RunMode,
         AssumedMigrationStatus = _consoleOptions.FixAssumedMigrationStatus ?? MigrationStatus.NotMigrated,
         ShowInfo = _consoleOptions.ShowStartupInfo,
         RevealSensitiveData = _consoleOptions.RevealSensitiveData
@@ -402,9 +402,9 @@ private async Task<int> ExecuteFixIssuesAsync()
         return 1;
     }
 
-    if (result.WasDryRun)
+    if (result.WasSimulated)
     {
-        _logger.LogInformation("Fix dry-run completed for product {Product}: {Found} orphaned run(s) found",
+        _logger.LogInformation("Fix simulation completed for product {Product}: {Found} orphaned run(s) found",
             _consoleOptions.Product, result.OrphanedRunsFound);
     }
     else

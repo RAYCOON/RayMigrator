@@ -22,7 +22,7 @@ public class FixIssuesRequestModelTests
         request.Environment.Should().BeEmpty();
         request.Scope.Should().Be(FixScope.OrphanedRuns);
         request.OlderThanMinutes.Should().Be(60);
-        request.DryRun.Should().BeFalse();
+        request.RunMode.Should().Be(MigrationRunMode.Migrate);
         request.AssumedMigrationStatus.Should().Be(MigrationStatus.NotMigrated);
         request.ShowInfo.Should().BeTrue();
         request.RevealSensitiveData.Should().BeFalse();
@@ -37,7 +37,7 @@ public class FixIssuesRequestModelTests
             Environment = "Docker",
             Scope = FixScope.All,
             OlderThanMinutes = 0,
-            DryRun = true,
+            RunMode = MigrationRunMode.Simulate,
             AssumedMigrationStatus = MigrationStatus.Migrated,
             ShowInfo = false,
             RevealSensitiveData = true
@@ -47,7 +47,7 @@ public class FixIssuesRequestModelTests
         request.Environment.Should().Be("Docker");
         request.Scope.Should().Be(FixScope.All);
         request.OlderThanMinutes.Should().Be(0);
-        request.DryRun.Should().BeTrue();
+        request.RunMode.Should().Be(MigrationRunMode.Simulate);
         request.AssumedMigrationStatus.Should().Be(MigrationStatus.Migrated);
         request.ShowInfo.Should().BeFalse();
         request.RevealSensitiveData.Should().BeTrue();
@@ -74,7 +74,7 @@ public class FixIssuesResultModelTests
 
         result.ProductAlias.Should().BeEmpty();
         result.Environment.Should().BeEmpty();
-        result.WasDryRun.Should().BeFalse();
+        result.WasSimulated.Should().BeFalse();
         result.OrphanedRunsFound.Should().Be(0);
         result.OrphanedRunsFixed.Should().Be(0);
         result.OrphanedRuns.Should().BeEmpty();
@@ -92,19 +92,19 @@ public class FixIssuesResultModelTests
     }
 
     [Fact]
-    public void DryRunResult_HasCorrectValues()
+    public void SimulatedResult_HasCorrectValues()
     {
         var result = new FixIssuesResult
         {
             Success = true,
-            WasDryRun = true,
+            WasSimulated = true,
             OrphanedRunsFound = 2,
             OrphanedRunsFixed = 0,
         };
 
-        result.WasDryRun.Should().BeTrue();
+        result.WasSimulated.Should().BeTrue();
         result.OrphanedRunsFound.Should().Be(2);
-        result.OrphanedRunsFixed.Should().Be(0, "dry-run should not fix anything");
+        result.OrphanedRunsFixed.Should().Be(0, "a simulated fix repairs nothing");
     }
 
     [Fact]
@@ -113,7 +113,7 @@ public class FixIssuesResultModelTests
         var result = new FixIssuesResult
         {
             Success = true,
-            WasDryRun = false,
+            WasSimulated = false,
             OrphanedRunsFound = 1,
             OrphanedRunsFixed = 1,
             OrphanedRuns = new List<OrphanedRunInfo>
@@ -362,7 +362,6 @@ public class FixCommandConsoleOptionsTests
         };
 
         options.FixOlderThanMinutes.Should().BeNull();
-        options.FixDryRun.Should().BeNull();
         options.FixAssumedMigrationStatus.Should().BeNull();
     }
 
@@ -378,12 +377,10 @@ public class FixCommandConsoleOptionsTests
             ShowStartupInfo = true,
             RevealSensitiveData = false,
             FixOlderThanMinutes = 30,
-            FixDryRun = true,
             FixAssumedMigrationStatus = MigrationStatus.Migrated
         };
 
         options.FixOlderThanMinutes.Should().Be(30);
-        options.FixDryRun.Should().BeTrue();
         options.FixAssumedMigrationStatus.Should().Be(MigrationStatus.Migrated);
     }
 }

@@ -228,7 +228,7 @@ These options are defined on specific commands (not global).
 
 | Option | Short | Type | Default | Used By | Description |
 |--------|-------|------|---------|---------|-------------|
-| `--run-mode` | `-rm` | string | Migrate | migrate-up, migrate-down | Migrate, Simulate, or Validate |
+| `--run-mode` | `-rm` | string | Migrate | migrate-up, migrate-down, fix | Migrate, Simulate, or Validate (fix: Migrate or Simulate) |
 | `--to-release` | `-tr` | string | (latest) | migrate-up, migrate-down, baseline | Target release version (optional for migrate-up and Baseline; **required** for migrate-down) |
 | `--target-group` | `-tg` | string[] | (all) | migrate-up, migrate-down, validate-hash, update-hash, baseline | Filter to specific target groups (repeatable) |
 | `--allow-out-of-order` | `-ooo` | bool | false | migrate-up | Allow out-of-order migration execution |
@@ -236,7 +236,6 @@ These options are defined on specific commands (not global).
 | `--stop-rollback-on-missing-rollback-file` | `-sromrf` | bool? | (config default: true) | migrate-up | CLI override: stop error-recovery rollback chain when a rollback file is missing |
 | `--scope` | `-s` | string | (varies) | validate-hash, fix | Validation or fix scope (validate-hash: `file`/`sqlblocks`/`disabled`; fix: `orphanedruns`/`all`) |
 | `--older-than` | `-ot` | int | 60 | Fix | Only fix runs older than N minutes (0 = immediate) |
-| `--dry-run` | (none) | bool | false | Fix | Preview what would be fixed without applying changes |
 | `--last-migration-status` | `-lms` | string | not-migrated | Fix | Status for orphaned migrations (`migrated` or `not-migrated`) |
 
 ### Command-Specific Options
@@ -272,7 +271,7 @@ These options are defined on specific commands (not global).
 **Fix**:
 - `--scope` (`-s`): string, default `"OrphanedRuns"` — Maps to `FixScope` enum (values: `OrphanedRuns`, `All`)
 - `--older-than` (`-ot`): int, default `60` — Only fix runs older than N minutes (0 = immediate)
-- `--dry-run`: bool, default `false` — Only show what would be fixed without applying changes
+- `--run-mode`: string, default `migrate`. `simulate` lists what would be repaired without applying changes (#22)
 - `--last-migration-status` (`-lms`): string, default `"not-migrated"` — Status for orphaned migrations (`migrated` or `not-migrated`)
 
 ## Argument Parsing

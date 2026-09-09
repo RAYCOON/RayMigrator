@@ -15,7 +15,7 @@ This document provides a comprehensive overview of unit and engine test coverage
 |--------|:----------:|:------------:|:-------------:|:-----------:|:----:|:--------:|:---:|
 | `--product` `-p` | **R** | **R** | **R** | **R** | **R** | **R** | **R** |
 | `--environment` `-env` | **R** | **R** | **R** | **R** | **R** | **R** | **R** |
-| `--run-mode` `-rm` | O | O | — | — | — | — | — |
+| `--run-mode` `-rm` | O | O | — | — | — | — | O |
 | `--to-release` `-tr` | O | **R** | — | — | — | O | — |
 | `--target-group` `-tg` | O | O | O | O | — | O | — |
 | `--allow-out-of-order` `-ooo` | O | — | — | — | — | — | — |
@@ -23,7 +23,6 @@ This document provides a comprehensive overview of unit and engine test coverage
 | `--target-group-migration-order` `-tgmo` | O | — | — | — | — | O | — |
 | `--scope` `-s` | — | — | O | — | — | — | O |
 | `--older-than` `-ot` | — | — | — | — | — | — | O |
-| `--dry-run` | — | — | — | — | — | — | O |
 | `--last-migration-status` `-lms` | — | — | — | — | — | — | O |
 | `--startup-info` `-si` | O | O | O | O | O | O | O |
 | `--reveal-sensitive-data` `-rsd` | O | O | O | O | O | O | O |
@@ -45,7 +44,7 @@ This document provides a comprehensive overview of unit and engine test coverage
 | `--target-group-migration-order` | string? | null | Comma-separated group aliases for execution order |
 | `--scope` | string | varies | validate-hash: `file`/`sqlblocks`/`disabled`; fix: `orphanedruns`/`all` |
 | `--older-than` | int | 60 | Minutes threshold for orphaned run detection |
-| `--dry-run` | bool | false | Simulate fix without applying changes |
+| `--run-mode` | string | migrate | `simulate` previews the fix without applying changes |
 | `--last-migration-status` | string | `"not-migrated"` | Status to assign after fix: `migrated` or `not-migrated` |
 | `--startup-info` | bool | true | Show startup banner and configuration info |
 | `--reveal-sensitive-data` | bool | false | Show connection strings unmasked in output |
@@ -154,7 +153,7 @@ This document provides a comprehensive overview of unit and engine test coverage
 | `--scope orphanedruns` | COVERED | COVERED | F1-F8 all use OrphanedRuns scope |
 | `--scope all` | COVERED | **MISSING** | Enum test only. Engine only tests OrphanedRuns scope. |
 | `--older-than` | COVERED | COVERED | F4: threshold filtering |
-| `--dry-run` | COVERED | COVERED | F3: dry run + orphan persistence verification |
+| `--run-mode simulate` | COVERED | COVERED | F3: simulate + orphan persistence verification |
 | `--last-migration-status` | COVERED | COVERED | F8: AssumedMigrationStatus=Migrated |
 | `--startup-info` | **MISSING** | **MISSING** | Cosmetic feature, not testable without console output capture. |
 | `--reveal-sensitive-data` | PARTIAL | **MISSING** | Unit model test only. Fix does not write MigrationRunMeta settings JSON. |
@@ -270,10 +269,10 @@ Also tested as part of:
 **Unit test files**:
 - `P2_FixCommandTests.cs`:
   - `FixIssuesRequestModelTests` — Default values, property setting
-  - `FixIssuesResultModelTests` — Result model, dry-run distinction
+  - `FixIssuesResultModelTests` — Result model, simulate distinction
   - `OrphanedRunInfoModelTests` — Data structure tests
   - `FixIssuesEnumTests` — Enum value verification (OrphanedRuns=2, All=1, Undefined=0)
-  - `FixCommandConsoleOptionsTests` — FixOlderThanMinutes, FixDryRun, FixAssumedMigrationStatus defaults
+  - `FixCommandConsoleOptionsTests` — FixOlderThanMinutes, FixAssumedMigrationStatus defaults
 - `P0_ConfigDirTests.cs` — CLI parsing for Fix command
 - `MigrationCommandExhaustivenessTests.cs` — Exhaustiveness check includes `MigrationCommand.FixIssues`
 
@@ -317,7 +316,7 @@ Also tested as part of:
 | Gap | Status | Details |
 |-----|--------|---------|
 | ~~**Info command**~~ | **RESOLVED** | 40 engine tests added (8 tests x 5 DBs). ScenarioContext now has `InfoAsync()` + `GetHistoryAsync()`. Covers: fresh repo, full/partial migration, baseline, target groups, error state, history. |
-| ~~**Fix command**~~ | **RESOLVED** | 40 engine tests added (8 tests x 5 DBs). ScenarioContext now has `FixIssuesAsync()` + `InsertOrphanedMigrationRun()`. Covers: no orphans, fix orphan, dry-run, older-than filter, fix-then-migrate, multiple orphans, details, assumed status. |
+| ~~**Fix command**~~ | **RESOLVED** | 40 engine tests added (8 tests x 5 DBs). ScenarioContext now has `FixIssuesAsync()` + `InsertOrphanedMigrationRun()`. Covers: no orphans, fix orphan, simulate, older-than filter, fix-then-migrate, multiple orphans, details, assumed status. |
 
 ### Priority 2: Cosmetic / Not testable at engine level
 
@@ -397,7 +396,7 @@ The engine test harness (`ScenarioContext.cs`) exposes these methods:
 | `UpdateHashAsync()` | Yes | targetGroupAliases |
 | `InfoAsync()` | Yes | — (returns MigrationStatusInfo) |
 | `GetHistoryAsync()` | Yes | limit |
-| `FixIssuesAsync()` | Yes | scope, olderThanMinutes, dryRun, assumedMigrationStatus |
+| `FixIssuesAsync()` | Yes | scope, olderThanMinutes, assumedMigrationStatus (run mode from the host) |
 | `InsertOrphanedMigrationRun()` | Yes | minutesOld (helper for Fix tests) |
 
 ### ScenarioBuilder Capabilities

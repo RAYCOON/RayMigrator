@@ -198,7 +198,7 @@ public async Task ErrorInR3_OnlyR3RolledBack()
 - `UpdateHashAsync(targetGroupAliases?)` — executes UpdateHash
 - `InfoAsync()` — executes the `info` command (returns `MigrationStatusInfo`)
 - `GetHistoryAsync(limit?)` — fetches the run history (returns `MigrationHistory`)
-- `FixIssuesAsync(scope?, olderThanMinutes?, dryRun?, assumedMigrationStatus?)` — executes the `fix` command
+- `FixIssuesAsync(scope?, olderThanMinutes?, assumedMigrationStatus?)` — executes the `fix` command in the host's run mode (rebuild with `MigrationRunMode.Simulate` for a preview)
 - `InsertOrphanedMigrationRun(minutesOld?)` — inserts a fake `MigrationRun` record with Running status and a `StartedAt` in the past (helper for Fix tests)
 - `RebuildForAsync(command, mode, toRelease?)` — rebuilds DI container for next phase (no DB cleanup)
 
@@ -336,7 +336,7 @@ The catalog lists the unique test scenarios defined for the base PostgreSQL test
 | `MigrationHistoryTrackingTests` | 5 | MigrationRecordHistory records written inline on terminal status transitions (simulate, first run, failed retry, down-then-up, baseline). Source file: `ArchiveRetentionTests.cs`. |
 | `BaselineTests` | 10 | Baseline marking, incremental baseline, baseline then MigrateUp |
 | `DatabaseLogTests` | 4 | Log entries written after MigrateUp, multiple log levels, logs during error |
-| `FixTests` | 8 | Fix command: no orphans, fix orphan, dry-run, older-than filter, fix-then-migrate, multiple orphans, details, assumed-status=Migrated |
+| `FixTests` | 8 | Fix command: no orphans, fix orphan, simulate, older-than filter, fix-then-migrate, multiple orphans, details, assumed-status=Migrated |
 | `InfoTests` | 8 | Info command: fresh repo, full/partial migration, baseline, target groups, error state, multiple-run history, run details |
 | `MigrationRunMetaTests` | 7 | MigrationRunSettingsJson content (console options, product, masked credentials, MigrateDown masking, Baseline masking) |
 | `MigSettingsInheritanceTests` | 13 | migsettings.txt inheritance (root, release, target group, TOML override) |

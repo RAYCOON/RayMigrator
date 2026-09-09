@@ -164,7 +164,7 @@ public class RayMigratorDatabaseSinkTests
     [InlineData((byte)MigrationRunMode.Validate)]
     public void Emit_WithDbLogEnabledFalse_DoesNotEnqueueLogEntry(byte runModeId)
     {
-        // Arrange — what the enricher emits for info, validate-hash, fix --dry-run, simulate and validate runs.
+        // Arrange — what the enricher emits for info, validate-hash, fix --run-mode simulate, simulate and validate runs.
         // Migrate + false is the info/validate-hash case: they run in Migrate mode and must still stay silent.
         var (sink, dal) = CreateInitializedSink();
         bool dalCalled = false;

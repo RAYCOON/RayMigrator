@@ -462,8 +462,7 @@ public class ScenarioBuilder
     public async Task<ScenarioContext> BuildAsync(
         MigrationCommand command = MigrationCommand.MigrateUp,
         MigrationRunMode mode = MigrationRunMode.Migrate,
-        string? toRelease = null,
-        bool? fixDryRun = null)
+        string? toRelease = null)
     {
         // 1. Create temp directory
         string workDir = Path.Combine(Path.GetTempPath(), "RayMigrator_EngineTests", Guid.NewGuid().ToString());
@@ -491,7 +490,7 @@ public class ScenarioBuilder
 
         // 6. Build host
         var host = new EngineTestHost();
-        host.Build(configPath, productAlias, command, mode, toRelease, fixDryRun: fixDryRun);
+        host.Build(configPath, productAlias, command, mode, toRelease);
 
         // 7. Create query helper
         var queryHelper = new RepositoryQueryHelper(_engineConfig.DatabaseType, _engineConfig.ConnectionString, _engineConfig.SchemaName);

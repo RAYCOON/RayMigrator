@@ -197,13 +197,13 @@ public class ScenarioContext : IAsyncDisposable
     }
 
     /// <summary>
-    /// Executes FixIssuesAsync for the configured product.
+    /// Executes FixIssuesAsync for the configured product in the host's run mode (rebuild the host with
+    /// <see cref="MigrationRunMode.Simulate"/> to list the orphaned runs without repairing them, #22).
     /// Sets _lastResult because FixIssuesResult extends OperationResult.
     /// </summary>
     public async Task<FixIssuesResult> FixIssuesAsync(
         FixScope scope = FixScope.OrphanedRuns,
         int olderThanMinutes = 0,
-        bool dryRun = false,
         MigrationStatus assumedMigrationStatus = MigrationStatus.NotMigrated)
     {
         var request = new FixIssuesRequest
@@ -212,7 +212,7 @@ public class ScenarioContext : IAsyncDisposable
             Environment = _environment,
             Scope = scope,
             OlderThanMinutes = olderThanMinutes,
-            DryRun = dryRun,
+            RunMode = HostConsoleOptions.RunMode,
             AssumedMigrationStatus = assumedMigrationStatus,
             ShowInfo = false,
             RevealSensitiveData = false
@@ -246,12 +246,12 @@ public class ScenarioContext : IAsyncDisposable
     /// Rebuilds the DI container for a different command/mode without cleaning databases.
     /// Used for multi-step test scenarios (e.g., Migrate-Up then Migrate-Down).
     /// </summary>
-    public Task RebuildForAsync(MigrationCommand command, MigrationRunMode mode, string? toRelease = null, string? environment = null, bool? fixDryRun = null)
+    public Task RebuildForAsync(MigrationCommand command, MigrationRunMode mode, string? toRelease = null, string? environment = null)
     {
         _environment = environment ?? "Docker";
         _host.Dispose();
         _host = new EngineTestHost();
-        _host.Build(_configPath, _productAlias, command, mode, toRelease, _environment, fixDryRun);
+        _host.Build(_configPath, _productAlias, command, mode, toRelease, _environment);
         return Task.CompletedTask;
     }
 

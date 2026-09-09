@@ -340,7 +340,7 @@ See [Fix Reference](../08-cli-reference/command-reference.md#fix) for all option
 
 ```bash
 # Always preview before fixing
-raymigrator fix -p BookStore -env Production --dry-run
+raymigrator fix -p BookStore -env Production --run-mode simulate
 
 # Fix orphaned runs older than 60 minutes (default)
 raymigrator fix -p BookStore -env Production
@@ -352,7 +352,7 @@ raymigrator fix -p BookStore -env Production
 |--------|---------|-------------|
 | `--scope` | `OrphanedRuns` | What to fix: `OrphanedRuns` or `All` |
 | `--older-than` | `60` | Minimum age in minutes for a run to be considered orphaned |
-| `--dry-run` | `false` | Preview what would be fixed without making changes |
+| `--run-mode` | `migrate` | `simulate` previews what would be fixed without making changes |
 | `--last-migration-status` | `not-migrated` | Status to assign to orphaned MigrationRecord rows: `not-migrated` or `migrated` |
 
 ### What Fix Does

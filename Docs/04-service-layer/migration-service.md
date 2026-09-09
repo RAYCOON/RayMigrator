@@ -105,7 +105,7 @@ public class FixIssuesRequest
     public string Environment { get; set; } = string.Empty;
     public FixScope Scope { get; set; } = FixScope.OrphanedRuns;
     public int OlderThanMinutes { get; set; } = 60;
-    public bool DryRun { get; set; } = false;
+    public MigrationRunMode RunMode { get; set; } = MigrationRunMode.Migrate; // Migrate repairs, Simulate lists only (#22)
     public MigrationStatus AssumedMigrationStatus { get; set; } = MigrationStatus.NotMigrated;
     public bool ShowInfo { get; set; } = true;
     public bool RevealSensitiveData { get; set; } = false;
@@ -151,7 +151,7 @@ Source: `Raycoon.RayMigrator.Core/Configuration/Enums/MigrationOperation.cs`
 
 `BaselineAsync` stamps its run and records with `Baseline`; `MigrateDownAsync` stamps the records it rolls back with `MigrateDown`, the error-recovery rollbacks inside a migrate-up stamp them with `Rollback`. A record keeps the `MigrationRunId` of the run that created it, so `GetHistoryAsync` does not count records per run: it reads the terminal transitions from `MigrationRecordHistory` (`Repository_MigrationRecordHistory_Select`), whose rows carry the run that caused each transition, and summarizes them per run via `MigrationService.SummarizeRun()` (distinct records, records that reached the operation's target state, failed records) and `DeriveRunOperation()` (`Baseline` → `MigrateDown` → otherwise `MigrateUp`), because the `MigrationRun` row has no operation column (#13).
 
-Every non-migrate command starts with `InitializeRepositoryAsync()`: `RepositoryCheckCreate` always runs, but product and environment are only registered (`*_CheckInsert`) when the command's `CommandProfile.WritesRepository` is true; `info`, `validate-hash` and `fix --dry-run` look them up read-only and treat a repository without them as empty (#6). The error-recovery rollbacks (`HandleMigrationError`, `RollbackSingleMigration`) take the run mode from the request that started the run, not from the context.
+Every non-migrate command starts with `InitializeRepositoryAsync()`: `RepositoryCheckCreate` always runs, but product and environment are only registered (`*_CheckInsert`) when the command's `CommandProfile.WritesRepository` is true; `info`, `validate-hash` and `fix --run-mode simulate` look them up read-only and treat a repository without them as empty (#6). The error-recovery rollbacks (`HandleMigrationError`, `RollbackSingleMigration`) take the run mode from the request that started the run, not from the context.
 
 ### MigrationRunResult
 
@@ -387,7 +387,7 @@ public class FixIssuesResult : OperationResult
 {
     public string ProductAlias { get; set; } = string.Empty;
     public string Environment { get; set; } = string.Empty;
-    public bool WasDryRun { get; set; }
+    public bool WasSimulated { get; set; }
     public int OrphanedRunsFound { get; set; }
     public int OrphanedRunsFixed { get; set; }
     public List<OrphanedRunInfo> OrphanedRuns { get; set; } = new();
@@ -788,7 +788,7 @@ Fixes repository inconsistencies such as orphaned `MigrationRun` entries.
 2. **Phase 2**: Query orphaned runs via `RepositoryMigrationRunSelectOrphaned(productId, environmentId)`
 3. **Phase 3**: Filter by `OlderThanMinutes`
 4. **Phase 4**: Log found orphans
-5. **Phase 5**: If not `DryRun`, fix each orphaned run: fix orphaned MigrationRecord entries (`RepositoryMigrationRecordFixOrphaned` with `AssumedMigrationStatus`) then mark the run as Error (`RepositoryMigrationRunFixOrphaned`)
+5. **Phase 5**: Unless the run mode is `Simulate`, fix each orphaned run: fix orphaned MigrationRecord entries (`RepositoryMigrationRecordFixOrphaned` with `AssumedMigrationStatus`) then mark the run as Error (`RepositoryMigrationRunFixOrphaned`)
 6. **Phase 6**: Return `FixIssuesResult`
 
 ## TargetGroup Execution

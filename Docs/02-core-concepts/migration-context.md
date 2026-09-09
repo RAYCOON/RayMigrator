@@ -71,7 +71,6 @@ public class RayMigratorConsoleOptions
     public FixScope? FixScope { get; init; }
     public bool? AllowOutOfOrder { get; init; }
     public int? FixOlderThanMinutes { get; init; }
-    public bool? FixDryRun { get; init; }
     public MigrationStatus? FixAssumedMigrationStatus { get; init; }
     public bool? StopRollbackOnMissingRollbackFile { get; init; }
     public string? ConfigDir { get; init; }

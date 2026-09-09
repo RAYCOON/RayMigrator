@@ -267,7 +267,7 @@ The behavior of each mode is determined by extension methods on `MigrationRunMod
 | `ShouldWriteRepository()` | false | false | **true** |
 | `ShouldReadRepository()` | false | **true** | **true** |
 
-`--run-mode` applies to `migrate-up` and `migrate-down` only; every other command runs in `Migrate` mode and decides its side effects by command. The single source for those decisions is `MigrationCommandExtensions.GetProfile()` (`Raycoon.RayMigrator.Core/Extensions/MigrationCommandExtensions.cs`), which returns a `CommandProfile` per command (#6). The start-up connection check (`ConnectionValidator`), the DatabaseLogging sink gate (`DbLogEnabled`, emitted by `MigrationContextEnricher`) and the product/environment bookkeeping in `MigrationService` all read the profile instead of the run mode:
+`--run-mode` applies to `migrate-up`, `migrate-down` and `fix` (`migrate` or `simulate`, #22); every other command runs in `Migrate` mode and decides its side effects by command. The single source for those decisions is `MigrationCommandExtensions.GetProfile()` (`Raycoon.RayMigrator.Core/Extensions/MigrationCommandExtensions.cs`), which returns a `CommandProfile` per command (#6). The start-up connection check (`ConnectionValidator`), the DatabaseLogging sink gate (`DbLogEnabled`, emitted by `MigrationContextEnricher`) and the product/environment bookkeeping in `MigrationService` all read the profile instead of the run mode:
 
 | Command | RunMode | ConnectsToTargets | WritesRepository | WritesDatabaseLog |
 |---------|---------|:-:|:-:|:-:|
@@ -277,7 +277,7 @@ The behavior of each mode is determined by extension methods on `MigrationRunMod
 | `baseline` | Migrate | no | yes | yes |
 | `update-hash` | Migrate | no | yes | yes |
 | `fix` | Migrate | no | yes | yes |
-| `fix --dry-run` | Migrate | no | no | no |
+| `fix` | Simulate | no | no | no |
 | `info` | Migrate | no | no | no |
 | `validate-hash` | Migrate | no | no | no |
 

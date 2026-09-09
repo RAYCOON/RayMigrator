@@ -15,26 +15,26 @@ public class CommandProfileTests
 {
     [Theory]
     //          command                     run mode                   dry  conn   write  dblog
-    [InlineData(MigrationCommand.MigrateUp,    MigrationRunMode.Migrate,  false, true, true, true)]
-    [InlineData(MigrationCommand.MigrateUp,    MigrationRunMode.Simulate, false, true, false, false)]
-    [InlineData(MigrationCommand.MigrateUp,    MigrationRunMode.Validate, false, false, false, false)]
-    [InlineData(MigrationCommand.MigrateDown,  MigrationRunMode.Migrate,  false, true, true, true)]
-    [InlineData(MigrationCommand.MigrateDown,  MigrationRunMode.Simulate, false, true, false, false)]
-    [InlineData(MigrationCommand.MigrateDown,  MigrationRunMode.Validate, false, false, false, false)]
-    [InlineData(MigrationCommand.Baseline,     MigrationRunMode.Migrate,  false, false, true, true)]
-    [InlineData(MigrationCommand.UpdateHash,   MigrationRunMode.Migrate,  false, false, true, true)]
-    [InlineData(MigrationCommand.FixIssues,    MigrationRunMode.Migrate,  false, false, true, true)]
-    [InlineData(MigrationCommand.FixIssues,    MigrationRunMode.Migrate,  true, false, false, false)]
-    [InlineData(MigrationCommand.Info,         MigrationRunMode.Migrate,  false, false, false, false)]
-    [InlineData(MigrationCommand.ValidateHash, MigrationRunMode.Migrate,  false, false, false, false)]
+    [InlineData(MigrationCommand.MigrateUp,    MigrationRunMode.Migrate,  true, true, true)]
+    [InlineData(MigrationCommand.MigrateUp,    MigrationRunMode.Simulate, true, false, false)]
+    [InlineData(MigrationCommand.MigrateUp,    MigrationRunMode.Validate, false, false, false)]
+    [InlineData(MigrationCommand.MigrateDown,  MigrationRunMode.Migrate,  true, true, true)]
+    [InlineData(MigrationCommand.MigrateDown,  MigrationRunMode.Simulate, true, false, false)]
+    [InlineData(MigrationCommand.MigrateDown,  MigrationRunMode.Validate, false, false, false)]
+    [InlineData(MigrationCommand.Baseline,     MigrationRunMode.Migrate,  false, true, true)]
+    [InlineData(MigrationCommand.UpdateHash,   MigrationRunMode.Migrate,  false, true, true)]
+    [InlineData(MigrationCommand.FixIssues,    MigrationRunMode.Migrate,  false, true, true)]
+    [InlineData(MigrationCommand.FixIssues,    MigrationRunMode.Simulate, false, false, false)]
+    [InlineData(MigrationCommand.Info,         MigrationRunMode.Migrate,  false, false, false)]
+    [InlineData(MigrationCommand.ValidateHash, MigrationRunMode.Migrate,  false, false, false)]
     public void GetProfile_MatchesSideEffectMatrix(
-        MigrationCommand command, MigrationRunMode runMode, bool fixDryRun,
+        MigrationCommand command, MigrationRunMode runMode,
         bool connectsToTargets, bool writesRepository, bool writesDatabaseLog)
     {
-        var profile = MigrationCommandExtensions.GetProfile(command, runMode, fixDryRun);
+        var profile = MigrationCommandExtensions.GetProfile(command, runMode);
 
         profile.Should().Be(new CommandProfile(connectsToTargets, writesRepository, writesDatabaseLog),
-            $"the side effects of '{command}' in '{runMode}' mode{(fixDryRun ? " (dry run)" : "")} are part of the product contract");
+            $"the side effects of '{command}' in '{runMode}' mode are part of the product contract");
     }
 
     [Theory]
@@ -42,10 +42,9 @@ public class CommandProfileTests
     [InlineData(MigrationCommand.ValidateHash)]
     [InlineData(MigrationCommand.UpdateHash)]
     [InlineData(MigrationCommand.Baseline)]
-    [InlineData(MigrationCommand.FixIssues)]
     public void NonMigrateCommand_IgnoresRunMode(MigrationCommand command)
     {
-        // --run-mode is a migrate-up/migrate-down concept. Whatever run mode a non-migrate command carries,
+        // --run-mode is a migrate-up/migrate-down/fix concept. Whatever run mode another command carries,
         // its profile stays the same, so no hidden run mode can steer its side effects any more.
         var migrate = MigrationCommandExtensions.GetProfile(command, MigrationRunMode.Migrate);
         var simulate = MigrationCommandExtensions.GetProfile(command, MigrationRunMode.Simulate);
@@ -75,6 +74,16 @@ public class CommandProfileTests
     }
 
     [Theory]
+    [InlineData(MigrationCommand.FixIssues, MigrationRunMode.Undefined)]
+    [InlineData(MigrationCommand.FixIssues, MigrationRunMode.Validate)]
+    public void GetProfile_ForFixWithUnsupportedRunMode_Throws(MigrationCommand command, MigrationRunMode runMode)
+    {
+        // fix repairs (Migrate) or lists (Simulate); Validate has no meaning for it and Undefined is the sentinel (#22).
+        var act = () => MigrationCommandExtensions.GetProfile(command, runMode);
+        act.Should().Throw<ConfigurationValidationException>().WithMessage("*Choose migrate or simulate*");
+    }
+
+    [Theory]
     [InlineData(MigrationCommand.MigrateUp)]
     [InlineData(MigrationCommand.MigrateDown)]
     public void GetProfile_ForMigrateCommandWithUndefinedRunMode_Throws(MigrationCommand command)
@@ -87,13 +96,13 @@ public class CommandProfileTests
     }
 
     [Fact]
-    public void GetProfile_FromConsoleOptions_UsesCommandRunModeAndDryRun()
+    public void GetProfile_FromConsoleOptions_UsesCommandAndRunMode()
     {
-        var fix = ProfileTestContext.CreateConsoleOptions(MigrationCommand.FixIssues, MigrationRunMode.Migrate, fixDryRun: true);
+        var fix = ProfileTestContext.CreateConsoleOptions(MigrationCommand.FixIssues, MigrationRunMode.Simulate);
         var simulate = ProfileTestContext.CreateConsoleOptions(MigrationCommand.MigrateUp, MigrationRunMode.Simulate);
         var info = ProfileTestContext.CreateConsoleOptions(MigrationCommand.Info, MigrationRunMode.Migrate);
 
-        fix.GetProfile().Should().Be(MigrationCommandExtensions.GetProfile(MigrationCommand.FixIssues, MigrationRunMode.Migrate, fixDryRun: true));
+        fix.GetProfile().Should().Be(MigrationCommandExtensions.GetProfile(MigrationCommand.FixIssues, MigrationRunMode.Simulate));
         simulate.GetProfile().Should().Be(MigrationCommandExtensions.GetProfile(MigrationCommand.MigrateUp, MigrationRunMode.Simulate));
         info.GetProfile().Should().Be(MigrationCommandExtensions.GetProfile(MigrationCommand.Info, MigrationRunMode.Migrate));
     }

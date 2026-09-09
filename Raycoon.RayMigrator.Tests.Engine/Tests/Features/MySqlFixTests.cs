@@ -59,10 +59,10 @@ public class MySqlFixTests : MySqlTestBase
     }
 
     /// <summary>
-    /// F3: Fix with DryRun should detect but not modify the orphaned run.
+    /// F3: fix --run-mode simulate detects but does not modify the orphaned run (#22).
     /// </summary>
     [Fact]
-    public async Task Fix_DryRun_DoesNotModifyRepository()
+    public async Task Fix_Simulate_DoesNotModifyRepository()
     {
         Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
 
@@ -74,12 +74,12 @@ public class MySqlFixTests : MySqlTestBase
 
         ctx.InsertOrphanedMigrationRun(120);
 
-        await ctx.RebuildForAsync(MigrationCommand.FixIssues, MigrationRunMode.Migrate);
-        var result = await ctx.FixIssuesAsync(dryRun: true, olderThanMinutes: 0);
+        await ctx.RebuildForAsync(MigrationCommand.FixIssues, MigrationRunMode.Simulate);
+        var result = await ctx.FixIssuesAsync(olderThanMinutes: 0);
 
         result.OrphanedRunsFound.Should().Be(1);
         result.OrphanedRunsFixed.Should().Be(0);
-        result.WasDryRun.Should().BeTrue();
+        result.WasSimulated.Should().BeTrue();
 
         // Verify orphan still exists: run count should be 2 (1 completed + 1 orphaned)
         ctx.CountMigrationRuns().Should().Be(2);

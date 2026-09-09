@@ -591,7 +591,7 @@ The `Repository_Product_CheckInsert` template rejects a `NULL`/empty `Name` para
 3. **Cleanup** via `fix` command:
    ```bash
    # Preview what would be fixed (no changes applied)
-   raymigrator fix -p MyProduct -env Production --scope orphanedruns --dry-run
+   raymigrator fix -p MyProduct -env Production --scope orphanedruns --run-mode simulate
 
    # Fix orphaned runs (default: only runs older than 60 minutes)
    raymigrator fix -p MyProduct -env Production --scope orphanedruns

@@ -105,7 +105,7 @@ internal static class ProfileTestContext
         return options;
     }
 
-    public static RayMigratorConsoleOptions CreateConsoleOptions(MigrationCommand command, MigrationRunMode runMode, bool? fixDryRun = null)
+    public static RayMigratorConsoleOptions CreateConsoleOptions(MigrationCommand command, MigrationRunMode runMode)
         => new()
         {
             Command = command,
@@ -113,10 +113,9 @@ internal static class ProfileTestContext
             Environment = "Docker",
             RunMode = runMode,
             ShowStartupInfo = false,
-            RevealSensitiveData = false,
-            FixDryRun = fixDryRun
+            RevealSensitiveData = false
         };
 
-    public static MigrationContext CreateContext(MigrationCommand command, MigrationRunMode runMode, string targetConnectionString, bool? fixDryRun = null)
-        => new(CreateOptions(targetConnectionString), CreateConsoleOptions(command, runMode, fixDryRun), "0.0.0-test");
+    public static MigrationContext CreateContext(MigrationCommand command, MigrationRunMode runMode, string targetConnectionString)
+        => new(CreateOptions(targetConnectionString), CreateConsoleOptions(command, runMode), "0.0.0-test");
 }

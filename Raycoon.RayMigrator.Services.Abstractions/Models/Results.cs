@@ -164,7 +164,8 @@ public class FixIssuesResult : OperationResult
 {
     public string ProductAlias { get; set; } = string.Empty;
     public string Environment { get; set; } = string.Empty;
-    public bool WasDryRun { get; set; }
+    /// <summary>True when the fix ran in Simulate mode: the orphaned runs were listed but not repaired (#22).</summary>
+    public bool WasSimulated { get; set; }
 
     /// <summary>
     /// The repairs the requested scope expanded to, in execution order (<c>All</c> lists every known repair) (#16).

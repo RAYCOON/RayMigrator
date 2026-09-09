@@ -139,17 +139,17 @@ public class SqliteCommandProfileTests : SqliteTestBase
     }
 
     [Fact]
-    public async Task FixDryRun_WithDatabaseLogging_WritesNoLogRows()
+    public async Task FixSimulate_WithDatabaseLogging_WritesNoLogRows()
     {
         await using var ctx = await CreateScenario()
             .WithSerilogMinimumLevel("Information")
             .WithDatabaseLogging("Information")
-            .BuildAsync(MigrationCommand.FixIssues, MigrationRunMode.Migrate, fixDryRun: true);
+            .BuildAsync(MigrationCommand.FixIssues, MigrationRunMode.Simulate);
 
-        var result = await ctx.FixIssuesAsync(dryRun: true);
+        var result = await ctx.FixIssuesAsync();
 
         result.Success.Should().BeTrue(result.ErrorMessage);
-        FlushedLogRows(ctx).Should().Be(0, "fix --dry-run changes nothing and leaves no audit trail");
+        FlushedLogRows(ctx).Should().Be(0, "fix --run-mode simulate changes nothing and leaves no audit trail");
     }
 
     [Fact]

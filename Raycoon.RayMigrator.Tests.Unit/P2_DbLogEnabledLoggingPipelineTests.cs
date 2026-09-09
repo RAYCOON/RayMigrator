@@ -21,26 +21,26 @@ public class DbLogEnabledLoggingPipelineTests : IDisposable
     }
 
     [Theory]
-    [InlineData(MigrationCommand.Info, MigrationRunMode.Migrate, false, false)]
-    [InlineData(MigrationCommand.ValidateHash, MigrationRunMode.Migrate, false, false)]
-    [InlineData(MigrationCommand.FixIssues, MigrationRunMode.Migrate, true, false)]
-    [InlineData(MigrationCommand.MigrateUp, MigrationRunMode.Simulate, false, false)]
-    [InlineData(MigrationCommand.MigrateUp, MigrationRunMode.Validate, false, false)]
-    [InlineData(MigrationCommand.UpdateHash, MigrationRunMode.Migrate, false, true)]
-    [InlineData(MigrationCommand.Baseline, MigrationRunMode.Migrate, false, true)]
-    [InlineData(MigrationCommand.FixIssues, MigrationRunMode.Migrate, false, true)]
-    [InlineData(MigrationCommand.MigrateUp, MigrationRunMode.Migrate, false, true)]
-    [InlineData(MigrationCommand.MigrateDown, MigrationRunMode.Migrate, false, true)]
-    public void Enricher_EmitsDbLogEnabled_FromCommandProfile(MigrationCommand command, MigrationRunMode runMode, bool fixDryRun, bool expected)
+    [InlineData(MigrationCommand.Info, MigrationRunMode.Migrate, false)]
+    [InlineData(MigrationCommand.ValidateHash, MigrationRunMode.Migrate, false)]
+    [InlineData(MigrationCommand.FixIssues, MigrationRunMode.Simulate, false)]
+    [InlineData(MigrationCommand.MigrateUp, MigrationRunMode.Simulate, false)]
+    [InlineData(MigrationCommand.MigrateUp, MigrationRunMode.Validate, false)]
+    [InlineData(MigrationCommand.UpdateHash, MigrationRunMode.Migrate, true)]
+    [InlineData(MigrationCommand.Baseline, MigrationRunMode.Migrate, true)]
+    [InlineData(MigrationCommand.FixIssues, MigrationRunMode.Migrate, true)]
+    [InlineData(MigrationCommand.MigrateUp, MigrationRunMode.Migrate, true)]
+    [InlineData(MigrationCommand.MigrateDown, MigrationRunMode.Migrate, true)]
+    public void Enricher_EmitsDbLogEnabled_FromCommandProfile(MigrationCommand command, MigrationRunMode runMode, bool expected)
     {
-        MigrationLoggingContext.Current = ProfileTestContext.CreateContext(command, runMode, "Data Source=:memory:", fixDryRun);
+        MigrationLoggingContext.Current = ProfileTestContext.CreateContext(command, runMode, "Data Source=:memory:");
         var logEvent = CreateLogEvent();
 
         new MigrationContextEnricher().Enrich(logEvent, new TestPropertyFactory());
 
         logEvent.Properties.Should().ContainKey("DbLogEnabled");
         (logEvent.Properties["DbLogEnabled"] as ScalarValue)!.Value.Should().Be(expected,
-            $"'{command}' in '{runMode}' mode{(fixDryRun ? " (dry run)" : "")} {(expected ? "must" : "must not")} leave an audit trail");
+            $"'{command}' in '{runMode}' mode {(expected ? "must" : "must not")} leave an audit trail");
     }
 
     [Fact]

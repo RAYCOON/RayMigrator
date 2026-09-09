@@ -680,7 +680,7 @@ If a previous migration was interrupted (e.g., process crash), the migration run
 
 ```bash
 # Dry run — see what would be fixed
-raymigrator fix --product MyProduct --environment Production --scope orphanedruns --dry-run
+raymigrator fix --product MyProduct --environment Production --scope orphanedruns --run-mode simulate
 
 # Fix orphaned runs older than 60 minutes (default)
 raymigrator fix --product MyProduct --environment Production --scope orphanedruns

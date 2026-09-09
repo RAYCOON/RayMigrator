@@ -78,7 +78,11 @@ public class FixIssuesRequest
     public string Environment { get; set; } = string.Empty;
     public FixScope Scope { get; set; } = FixScope.OrphanedRuns;
     public int OlderThanMinutes { get; set; } = 60;
-    public bool DryRun { get; set; } = false;
+    /// <summary>
+    /// Migrate repairs the orphaned runs, Simulate only lists them and writes nothing. Must equal the run mode the
+    /// <c>MigrationContext</c> was built with (#17, #22).
+    /// </summary>
+    public MigrationRunMode RunMode { get; set; } = MigrationRunMode.Migrate;
     public MigrationStatus AssumedMigrationStatus { get; set; } = MigrationStatus.NotMigrated;
     public bool ShowInfo { get; set; } = true;
     public bool RevealSensitiveData { get; set; } = false;

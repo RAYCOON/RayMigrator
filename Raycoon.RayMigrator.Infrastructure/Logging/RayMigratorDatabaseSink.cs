@@ -46,7 +46,7 @@ public class RayMigratorDatabaseSink : ILogEventSink, IDisposable
 
         // Only write to database when the command's profile says so (DbLogEnabled, emitted by
         // MigrationContextEnricher from CommandProfile.WritesDatabaseLog): migrate-up/-down in Migrate mode,
-        // update-hash, baseline and fix - not info, validate-hash, simulate/validate runs or fix --dry-run (#6).
+        // update-hash, baseline and fix - not info, validate-hash, simulate/validate runs or fix --run-mode simulate (#6, #22).
         // Early pipeline logs without the property (null) pass through - they are
         // emitted before the context is known and carry infrastructure context only.
         var dbLogEnabled = GetBoolProperty(logEvent, "DbLogEnabled");

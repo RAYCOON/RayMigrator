@@ -12,7 +12,7 @@ Which options are available for each command. **R** = Required, **O** = Optional
 |--------|:----------:|:------------:|:-------------:|:-----------:|:----:|:--------:|:---:|
 | `--product` | R | R | R | R | R | R | R |
 | `--environment` | R | R | R | R | R | R | R |
-| `--run-mode` | O | O | — | — | — | — | — |
+| `--run-mode` | O | O | — | — | — | — | O |
 | `--to-release` | O | R | — | — | — | O | — |
 | `--target-group` | O | O | O | O | — | O | — |
 | `--allow-out-of-order` | O | — | — | — | — | — | — |
@@ -20,7 +20,6 @@ Which options are available for each command. **R** = Required, **O** = Optional
 | `--target-group-migration-order` | O | — | — | — | — | O | — |
 | `--scope` | — | — | O | — | — | — | O |
 | `--older-than` | — | — | — | — | — | — | O |
-| `--dry-run` | — | — | — | — | — | — | O |
 | `--last-migration-status` | — | — | — | — | — | — | O |
 | `--config-dir` | O | O | O | O | O | O | O |
 | `--startup-info` | O | O | O | O | O | O | O |
@@ -377,7 +376,7 @@ Fix repository inconsistencies such as orphaned migration runs (process crashed 
 ### Synopsis
 
 ```bash
-raymigrator fix --product <alias> --environment <env> [--scope <scope>] [--older-than <minutes>] [--dry-run] [--last-migration-status <status>] [global-options]
+raymigrator fix --product <alias> --environment <env> [--scope <scope>] [--older-than <minutes>] [--run-mode <mode>] [--last-migration-status <status>] [global-options]
 ```
 
 ### Options
@@ -388,7 +387,7 @@ raymigrator fix --product <alias> --environment <env> [--scope <scope>] [--older
 | `--environment` | `-env` | `string` | Yes | — | Any environment name |
 | `--scope` | `-s` | `string` | No | `"OrphanedRuns"` | `OrphanedRuns`, `All` |
 | `--older-than` | `-ot` | `int` | No | `60` | Minutes threshold for orphan detection |
-| `--dry-run` | — | `bool` | No | `false` | `true`, `false` |
+| `--run-mode` | `-rm` | `string` | No | `"migrate"` | `migrate`, `simulate` |
 | `--last-migration-status` | `-lms` | `string` | No | `"not-migrated"` | `migrated`, `not-migrated` |
 
 ### Option Details
@@ -397,7 +396,7 @@ raymigrator fix --product <alias> --environment <env> [--scope <scope>] [--older
 
 **--older-than**: Minimum age in minutes for a MigrationRun to be considered orphaned. Default is 60 minutes.
 
-**--dry-run**: When `true`, reports what would be fixed without making changes.
+**--run-mode**: `migrate` repairs the orphaned runs; `simulate` lists the runs that would be repaired, writes nothing and leaves no DatabaseLogging rows. `validate` is rejected for `fix` (#22).
 
 **--last-migration-status**: Determines the `MigrationStatus` to assign to orphaned Migration records during fix. `"not-migrated"` maps to `MigrationStatus.NotMigrated`, `"migrated"` maps to `MigrationStatus.Migrated`.
 
@@ -409,7 +408,7 @@ raymigrator fix --product <alias> --environment <env> [--scope <scope>] [--older
 | `--environment` | `Environment` | `Environment` |
 | `--scope` | `FixScope` | `Scope` |
 | `--older-than` | `FixOlderThanMinutes` | `OlderThanMinutes` |
-| `--dry-run` | `FixDryRun` | `DryRun` |
+| `--run-mode` | `RunMode` | `RunMode` |
 | `--last-migration-status` | `FixAssumedMigrationStatus` | `AssumedMigrationStatus` |
 | `--startup-info` | `ShowStartupInfo` | `ShowInfo` |
 | `--reveal-sensitive-data` | `RevealSensitiveData` | `RevealSensitiveData` |
@@ -418,9 +417,9 @@ raymigrator fix --product <alias> --environment <env> [--scope <scope>] [--older
 
 ### Internal State
 
-`Command` is set to `MigrationCommand.FixIssues`. `RunMode` is set to `MigrationRunMode.Migrate`. `TargetReleaseVersion` is set to `null`. `HashValidationScope` is set to `null`.
+`Command` is set to `MigrationCommand.FixIssues`. `RunMode` is `MigrationRunMode.Migrate` unless `--run-mode simulate` is given. `TargetReleaseVersion` is set to `null`. `HashValidationScope` is set to `null`.
 
-**Side effects:** repository read/write, no target connections, DatabaseLogging rows are written. With `--dry-run` the command is read-only and writes no DatabaseLogging rows.
+**Side effects:** repository read/write, no target connections, DatabaseLogging rows are written. With `--run-mode simulate` the command is read-only and writes no DatabaseLogging rows.
 
 ### Examples
 
@@ -431,8 +430,8 @@ raymigrator fix --product MyProduct --environment Production
 # Fix all repository issues
 raymigrator fix -p MyProduct -env Prod -s all
 
-# Dry run to see what would be fixed
-raymigrator fix -p MyProduct -env Prod --dry-run true
+# Simulate to see what would be fixed
+raymigrator fix -p MyProduct -env Prod --run-mode simulate
 
 # Fix with custom age threshold and migration status
 raymigrator fix -p MyProduct -env Prod -ot 120 -lms migrated

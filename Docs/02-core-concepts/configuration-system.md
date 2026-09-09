@@ -35,7 +35,6 @@ Configuration files are loaded and merged in priority order (later overrides ear
 - `AllowOutOfOrder` (`bool?`): Allow out-of-order migration execution via `--allow-out-of-order` / `-ooo`
 - `FixScope` (`FixScope?`): Fix command scope (OrphanedRuns, All = every known repair) via `--scope` / `-s` (default: OrphanedRuns)
 - `FixOlderThanMinutes` (`int?`): Fix command age threshold via `--older-than` / `-ot` (default: 60)
-- `FixDryRun` (`bool?`): Fix command dry-run mode via `--dry-run`
 - `FixAssumedMigrationStatus` (`MigrationStatus?`): Fix command status for orphaned migrations via `--last-migration-status` / `-lms`
 - `StopRollbackOnMissingRollbackFile` (`bool?`): CLI override for the `StopRollbackOnMissingRollbackFile` configuration option via `--stop-rollback-on-missing-rollback-file` / `-sromrf` (default: null — defers to configuration)
 - `ConfigDir` (`string?`): Override directory where RayMigrator searches for configuration files (`appsettings.json` hierarchy) via `--config-dir` / `-cd` (default: current working directory; always resolved to an absolute path at parse time)

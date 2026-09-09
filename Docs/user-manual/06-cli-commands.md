@@ -155,14 +155,14 @@ Database access: repository only, writes MigrationRun/MigrationRecord rows stamp
 Clean up orphaned migration runs and fix inconsistencies in the repository.
 
 ```bash
-raymigrator fix -p BookStore -env Production --dry-run
+raymigrator fix -p BookStore -env Production --run-mode simulate
 ```
 
-Key options: `--scope` (OrphanedRuns/All), `--older-than`, `--dry-run`, `--last-migration-status`. See [Fix Reference](../08-cli-reference/command-reference.md#fix) for the full option table.
+Key options: `--scope` (orphanedruns/all), `--older-than`, `--run-mode` (migrate/simulate), `--last-migration-status`. See [Fix Reference](../08-cli-reference/command-reference.md#fix) for the full option table.
 
-Database access: repository only (target databases do not have to be reachable); `--dry-run` is read-only. Audit log (DatabaseLogging): yes, but not with `--dry-run`.
+Database access: repository only (target databases do not have to be reachable); `--run-mode simulate` is read-only. Audit log (DatabaseLogging): yes, but not in simulate mode.
 
-> **Tip:** Always use `--dry-run` first to preview what Fix would change.
+> **Tip:** Always use `--run-mode simulate` first to preview what Fix would change.
 
 ---
 

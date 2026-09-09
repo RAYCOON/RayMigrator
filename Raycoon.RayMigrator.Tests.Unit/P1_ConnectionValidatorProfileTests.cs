@@ -67,22 +67,22 @@ public class ConnectionValidatorProfileTests
     }
 
     [Theory]
-    [InlineData(MigrationCommand.Info, MigrationRunMode.Migrate, false, false)]
-    [InlineData(MigrationCommand.ValidateHash, MigrationRunMode.Migrate, false, false)]
-    [InlineData(MigrationCommand.FixIssues, MigrationRunMode.Migrate, true, false)]
-    [InlineData(MigrationCommand.MigrateUp, MigrationRunMode.Simulate, false, false)]
-    [InlineData(MigrationCommand.MigrateUp, MigrationRunMode.Validate, false, false)]
-    [InlineData(MigrationCommand.UpdateHash, MigrationRunMode.Migrate, false, true)]
-    [InlineData(MigrationCommand.Baseline, MigrationRunMode.Migrate, false, true)]
-    [InlineData(MigrationCommand.FixIssues, MigrationRunMode.Migrate, false, true)]
-    [InlineData(MigrationCommand.MigrateUp, MigrationRunMode.Migrate, false, true)]
-    [InlineData(MigrationCommand.MigrateDown, MigrationRunMode.Migrate, false, true)]
+    [InlineData(MigrationCommand.Info, MigrationRunMode.Migrate, false)]
+    [InlineData(MigrationCommand.ValidateHash, MigrationRunMode.Migrate, false)]
+    [InlineData(MigrationCommand.FixIssues, MigrationRunMode.Simulate, false)]
+    [InlineData(MigrationCommand.MigrateUp, MigrationRunMode.Simulate, false)]
+    [InlineData(MigrationCommand.MigrateUp, MigrationRunMode.Validate, false)]
+    [InlineData(MigrationCommand.UpdateHash, MigrationRunMode.Migrate, true)]
+    [InlineData(MigrationCommand.Baseline, MigrationRunMode.Migrate, true)]
+    [InlineData(MigrationCommand.FixIssues, MigrationRunMode.Migrate, true)]
+    [InlineData(MigrationCommand.MigrateUp, MigrationRunMode.Migrate, true)]
+    [InlineData(MigrationCommand.MigrateDown, MigrationRunMode.Migrate, true)]
     public void ValidateDatabaseLoggerConnection_WithUnreachableLogDatabase_ThrowsOnlyWhenProfileLogs(
-        MigrationCommand command, MigrationRunMode runMode, bool fixDryRun, bool expectThrow)
+        MigrationCommand command, MigrationRunMode runMode, bool expectThrow)
     {
         string unreachable = ProfileTestContext.UnreachableSqliteConnectionString();
         var options = ProfileTestContext.CreateOptions("Data Source=:memory:", databaseLoggingConnectionString: unreachable);
-        var consoleOptions = ProfileTestContext.CreateConsoleOptions(command, runMode, fixDryRun);
+        var consoleOptions = ProfileTestContext.CreateConsoleOptions(command, runMode);
         DalFactory.TryGetDal("Sqlite", unreachable, out var dal).Should().BeTrue("the Sqlite DAL is referenced by the unit test project");
 
         var act = () => ConnectionValidator.ValidateDatabaseLoggerConnection(options, dal!, consoleOptions);
@@ -95,7 +95,7 @@ public class ConnectionValidatorProfileTests
         }
         else
         {
-            act.Should().NotThrow($"'{command}' in '{runMode}' mode{(fixDryRun ? " (dry run)" : "")} writes no database-log rows");
+            act.Should().NotThrow($"'{command}' in '{runMode}' mode writes no database-log rows");
         }
     }
 }

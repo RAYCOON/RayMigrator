@@ -773,7 +773,7 @@ raymigrator fix -p BookStore -env Production
 raymigrator fix -p BookStore -env Production --older-than 0
 
 # Preview what would be fixed without applying changes
-raymigrator fix -p BookStore -env Production --dry-run
+raymigrator fix -p BookStore -env Production --run-mode simulate
 ```
 
 ### Options
@@ -782,7 +782,7 @@ raymigrator fix -p BookStore -env Production --dry-run
 |--------|-------|---------|-------------|
 | `--scope` | `-s` | `OrphanedRuns` | Fix scope: `OrphanedRuns` or `All` |
 | `--older-than` | `-ot` | `60` | Only fix runs older than N minutes (0 = immediate) |
-| `--dry-run` | - | `false` | Preview mode -- show what would be fixed without applying |
+| `--run-mode` | `-rm` | `migrate` | `simulate` shows what would be fixed without applying |
 | `--last-migration-status` | `-lms` | `not-migrated` | Status for orphaned migrations: `not-migrated` (re-execute next time) or `migrated` (skip next time) |
 
 ### When to Use
@@ -791,7 +791,7 @@ raymigrator fix -p BookStore -env Production --dry-run
 - **Stuck migrations**: A migration run appears hung and the process is no longer running
 - **CI/CD recovery**: A pipeline step was cancelled mid-migration
 
-> **Tip:** Always use `--dry-run` first to review what will be changed before applying the fix.
+> **Tip:** Always use `--run-mode simulate` first to review what will be changed before applying the fix.
 
 ---
 

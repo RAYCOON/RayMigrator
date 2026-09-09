@@ -81,7 +81,7 @@ These settings exist only as command-line arguments and control execution behavi
 |---------|-------|------|---------|----------|-------------|
 | `--product` | `-p` | string | *(required)* | migrate-up, migrate-down, validate-hash, update-hash, info, baseline, fix | Product alias to operate on |
 | `--environment` | `-env` | string | *(required)* | migrate-up, migrate-down, validate-hash, update-hash, info, baseline, fix | Target environment name |
-| `--run-mode` | `-rm` | string | `Migrate` | migrate-up, migrate-down | `Migrate`, `Simulate`, or `Validate` |
+| `--run-mode` | `-rm` | string | `Migrate` | migrate-up, migrate-down, fix | `Migrate`, `Simulate`, or `Validate` (fix: `Migrate` or `Simulate`) |
 | `--to-release` | `-tr` | string | `null` | migrate-up (opt), migrate-down (req), baseline (opt) | Target release version |
 | `--allow-out-of-order` | `-ooo` | bool | `false` | migrate-up | Allow out-of-order execution |
 | `--stop-rollback-on-missing-rollback-file` | `-sromrf` | bool? | `null` (uses config) | migrate-up | Override `StopRollbackOnMissingRollbackFile` for this run. Only applies to error-recovery rollback when `RequireRollbackFile=false`. |
@@ -90,7 +90,6 @@ These settings exist only as command-line arguments and control execution behavi
 | `--scope` | `-s` | string | *(none)* | validate-hash | Hash scope override: `File`, `SqlBlocks` (also accepts `SqlBlock`), or `Disabled`. If omitted, uses per-TargetGroup config. |
 | `--scope` | `-s` | string | `OrphanedRuns` | Fix | Fix scope: `OrphanedRuns` or `All` |
 | `--older-than` | `-ot` | int | `60` | Fix | Only fix runs older than N minutes (0 = immediate) |
-| `--dry-run` | - | bool | `false` | Fix | Show what would be fixed without applying changes |
 | `--last-migration-status` | `-lms` | string | `not-migrated` | Fix | Status for orphaned migrations: `migrated` or `not-migrated` |
 | `--startup-info` | `-si` | bool | `true` | Global | Show startup information |
 | `--reveal-sensitive-data` | `-rsd` | bool | `false` | Global | Include passwords in logs |

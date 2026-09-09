@@ -3382,7 +3382,7 @@ public class MigrationService : IMigrationService
     /// Phase 1 of every non-migrate command: makes sure the repository schema exists and resolves
     /// <c>MigrationState.ProductId</c> / <c>EnvironmentId</c>. Commands whose <see cref="CommandProfile"/> writes the
     /// repository register product and environment (<c>*_CheckInsert</c>); read-only commands (info, validate-hash,
-    /// fix --dry-run) only look them up, so a read-only command on a fresh repository leaves no rows behind (#6).
+    /// fix --run-mode simulate) only look them up, so a read-only command on a fresh repository leaves no rows behind (#6).
     /// <c>RepositoryCheckCreate</c> stays unconditional: it is idempotent and the read paths need the tables.
     /// </summary>
     /// <returns>
@@ -4980,6 +4980,11 @@ public class MigrationService : IMigrationService
             // default repair. All expands to every known repair (#16).
             var repairs = RepairsFor(request.Scope);
 
+            // Simulate lists the orphaned runs without repairing them; the context must have been built for the
+            // same run mode because the CommandProfile (no repository writes, no database log) reads it from there (#22).
+            EnsureRequestRunModeMatchesContext(request.RunMode);
+            bool simulate = request.RunMode == MigrationRunMode.Simulate;
+
             // --- Phase 1: Repository initialization ---
             bool repositoryHasProduct = await InitializeRepositoryAsync();
 
@@ -5022,9 +5027,9 @@ public class MigrationService : IMigrationService
                     run.MigrationRunId, run.StartedAt, run.MinutesRunning, run.MigrationRunModeId);
             }
 
-            // --- Phase 5: Fix if not DryRun ---
+            // --- Phase 5: Fix unless simulating ---
             int fixedCount = 0;
-            if (!request.DryRun)
+            if (!simulate)
             {
                 foreach (var run in filteredRuns)
                 {
@@ -5052,7 +5057,7 @@ public class MigrationService : IMigrationService
             }
             else
             {
-                _logger.LogInformation("Dry-run mode: no changes applied");
+                _logger.LogInformation("Simulate mode: no changes applied");
             }
 
             // --- Phase 6: Build result ---
@@ -5061,7 +5066,7 @@ public class MigrationService : IMigrationService
                 Success = true,
                 ProductAlias = request.ProductAlias,
                 Environment = request.Environment,
-                WasDryRun = request.DryRun,
+                WasSimulated = simulate,
                 Repairs = repairs.ToList(),
                 OrphanedRunsFound = filteredRuns.Count,
                 OrphanedRunsFixed = fixedCount,
@@ -5070,8 +5075,8 @@ public class MigrationService : IMigrationService
                 Messages = new List<string>
                 {
                     $"Scope {request.Scope}: {string.Join(", ", repairs)}",
-                    request.DryRun
-                        ? $"Dry-run: found {filteredRuns.Count} orphaned run(s) to fix"
+                    simulate
+                        ? $"Simulate: found {filteredRuns.Count} orphaned run(s) to fix"
                         : $"Fixed {fixedCount} orphaned run(s)"
                 }
             };
