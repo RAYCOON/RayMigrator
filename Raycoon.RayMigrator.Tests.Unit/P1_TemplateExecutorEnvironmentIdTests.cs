@@ -418,7 +418,7 @@ public class TemplateExecutorEnvironmentIdTests
 
     #endregion
 
-    #region RepositoryMigrationSelect — config hash normalisation (#9)
+    #region RepositoryMigrationSelect — config hash of TOML-less files (#9)
 
     private static Dictionary<string, object?> RecordRow(object? fileUpConfigHash, object? fileDownConfigHash) => new()
     {
@@ -432,14 +432,12 @@ public class TemplateExecutorEnvironmentIdTests
         ["FileDownBlocksMigrated"] = null, ["FileDownBlocksTotal"] = null
     };
 
-    [Theory]
-    [InlineData("")]
-    [InlineData(null)]
-    public void RepositoryMigrationSelect_EmptyOrNullConfigHash_IsReadAsNull(string? stored)
+    [Fact]
+    public void RepositoryMigrationSelect_NullConfigHash_IsReadAsNull()
     {
-        // The insert templates store a missing TOML block as ""; a freshly parsed file without TOML has null.
-        // Reading "" back as null keeps repository and file comparable (#9).
-        var (executor, _, _) = CreateExecutor(readerRows: new List<Dictionary<string, object?>> { RecordRow(stored, stored) });
+        // A file without a TOML block has a null config hash; the insert templates store NULL, so the
+        // repository value and a freshly parsed file compare equal without any normalisation (#9).
+        var (executor, _, _) = CreateExecutor(readerRows: new List<Dictionary<string, object?>> { RecordRow(null, null) });
 
         var records = executor.RepositoryMigrationSelect();
 

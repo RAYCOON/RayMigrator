@@ -6,7 +6,7 @@ RayMigrator SQL Template
 TemplateType   = "DatabaseLogging_CheckCreate"
 DatabaseType   = "SqlServer"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-04-18.1"
+Version        = "2026-09-09.1"
 
 [Description]
 Function = """
@@ -126,55 +126,7 @@ BEGIN TRY
 		END
 		ELSE
 		BEGIN
-
-			-- Master data added or renamed after the initial release (idempotent upgrade of existing log databases, #12).
-			-- The catalogue must match MigrationEvent.cs; MigrationLog.MigrationEventId has no FK so nothing else changes.
-			BEGIN TRANSACTION;
-
-				INSERT INTO [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationEvent] ([Id], [Name], [Description])
-				SELECT v.[Id], v.[Name], N''
-				FROM (VALUES
-					(0, 'UnspecifiedEvent'),
-					(10, 'CommandLineParsing'),
-					(20, 'EnvironmentVariableReplacement'),
-					(31, 'CreateDatabaseLogger'),
-					(40, 'ValidateRayMigratorOptions'),
-					(50, 'CreateApplicationHost'),
-					(60, 'InitializeDalSpecificProperties'),
-					(70, 'ValidateConnectionStrings'),
-					(80, 'RayMigratorServiceStart'),
-					(100, 'TemplateExecutionRepositoryCheckCreate'),
-					(110, 'TemplateExecutionRepositoryMigrationRunInsert'),
-					(111, 'TemplateExecutionRepositoryMigrationRunUpdate'),
-					(112, 'TemplateExecutionRepositoryMigrationRunSelectOrphaned'),
-					(113, 'TemplateExecutionRepositoryMigrationRunFixOrphaned'),
-					(114, 'TemplateExecutionRepositoryMigrationFixOrphaned'),
-					(120, 'TemplateExecutionRepositoryProductCheckInsert'),
-					(121, 'TemplateExecutionRepositoryEnvironmentCheckInsert'),
-					(122, 'TemplateExecutionRepositoryProductSelect'),
-					(123, 'TemplateExecutionRepositoryEnvironmentSelect'),
-					(130, 'TemplateExecutionRepositoryMigrationInsert'),
-					(131, 'TemplateExecutionRepositoryMigrationUpdate'),
-					(132, 'TemplateExecutionRepositoryMigrationGetInterrupted'),
-					(133, 'TemplateExecutionRepositoryMigrationUpdateRollback'),
-					(134, 'TemplateExecutionRepositoryMigrationSelect'),
-					(135, 'TemplateExecutionRepositoryMigrationUpdateHash'),
-					(136, 'TemplateExecutionRepositoryMigrationRunSelect'),
-					(137, 'TemplateExecutionRepositoryMigrationRecordHistorySelect'),
-					(1000, 'RayMigratorServiceShutdown')
-				) AS v ([Id], [Name])
-				WHERE NOT EXISTS (SELECT 1 FROM [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationEvent] e WHERE e.[Id] = v.[Id]);
-
-				UPDATE [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationEvent]
-				SET [Name] = 'TemplateExecutionRepositoryCheckCreate'
-				WHERE [Id] = 100 AND [Name] = 'CreateAndStartRayMigratorService';
-
-				DELETE FROM [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationEvent]
-				WHERE [Id] = 32 AND [Name] = 'CreateCompositeLogger';
-
-			COMMIT TRANSACTION;
-
-		    SELECT '0,Database logging infrastructure already exists';
+			SELECT '0,Database logging infrastructure already exists';
 			RETURN;
 
 		END;

@@ -6,7 +6,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_CheckCreate"
 DatabaseType   = "Sqlite"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-04-18.1"
+Version        = "2026-09-09.1"
 
 [Description]
 Function = """
@@ -44,7 +44,7 @@ Note2 = "No commas allowed in error messages"
 Note3 = "Use datetime('now') for all timestamps"
 Note4 = "RepositoryVersion constant MUST match Version in header"
 Note5 = "SQLite DDL is transactional - but we use IF NOT EXISTS for idempotency"
-Note6 = "Uses INSERT OR IGNORE for idempotent master data"
+Note6 = "Master data is inserted only when the repository is created in this run (gated on _rc_state.pre_version_table = 0)"
 Note7 = "Tables must be created in FK dependency order"
 Note8 = "ResultCode catalog: see TemplateResultCode.cs in Shared project"
 Note9 = "Uses temp table _rc_state to store intermediate state since SQLite has no session variables"
@@ -66,7 +66,7 @@ CREATE TEMP TABLE IF NOT EXISTS "_rc_state" ("key" TEXT PRIMARY KEY, "val" TEXT)
 DELETE FROM "_rc_state";
 
 INSERT OR REPLACE INTO "_rc_state" ("key", "val") VALUES
-    ('repository_version', '2026-04-18.1'),
+    ('repository_version', '2026-09-09.1'),
     ('pre_table_count', CAST((SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN (
         '{CFG:TableBaseName}MigratorMeta',
         '{CFG:TableBaseName}Product',
@@ -240,31 +240,44 @@ CREATE TABLE IF NOT EXISTS "{CFG:TableBaseName}MigrationRecordHistory" (
 
 CREATE INDEX IF NOT EXISTS "ix_{CFG:TableBaseName}MigrationRecordHistory" ON "{CFG:TableBaseName}MigrationRecordHistory" ("MigrationRecordId");
 
--- Master data (INSERT OR IGNORE is idempotent)
-INSERT OR IGNORE INTO "{CFG:TableBaseName}MigrationRunMode" ("Id", "Name", "Description") VALUES
+-- Master data: written only when the repository did not exist before this run. The lookup content is part of
+-- the RepositoryVersion; a change to it bumps the version, existing repositories are not upgraded in place.
+INSERT INTO "{CFG:TableBaseName}MigrationRunMode" ("Id", "Name", "Description")
+SELECT "column1", "column2", "column3" FROM (VALUES
     (10, 'Validate', 'Validates configuration and all migration files. Does NOT perform actual migration against target databases.'),
     (20, 'Simulate', 'Validates configuration and all migration files. Simulates the entire migration process. Does NOT perform actual migrations against target databases.'),
-    (100, 'Migrate', 'Validates configuration and all migration files. Performs actual migrations against target databases.');
+    (100, 'Migrate', 'Validates configuration and all migration files. Performs actual migrations against target databases.')
+)
+WHERE (SELECT "val" FROM "_rc_state" WHERE "key"='pre_version_table') = '0';
 
-INSERT OR IGNORE INTO "{CFG:TableBaseName}MigrationOperation" ("Id", "Name", "Description") VALUES
+INSERT INTO "{CFG:TableBaseName}MigrationOperation" ("Id", "Name", "Description")
+SELECT "column1", "column2", "column3" FROM (VALUES
     (5, 'Rollback', 'Performing Rollback of current MigrationRun'),
     (50, 'MigrateDown', 'Performing Down-Migration'),
     (100, 'MigrateUp', 'Performing Up-Migration'),
-    (110, 'Baseline', 'Marking migration files as migrated without executing them (baseline command)');
+    (110, 'Baseline', 'Marking migration files as migrated without executing them (baseline command)')
+)
+WHERE (SELECT "val" FROM "_rc_state" WHERE "key"='pre_version_table') = '0';
 
-INSERT OR IGNORE INTO "{CFG:TableBaseName}MigrationRunResult" ("Id", "Name", "Description") VALUES
+INSERT INTO "{CFG:TableBaseName}MigrationRunResult" ("Id", "Name", "Description")
+SELECT "column1", "column2", "column3" FROM (VALUES
     (10, 'Running', 'Migration process is currently running'),
     (50, 'PartialSuccess', 'Migration(s) finished but at least one file was skipped or left Failed'),
     (80, 'Recovered', 'Migration(s) failed and the configured error recovery rolled back cleanly'),
     (90, 'Error', 'Migration(s) stopped due to error(s)'),
-    (100, 'Ok', 'Migration(s) successfully executed');
+    (100, 'Ok', 'Migration(s) successfully executed')
+)
+WHERE (SELECT "val" FROM "_rc_state" WHERE "key"='pre_version_table') = '0';
 
-INSERT OR IGNORE INTO "{CFG:TableBaseName}MigrationStatus" ("Id", "Name", "Description") VALUES
+INSERT INTO "{CFG:TableBaseName}MigrationStatus" ("Id", "Name", "Description")
+SELECT "column1", "column2", "column3" FROM (VALUES
     (10, 'Pending', 'Record created, execution pending'),
     (20, 'Executing', 'SQL blocks are being executed'),
     (30, 'Failed', 'Execution failed, DB state unclear'),
     (50, 'NotMigrated', 'Not deployed / rolled back'),
-    (100, 'Migrated', 'Successfully deployed');
+    (100, 'Migrated', 'Successfully deployed')
+)
+WHERE (SELECT "val" FROM "_rc_state" WHERE "key"='pre_version_table') = '0';
 
 -- Version logic: Insert version if not exists
 INSERT INTO "{CFG:TableBaseName}MigratorMeta"

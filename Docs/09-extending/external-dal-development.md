@@ -234,7 +234,7 @@ The `Database.Example` project includes all 21 files as placeholders with TODO c
 |----------|---------|
 | `DatabaseLogging_CheckCreate.sql` | Create logging table if not exists |
 | `DatabaseLogging_Insert.sql` | Insert log entry |
-| `Repository_CheckCreate.sql` | Create all repository tables |
+| `Repository_CheckCreate.sql` | Create all repository tables and their lookup master data (only when the repository is created; the "already exists" branch must not upgrade anything) |
 | `Repository_Drop.sql` | Drop all repository tables and schema |
 | `Repository_Environment_CheckInsert.sql` | Insert environment if not exists, return EnvironmentId |
 | `Repository_MigrationRecord_FixOrphaned.sql` | Fix orphaned migration records |

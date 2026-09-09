@@ -6,7 +6,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_CheckCreate"
 DatabaseType   = "PostgreSQL"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-04-18.1"
+Version        = "2026-09-09.1"
 
 [Description]
 Function = """
@@ -52,7 +52,7 @@ Note7 = "DAL-017: All identifiers (tables, columns, constraints, indexes) use un
 
 DO $$
 DECLARE
-    v_repository_version VARCHAR(20) := '2026-04-18.1';
+    v_repository_version VARCHAR(20) := '2026-09-09.1';
     v_version_id INT;
     v_version_id_string VARCHAR(10);
     v_number_of_rows INT;
@@ -85,19 +85,6 @@ BEGIN
         IF v_number_of_tables_found != 11 THEN
             RAISE EXCEPTION '-10,RayMigrator repository incomplete or corrupt. Repository contains [%] tables instead of [11].', v_number_of_tables_found;
         END IF;
-
-        -- Master data added after the initial release (idempotent upgrade of existing repositories)
-        INSERT INTO {CFG:SchemaName}.{CFG:TableBaseName}migration_operation (id, name, description)
-        VALUES (110, 'Baseline', 'Marking migration files as migrated without executing them (baseline command)')
-        ON CONFLICT (id) DO NOTHING;
-
-        INSERT INTO {CFG:SchemaName}.{CFG:TableBaseName}migration_run_result (id, name, description)
-        VALUES (50, 'PartialSuccess', 'Migration(s) finished but at least one file was skipped or left Failed')
-        ON CONFLICT (id) DO NOTHING;
-
-        INSERT INTO {CFG:SchemaName}.{CFG:TableBaseName}migration_run_result (id, name, description)
-        VALUES (80, 'Recovered', 'Migration(s) failed and the configured error recovery rolled back cleanly')
-        ON CONFLICT (id) DO NOTHING;
 
         -- Try to get VersionId
         SELECT id INTO v_version_id

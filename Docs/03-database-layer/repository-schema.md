@@ -16,6 +16,8 @@ The repository database stores migration tracking data. This schema is created a
 >
 > **Breaking change (2026-04-17):** MySQL and MariaDB repositories — all 36 SQL templates converted from backtick-quoted PascalCase (`` `MigrationRecord` ``) to unquoted snake_case (`migration_record`). Final MySQL/MariaDB table and column names match PostgreSQL exactly, including the `RayMigrator` brand-token exception (`created_by_raymigrator_version`). `RepositoryVersion` bumped to `2026-04-17.3` for both engines. `RayMigratorOptionsValidator` now rejects any uppercase character in `TableBaseName` for MariaDB and MySQL (same rule as PostgreSQL). Existing MySQL/MariaDB repositories must be dropped and recreated (see DAL-018 in the audit log).
 >
+> **Breaking change (2026-09-09):** Lookup master data (`MigrationRunMode`, `MigrationOperation`, `MigrationRunResult`, `MigrationStatus`) is written only when the repository is created, on all 5 DALs. The idempotent upgrade blocks that back-filled rows added after the initial release (`Baseline`, `PartialSuccess`, `Recovered`) into existing SqlServer/PostgreSQL repositories were removed, and MySQL, MariaDB and SQLite no longer re-seed on every start. The lookup content is part of `RepositoryVersion`, bumped to `2026-09-09.1` on all engines. Existing repositories must be dropped and recreated.
+>
 > **Breaking change (2026-04-18):** The `Environment` text column was removed from `MigrationRun`, `MigrationRecord`, `MigrationRecordHistory`, and `MigrationLog` (all 5 DALs). It is replaced by an `EnvironmentId` INT FK column positioned immediately after `ProductId` in each table. The FK references the `Environment` lookup table and carries the constraint name `fk_MigrationRun_Environment`, `fk_MigrationRecord_Environment`, or `fk_MigrationRecordHistory_Environment` (SQL Server / SQLite PascalCase; PostgreSQL / MariaDB / MySQL use the snake_case equivalents `fk_migration_run_environment`, etc.). `MigrationLog` has the `EnvironmentId` column but carries no FK (consistent with the `ProductId` precedent in the logging schema). PostgreSQL creates an additional index `ix_{TableBaseName}migration_run_environment_id` and `ix_{TableBaseName}migration_record_environment_id` on the new FK columns. `RepositoryVersion` bumped on all 5 engines to trigger the `-12 Multiple MigratorMeta-entries` guard path. Existing repositories must be dropped and recreated.
 
 ## Entity Relationship Diagram
@@ -191,7 +193,7 @@ The `Repository_CheckCreate` template creates **11 tables** (4 lookup + 7 data).
 
 ### MigratorMeta
 
-Tracks repository versions for upgrade compatibility.
+Records which repository schema version (`RepositoryVersion`, a constant in `Repository_CheckCreate.sql` that covers the schema and the lookup master data) and which RayMigrator version created or last used the repository. The version is informational today: a new `RepositoryVersion` inserts a new row and the run continues. Existing repositories are never upgraded in place; a schema or master-data change means drop and recreate.
 
 | Column | Type | Description |
 |--------|------|-------------|

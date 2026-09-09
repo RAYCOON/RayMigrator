@@ -6,7 +6,7 @@ RayMigrator SQL Template
 TemplateType   = "DatabaseLogging_CheckCreate"
 DatabaseType   = "PostgreSQL"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-04-18.1"
+Version        = "2026-09-09.1"
 
 [Description]
 Function = """
@@ -54,47 +54,6 @@ BEGIN
         WHERE table_schema = '{CFG:SchemaName}'
           AND table_name = '{CFG:TableBaseName}migration_log'
     ) THEN
-        -- Master data added or renamed after the initial release (idempotent upgrade of existing log databases, #12).
-        -- The catalogue must match MigrationEvent.cs; migration_log.migration_event_id has no FK so nothing else changes.
-        INSERT INTO {CFG:SchemaName}.{CFG:TableBaseName}migration_event (id, name, description)
-        VALUES
-            (0, 'UnspecifiedEvent', ''),
-            (10, 'CommandLineParsing', ''),
-            (20, 'EnvironmentVariableReplacement', ''),
-            (31, 'CreateDatabaseLogger', ''),
-            (40, 'ValidateRayMigratorOptions', ''),
-            (50, 'CreateApplicationHost', ''),
-            (60, 'InitializeDalSpecificProperties', ''),
-            (70, 'ValidateConnectionStrings', ''),
-            (80, 'RayMigratorServiceStart', ''),
-            (100, 'TemplateExecutionRepositoryCheckCreate', ''),
-            (110, 'TemplateExecutionRepositoryMigrationRunInsert', ''),
-            (111, 'TemplateExecutionRepositoryMigrationRunUpdate', ''),
-            (112, 'TemplateExecutionRepositoryMigrationRunSelectOrphaned', ''),
-            (113, 'TemplateExecutionRepositoryMigrationRunFixOrphaned', ''),
-            (114, 'TemplateExecutionRepositoryMigrationFixOrphaned', ''),
-            (120, 'TemplateExecutionRepositoryProductCheckInsert', ''),
-            (121, 'TemplateExecutionRepositoryEnvironmentCheckInsert', ''),
-            (122, 'TemplateExecutionRepositoryProductSelect', ''),
-            (123, 'TemplateExecutionRepositoryEnvironmentSelect', ''),
-            (130, 'TemplateExecutionRepositoryMigrationInsert', ''),
-            (131, 'TemplateExecutionRepositoryMigrationUpdate', ''),
-            (132, 'TemplateExecutionRepositoryMigrationGetInterrupted', ''),
-            (133, 'TemplateExecutionRepositoryMigrationUpdateRollback', ''),
-            (134, 'TemplateExecutionRepositoryMigrationSelect', ''),
-            (135, 'TemplateExecutionRepositoryMigrationUpdateHash', ''),
-            (136, 'TemplateExecutionRepositoryMigrationRunSelect', ''),
-            (137, 'TemplateExecutionRepositoryMigrationRecordHistorySelect', ''),
-            (1000, 'RayMigratorServiceShutdown', '')
-        ON CONFLICT (id) DO NOTHING;
-
-        UPDATE {CFG:SchemaName}.{CFG:TableBaseName}migration_event
-        SET name = 'TemplateExecutionRepositoryCheckCreate'
-        WHERE id = 100 AND name = 'CreateAndStartRayMigratorService';
-
-        DELETE FROM {CFG:SchemaName}.{CFG:TableBaseName}migration_event
-        WHERE id = 32 AND name = 'CreateCompositeLogger';
-
         RAISE NOTICE '0,Database logging infrastructure already exists';
         RETURN;
     END IF;

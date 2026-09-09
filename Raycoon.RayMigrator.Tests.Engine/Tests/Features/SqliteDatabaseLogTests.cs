@@ -104,7 +104,8 @@ public class SqliteDatabaseLogTests : SqliteTestBase
             "template execution events (MigrationEvent.TemplateExecution*) are logged with an EventId that must be persisted");
 
         // A second command against the same log database runs the "already exists" branch of
-        // DatabaseLogging_CheckCreate, i.e. the idempotent catalogue upgrade, on this engine.
+        // DatabaseLogging_CheckCreate on this engine (no catalogue seed, no upgrade: the catalogue is
+        // written only when the log tables are created).
         await ctx.RebuildForAsync(MigrationCommand.MigrateUp, MigrationRunMode.Migrate);
         await ctx.MigrateUpAsync();
         ctx.AssertSuccess(true);

@@ -37,7 +37,9 @@ public class MigrationRunResultTests
             var template = File.ReadAllText(Path.Combine(root, $"Raycoon.RayMigrator.Database.{dal}", "Templates", "Repository_CheckCreate.sql"));
             foreach (var member in Enum.GetValues<MigrationRunResult>().Where(m => m != MigrationRunResult.Undefined))
             {
-                template.Should().Contain($"({(byte)member}, '{member}',",
+                // VALUES rows "(50, 'PartialSuccess'," (SqlServer, PostgreSQL, Sqlite) or the UNION ALL rows of the
+                // MySql/MariaDb derived table ("SELECT 50, 'PartialSuccess'," / "SELECT 10 AS id, 'Running' AS name,").
+                template.Should().MatchRegex($@"(\({(byte)member}, '{member}',|SELECT {(byte)member}( AS id)?, '{member}'( AS name)?,)",
                     $"Repository_CheckCreate.sql of {dal} must seed MigrationRunResult.{member}");
             }
         }

@@ -36,7 +36,7 @@ This phase executes whenever the `DatabaseLogging` section is present in the con
 
 **What is created:**
 
-> **Note**: SQL Server wraps this in a transaction. MariaDB and MySQL use `CREATE TABLE IF NOT EXISTS` and `INSERT IGNORE` for idempotency instead, since DDL causes implicit commits in MariaDB/MySQL.
+> **Note**: SQL Server wraps this in a transaction. MariaDB and MySQL use `CREATE TABLE IF NOT EXISTS` instead, since DDL causes implicit commits in MariaDB/MySQL; the `MigrationEvent` catalogue is inserted only when the log tables did not exist before the run (`WHERE @v_exists = 0`).
 
 1. **Schema** (e.g., `[ray]`) if it does not exist (SQL Server/PostgreSQL only; MariaDB/MySQL uses the database itself)
 2. **`MigrationEvent` table** (lookup) - Defines event types with IDs:
@@ -102,7 +102,7 @@ This template is **not executed immediately**. It is first used when the Serilog
 
 **What is created:**
 
-> **Note**: SQL Server wraps this in a transaction with `BEGIN TRY`/`BEGIN CATCH`. PostgreSQL uses a `DO $$` block. MariaDB and MySQL use `CREATE TABLE IF NOT EXISTS` with inline FK constraints and `INSERT IGNORE` for idempotency, since DDL causes implicit commits and cannot be wrapped in a transaction.
+> **Note**: SQL Server wraps this in a transaction with `BEGIN TRY`/`BEGIN CATCH`. PostgreSQL uses a `DO $$` block. MariaDB and MySQL use `CREATE TABLE IF NOT EXISTS` with inline FK constraints, since DDL causes implicit commits and cannot be wrapped in a transaction; the master data is inserted only when the repository did not exist before the run (`WHERE @v_version_table_exists = 0`). No engine upgrades an existing repository in place.
 
 1. **Schema** (e.g., `[ray]`) if it does not exist (SQL Server/PostgreSQL only; MariaDB/MySQL uses the database itself)
 

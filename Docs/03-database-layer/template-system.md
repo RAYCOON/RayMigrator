@@ -187,7 +187,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_CheckCreate"
 DatabaseType   = "SqlServer"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-04-18.1"
+Version        = "2026-09-09.1"
 
 [Description]
 Function = """
@@ -440,11 +440,11 @@ Current `RepositoryVersion` values per engine (also stored in `SET @v_repository
 
 | Engine | Repository_CheckCreate | DatabaseLogging_CheckCreate |
 |--------|------------------------|------------------------------|
-| SQL Server | `2026-04-18.1` | `2026-04-18.1` |
-| PostgreSQL | `2026-04-18.1` | `2026-04-18.1` |
-| MariaDB | `2026-04-18.1` | `2026-04-18.1` |
-| MySQL | `2026-04-18.1` | `2026-04-18.1` |
-| SQLite | `2026-04-18.1` | `2026-04-18.1` |
+| SQL Server | `2026-09-09.1` | `2026-09-09.1` |
+| PostgreSQL | `2026-09-09.1` | `2026-09-09.1` |
+| MariaDB | `2026-09-09.1` | `2026-09-09.1` |
+| MySQL | `2026-09-09.1` | `2026-09-09.1` |
+| SQLite | `2026-09-09.1` | `2026-09-09.1` |
 
 Per-engine version numbers are independent. Bumping one engine's version does not require bumping the others.
 
@@ -455,7 +455,7 @@ Per-engine version numbers are independent. Bumping one engine's version does no
 [RayMigratorTemplate]
 TemplateType = "Repository_CheckCreate"
 DatabaseType = "SqlServer"
-Version = "2026-04-18.1"
+Version = "2026-09-09.1"
 */
 
 SET NOCOUNT ON;
@@ -500,7 +500,7 @@ END CATCH;
 [RayMigratorTemplate]
 TemplateType = "Repository_CheckCreate"
 DatabaseType = "PostgreSQL"
-Version = "2026-04-18.1"
+Version = "2026-09-09.1"
 */
 
 DO $$

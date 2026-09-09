@@ -435,7 +435,7 @@ public class TemplateExecutor
         dalParameterList.AddParameter(new DalParameter("Filename", filename, typeof(string)));
         dalParameterList.AddParameter(new DalParameter("FileOrderId", fileOrderId, typeof(int)));
         dalParameterList.AddParameter(new DalParameter("FileUpHash", fileUpHash, typeof(string)));
-        dalParameterList.AddParameter(new DalParameter("FileUpConfigHash", fileUpConfigHash ?? string.Empty, typeof(string)));
+        dalParameterList.AddParameter(new DalParameter("FileUpConfigHash", fileUpConfigHash, typeof(string)));
         dalParameterList.AddParameter(new DalParameter("FileUpBlocksHash", fileUpBlocksHash, typeof(string)));
         dalParameterList.AddParameter(new DalParameter("FileUpBlocksTotal", fileUpBlocksTotal, typeof(int)));
         dalParameterList.AddParameter(new DalParameter("FileUpConfigJson", fileUpConfigJson ?? "{}", typeof(string)));
@@ -509,7 +509,7 @@ public class TemplateExecutor
         dalParameterList.AddParameter(new DalParameter("MigrationRecordId", migrationRecordId, typeof(int)));
         dalParameterList.AddParameter(new DalParameter("MigrationStatusId", (byte)migrationStatus, typeof(byte)));
         dalParameterList.AddParameter(new DalParameter("FileDownHash", fileDownHash, typeof(string)));
-        dalParameterList.AddParameter(new DalParameter("FileDownConfigHash", fileDownConfigHash ?? string.Empty, typeof(string)));
+        dalParameterList.AddParameter(new DalParameter("FileDownConfigHash", fileDownConfigHash, typeof(string)));
         dalParameterList.AddParameter(new DalParameter("FileDownBlocksHash", fileDownBlocksHash, typeof(string)));
         dalParameterList.AddParameter(new DalParameter("FileDownBlocksMigrated", fileDownBlocksMigrated, typeof(int)));
         dalParameterList.AddParameter(new DalParameter("FileDownBlocksTotal", fileDownBlocksTotal, typeof(int)));
@@ -585,7 +585,7 @@ public class TemplateExecutor
         dalParameterList.AddParameter(new DalParameter("MigrationRecordId", migrationRecordId, typeof(int)));
         dalParameterList.AddParameter(new DalParameter("MigrationStatusId", (byte)migrationStatus, typeof(byte)));
         dalParameterList.AddParameter(new DalParameter("FileDownHash", fileDownHash, typeof(string)));
-        dalParameterList.AddParameter(new DalParameter("FileDownConfigHash", fileDownConfigHash ?? string.Empty, typeof(string)));
+        dalParameterList.AddParameter(new DalParameter("FileDownConfigHash", fileDownConfigHash, typeof(string)));
         dalParameterList.AddParameter(new DalParameter("FileDownBlocksHash", fileDownBlocksHash, typeof(string)));
         dalParameterList.AddParameter(new DalParameter("FileDownBlocksMigrated", fileDownBlocksMigrated, typeof(int)));
         dalParameterList.AddParameter(new DalParameter("FileDownBlocksTotal", fileDownBlocksTotal, typeof(int)));
@@ -597,17 +597,6 @@ public class TemplateExecutor
 
         var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
         ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, connection, transaction, repoCommandTimeoutInSeconds, dalParameterList, _logger, eventId);
-    }
-
-    /// <summary>
-    /// Maps a stored config hash to the in-memory representation: a file without a TOML block has a
-    /// <c>null</c> config hash, the insert templates store that as an empty string. Both are read back
-    /// as <c>null</c> so that repository values and freshly parsed files compare equal (#9).
-    /// </summary>
-    internal static string? NormalizeConfigHash(object? value)
-    {
-        var text = value?.ToString();
-        return string.IsNullOrEmpty(text) ? null : text;
     }
 
     /// <summary>
@@ -713,15 +702,13 @@ public class TemplateExecutor
         Filename = row["Filename"]?.ToString() ?? string.Empty,
         FileOrderId = Convert.ToInt32(row["FileOrderId"]),
         FileUpHash = row["FileUpHash"]?.ToString() ?? string.Empty,
-        // "" and NULL both mean "no TOML block" (the insert stores ""); normalise to null so that
-        // comparisons with a freshly parsed file (null) do not report a phantom change (#9)
-        FileUpConfigHash = NormalizeConfigHash(row["FileUpConfigHash"]),
+        FileUpConfigHash = row["FileUpConfigHash"]?.ToString(),
         FileUpBlocksHash = row["FileUpBlocksHash"]?.ToString() ?? string.Empty,
         FileUpBlocksMigrated = Convert.ToInt32(row["FileUpBlocksMigrated"]),
         FileUpBlocksTotal = Convert.ToInt32(row["FileUpBlocksTotal"]),
         MigrateDownFileExists = Convert.ToBoolean(row["MigrateDownFileExists"]),
         FileDownHash = row["FileDownHash"]?.ToString(),
-        FileDownConfigHash = NormalizeConfigHash(row["FileDownConfigHash"]),
+        FileDownConfigHash = row["FileDownConfigHash"]?.ToString(),
         FileDownBlocksHash = row["FileDownBlocksHash"]?.ToString(),
         FileDownBlocksMigrated = row["FileDownBlocksMigrated"] != null ? Convert.ToInt32(row["FileDownBlocksMigrated"]) : null,
         FileDownBlocksTotal = row["FileDownBlocksTotal"] != null ? Convert.ToInt32(row["FileDownBlocksTotal"]) : null,
@@ -751,7 +738,7 @@ public class TemplateExecutor
         DalParameterList dalParameterList = new DalParameterList();
         dalParameterList.AddParameter(new DalParameter("MigrationRecordId", migrationRecordId, typeof(int)));
         dalParameterList.AddParameter(new DalParameter("FileUpHash", fileUpHash, typeof(string)));
-        dalParameterList.AddParameter(new DalParameter("FileUpConfigHash", fileUpConfigHash ?? string.Empty, typeof(string)));
+        dalParameterList.AddParameter(new DalParameter("FileUpConfigHash", fileUpConfigHash, typeof(string)));
         dalParameterList.AddParameter(new DalParameter("FileUpBlocksHash", fileUpBlocksHash, typeof(string)));
 
         var template = _templateCache.GetRepositoryTemplate(templateType, _repository);

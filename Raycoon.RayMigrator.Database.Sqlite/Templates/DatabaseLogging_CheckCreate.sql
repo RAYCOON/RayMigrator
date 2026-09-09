@@ -6,7 +6,7 @@ RayMigrator SQL Template
 TemplateType   = "DatabaseLogging_CheckCreate"
 DatabaseType   = "Sqlite"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-04-18.1"
+Version        = "2026-09-09.1"
 
 [Description]
 Function = """
@@ -40,7 +40,7 @@ Note2 = "No commas allowed in error messages"
 Note3 = "Tables created: MigrationEvent (lookup), MigrationLog (data)"
 Note4 = "MigrationEvent master data includes event IDs 0-1000"
 Note5 = "MigrationLog.CreatedAt defaults to datetime('now')"
-Note6 = "Uses idempotent CREATE TABLE IF NOT EXISTS and INSERT OR IGNORE"
+Note6 = "Uses idempotent CREATE TABLE IF NOT EXISTS; the MigrationEvent catalogue is inserted only when the log tables are created in this run (gated on _rc_log_check.existed = 0)"
 Note7 = "Uses temp table to capture pre-DDL state since SQLite has no session variables"
 Note8 = "DAL-021: MigrationLog.CreatedAt carries a strict-ISO-8601 CHECK constraint"
 ================================================================================
@@ -86,8 +86,8 @@ CREATE TABLE IF NOT EXISTS "{CFG:TableBaseName}MigrationLog" (
     "CreatedAt"            TEXT         NOT NULL DEFAULT (datetime('now')) CHECK (datetime("CreatedAt") IS NOT NULL AND datetime("CreatedAt") = "CreatedAt")
 ) STRICT;
 
-INSERT OR IGNORE INTO "{CFG:TableBaseName}MigrationEvent" ("Id", "Name", "Description")
-VALUES
+INSERT INTO "{CFG:TableBaseName}MigrationEvent" ("Id", "Name", "Description")
+SELECT "column1", "column2", "column3" FROM (VALUES
     (0, 'UnspecifiedEvent', ''),
     (10, 'CommandLineParsing', ''),
     (20, 'EnvironmentVariableReplacement', ''),
@@ -115,12 +115,9 @@ VALUES
     (135, 'TemplateExecutionRepositoryMigrationUpdateHash', ''),
     (136, 'TemplateExecutionRepositoryMigrationRunSelect', ''),
     (137, 'TemplateExecutionRepositoryMigrationRecordHistorySelect', ''),
-    (1000, 'RayMigratorServiceShutdown', '');
-
--- Catalogue entries renamed or removed after the initial release (idempotent upgrade of existing log databases, #12)
-UPDATE "{CFG:TableBaseName}MigrationEvent" SET "Name" = 'TemplateExecutionRepositoryCheckCreate'
-WHERE "Id" = 100 AND "Name" = 'CreateAndStartRayMigratorService';
-DELETE FROM "{CFG:TableBaseName}MigrationEvent" WHERE "Id" = 32 AND "Name" = 'CreateCompositeLogger';
+    (1000, 'RayMigratorServiceShutdown', '')
+)
+WHERE (SELECT "existed" FROM "_rc_log_check") = 0;
 
 SELECT CASE WHEN (SELECT "existed" FROM "_rc_log_check") > 0
     THEN '0,Database logging infrastructure already exists'

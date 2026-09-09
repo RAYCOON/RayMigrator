@@ -16,11 +16,33 @@ RayMigrator follows Semantic Versioning where applicable.
   record the recovery touched is `NotMigrated` again, repository and database
   are consistent. `Terminate`, a failed rollback block, a missing rollback
   file and a stopped chain keep `Error`. `info` shows the value in the run
-  history. The CLI exit code stays 1. The repository lookup table is upgraded
-  idempotently on the next start. (#18)
+  history. The CLI exit code stays 1. (#18)
 
 ### Changed
 
+- **Breaking (behaviour):** repositories and log databases are no longer
+  upgraded in place. `Repository_CheckCreate` of all five DALs writes the
+  lookup master data (`MigrationRunMode`, `MigrationOperation`,
+  `MigrationRunResult`, `MigrationStatus`) only when the repository is
+  created: the blocks that back-filled `Baseline` (110), `PartialSuccess` (50)
+  and `Recovered` (80) into existing SqlServer and PostgreSQL repositories are
+  gone, and MySql, MariaDb and Sqlite no longer re-seed on every start
+  (`INSERT IGNORE` / `INSERT OR IGNORE` replaced by inserts gated on the
+  pre-DDL existence check). `DatabaseLogging_CheckCreate` writes the
+  `MigrationEvent` catalogue only when the log tables are created; the
+  catalogue upgrade of 0.13.0 (missing rows, rename of id 100, removal of
+  id 32) is gone. The lookup content is part of `RepositoryVersion`, which is
+  `2026-09-09.1` on all five DALs; a repository created by an earlier version
+  must be dropped and recreated. A log database created before 0.13.0 keeps
+  its old catalogue names until it is recreated. External DALs: no upgrade
+  blocks are required in the "already exists" branch. (#6, #12, #18)
+- **Breaking (behaviour):** the config hash of a migration file without a
+  TOML block is stored as NULL instead of "", and the read side no longer
+  maps "" to null (`TemplateExecutor.NormalizeConfigHash` and
+  `MigrationService.ConfigHashesEqual` are removed). On a repository written
+  by 0.12.0 or 0.13.0, `update-hash` reports every TOML-less file as updated
+  once and then converges; `migrate-up` is not affected because the config
+  hash takes no part in the "already migrated" decision. (#9)
 - **Breaking (config):** the former `TargetMigrationOrder` names `Simultaneously`
   and `Successively` are no longer accepted as aliases; a configuration that
   still uses them fails validation with the usual `Allowed values:

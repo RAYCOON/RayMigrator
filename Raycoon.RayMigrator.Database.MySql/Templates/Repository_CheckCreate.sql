@@ -6,7 +6,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_CheckCreate"
 DatabaseType   = "MySql"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-04-18.1"
+Version        = "2026-09-09.1"
 
 [Description]
 Function = """
@@ -44,7 +44,7 @@ Note2 = "No commas allowed in error messages"
 Note3 = "Use CURRENT_TIMESTAMP for all timestamps (session time_zone='+00:00' ensures UTC)"
 Note4 = "RepositoryVersion constant MUST match Version in header"
 Note5 = "MySQL DDL causes implicit commit - tables are created individually with IF NOT EXISTS"
-Note6 = "Uses idempotent CREATE TABLE IF NOT EXISTS and INSERT IGNORE"
+Note6 = "Uses idempotent CREATE TABLE IF NOT EXISTS; master data is inserted only when the repository is created in this run (gated on @v_version_table_exists = 0)"
 Note7 = "Tables must be created in FK dependency order"
 Note8 = "Tables created: migrator_meta, product, environment, migration_run, migration_run_meta, migration_record, migration_record_history, migration_run_mode, migration_operation, migration_run_result, migration_status"
 Note9 = "DAL-018: All identifiers (tables, columns, constraints, indexes) use unquoted snake_case; only reserved-word collisions keep backticks"
@@ -52,7 +52,7 @@ Note10 = "ResultCode catalog: see TemplateResultCode.cs in Shared project"
 ================================================================================
 */
 
-SET @v_repository_version = '2026-04-18.1';
+SET @v_repository_version = '2026-09-09.1';
 
 -- Capture pre-DDL state
 SET @v_number_of_tables_found = (
@@ -242,31 +242,48 @@ CREATE TABLE IF NOT EXISTS {CFG:TableBaseName}migration_record_history (
     CONSTRAINT fk_migration_record_history_environment FOREIGN KEY (environment_id) REFERENCES {CFG:TableBaseName}environment(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- Master data (INSERT IGNORE is idempotent)
-INSERT IGNORE INTO {CFG:TableBaseName}migration_run_mode (id, name, description) VALUES
-    (10, 'Validate', 'Validates configuration and all migration files. Does NOT perform actual migration against target databases.'),
-    (20, 'Simulate', 'Validates configuration and all migration files. Simulates the entire migration process. Does NOT perform actual migrations against target databases.'),
-    (100, 'Migrate', 'Validates configuration and all migration files. Performs actual migrations against target databases.');
+-- Master data: written only when the repository did not exist before this run. The lookup content is part of
+-- the RepositoryVersion; a change to it bumps the version, existing repositories are not upgraded in place.
+INSERT INTO {CFG:TableBaseName}migration_run_mode (id, name, description)
+SELECT v.id, v.name, v.description
+FROM (
+              SELECT 10 AS id, 'Validate' AS name, 'Validates configuration and all migration files. Does NOT perform actual migration against target databases.' AS description
+    UNION ALL SELECT 20, 'Simulate', 'Validates configuration and all migration files. Simulates the entire migration process. Does NOT perform actual migrations against target databases.'
+    UNION ALL SELECT 100, 'Migrate', 'Validates configuration and all migration files. Performs actual migrations against target databases.'
+) AS v
+WHERE @v_version_table_exists = 0;
 
-INSERT IGNORE INTO {CFG:TableBaseName}migration_operation (id, name, description) VALUES
-    (5, 'Rollback', 'Performing Rollback of current MigrationRun'),
-    (50, 'MigrateDown', 'Performing Down-Migration'),
-    (100, 'MigrateUp', 'Performing Up-Migration'),
-    (110, 'Baseline', 'Marking migration files as migrated without executing them (baseline command)');
+INSERT INTO {CFG:TableBaseName}migration_operation (id, name, description)
+SELECT v.id, v.name, v.description
+FROM (
+              SELECT 5 AS id, 'Rollback' AS name, 'Performing Rollback of current MigrationRun' AS description
+    UNION ALL SELECT 50, 'MigrateDown', 'Performing Down-Migration'
+    UNION ALL SELECT 100, 'MigrateUp', 'Performing Up-Migration'
+    UNION ALL SELECT 110, 'Baseline', 'Marking migration files as migrated without executing them (baseline command)'
+) AS v
+WHERE @v_version_table_exists = 0;
 
-INSERT IGNORE INTO {CFG:TableBaseName}migration_run_result (id, name, description) VALUES
-    (10, 'Running', 'Migration process is currently running'),
-    (50, 'PartialSuccess', 'Migration(s) finished but at least one file was skipped or left Failed'),
-    (80, 'Recovered', 'Migration(s) failed and the configured error recovery rolled back cleanly'),
-    (90, 'Error', 'Migration(s) stopped due to error(s)'),
-    (100, 'Ok', 'Migration(s) successfully executed');
+INSERT INTO {CFG:TableBaseName}migration_run_result (id, name, description)
+SELECT v.id, v.name, v.description
+FROM (
+              SELECT 10 AS id, 'Running' AS name, 'Migration process is currently running' AS description
+    UNION ALL SELECT 50, 'PartialSuccess', 'Migration(s) finished but at least one file was skipped or left Failed'
+    UNION ALL SELECT 80, 'Recovered', 'Migration(s) failed and the configured error recovery rolled back cleanly'
+    UNION ALL SELECT 90, 'Error', 'Migration(s) stopped due to error(s)'
+    UNION ALL SELECT 100, 'Ok', 'Migration(s) successfully executed'
+) AS v
+WHERE @v_version_table_exists = 0;
 
-INSERT IGNORE INTO {CFG:TableBaseName}migration_status (id, name, description) VALUES
-    (10, 'Pending', 'Record created, execution pending'),
-    (20, 'Executing', 'SQL blocks are being executed'),
-    (30, 'Failed', 'Execution failed, DB state unclear'),
-    (50, 'NotMigrated', 'Not deployed / rolled back'),
-    (100, 'Migrated', 'Successfully deployed');
+INSERT INTO {CFG:TableBaseName}migration_status (id, name, description)
+SELECT v.id, v.name, v.description
+FROM (
+              SELECT 10 AS id, 'Pending' AS name, 'Record created, execution pending' AS description
+    UNION ALL SELECT 20, 'Executing', 'SQL blocks are being executed'
+    UNION ALL SELECT 30, 'Failed', 'Execution failed, DB state unclear'
+    UNION ALL SELECT 50, 'NotMigrated', 'Not deployed / rolled back'
+    UNION ALL SELECT 100, 'Migrated', 'Successfully deployed'
+) AS v
+WHERE @v_version_table_exists = 0;
 
 -- Handle version logic
 SET @v_version_id = NULL;

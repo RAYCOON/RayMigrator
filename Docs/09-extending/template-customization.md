@@ -56,7 +56,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_MigrationRecord_Insert"
 DatabaseType   = "SqlServer"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-04-18.1"
+Version        = "2026-09-09.1"
 
 [Description]
 Function = """
@@ -574,19 +574,13 @@ public void CustomTemplate_CreatesRepositoryTables()
 
 ## Best Practices
 
-### 1. Preserve Backwards Compatibility
+### 1. No In-Place Upgrades
+
+RayMigrator does not upgrade existing repositories or log databases in place. A template change that alters the schema or the lookup master data bumps the `RepositoryVersion` constant and the `Version` header of `Repository_CheckCreate.sql`; existing repositories are dropped and recreated. Do not add `ALTER TABLE` guards or master-data back-fill blocks to the "already exists" branch of `Repository_CheckCreate` or `DatabaseLogging_CheckCreate`: master data is written only when the tables are created.
 
 ```sql
--- Check if column exists before adding
-IF NOT EXISTS (
-    SELECT 1 FROM sys.columns
-    WHERE object_id = OBJECT_ID('[{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRecord]')
-    AND name = 'NewColumn'
-)
-BEGIN
-    ALTER TABLE [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRecord]
-    ADD [NewColumn] NVARCHAR(100) NULL;
-END
+-- Repository_CheckCreate.sql (SQL Server): master data belongs to the create branch only
+DECLARE @RepositoryVersion VARCHAR(20) = '2026-09-09.1';   -- bump on every schema or master-data change
 ```
 
 ### 2. Use Idempotent Scripts

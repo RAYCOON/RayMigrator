@@ -209,7 +209,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_CheckCreate"
 DatabaseType   = "SqlServer"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-04-18.1"
+Version        = "2026-09-09.1"
 */
 
 CREATE TABLE [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRecord] (

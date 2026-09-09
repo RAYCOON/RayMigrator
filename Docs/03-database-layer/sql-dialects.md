@@ -386,7 +386,7 @@ CREATE TEMP TABLE IF NOT EXISTS "_rc_state" ("key" TEXT PRIMARY KEY, "val" TEXT)
 DELETE FROM "_rc_state";
 
 INSERT OR REPLACE INTO "_rc_state" ("key", "val") VALUES
-    ('repository_version', '2026-04-18.1'),
+    ('repository_version', '2026-09-09.1'),
     ('pre_table_count', CAST((SELECT COUNT(*) FROM sqlite_master
         WHERE type='table' AND name IN (...)) AS TEXT));
 ```
@@ -396,7 +396,7 @@ INSERT OR REPLACE INTO "_rc_state" ("key", "val") VALUES
 - **Timestamps**: `datetime('now')` for UTC timestamps
 - **Existence checks**: `sqlite_master` table (instead of `information_schema`)
 - **Idempotent DDL**: `CREATE TABLE IF NOT EXISTS`
-- **Idempotent DML**: `INSERT OR IGNORE` / `INSERT OR REPLACE`
+- **Conditional DML**: master data via `INSERT ... SELECT ... FROM (VALUES ...) WHERE` gated on the pre-DDL flag in `_rc_state` (written only when the repository is created); `INSERT OR REPLACE` for `_rc_state`
 - **WAL mode**: Connection validation sets `PRAGMA journal_mode=WAL` for better concurrency
 - **Foreign keys**: The DAL injects `Foreign Keys=true` into the connection string via `EnsureForeignKeysEnabled` (unless the user has explicitly set the value), which causes Microsoft.Data.Sqlite to issue `PRAGMA foreign_keys = ON` per connection
 - **STRICT tables**: RayMigrator's repository and logging templates use `CREATE TABLE ... STRICT` (SQLite 3.37+, DAL-022). This enforces column types (`INTEGER`, `TEXT`) at INSERT time instead of relying on SQLite's type-affinity coercion. The bundled `Microsoft.Data.Sqlite` is well above the 3.37 floor; no DAL code change is required.
@@ -569,7 +569,7 @@ END;
 - **Affected rows**: `ROW_COUNT()` after UPDATE/DELETE to check affected rows
 - **Conditional INSERT**: `INSERT INTO ... SELECT ... FROM DUAL WHERE condition`
 - **Idempotent DDL**: `CREATE TABLE IF NOT EXISTS` with inline FK constraints
-- **Idempotent DML**: `INSERT IGNORE` for master data
+- **Conditional DML**: master data via `INSERT ... SELECT ... FROM (SELECT ... UNION ALL ...) AS v WHERE @v_version_table_exists = 0` (written only when the repository is created)
 - **Existence check**: `information_schema.TABLES` with `DATABASE()`
 - **Multi-statement**: Templates use multiple SET/DML/DDL statements; MySqlConnector's `ExecuteScalarAsync` automatically advances past intermediate SET statements (which produce no result sets) and returns the scalar value from the final `SELECT`
 
@@ -583,7 +583,7 @@ CREATE TEMP TABLE IF NOT EXISTS "_rc_state" ("key" TEXT PRIMARY KEY, "val" TEXT)
 DELETE FROM "_rc_state";
 
 INSERT OR REPLACE INTO "_rc_state" ("key", "val") VALUES
-    ('repository_version', '2026-04-18.1'),
+    ('repository_version', '2026-09-09.1'),
     ('pre_table_count', CAST((SELECT COUNT(*) FROM sqlite_master
         WHERE type='table' AND name IN (...)) AS TEXT));
 
@@ -594,9 +594,10 @@ CREATE TABLE IF NOT EXISTS "{CFG:TableBaseName}TableName" (
     PRIMARY KEY ("Id")
 );
 
--- Idempotent master data
-INSERT OR IGNORE INTO "{CFG:TableBaseName}TableName" ("Id", "Name")
-VALUES (10, 'SomeValue');
+-- Master data (only when the repository did not exist before this run)
+INSERT INTO "{CFG:TableBaseName}TableName" ("Id", "Name")
+SELECT "column1", "column2" FROM (VALUES (10, 'SomeValue'))
+WHERE (SELECT "val" FROM "_rc_state" WHERE "key"='pre_version_table') = '0';
 
 -- Final result SELECT
 SELECT CASE
@@ -612,7 +613,7 @@ END;
 - **Auto-increment**: `INTEGER PRIMARY KEY` (rowid alias; DAL-020 removed `AUTOINCREMENT` from repository templates)
 - **Existence check**: `sqlite_master` table with `type='table'`
 - **Idempotent DDL**: `CREATE TABLE IF NOT EXISTS`
-- **Idempotent DML**: `INSERT OR IGNORE` for master data, `INSERT OR REPLACE` for state
+- **Conditional DML**: master data via `INSERT ... SELECT ... FROM (VALUES ...) WHERE` gated on `_rc_state`, `INSERT OR REPLACE` for state
 - **WAL mode**: Set via `PRAGMA journal_mode=WAL` on connection validation
 
 ## Parameter Substitution

@@ -3571,18 +3571,13 @@ public class MigrationService : IMigrationService
     }
 
     /// <summary>
-    /// Whether any of the three stored up-hashes of a record differs from the file on disk.
-    /// Config hashes are compared with <c>null</c> and empty string treated as equal: a file without a TOML
-    /// block has a <c>null</c> config hash, older repositories store that as "" (#9).
+    /// Whether any of the three stored up-hashes of a record differs from the file on disk. A file without a
+    /// TOML block has a <c>null</c> config hash on disk and in the repository (#9).
     /// </summary>
     internal static bool HashesDiffer(MigrationRecord record, MigrationFileInfo file) =>
         record.FileUpHash != file.FileUpHash ||
         record.FileUpBlocksHash != file.FileUpBlocksHash ||
-        !ConfigHashesEqual(record.FileUpConfigHash, file.FileUpConfigHash);
-
-    /// <summary>Config-hash equality where <c>null</c> and "" both mean "no TOML block" (#9).</summary>
-    internal static bool ConfigHashesEqual(string? stored, string? current) =>
-        string.Equals(stored ?? string.Empty, current ?? string.Empty, StringComparison.Ordinal);
+        record.FileUpConfigHash != file.FileUpConfigHash;
 
     /// <summary>
     /// Whether the file is already applied on the given target: a Migrated record for file + target exists

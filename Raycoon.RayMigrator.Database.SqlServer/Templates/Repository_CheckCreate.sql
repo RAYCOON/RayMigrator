@@ -6,7 +6,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_CheckCreate"
 DatabaseType   = "SqlServer"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-04-18.1"
+Version        = "2026-09-09.1"
 
 [Description]
 Function = """
@@ -52,7 +52,7 @@ Note6 = "ResultCode catalog: see TemplateResultCode.cs in Shared project"
 */
 
 -- Mandatory RepositoryVersion: DO NOT change manually, otherwise repository-inconsistencies may occur that results in migration errors !!!
-DECLARE @RepositoryVersion VARCHAR(20) = '2026-04-18.1';
+DECLARE @RepositoryVersion VARCHAR(20) = '2026-09-09.1';
 --DECLARE @RayMigratorVersion varchar(20) = '2025-02-13.1';
 --DECLARE @RepositoryDatabaseType varchar(20) = 'SqlServer';
 
@@ -102,25 +102,6 @@ BEGIN TRY
 
 				SELECT '-10,RayMigrator repository incomplete or corrupt. Repository contains [' + CAST(@NumberOfTablesFound AS VARCHAR(10)) + '] tables instead of [11].';
 				RETURN;
-			END;
-
-			-- Master data added after the initial release (idempotent upgrade of existing repositories)
-			IF NOT EXISTS (SELECT 1 FROM [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationOperation] WHERE [Id] = 110)
-			BEGIN
-				INSERT INTO [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationOperation] ([Id], [Name], [Description])
-				VALUES (110, 'Baseline', 'Marking migration files as migrated without executing them (baseline command)');
-			END;
-
-			IF NOT EXISTS (SELECT 1 FROM [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRunResult] WHERE [Id] = 50)
-			BEGIN
-				INSERT INTO [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRunResult] ([Id], [Name], [Description])
-				VALUES (50, 'PartialSuccess', 'Migration(s) finished but at least one file was skipped or left Failed');
-			END;
-
-			IF NOT EXISTS (SELECT 1 FROM [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRunResult] WHERE [Id] = 80)
-			BEGIN
-				INSERT INTO [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRunResult] ([Id], [Name], [Description])
-				VALUES (80, 'Recovered', 'Migration(s) failed and the configured error recovery rolled back cleanly');
 			END;
 
 			-- Try to get VersionId

@@ -71,7 +71,7 @@ Main logging table. Types shown are SQL Server canonical types. PostgreSQL store
 
 ## MigrationEvent Lookup Table
 
-The `MigrationEvent` table is the catalogue of the `EventId`s RayMigrator logs with. It is seeded by the `DatabaseLogging_CheckCreate` template and mirrors the static class `Raycoon.RayMigrator.Core.Configuration.Enums.MigrationEvent` one to one: the C# constant, the event name and the row `Name` are identical. The DatabaseLogging sink stores the `Id` of the `EventId` passed to the logger call in `MigrationLog.MigrationEventId`; a call without an EventId is stored as 0. The template also upgrades the catalogue of an existing log database idempotently (missing rows are added, the pre-0.13 names `CreateAndStartRayMigratorService` (100) and `CreateCompositeLogger` (32) are renamed and removed). There is no FK from `MigrationLog.MigrationEventId` to `MigrationEvent.Id`.
+The `MigrationEvent` table is the catalogue of the `EventId`s RayMigrator logs with. It is seeded by the `DatabaseLogging_CheckCreate` template and mirrors the static class `Raycoon.RayMigrator.Core.Logging.MigrationEvent` one to one: the C# constant, the event name and the row `Name` are identical. The DatabaseLogging sink stores the `Id` of the `EventId` passed to the logger call in `MigrationLog.MigrationEventId`; a call without an EventId is stored as 0. The catalogue is written only when the log tables are created; an existing log database is not upgraded in place, so a log database created before 0.13.0 keeps the old names `CreateAndStartRayMigratorService` (100) and `CreateCompositeLogger` (32) until it is dropped and recreated. There is no FK from `MigrationLog.MigrationEventId` to `MigrationEvent.Id`.
 
 | Id | Name | Description |
 |----|------|-------------|
