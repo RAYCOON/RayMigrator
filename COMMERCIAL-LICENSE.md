@@ -8,7 +8,7 @@ full terms. This document is informative; `LICENSE.md` is what binds.
 
 For this version: **no.**
 
-The Additional Use Grant shipped with RayMigrator 0.12.x permits production
+The Additional Use Grant shipped with RayMigrator 0.13.x permits production
 use free of charge, for anyone, for any purpose. There is no organization-size
 threshold, no restriction by legal form or sector, no internal-use
 requirement, and no restriction on offering RayMigrator to third parties as a

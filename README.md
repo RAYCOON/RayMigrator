@@ -2,9 +2,9 @@
 
 Professional cross platform database migration framework for versioned and release-based schema migrations across multiple database engines.
 
-> **Maturity notice — 0.12.x**
+> **Maturity notice — 0.13.x**
 >
-> RayMigrator 0.12.x is a pre-1.0 release. Its behaviour has not yet been proven
+> RayMigrator 0.13.x is a pre-1.0 release. Its behaviour has not yet been proven
 > across a broad range of real-world production workloads.
 >
 > Database migrations are inherently irreversible: a failed or partially applied
@@ -49,7 +49,7 @@ with a custom Additional Use Grant. Each version automatically converts to
 
 ### This version is free — with no conditions attached
 
-Production use of RayMigrator 0.12.x costs nothing, for anyone, for any
+Production use of RayMigrator 0.13.x costs nothing, for anyone, for any
 purpose. The Additional Use Grant sets no organization-size threshold, no
 restriction by legal form or sector, no internal-use requirement, and no
 restriction on offering RayMigrator to third parties as a hosted, SaaS, or

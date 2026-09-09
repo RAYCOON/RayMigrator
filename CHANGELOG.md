@@ -5,11 +5,11 @@ All notable changes to RayMigrator are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 RayMigrator follows Semantic Versioning where applicable.
 
-## [Unreleased]
+## [0.13.0] — 2026-09-09
 
 ### Added
 
-- `MigrationRunResult.PartialSuccess` (50). A `migrate-up` that continued
+- **Breaking (behaviour):** `MigrationRunResult.PartialSuccess` (50). A `migrate-up` that continued
   past a failed file with `MigrationErrorAction = Ignore`, and a
   `migrate-down` that skipped a missing rollback file
   (`RequireRollbackFile = false`) or ignored a failed rollback
@@ -20,7 +20,7 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ### Changed
 
-- `TargetMigrationOrder` members are named after what they do: `FileByFile`
+- **Breaking (API):** `TargetMigrationOrder` members are named after what they do: `FileByFile`
   (each file is applied to every target of the group before the next file,
   formerly `Simultaneously`) and `TargetByTarget` (all files on one target
   before the next target, formerly `Successively`, the default). Nothing runs
@@ -28,7 +28,7 @@ RayMigrator follows Semantic Versioning where applicable.
   names are still accepted in `appsettings.json` and in the configuration
   wizard as aliases; everything RayMigrator writes (settings snapshot, log
   output, wizard export) uses the new names. (#19)
-- Enum housekeeping (#19). `CommandProfile` moved from
+- **Breaking (API):** enum housekeeping (#19). `CommandProfile` moved from
   `Raycoon.RayMigrator.Core.Configuration.Enums` to
   `Raycoon.RayMigrator.Core.Configuration` and lost its two fields without a
   consumer (`ExecutesMigrations`, `ReadsRepository`); `MigrationEvent` moved to
@@ -41,7 +41,7 @@ RayMigrator follows Semantic Versioning where applicable.
   documentation now says that the Engine never reads them. The SQL template
   headers no longer list `10=Validate, 20=Simulate` for `MigrationRunModeId`,
   which is always 100 because those run modes never write rows.
-- The enum behind `fix --scope` is named `FixScope` (formerly `FixIssues`, a
+- **Breaking (API):** the enum behind `fix --scope` is named `FixScope` (formerly `FixIssues`, a
   name shared with the command, the request and the service method), and the
   console option `RayMigratorConsoleOptions.FixIssues` is `FixScope`. The CLI
   values `orphanedruns` and `all` are unchanged. (#16)
@@ -53,7 +53,7 @@ RayMigrator follows Semantic Versioning where applicable.
   (`All` = every known repair, currently the orphaned-run repair), reports
   them in the result (`FixIssuesResult.Repairs`) and the log, and rejects an
   unknown scope instead of running the default repair. (#16)
-- The `info` run history now shows what a `migrate-down` run did. Records
+- **Breaking (API / external DALs):** the `info` run history now shows what a `migrate-down` run did. Records
   rolled back by `migrate-down` are stamped `MigrateDown`, records rolled back
   by the error recovery inside a `migrate-up` are stamped `Rollback`, and the
   `MigrationRecordHistory` row written for the transition carries the run that
@@ -63,12 +63,13 @@ RayMigrator follows Semantic Versioning where applicable.
   count. Until now a migrate-down run appeared as an empty `MigrateUp` run,
   and `MigrationOperation.MigrateDown` / `Rollback` were never written. No
   schema change: the record keeps the `MigrationRunId` of the run that created
-  it. (#13)
+  it. External DALs must add `Repository_MigrationRecordHistory_Select.sql` and
+  the two new parameters `MigrationRunId` / `MigrationOperationId` of
+  `Repository_MigrationRecord_UpdateRollback.sql` (see the five shipped DALs). (#13)
 - `info` reads `LastRunResult` and the last migration date from the newest
   `MigrationRun` row instead of deriving them from an arbitrary migration
   record; a failed migrate-down no longer shows `Ok` and a clean one no longer
   shows `Error`. (#14)
-
 - DatabaseLogging now stores the EventId of every logger call in
   `MigrationLog.MigrationEventId`. The sink read a Serilog property that is
   never produced (`EventId_Id`), so every row carried 0 (`UnspecifiedEvent`)
@@ -81,8 +82,8 @@ RayMigrator follows Semantic Versioning where applicable.
   the four template events whose name differed from their constant now equal
   the constant (`TemplateExecutionRepositoryProductSelect` and siblings).
   `MigrationEvent` is a static class and the unused
-  `MigrationState.MigrationEvent` property was removed. (#12)
-
+  `MigrationState.MigrationEvent` property was removed. External DALs must
+  ship the updated catalogue in `DatabaseLogging_CheckCreate.sql`. (#12)
 - Block-level resume no longer skips the block that failed. A `Failed`
   `MigrationRecord` now stores the number of blocks that are committed on the
   target in `FileUpBlocksMigrated` (0 when the file ran in one transaction that
@@ -98,7 +99,7 @@ RayMigrator follows Semantic Versioning where applicable.
   exactly like a failed block on the DAL path. Until now the CLI tool's
   exception aborted the whole chain regardless of the setting, so `Ignore`
   behaved like `Terminate`. (#15)
-- Enum values in migration file headers and `migsettings.txt`
+- **Breaking (behaviour):** enum values in migration file headers and `migsettings.txt`
   (`MigrationErrorAction`, `RollbackErrorAction`) now follow the same rule as
   `appsettings.json`: only the member names are accepted, case-insensitively.
   Numeric values such as `21`, values that are no member at all such as `99`,
