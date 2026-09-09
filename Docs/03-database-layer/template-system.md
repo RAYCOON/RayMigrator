@@ -220,13 +220,13 @@ Success_N_Created   = "N (VersionId),RayMigrator repository-tables with master d
 Success_N_NewVer    = "N (VersionId),RayMigrator repository already exists. New VersionId [N] created."
 Error_-10_Incomplete        = "-10,RayMigrator repository incomplete or corrupt. Repository contains [X] tables instead of [11]."
 Error_-11_PartialNoVersion  = "-11,RayMigrator repository incomplete or corrupt. Repository contains [X] tables instead of the expected amount of [0]."
-Error_-12_MultipleVersions  = "-12,Multiple [MigratorMeta]-entries found for RepositoryVersion [...] RepositoryDatabaseType [...] RayMigratorVersion [...]."
+Error_-12_MultipleVersions  = "-12,Multiple [MigratorMeta]-entries found for RayMigratorVersion [...] RepositoryDatabaseType [...]."
 
 [ModificationNotes]
 Note1 = "SELECT result format: 'code,message' - DO NOT change this format"
 Note2 = "No commas allowed in error messages"
 Note3 = "Use SYSUTCDATETIME() for all timestamps"
-Note4 = "RepositoryVersion constant MUST match Version in header"
+Note4 = "MigratorMeta lists the RayMigrator versions that used the repository; the first row is the version that created it and therefore identifies the schema. There is no RepositoryVersion constant and no in-place upgrade."
 Note5 = "Tables created: MigratorMeta, Product, Environment, MigrationRun, MigrationRunMeta, MigrationRecord, MigrationRecordHistory, MigrationRunMode, MigrationOperation, MigrationRunResult, MigrationStatus"
 Note6 = "ResultCode catalog: see TemplateResultCode.cs in Shared project"
 ================================================================================
@@ -436,17 +436,7 @@ Each template file maps to a `TemplateType` enum value (unrecognized filenames a
 
 ## Example: Repository_CheckCreate
 
-Current `RepositoryVersion` values per engine (also stored in `SET @v_repository_version` / `@v_version` inside the template body):
-
-| Engine | Repository_CheckCreate | DatabaseLogging_CheckCreate |
-|--------|------------------------|------------------------------|
-| SQL Server | `2026-09-09.1` | `2026-09-09.1` |
-| PostgreSQL | `2026-09-09.1` | `2026-09-09.1` |
-| MariaDB | `2026-09-09.1` | `2026-09-09.1` |
-| MySQL | `2026-09-09.1` | `2026-09-09.1` |
-| SQLite | `2026-09-09.1` | `2026-09-09.1` |
-
-Per-engine version numbers are independent. Bumping one engine's version does not require bumping the others.
+The `Version` header of a template is the revision of that file and is maintained per file and per engine; it is not written to the database. The repository carries no schema version constant: `MigratorMeta` records the RayMigrator version that used the repository (`@RayMigratorVersion`, bound by `TemplateExecutor`), and the first row is the version that created it. A schema or master-data change ships in a new RayMigrator version; existing repositories are dropped and recreated, never upgraded in place.
 
 ### SQL Server Version
 
@@ -477,9 +467,8 @@ BEGIN TRY
     -- Create tables
     CREATE TABLE [{CFG:SchemaName}].[{CFG:TableBaseName}MigratorMeta] (
         Id INT IDENTITY(1,1) PRIMARY KEY,
-        RepositoryVersion NVARCHAR(100) NOT NULL,
+        RayMigratorVersion NVARCHAR(100) NOT NULL,
         RepositoryDatabaseType NVARCHAR(100) NOT NULL,
-        CreatedByRayMigratorVersion NVARCHAR(100) NOT NULL,
         CreatedAt DATETIME2(3) NOT NULL
     );
 
@@ -523,9 +512,8 @@ BEGIN
     -- Create tables (unquoted snake_case identifiers — DAL-017)
     CREATE TABLE {CFG:SchemaName}.{CFG:TableBaseName}migrator_meta (
         id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-        repository_version TEXT NOT NULL,
+        raymigrator_version TEXT NOT NULL,
         repository_database_type TEXT NOT NULL,
-        created_by_raymigrator_version TEXT NOT NULL,
         created_at TIMESTAMPTZ NOT NULL
     );
 

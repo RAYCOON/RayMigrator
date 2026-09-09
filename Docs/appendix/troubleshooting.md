@@ -367,22 +367,15 @@ docker exec rm_db_mysql mysql -u rayuser -praypass123 raydb -e "SELECT 1"
    CREATE SCHEMA [ray];
    ```
 
-### Repository Version Mismatch
+### Repository Created by an Older RayMigrator Version
 
 **Symptoms:**
-- "Repository version not compatible" error
+- Foreign-key errors on `MigrationRun` or `MigrationRecord` (a lookup row such as `MigrationRunResult` 80 is missing)
+- `-10, RayMigrator repository incomplete or corrupt` after a release that changed the table set
 
-**Solutions:**
+**Cause:** RayMigrator never upgrades a repository in place. The first `MigratorMeta` row shows the version that created the repository and therefore its schema.
 
-1. **Upgrade repository**
-   - Backup existing data
-   - Drop and recreate tables
-   - Or run migration files for upgrade
-
-2. **Check RayMigrator version**
-   ```bash
-   raymigrator --version
-   ```
+**Solution:** drop and recreate the repository (`Repository_Drop` followed by the next run), then re-baseline or re-run the migrations. The same applies to a DatabaseLogging database whose `MigrationEvent` catalogue predates the running version.
 
 ### Product or Environment Name Empty (`TemplateResultException`)
 

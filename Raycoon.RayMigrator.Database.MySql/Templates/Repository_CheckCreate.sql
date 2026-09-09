@@ -18,7 +18,7 @@ Behaviour = """
 - Return value >= 0: Success (logged at Debug level)
 - Return value < 0: Error (logged at Error level, migration aborted)
 - Creates all 11 repository tables with master data
-- Inserts new MigratorMeta record on first run or version change
+- Inserts a MigratorMeta row on the first run of each RayMigrator version (the first row is the version that created the repository)
 """
 
 [ConfigPlaceholders]
@@ -36,13 +36,13 @@ Success_N_Created   = "N (VersionId),RayMigrator repository-tables with master d
 Success_N_NewVer    = "N (VersionId),RayMigrator repository already exists. New VersionId [N] created."
 Error_-10_Incomplete        = "-10,RayMigrator repository incomplete or corrupt. Repository contains [X] tables instead of [11]."
 Error_-11_PartialNoVersion  = "-11,RayMigrator repository incomplete or corrupt. Repository contains [X] tables instead of the expected amount of [0]."
-Error_-12_MultipleVersions  = "-12,Multiple [migrator_meta]-entries found for RepositoryVersion [...] RepositoryDatabaseType [...] RayMigratorVersion [...]."
+Error_-12_MultipleVersions  = "-12,Multiple [migrator_meta]-entries found for RayMigratorVersion [...] RepositoryDatabaseType [...]."
 
 [ModificationNotes]
 Note1 = "SELECT result format: 'code,message' - DO NOT change this format"
 Note2 = "No commas allowed in error messages"
 Note3 = "Use CURRENT_TIMESTAMP for all timestamps (session time_zone='+00:00' ensures UTC)"
-Note4 = "RepositoryVersion constant MUST match Version in header"
+Note4 = "MigratorMeta lists the RayMigrator versions that used the repository; the first row is the version that created it and therefore identifies the schema. There is no RepositoryVersion constant and no in-place upgrade."
 Note5 = "MySQL DDL causes implicit commit - tables are created individually with IF NOT EXISTS"
 Note6 = "Uses idempotent CREATE TABLE IF NOT EXISTS; master data is inserted only when the repository is created in this run (gated on @v_version_table_exists = 0)"
 Note7 = "Tables must be created in FK dependency order"
@@ -51,8 +51,6 @@ Note9 = "DAL-018: All identifiers (tables, columns, constraints, indexes) use un
 Note10 = "ResultCode catalog: see TemplateResultCode.cs in Shared project"
 ================================================================================
 */
-
-SET @v_repository_version = '2026-09-09.1';
 
 -- Capture pre-DDL state
 SET @v_number_of_tables_found = (
@@ -109,9 +107,8 @@ CREATE TABLE IF NOT EXISTS {CFG:TableBaseName}migration_status (
 
 CREATE TABLE IF NOT EXISTS {CFG:TableBaseName}migrator_meta (
     id                             INT          NOT NULL AUTO_INCREMENT,
-    repository_version             VARCHAR(100) NOT NULL,
+    raymigrator_version            VARCHAR(100) NOT NULL,
     repository_database_type       VARCHAR(100) NOT NULL,
-    created_by_raymigrator_version VARCHAR(100) NOT NULL,
     created_at                     TIMESTAMP    NOT NULL,
     PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
@@ -242,8 +239,8 @@ CREATE TABLE IF NOT EXISTS {CFG:TableBaseName}migration_record_history (
     CONSTRAINT fk_migration_record_history_environment FOREIGN KEY (environment_id) REFERENCES {CFG:TableBaseName}environment(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
--- Master data: written only when the repository did not exist before this run. The lookup content is part of
--- the RepositoryVersion; a change to it bumps the version, existing repositories are not upgraded in place.
+-- Master data: written only when the repository did not exist before this run. Existing repositories are not
+-- upgraded in place; the schema of a repository is the schema of the RayMigrator version that created it.
 INSERT INTO {CFG:TableBaseName}migration_run_mode (id, name, description)
 SELECT v.id, v.name, v.description
 FROM (
@@ -290,20 +287,18 @@ SET @v_version_id = NULL;
 SET @v_number_of_rows = 0;
 
 SET @v_version_id = (SELECT id FROM {CFG:TableBaseName}migrator_meta
-     WHERE repository_version = @v_repository_version
+     WHERE raymigrator_version = @RayMigratorVersion
        AND repository_database_type = @RepositoryDatabaseType
-       AND created_by_raymigrator_version = @RayMigratorVersion
      LIMIT 1);
 
 SET @v_number_of_rows = (SELECT COUNT(*) FROM {CFG:TableBaseName}migrator_meta
-     WHERE repository_version = @v_repository_version
-       AND repository_database_type = @RepositoryDatabaseType
-       AND created_by_raymigrator_version = @RayMigratorVersion);
+     WHERE raymigrator_version = @RayMigratorVersion
+       AND repository_database_type = @RepositoryDatabaseType);
 
 -- Insert version if not found (idempotent via WHERE clause)
 INSERT INTO {CFG:TableBaseName}migrator_meta
-    (repository_version, repository_database_type, created_by_raymigrator_version, created_at)
-SELECT @v_repository_version, @RepositoryDatabaseType, @RayMigratorVersion, CURRENT_TIMESTAMP
+    (raymigrator_version, repository_database_type, created_at)
+SELECT @RayMigratorVersion, @RepositoryDatabaseType, CURRENT_TIMESTAMP
 FROM DUAL
 WHERE @v_number_of_rows = 0;
 
@@ -324,7 +319,7 @@ SELECT CASE
 
     -- Repository exists but multiple matching versions (error)
     WHEN @v_version_table_exists > 0 AND @v_number_of_rows > 1 THEN
-        CONCAT('-12,Multiple [migrator_meta]-entries found for RepositoryVersion [', IFNULL(@v_repository_version, 'NULL'), '] RepositoryDatabaseType [', IFNULL(@RepositoryDatabaseType, 'NULL'), '] RayMigratorVersion [', IFNULL(@RayMigratorVersion, 'NULL'), '].')
+        CONCAT('-12,Multiple [migrator_meta]-entries found for RayMigratorVersion [', IFNULL(@RayMigratorVersion, 'NULL'), '] RepositoryDatabaseType [', IFNULL(@RepositoryDatabaseType, 'NULL'), '].')
 
     -- No version table but some tables exist (corrupt - before DDL ran)
     WHEN @v_version_table_exists = 0 AND @v_number_of_tables_found != 0 THEN

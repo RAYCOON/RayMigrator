@@ -6,7 +6,6 @@ namespace Raycoon.RayMigrator.Tests.Unit;
 /// <summary>
 /// P1: MySQL + MariaDB type-convention assertions covering DAL-014 (DATETIME → TIMESTAMP,
 /// UTC_TIMESTAMP() → CURRENT_TIMESTAMP) and DAL-015 (explicit CHARSET/COLLATE per engine).
-/// Also enforces the TOML Version / @v_repository_version consistency invariant (Note4).
 ///
 /// Engines under test: "MySql" (MySQL 8.0+, utf8mb4_0900_ai_ci) and "MariaDb"
 /// (MariaDB 10.5+ LTS, utf8mb4_unicode_ci). The two names map to the project
@@ -159,35 +158,6 @@ public class MySqlMariaDbTypeConventionsTests
             content.Should().NotContain("utf8mb4_0900_ai_ci",
                 $"{Path.GetFileName(file)} (MariaDb) must not reference the MySQL-specific collation utf8mb4_0900_ai_ci (MariaDB raises ERROR 1273 for unknown collation)");
         }
-    }
-
-    #endregion
-
-    #region Consistency invariants
-
-    [Theory]
-    [InlineData("MySql")]
-    [InlineData("MariaDb")]
-    public void Repository_CheckCreate_TomlVersionMatchesConstant(string engine)
-    {
-        var content = ReadTemplate(engine, "Repository_CheckCreate.sql");
-
-        var tomlSectionMatch = Regex.Match(content,
-            @"\[RayMigratorTemplate\](.*?)\[(?!RayMigratorTemplate)",
-            RegexOptions.Singleline);
-        tomlSectionMatch.Success.Should().BeTrue($"{engine} Repository_CheckCreate.sql must have a [RayMigratorTemplate] TOML section");
-
-        var tomlSection = tomlSectionMatch.Groups[1].Value;
-        var versionMatch = Regex.Match(tomlSection, @"Version\s*=\s*""([^""]+)""");
-        versionMatch.Success.Should().BeTrue($"{engine} [RayMigratorTemplate] section must declare a Version");
-        var tomlVersion = versionMatch.Groups[1].Value;
-
-        var constantMatch = Regex.Match(content, @"SET\s+@v_repository_version\s*=\s*'([^']+)'\s*;");
-        constantMatch.Success.Should().BeTrue($"{engine} Repository_CheckCreate.sql must declare a @v_repository_version session variable");
-        var constantVersion = constantMatch.Groups[1].Value;
-
-        constantVersion.Should().Be(tomlVersion,
-            $"{engine}: @v_repository_version SET value must equal the TOML Version header (Note4 invariant)");
     }
 
     #endregion

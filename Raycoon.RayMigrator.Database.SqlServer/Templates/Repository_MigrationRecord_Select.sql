@@ -49,8 +49,6 @@ Note4 = "Used for hash validation and determining migration state"
 ================================================================================
 */
 
--- Mandatory RepositoryVersion: DO NOT change manually, otherwise repository-inconsistencies may occur that results in migration errors !!!
-
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
 

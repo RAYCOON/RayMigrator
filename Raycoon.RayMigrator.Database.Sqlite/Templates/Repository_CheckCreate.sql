@@ -18,7 +18,7 @@ Behaviour = """
 - Return value >= 0: Success (logged at Debug level)
 - Return value < 0: Error (logged at Error level, migration aborted)
 - Creates all 11 repository tables with master data
-- Inserts new MigratorMeta record on first run or version change
+- Inserts a MigratorMeta row on the first run of each RayMigrator version (the first row is the version that created the repository)
 """
 
 [ConfigPlaceholders]
@@ -36,13 +36,13 @@ Success_N_Created   = "N (VersionId),RayMigrator repository-tables with master d
 Success_N_NewVer    = "N (VersionId),RayMigrator repository already exists. New VersionId [N] created."
 Error_-10_Incomplete        = "-10,RayMigrator repository incomplete or corrupt. Repository contains [X] tables instead of [11]."
 Error_-11_PartialNoVersion  = "-11,RayMigrator repository incomplete or corrupt. Repository contains [X] tables instead of the expected amount of [0]."
-Error_-12_MultipleVersions  = "-12,Multiple [MigratorMeta]-entries found for RepositoryVersion [...] RepositoryDatabaseType [...] RayMigratorVersion [...]."
+Error_-12_MultipleVersions  = "-12,Multiple [MigratorMeta]-entries found for RayMigratorVersion [...] RepositoryDatabaseType [...]."
 
 [ModificationNotes]
 Note1 = "SELECT result format: 'code,message' - DO NOT change this format"
 Note2 = "No commas allowed in error messages"
 Note3 = "Use datetime('now') for all timestamps"
-Note4 = "RepositoryVersion constant MUST match Version in header"
+Note4 = "MigratorMeta lists the RayMigrator versions that used the repository; the first row is the version that created it and therefore identifies the schema. There is no RepositoryVersion constant and no in-place upgrade."
 Note5 = "SQLite DDL is transactional - but we use IF NOT EXISTS for idempotency"
 Note6 = "Master data is inserted only when the repository is created in this run (gated on _rc_state.pre_version_table = 0)"
 Note7 = "Tables must be created in FK dependency order"
@@ -66,7 +66,6 @@ CREATE TEMP TABLE IF NOT EXISTS "_rc_state" ("key" TEXT PRIMARY KEY, "val" TEXT)
 DELETE FROM "_rc_state";
 
 INSERT OR REPLACE INTO "_rc_state" ("key", "val") VALUES
-    ('repository_version', '2026-09-09.1'),
     ('pre_table_count', CAST((SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN (
         '{CFG:TableBaseName}MigratorMeta',
         '{CFG:TableBaseName}Product',
@@ -113,9 +112,8 @@ CREATE TABLE IF NOT EXISTS "{CFG:TableBaseName}MigrationStatus" (
 
 CREATE TABLE IF NOT EXISTS "{CFG:TableBaseName}MigratorMeta" (
     "Id"                   INTEGER      NOT NULL PRIMARY KEY,
-    "RepositoryVersion"    TEXT         NOT NULL,
+    "RayMigratorVersion"   TEXT         NOT NULL,
     "RepositoryDatabaseType" TEXT       NOT NULL,
-    "CreatedByRayMigratorVersion" TEXT  NOT NULL,
     "CreatedAt"            TEXT         NOT NULL CHECK (datetime("CreatedAt") IS NOT NULL AND datetime("CreatedAt") = "CreatedAt")
 ) STRICT;
 
@@ -240,8 +238,8 @@ CREATE TABLE IF NOT EXISTS "{CFG:TableBaseName}MigrationRecordHistory" (
 
 CREATE INDEX IF NOT EXISTS "ix_{CFG:TableBaseName}MigrationRecordHistory" ON "{CFG:TableBaseName}MigrationRecordHistory" ("MigrationRecordId");
 
--- Master data: written only when the repository did not exist before this run. The lookup content is part of
--- the RepositoryVersion; a change to it bumps the version, existing repositories are not upgraded in place.
+-- Master data: written only when the repository did not exist before this run. Existing repositories are not
+-- upgraded in place; the schema of a repository is the schema of the RayMigrator version that created it.
 INSERT INTO "{CFG:TableBaseName}MigrationRunMode" ("Id", "Name", "Description")
 SELECT "column1", "column2", "column3" FROM (VALUES
     (10, 'Validate', 'Validates configuration and all migration files. Does NOT perform actual migration against target databases.'),
@@ -281,25 +279,22 @@ WHERE (SELECT "val" FROM "_rc_state" WHERE "key"='pre_version_table') = '0';
 
 -- Version logic: Insert version if not exists
 INSERT INTO "{CFG:TableBaseName}MigratorMeta"
-    ("RepositoryVersion", "RepositoryDatabaseType", "CreatedByRayMigratorVersion", "CreatedAt")
-SELECT (SELECT "val" FROM "_rc_state" WHERE "key"='repository_version'), @RepositoryDatabaseType, @RayMigratorVersion, datetime('now')
+    ("RayMigratorVersion", "RepositoryDatabaseType", "CreatedAt")
+SELECT @RayMigratorVersion, @RepositoryDatabaseType, datetime('now')
 WHERE NOT EXISTS (
     SELECT 1 FROM "{CFG:TableBaseName}MigratorMeta"
-    WHERE "RepositoryVersion" = (SELECT "val" FROM "_rc_state" WHERE "key"='repository_version')
+    WHERE "RayMigratorVersion" = @RayMigratorVersion
       AND "RepositoryDatabaseType" = @RepositoryDatabaseType
-      AND "CreatedByRayMigratorVersion" = @RayMigratorVersion
 );
 
 -- Capture version state
 INSERT OR REPLACE INTO "_rc_state" ("key", "val") VALUES
     ('version_count', CAST((SELECT COUNT(*) FROM "{CFG:TableBaseName}MigratorMeta"
-        WHERE "RepositoryVersion" = (SELECT "val" FROM "_rc_state" WHERE "key"='repository_version')
-          AND "RepositoryDatabaseType" = @RepositoryDatabaseType
-          AND "CreatedByRayMigratorVersion" = @RayMigratorVersion) AS TEXT)),
+        WHERE "RayMigratorVersion" = @RayMigratorVersion
+          AND "RepositoryDatabaseType" = @RepositoryDatabaseType) AS TEXT)),
     ('version_id', (SELECT CAST("Id" AS TEXT) FROM "{CFG:TableBaseName}MigratorMeta"
-        WHERE "RepositoryVersion" = (SELECT "val" FROM "_rc_state" WHERE "key"='repository_version')
+        WHERE "RayMigratorVersion" = @RayMigratorVersion
           AND "RepositoryDatabaseType" = @RepositoryDatabaseType
-          AND "CreatedByRayMigratorVersion" = @RayMigratorVersion
         LIMIT 1)),
     ('post_table_count', CAST((SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN (
         '{CFG:TableBaseName}MigratorMeta',
@@ -342,10 +337,8 @@ SELECT CASE
     -- Repository exists but multiple matching versions (error)
     WHEN CAST((SELECT "val" FROM "_rc_state" WHERE "key"='pre_version_table') AS INTEGER) > 0
          AND CAST((SELECT "val" FROM "_rc_state" WHERE "key"='version_count') AS INTEGER) > 1 THEN
-        '-12,Multiple [MigratorMeta]-entries found for RepositoryVersion ['
-        || (SELECT "val" FROM "_rc_state" WHERE "key"='repository_version')
-        || '] RepositoryDatabaseType [' || IFNULL(@RepositoryDatabaseType, 'NULL')
-        || '] RayMigratorVersion [' || IFNULL(@RayMigratorVersion, 'NULL') || '].'
+        '-12,Multiple [MigratorMeta]-entries found for RayMigratorVersion [' || IFNULL(@RayMigratorVersion, 'NULL')
+        || '] RepositoryDatabaseType [' || IFNULL(@RepositoryDatabaseType, 'NULL') || '].'
 
     -- No version table but some tables exist (corrupt - before DDL ran)
     WHEN CAST((SELECT "val" FROM "_rc_state" WHERE "key"='pre_version_table') AS INTEGER) = 0

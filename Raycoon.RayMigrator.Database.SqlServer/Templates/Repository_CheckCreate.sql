@@ -19,7 +19,7 @@ Behaviour = """
 - Return value < 0: Error (logged at Error level, migration aborted)
 - Creates schema if not exists
 - Creates all 11 repository tables with master data
-- Inserts new MigratorMeta record on first run or version change
+- Inserts a MigratorMeta row on the first run of each RayMigrator version (the first row is the version that created the repository)
 """
 
 [ConfigPlaceholders]
@@ -39,20 +39,18 @@ Success_N_Created   = "N (VersionId),RayMigrator repository-tables with master d
 Success_N_NewVer    = "N (VersionId),RayMigrator repository already exists. New VersionId [N] created."
 Error_-10_Incomplete        = "-10,RayMigrator repository incomplete or corrupt. Repository contains [X] tables instead of [11]."
 Error_-11_PartialNoVersion  = "-11,RayMigrator repository incomplete or corrupt. Repository contains [X] tables instead of the expected amount of [0]."
-Error_-12_MultipleVersions  = "-12,Multiple [MigratorMeta]-entries found for RepositoryVersion [...] RepositoryDatabaseType [...] RayMigratorVersion [...]."
+Error_-12_MultipleVersions  = "-12,Multiple [MigratorMeta]-entries found for RayMigratorVersion [...] RepositoryDatabaseType [...]."
 
 [ModificationNotes]
 Note1 = "SELECT result format: 'code,message' - DO NOT change this format"
 Note2 = "No commas allowed in error messages"
 Note3 = "Use SYSUTCDATETIME() for all timestamps"
-Note4 = "RepositoryVersion constant MUST match Version in header"
+Note4 = "MigratorMeta lists the RayMigrator versions that used the repository; the first row is the version that created it and therefore identifies the schema. There is no RepositoryVersion constant and no in-place upgrade."
 Note5 = "Tables created: MigratorMeta, Product, Environment, MigrationRun, MigrationRunMeta, MigrationRecord, MigrationRecordHistory, MigrationRunMode, MigrationOperation, MigrationRunResult, MigrationStatus"
 Note6 = "ResultCode catalog: see TemplateResultCode.cs in Shared project"
 ================================================================================
 */
 
--- Mandatory RepositoryVersion: DO NOT change manually, otherwise repository-inconsistencies may occur that results in migration errors !!!
-DECLARE @RepositoryVersion VARCHAR(20) = '2026-09-09.1';
 --DECLARE @RayMigratorVersion varchar(20) = '2025-02-13.1';
 --DECLARE @RepositoryDatabaseType varchar(20) = 'SqlServer';
 
@@ -110,9 +108,8 @@ BEGIN TRY
 			FROM 
 				[{CFG:SchemaName}].[{CFG:TableBaseName}MigratorMeta] WITH (UPDLOCK, ROWLOCK, HOLDLOCK)
 			WHERE 
-				RepositoryVersion = @RepositoryVersion
-				AND RepositoryDatabaseType = @RepositoryDatabaseType
-				AND CreatedByRayMigratorVersion = @RayMigratorVersion;
+				RayMigratorVersion = @RayMigratorVersion
+				AND RepositoryDatabaseType = @RepositoryDatabaseType;
 
 			SET @NumberOfRows = @@rowcount;
 
@@ -130,16 +127,14 @@ BEGIN TRY
 				-- VersionId does not yet exist. Create new VersionId
 				INSERT INTO [{CFG:SchemaName}].[{CFG:TableBaseName}MigratorMeta] 
 				(
-					RepositoryVersion,
+					RayMigratorVersion,
 					RepositoryDatabaseType,
-					CreatedByRayMigratorVersion,
 					CreatedAt
 				) 
 				VALUES 
 				(
-					@RepositoryVersion,
-					@RepositoryDatabaseType,
 					@RayMigratorVersion,
+					@RepositoryDatabaseType,
 					SYSUTCDATETIME()
 				);
 
@@ -156,7 +151,7 @@ BEGIN TRY
 				ROLLBACK TRANSACTION;
 
 				DECLARE @ErrorString VARCHAR(MAX);
-				SET @ErrorString = 'Multiple [MigratorMeta]-entries found for RepositoryVersion [' + COALESCE(@RepositoryVersion,'NULL') + '], RepositoryDatabaseType [' + COALESCE(@RepositoryDatabaseType,'NULL') + '], RayMigratorVersion [' + COALESCE(@RayMigratorVersion,'NULL') + '].';
+				SET @ErrorString = 'Multiple [MigratorMeta]-entries found for RayMigratorVersion [' + COALESCE(@RayMigratorVersion,'NULL') + '], RepositoryDatabaseType [' + COALESCE(@RepositoryDatabaseType,'NULL') + '].';
 				SELECT '-12,' + @ErrorString;
 				RETURN;
 			END;
@@ -211,11 +206,10 @@ CREATE  TABLE [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationStatus] (
 
 CREATE  TABLE [{CFG:SchemaName}].[{CFG:TableBaseName}MigratorMeta] ( 
 	Id                   int    IDENTITY(1,1)  NOT NULL,
-	RepositoryVersion    nvarchar(100)     NOT NULL,
+	RayMigratorVersion   nvarchar(100)     NOT NULL,
 	RepositoryDatabaseType nvarchar(100)     NOT NULL,
-	CreatedByRayMigratorVersion nvarchar(100)     NOT NULL,
 	CreatedAt            datetime2(3)   NOT NULL,
-	CONSTRAINT pk_RepositoryVersion PRIMARY KEY  ( Id ) 
+	CONSTRAINT pk_MigratorMeta PRIMARY KEY  ( Id ) 
  );
 
 
@@ -407,13 +401,10 @@ execute sys.sp_addextendedproperty  @name=N'MS_Description', @value=N'- Pending 
   (Successfully deployed)' , @level0type=N'SCHEMA',@level0name=N'{CFG:SchemaName}', @level1type=N'TABLE',@level1name=N'{CFG:TableBaseName}MigrationStatus';;
 
 
-execute sys.sp_addextendedproperty  @name=N'MS_Description', @value=N'From Repository''s create-script (sql-file)' , @level0type=N'SCHEMA',@level0name=N'{CFG:SchemaName}', @level1type=N'TABLE',@level1name=N'{CFG:TableBaseName}MigratorMeta', @level2type=N'COLUMN',@level2name=N'RepositoryVersion';
+execute sys.sp_addextendedproperty  @name=N'MS_Description', @value=N'RayMigrator version that used the repository; the first row is the version that created it and identifies the schema' , @level0type=N'SCHEMA',@level0name=N'{CFG:SchemaName}', @level1type=N'TABLE',@level1name=N'{CFG:TableBaseName}MigratorMeta', @level2type=N'COLUMN',@level2name=N'RayMigratorVersion';
 
 
 execute sys.sp_addextendedproperty  @name=N'MS_Description', @value=N'From appsettings.json Repository configuration' , @level0type=N'SCHEMA',@level0name=N'{CFG:SchemaName}', @level1type=N'TABLE',@level1name=N'{CFG:TableBaseName}MigratorMeta', @level2type=N'COLUMN',@level2name=N'RepositoryDatabaseType';
-
-
-execute sys.sp_addextendedproperty  @name=N'MS_Description', @value=N'From RayMigrator-build' , @level0type=N'SCHEMA',@level0name=N'{CFG:SchemaName}', @level1type=N'TABLE',@level1name=N'{CFG:TableBaseName}MigratorMeta', @level2type=N'COLUMN',@level2name=N'CreatedByRayMigratorVersion';
 
 
 execute sys.sp_addextendedproperty  @name=N'MS_Description', @value=N'= RayMigratorSettings for current product' , @level0type=N'SCHEMA',@level0name=N'{CFG:SchemaName}', @level1type=N'TABLE',@level1name=N'{CFG:TableBaseName}MigrationRunMeta', @level2type=N'COLUMN',@level2name=N'MigrationRunSettingsJson';
@@ -567,16 +558,14 @@ execute sys.sp_addextendedproperty  @name=N'MS_Description', @value=N'The number
 		-- Create VersionId
 		INSERT INTO [{CFG:SchemaName}].[{CFG:TableBaseName}MigratorMeta] 
 		(
-			RepositoryVersion,
+			RayMigratorVersion,
 			RepositoryDatabaseType,
-			CreatedByRayMigratorVersion,
 			CreatedAt
 		)
 		VALUES 
 		(
-			@RepositoryVersion,
-			@RepositoryDatabaseType,
 			@RayMigratorVersion,
+			@RepositoryDatabaseType,
 			SYSUTCDATETIME()
 		);
 

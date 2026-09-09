@@ -113,7 +113,7 @@ This template is **not executed immediately**. It is first used when the Serilog
    - `MigrationStatus` (`tinyint Id`, `Name`, `Description`)
 
 3. **7 Data tables:**
-   - `MigratorMeta` (`Id` IDENTITY, `RepositoryVersion`, `RepositoryDatabaseType`, `CreatedByRayMigratorVersion`, `CreatedAt`)
+   - `MigratorMeta` (`Id` IDENTITY, `RayMigratorVersion`, `RepositoryDatabaseType`, `CreatedAt`)
    - `Product` (`Id` IDENTITY, `Name`, `NameLower` UNIQUE, `CreatedAt`)
    - `Environment` (`Id` IDENTITY, `Name`, `NameLower` UNIQUE, `CreatedAt`)
    - `MigrationRun` (`Id` IDENTITY, `MigratorMetaId` FK, `ProductId` FK, `EnvironmentId` FK, `MigrationRunModeId` FK, `MigrationRunResultId` FK, `FromReleaseVersion`, `ToReleaseVersion`, `StartedAt`, `FinishedAt`, `DurationInMs`)
@@ -171,7 +171,7 @@ This template is **not executed immediately**. It is first used when the Serilog
    | 50 | NotMigrated | Not deployed / rolled back |
    | 100 | Migrated | Successfully deployed |
 
-8. **MigratorMeta entry** with current `RepositoryVersion`, `RepositoryDatabaseType`, and `RayMigratorVersion`
+8. **MigratorMeta entry** with the current `RayMigratorVersion` and `RepositoryDatabaseType` (the first row of the table is the version that created the repository)
 
 **Return value:** VersionId (positive integer), stored in `MigrationContext.MigrationState.MigratorMetaId`
 

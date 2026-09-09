@@ -47,8 +47,6 @@ Note3 = "Use TOP(@Limit) to limit results"
 ================================================================================
 */
 
--- Mandatory RepositoryVersion: DO NOT change manually, otherwise repository-inconsistencies may occur that results in migration errors !!!
-
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
 

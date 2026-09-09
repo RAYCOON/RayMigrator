@@ -31,9 +31,8 @@ RayMigrator follows Semantic Versioning where applicable.
   pre-DDL existence check). `DatabaseLogging_CheckCreate` writes the
   `MigrationEvent` catalogue only when the log tables are created; the
   catalogue upgrade of 0.13.0 (missing rows, rename of id 100, removal of
-  id 32) is gone. The lookup content is part of `RepositoryVersion`, which is
-  `2026-09-09.1` on all five DALs; a repository created by an earlier version
-  must be dropped and recreated. A log database created before 0.13.0 keeps
+  id 32) is gone. A repository created by an earlier version must be dropped
+  and recreated. A log database created before 0.13.0 keeps
   its old catalogue names until it is recreated. External DALs: no upgrade
   blocks are required in the "already exists" branch. (#6, #12, #18)
 - **Breaking (behaviour):** the config hash of a migration file without a
@@ -43,6 +42,16 @@ RayMigrator follows Semantic Versioning where applicable.
   by 0.12.0 or 0.13.0, `update-hash` reports every TOML-less file as updated
   once and then converges; `migrate-up` is not affected because the config
   hash takes no part in the "already migrated" decision. (#9)
+- **Breaking (schema):** `MigratorMeta` lost the `CreatedByRayMigratorVersion`
+  column and the hand-maintained `RepositoryVersion` constant. The remaining
+  version column is `RayMigratorVersion` (`raymigrator_version` on
+  PostgreSQL/MySQL/MariaDB) and holds the RayMigrator version that used the
+  repository: the first row is the version that created it and therefore
+  identifies the schema, every later row is a version that ran on it. The
+  Note4 header invariant and its two unit tests are gone, the `-12` result
+  message names `RayMigratorVersion` and `RepositoryDatabaseType` only, and the
+  SqlServer primary key is `pk_MigratorMeta`. Existing repositories must be
+  dropped and recreated. (follow-up to #6, #12, #18)
 - **Breaking (config):** the former `TargetMigrationOrder` names `Simultaneously`
   and `Successively` are no longer accepted as aliases; a configuration that
   still uses them fails validation with the usual `Allowed values:

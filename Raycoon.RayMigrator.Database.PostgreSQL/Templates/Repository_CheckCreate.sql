@@ -19,7 +19,7 @@ Behaviour = """
 - Return value < 0: Error (logged at Error level, migration aborted)
 - Creates schema if not exists
 - Creates all 11 repository tables with master data
-- Inserts new MigratorMeta record on first run or version change
+- Inserts a MigratorMeta row on the first run of each RayMigrator version (the first row is the version that created the repository)
 """
 
 [ConfigPlaceholders]
@@ -37,13 +37,13 @@ Success_N_Created   = "N (VersionId),RayMigrator repository-tables with master d
 Success_N_NewVer    = "N (VersionId),RayMigrator repository already exists. New VersionId [N] created."
 Error_-10_Incomplete        = "-10,RayMigrator repository incomplete or corrupt. Repository contains [X] tables instead of [11]."
 Error_-11_PartialNoVersion  = "-11,RayMigrator repository incomplete or corrupt. Repository contains [X] tables instead of the expected amount of [0]."
-Error_-12_MultipleVersions  = "-12,Multiple [migrator_meta]-entries found for RepositoryVersion [...] RepositoryDatabaseType [...] RayMigratorVersion [...]."
+Error_-12_MultipleVersions  = "-12,Multiple [migrator_meta]-entries found for RayMigratorVersion [...] RepositoryDatabaseType [...]."
 
 [ModificationNotes]
 Note1 = "SELECT result format: 'code,message' - DO NOT change this format"
 Note2 = "No commas allowed in error messages"
 Note3 = "Use NOW() for all audit timestamps (writes to TIMESTAMPTZ columns)"
-Note4 = "RepositoryVersion constant MUST match Version in header"
+Note4 = "MigratorMeta lists the RayMigrator versions that used the repository; the first row is the version that created it and therefore identifies the schema. There is no RepositoryVersion constant and no in-place upgrade."
 Note5 = "Tables created: migrator_meta, product, environment, migration_run, migration_run_meta, migration_record, migration_record_history, migration_run_mode, migration_operation, migration_run_result, migration_status"
 Note6 = "ResultCode catalog: see TemplateResultCode.cs in Shared project"
 Note7 = "DAL-017: All identifiers (tables, columns, constraints, indexes) use unquoted snake_case per PostgreSQL community convention"
@@ -52,7 +52,6 @@ Note7 = "DAL-017: All identifiers (tables, columns, constraints, indexes) use un
 
 DO $$
 DECLARE
-    v_repository_version VARCHAR(20) := '2026-09-09.1';
     v_version_id INT;
     v_version_id_string VARCHAR(10);
     v_number_of_rows INT;
@@ -89,9 +88,8 @@ BEGIN
         -- Try to get VersionId
         SELECT id INTO v_version_id
         FROM {CFG:SchemaName}.{CFG:TableBaseName}migrator_meta
-        WHERE repository_version = v_repository_version
-          AND repository_database_type = @RepositoryDatabaseType
-          AND created_by_raymigrator_version = @RayMigratorVersion;
+        WHERE raymigrator_version = @RayMigratorVersion
+          AND repository_database_type = @RepositoryDatabaseType;
 
         GET DIAGNOSTICS v_number_of_rows = ROW_COUNT;
 
@@ -101,17 +99,17 @@ BEGIN
             RETURN;
         ELSIF v_number_of_rows = 0 THEN
             INSERT INTO {CFG:SchemaName}.{CFG:TableBaseName}migrator_meta
-                (repository_version, repository_database_type, created_by_raymigrator_version, created_at)
+                (raymigrator_version, repository_database_type, created_at)
             VALUES
-                (v_repository_version, @RepositoryDatabaseType, @RayMigratorVersion, NOW())
+                (@RayMigratorVersion, @RepositoryDatabaseType, NOW())
             RETURNING id INTO v_version_id;
 
             v_version_id_string := CAST(v_version_id AS VARCHAR(10));
             RAISE NOTICE '%,RayMigrator repository already exists. New VersionId [%] created.', v_version_id_string, v_version_id_string;
             RETURN;
         ELSE
-            RAISE EXCEPTION '-12,Multiple [migrator_meta]-entries found for RepositoryVersion [%] RepositoryDatabaseType [%] RayMigratorVersion [%].',
-                COALESCE(v_repository_version, 'NULL'), COALESCE(@RepositoryDatabaseType, 'NULL'), COALESCE(@RayMigratorVersion, 'NULL');
+            RAISE EXCEPTION '-12,Multiple [migrator_meta]-entries found for RayMigratorVersion [%] RepositoryDatabaseType [%].',
+                COALESCE(@RayMigratorVersion, 'NULL'), COALESCE(@RepositoryDatabaseType, 'NULL');
         END IF;
     END IF;
 
@@ -154,9 +152,8 @@ BEGIN
 
     CREATE TABLE {CFG:SchemaName}.{CFG:TableBaseName}migrator_meta (
         id                             INT        GENERATED ALWAYS AS IDENTITY NOT NULL,
-        repository_version             TEXT       NOT NULL,
+        raymigrator_version            TEXT       NOT NULL,
         repository_database_type       TEXT       NOT NULL,
-        created_by_raymigrator_version TEXT      NOT NULL,
         created_at                     TIMESTAMPTZ NOT NULL,
         CONSTRAINT pk_migrator_meta PRIMARY KEY (id)
     );
@@ -353,9 +350,9 @@ BEGIN
 
     -- Create VersionId
     INSERT INTO {CFG:SchemaName}.{CFG:TableBaseName}migrator_meta
-        (repository_version, repository_database_type, created_by_raymigrator_version, created_at)
+        (raymigrator_version, repository_database_type, created_at)
     VALUES
-        (v_repository_version, @RepositoryDatabaseType, @RayMigratorVersion, NOW())
+        (@RayMigratorVersion, @RepositoryDatabaseType, NOW())
     RETURNING id INTO v_version_id;
 
     v_version_id_string := CAST(v_version_id AS VARCHAR(10));

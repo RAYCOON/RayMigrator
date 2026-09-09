@@ -54,8 +54,6 @@ Note6 = "ResultCode convention: >= 0 = Success, -1 = General template error, -2 
 ================================================================================
 */
 
--- Mandatory RepositoryVersion: DO NOT change manually, otherwise repository-inconsistencies may occur that results in migration errors !!!
-
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
 

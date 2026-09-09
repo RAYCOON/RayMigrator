@@ -6,7 +6,6 @@ namespace Raycoon.RayMigrator.Tests.Unit;
 /// <summary>
 /// P1: PostgreSQL type-convention assertions covering DAL-012 (TIMESTAMPTZ, NOW() cleanup)
 /// and DAL-013 (TEXT replaces arbitrary VARCHAR(n) in CREATE TABLE column declarations).
-/// Also enforces the TOML Version / v_repository_version consistency invariant (Note4).
 /// </summary>
 public class PostgreSqlTypeConventionsTests
 {
@@ -130,9 +129,8 @@ public class PostgreSqlTypeConventionsTests
             "name",
             "description",
             "name_lower",
-            "repository_version",
+            "raymigrator_version",
             "repository_database_type",
-            "created_by_raymigrator_version",
             "release_version",
             "target_group_alias",
             "target_alias",
@@ -182,35 +180,6 @@ public class PostgreSqlTypeConventionsTests
             match.Success.Should().BeFalse(
                 $"CREATE TABLE block for {block.TableName} must not contain VARCHAR(n) column declarations after DAL-013 (match: {(match.Success ? match.Value : "")})");
         }
-    }
-
-    #endregion
-
-    #region Consistency invariants
-
-    [Fact]
-    public void Repository_CheckCreate_TomlVersionMatchesConstant()
-    {
-        var content = ReadTemplate("PostgreSQL", "Repository_CheckCreate.sql");
-
-        // Parse the TOML Version header, located between [RayMigratorTemplate] and the next section
-        var tomlSectionMatch = Regex.Match(content,
-            @"\[RayMigratorTemplate\](.*?)\[(?!RayMigratorTemplate)",
-            RegexOptions.Singleline);
-        tomlSectionMatch.Success.Should().BeTrue("Repository_CheckCreate.sql must have a [RayMigratorTemplate] TOML section");
-
-        var tomlSection = tomlSectionMatch.Groups[1].Value;
-        var versionMatch = Regex.Match(tomlSection, @"Version\s*=\s*""([^""]+)""");
-        versionMatch.Success.Should().BeTrue("the [RayMigratorTemplate] section must declare a Version");
-        var tomlVersion = versionMatch.Groups[1].Value;
-
-        // Parse the v_repository_version PL/pgSQL constant
-        var constantMatch = Regex.Match(content, @"v_repository_version\s+VARCHAR\(\d+\)\s*:=\s*'([^']+)'");
-        constantMatch.Success.Should().BeTrue("Repository_CheckCreate.sql must declare a v_repository_version constant");
-        var constantVersion = constantMatch.Groups[1].Value;
-
-        constantVersion.Should().Be(tomlVersion,
-            "v_repository_version PL/pgSQL constant must match the TOML Version header (Note4 invariant)");
     }
 
     #endregion

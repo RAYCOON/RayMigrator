@@ -576,12 +576,7 @@ public void CustomTemplate_CreatesRepositoryTables()
 
 ### 1. No In-Place Upgrades
 
-RayMigrator does not upgrade existing repositories or log databases in place. A template change that alters the schema or the lookup master data bumps the `RepositoryVersion` constant and the `Version` header of `Repository_CheckCreate.sql`; existing repositories are dropped and recreated. Do not add `ALTER TABLE` guards or master-data back-fill blocks to the "already exists" branch of `Repository_CheckCreate` or `DatabaseLogging_CheckCreate`: master data is written only when the tables are created.
-
-```sql
--- Repository_CheckCreate.sql (SQL Server): master data belongs to the create branch only
-DECLARE @RepositoryVersion VARCHAR(20) = '2026-09-09.1';   -- bump on every schema or master-data change
-```
+RayMigrator does not upgrade existing repositories or log databases in place. A template change that alters the schema or the lookup master data ships in a new RayMigrator version and existing repositories are dropped and recreated. There is no schema version constant to maintain: `MigratorMeta.RayMigratorVersion` records the RayMigrator version that used the repository, and its first row is the version that created it. Bump the `Version` header of the changed template file (file revision) and do not add `ALTER TABLE` guards or master-data back-fill blocks to the "already exists" branch of `Repository_CheckCreate` or `DatabaseLogging_CheckCreate`: master data is written only when the tables are created.
 
 ### 2. Use Idempotent Scripts
 

@@ -386,7 +386,6 @@ CREATE TEMP TABLE IF NOT EXISTS "_rc_state" ("key" TEXT PRIMARY KEY, "val" TEXT)
 DELETE FROM "_rc_state";
 
 INSERT OR REPLACE INTO "_rc_state" ("key", "val") VALUES
-    ('repository_version', '2026-09-09.1'),
     ('pre_table_count', CAST((SELECT COUNT(*) FROM sqlite_master
         WHERE type='table' AND name IN (...)) AS TEXT));
 ```
@@ -583,7 +582,6 @@ CREATE TEMP TABLE IF NOT EXISTS "_rc_state" ("key" TEXT PRIMARY KEY, "val" TEXT)
 DELETE FROM "_rc_state";
 
 INSERT OR REPLACE INTO "_rc_state" ("key", "val") VALUES
-    ('repository_version', '2026-09-09.1'),
     ('pre_table_count', CAST((SELECT COUNT(*) FROM sqlite_master
         WHERE type='table' AND name IN (...)) AS TEXT));
 
