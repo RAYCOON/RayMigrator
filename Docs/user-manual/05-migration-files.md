@@ -139,7 +139,7 @@ Valid values:
 - `Terminate` — Stop the migration run immediately. No rollback is performed.
 - `Rollback` — Roll back all migrations performed by the current migration run.
 - `RollbackErrorOnly` — Roll back only the failed migration file using its rollback file.
-- `RollbackRelease` — Roll back all migrations from the release that caused the error. Migrations from earlier releases remain intact.
+- `RollbackRelease` — Roll back the current run's migrations of the release that caused the error. Migrations from earlier releases remain intact.
 - `Ignore` — Skip the failed SQL blocks and continue with the next migration file.
 
 If omitted, the value is inherited from the nearest `migsettings.txt` / `migsettings.{Environment}.txt` file in the directory hierarchy, or from the product configuration.

@@ -241,7 +241,7 @@ ProductDefaults
 - **Terminate** (default) — Stop immediately, no rollback.
 - **Rollback** — Roll back all migrations performed by the current run.
 - **RollbackErrorOnly** — Roll back only the file that caused the error.
-- **RollbackRelease** — Roll back all migrations from the release that caused the error. Earlier releases remain intact.
+- **RollbackRelease** — Roll back the current run's migrations of the release that caused the error. Earlier releases remain intact.
 - **Ignore** — Skip the error and continue with the next file.
 
 **RollbackErrorAction** controls what happens when a rollback operation itself fails:

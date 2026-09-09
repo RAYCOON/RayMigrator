@@ -138,7 +138,7 @@ Configure via `RollbackErrorAction` at the same levels as `MigrationErrorAction`
 }
 ```
 
-> **Note:** `RollbackErrorAction` inherits through the same hierarchy as `MigrationErrorAction`: ProductDefaults -> Product -> migsettings -> TOML.
+> **Note:** `RollbackErrorAction` is resolved from the rollback file's own TOML header, then the Product (which inherits from ProductDefaults), then the default `Terminate`. `migsettings.txt` does not apply to rollback files (#20).
 
 ---
 

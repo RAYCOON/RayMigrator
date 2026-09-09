@@ -4454,7 +4454,7 @@ public class MigrationService : IMigrationService
 
     #endregion Helper Methods
 
-    #region Stub Methods (not yet fully implemented)
+    #region Info, Hash and History Commands
 
     public async Task<ValidationResult> ValidateHashAsync(ValidateHashRequest request)
     {
@@ -4952,7 +4952,7 @@ public class MigrationService : IMigrationService
         }
     }
 
-    #endregion Stub Methods
+    #endregion Info, Hash and History Commands
 
     #region Fix Command
 

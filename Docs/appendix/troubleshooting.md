@@ -465,7 +465,7 @@ The `Repository_Product_CheckInsert` template rejects a `NULL`/empty `Name` para
    - `Terminate` (default) -- Stop immediately, no rollback.
    - `Rollback` -- Roll back all migrations from the current MigrationRun.
    - `RollbackErrorOnly` -- Roll back only the file that caused the error.
-   - `RollbackRelease` -- Roll back all migrations from the release that caused the error. Earlier releases remain intact.
+   - `RollbackRelease` -- Roll back the current run's migrations of the release that caused the error. Earlier releases remain intact.
    - `Ignore` -- Skip the failed file and continue execution.
 
 3. **Fix rollback SQL and retry**

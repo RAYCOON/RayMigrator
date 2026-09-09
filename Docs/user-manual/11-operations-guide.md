@@ -372,7 +372,7 @@ If `MigrationErrorAction` is set to `Rollback`, `RollbackErrorOnly`, or `Rollbac
 | `Terminate` | Stop immediately, no rollback (default) |
 | `Rollback` | Roll back ALL migrations in the current run |
 | `RollbackErrorOnly` | Roll back only the migration file that caused the error |
-| `RollbackRelease` | Roll back all migrations from the failed release, keep previous releases |
+| `RollbackRelease` | Roll back the current run's migrations of the failed release, keep previous releases |
 | `Ignore` | Skip the error and continue with the next migration file |
 
 When a rollback itself fails, the `RollbackErrorAction` setting controls what happens:
@@ -410,7 +410,7 @@ Migrations/
       002_CreateAuthors.rollback.sql
 ```
 
-When `RequireRollbackFile = true`, a missing rollback file is treated as a structural error that always aborts the rollback chain, regardless of `RollbackErrorAction`. When `RequireRollbackFile = false`, a missing rollback file logs a warning and the rollback chain continues to the next file.
+When `RequireRollbackFile = true`, a missing rollback file is treated as a structural error that always aborts the rollback chain, regardless of `RollbackErrorAction`. When `RequireRollbackFile = false`, a missing rollback file logs a warning. A user-initiated `migrate-down` skips the file and continues (the run ends `PartialSuccess`); the error-recovery rollback inside a `migrate-up` stops the chain unless `StopRollbackOnMissingRollbackFile = false` is configured (#20).
 
 ---
 

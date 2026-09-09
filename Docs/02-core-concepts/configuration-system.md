@@ -121,7 +121,7 @@ Namespace: `Raycoon.RayMigrator.Core.Configuration.Options`
 
 ### Enum Values
 
-Enum properties are stored as strings in JSON and parsed lazily. Each options class exposes a computed `*Enum` property (e.g., `MigrationErrorActionEnum`) that returns `Undefined` (0) when parsing fails or the underlying string is missing.
+Enum properties are stored as strings in JSON and parsed lazily. Each options class exposes a computed `*Enum` property (e.g., `MigrationErrorActionEnum`) that resolves the string through `ParsedEnumOption` (#19): `Undefined` (0) while the string is missing (`CliToolOptions.InputModeEnum` returns `File`), and a `ConfigurationValidationException` when the string is neither a member name nor an alias.
 
 | Enum | Values |
 |------|--------|

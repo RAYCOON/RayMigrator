@@ -12,7 +12,7 @@ RayMigrator provides configurable error handling strategies to control behavior 
 | `Terminate` | 10 | Stop immediately, no rollback |
 | `Rollback` | 20 | Rollback all migrations in current run |
 | `RollbackErrorOnly` | 21 | Rollback only the failed migration |
-| `RollbackRelease` | 22 | Rollback all migrations from the failed release |
+| `RollbackRelease` | 22 | Rollback the current run's migrations of the failed release |
 | `Ignore` | 30 | Ignore the error and continue execution |
 
 Source: `Raycoon.RayMigrator.Core/Configuration/Enums/MigrationErrorAction.cs` (namespace `Raycoon.RayMigrator.Core.Configuration.Enums`)
@@ -146,12 +146,12 @@ flowchart TD
 
 ### RollbackRelease
 
-Rollback all migrations from the release where the error occurred, keep migrations from previous releases.
+Rollback the current run's migrations of the release where the error occurred, keep migrations from previous releases and migrations of the same release that earlier runs applied (#20).
 
 ```mermaid
 flowchart TD
     A[Migration Error] --> B[Identify Failed Release]
-    B --> C[Collect All Migrations from Failed Release]
+    B --> C[Collect This Run's Migrations of the Failed Release]
     C --> D[Reverse Order]
     D --> E[Execute Rollback Scripts]
     E --> F{All Rollbacks Success?}
@@ -174,7 +174,7 @@ flowchart TD
 
 ### Ignore
 
-Ignore the error and continue execution. Failed SQL blocks are skipped, and the migration file is marked as `Failed`. The migration run proceeds with the next file.
+Ignore the error and continue execution. Failed SQL blocks are skipped, and the migration file is marked as `Failed`. The migration run proceeds with the next file, is persisted as `PartialSuccess` (50) and the CLI exit code is 1, so a scheduler still notices that something was skipped (#18).
 
 ```mermaid
 flowchart TD

@@ -118,7 +118,7 @@ Rollback C
 (Release 1.0 migrations A and B remain intact)
 ```
 
-Rolls back all migrations from the release that caused the error. Migrations from earlier releases remain intact.
+Rolls back the current run's migrations of the release that caused the error. Migrations from earlier releases remain intact.
 
 #### Ignore (value 30)
 

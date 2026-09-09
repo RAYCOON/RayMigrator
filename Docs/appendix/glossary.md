@@ -198,7 +198,7 @@ Configuration that determines behavior when a migration fails (`MigrationErrorAc
 - **Terminate** (10): Stop immediately, no rollback
 - **Rollback** (20): Undo all migrations in current run
 - **RollbackErrorOnly** (21): Undo only the failed migration
-- **RollbackRelease** (22): Undo all migrations from the release that caused the error
+- **RollbackRelease** (22): Undo the current run's migrations of the release that caused the error
 - **Ignore** (30): Ignore the error and continue execution with the next file
 
 ### Migration File
@@ -254,7 +254,7 @@ An exception thrown when a feature is planned but not yet implemented. Carries a
 ## O
 
 ### Operating Mode
-The mode in which RayMigrator runs, determined by bootstrap configuration (`OperatingMode` enum):
+The mode in which RayMigrator runs, determined by bootstrap configuration (`OperatingMode` enum; the Engine has no CLI option or configuration key for it and always runs Standalone, the managed modes live in RayMigrator Studio):
 - **Standalone**: All configuration loaded from JSON files (appsettings.json hierarchy). No Admin-DB, no API server. This is the default mode used by RayMigrator Engine.
 - **ManagedLocal**: Configuration loaded from a local Admin-DB. Products, Environments, Targets, and Repository config come from the Admin-DB. Serilog configuration still read from appsettings.json. Implemented in RayMigrator Studio.
 - **ManagedRemote**: CLI operates as a Thin Client, sending HTTP requests to a remote RayMigrator API server instead of accessing databases directly. Implemented in RayMigrator Studio.

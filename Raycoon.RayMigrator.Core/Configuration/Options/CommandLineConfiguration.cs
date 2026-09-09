@@ -245,7 +245,7 @@ public class CommandLineConfiguration
         // Optional parameters
         var scopeOption = new Option<string>("--scope", "-s")
         {
-            Description = "Hash validation scope override (file, sqlblock, or disabled). If omitted, uses per-TargetGroup config."
+            Description = "Hash validation scope override for every TargetGroup (file, sqlblocks or disabled; sqlblock is accepted too). If omitted, uses per-TargetGroup config."
         };
 
         scopeOption.Validators.Add(result =>

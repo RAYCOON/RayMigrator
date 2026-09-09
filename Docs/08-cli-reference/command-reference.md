@@ -499,7 +499,7 @@ Controls error handling behavior when a migration fails.
 | `Terminate` | 10 | Stop immediately, no rollback |
 | `Rollback` | 20 | Rollback all migrations in current run |
 | `RollbackErrorOnly` | 21 | Rollback only the failed migration |
-| `RollbackRelease` | 22 | Rollback all migrations from the failed release |
+| `RollbackRelease` | 22 | Rollback the current run's migrations of the failed release |
 | `Ignore` | 30 | Ignore error, continue with next file |
 
 Source: `Raycoon.RayMigrator.Core/Configuration/Enums/MigrationErrorAction.cs`
@@ -580,6 +580,8 @@ Source: `Raycoon.RayMigrator.Core/Configuration/Enums/MigrationStatus.cs`
 ### OperatingMode
 
 Determines how RayMigrator loads configuration and executes commands. See [Execution Modes](../02-core-concepts/execution-modes.md#operating-mode) for details.
+
+> There is no CLI option or configuration key for it: the Engine always runs `Standalone`. The enum is part of the Core package contract consumed by RayMigrator Studio, which implements the managed modes (#20).
 
 | Name | Description |
 |------|-------------|

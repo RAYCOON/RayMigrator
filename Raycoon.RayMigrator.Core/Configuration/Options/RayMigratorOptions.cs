@@ -253,7 +253,7 @@ public class ProductDefaultOptions
     /// <summary>
     /// When true (default), an error-recovery rollback chain stops when a rollback file is missing
     /// (RequireRollbackFile=false). When false, the chain continues and skips the missing file.
-    /// Only applies to error-recovery rollback (MigrationErrorAction=Rollback/RollbackRelease),
+    /// Only applies to error-recovery rollback (MigrationErrorAction=Rollback/RollbackErrorOnly/RollbackRelease),
     /// not to explicit Migrate-Down.
     /// </summary>
     public bool? StopRollbackOnMissingRollbackFile { get; set; }
@@ -400,7 +400,7 @@ public class ProductOptions
     /// <summary>
     /// When true (default), an error-recovery rollback chain stops when a rollback file is missing
     /// (RequireRollbackFile=false). When false, the chain continues and skips the missing file.
-    /// Only applies to error-recovery rollback (MigrationErrorAction=Rollback/RollbackRelease),
+    /// Only applies to error-recovery rollback (MigrationErrorAction=Rollback/RollbackErrorOnly/RollbackRelease),
     /// not to explicit Migrate-Down.
     /// </summary>
     public bool? StopRollbackOnMissingRollbackFile { get; set; }
