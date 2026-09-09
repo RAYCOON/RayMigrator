@@ -94,7 +94,7 @@ public class MySqlIncrementalTests : MySqlTestBase
 
         // Run 1 Ok, Run 2 Error
         ctx.AssertMigrationRun(1, new MigrationRunExpectation { MigrationRunResultId = (int)MigrationRunResult.Ok });
-        ctx.AssertMigrationRun(2, new MigrationRunExpectation { MigrationRunResultId = (int)MigrationRunResult.Error });
+        ctx.AssertMigrationRun(2, new MigrationRunExpectation { MigrationRunResultId = (int)MigrationRunResult.Recovered });
 
         // R1+R2: Migrated from Run 1 (untouched by rollback)
         ctx.AssertFileStatuses(
@@ -139,7 +139,7 @@ public class MySqlIncrementalTests : MySqlTestBase
 
         // Run 1 Ok, Run 2 Error
         ctx.AssertMigrationRun(1, new MigrationRunExpectation { MigrationRunResultId = (int)MigrationRunResult.Ok });
-        ctx.AssertMigrationRun(2, new MigrationRunExpectation { MigrationRunResultId = (int)MigrationRunResult.Error });
+        ctx.AssertMigrationRun(2, new MigrationRunExpectation { MigrationRunResultId = (int)MigrationRunResult.Recovered });
 
         // R1+R2: Migrated from Run 1 (untouched)
         ctx.AssertFileStatuses(
@@ -185,7 +185,7 @@ public class MySqlIncrementalTests : MySqlTestBase
 
         // Run 1 Ok, Run 2 Error
         ctx.AssertMigrationRun(1, new MigrationRunExpectation { MigrationRunResultId = (int)MigrationRunResult.Ok });
-        ctx.AssertMigrationRun(2, new MigrationRunExpectation { MigrationRunResultId = (int)MigrationRunResult.Error });
+        ctx.AssertMigrationRun(2, new MigrationRunExpectation { MigrationRunResultId = (int)MigrationRunResult.Recovered });
 
         // R1: Migrated from Run 1 (untouched)
         ctx.AssertFileStatuses(
@@ -232,7 +232,7 @@ public class MySqlIncrementalTests : MySqlTestBase
 
         // Run 1 Ok, Run 2 Error
         ctx.AssertMigrationRun(1, new MigrationRunExpectation { MigrationRunResultId = (int)MigrationRunResult.Ok });
-        ctx.AssertMigrationRun(2, new MigrationRunExpectation { MigrationRunResultId = (int)MigrationRunResult.Error });
+        ctx.AssertMigrationRun(2, new MigrationRunExpectation { MigrationRunResultId = (int)MigrationRunResult.Recovered });
 
         // R1: Migrated from Run 1
         ctx.AssertFileStatuses(

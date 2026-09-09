@@ -448,7 +448,7 @@ Tests validate that for each of the 4 Docker presets (sqlcmd-docker, psql-docker
 Tests verify the following database columns via `MigrationRecordExpectation` and `MigrationRunExpectation` (partial-match DTOs — only non-null fields are asserted):
 
 **MigrationRun table** (`MigrationRunExpectation`):
-- `MigrationRunResultId` (Ok=100, Error=90)
+- `MigrationRunResultId` (Ok=100, Error=90, Recovered=80, PartialSuccess=50)
 - `EnvironmentId` (FK to Environment lookup — typically resolves to "Docker")
 - `FromReleaseVersion`, `ToReleaseVersion`
 
@@ -494,7 +494,7 @@ How the engine handles each combination of rollback file existence, SQL outcome,
 | **Problem file (row 5, RequireRB=false)** | Unchanged (Migrated) | Unchanged (Migrated) |
 | After problem (older releases) | Processed normally → NotMigrated | **NOT processed → stay Migrated** |
 
-**MigrateUp vs MigrateDown**: This matrix applies to the ROLLBACK portion of both operations. For MigrateUp with automatic rollback (triggered by `MigrationErrorAction=Rollback`), the overall `MigrationRunResult` is always `Error` because the migration itself failed — regardless of how the rollback went. For MigrateDown, the rollback IS the operation, so the matrix directly determines the result.
+**MigrateUp vs MigrateDown**: This matrix applies to the ROLLBACK portion of both operations. For MigrateUp with automatic rollback (triggered by `MigrationErrorAction=Rollback`), the migration itself failed, so the run never ends `Ok`: it is `Recovered` when the rollback chain completed without a failure or warning, and `Error` otherwise (#18). For MigrateDown, the rollback IS the operation, so the matrix directly determines the result.
 
 ## Extending the Tests
 

@@ -117,6 +117,12 @@ BEGIN TRY
 				VALUES (50, 'PartialSuccess', 'Migration(s) finished but at least one file was skipped or left Failed');
 			END;
 
+			IF NOT EXISTS (SELECT 1 FROM [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRunResult] WHERE [Id] = 80)
+			BEGIN
+				INSERT INTO [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRunResult] ([Id], [Name], [Description])
+				VALUES (80, 'Recovered', 'Migration(s) failed and the configured error recovery rolled back cleanly');
+			END;
+
 			-- Try to get VersionId
 			SELECT 
 				@VersionId = Id
@@ -400,7 +406,7 @@ execute sys.sp_addextendedproperty  @name=N'MS_Description', @value=N'- Rollback
 - Baseline = 110' , @level0type=N'SCHEMA',@level0name=N'{CFG:SchemaName}', @level1type=N'TABLE',@level1name=N'{CFG:TableBaseName}MigrationOperation';;
 
 
-execute sys.sp_addextendedproperty  @name=N'MS_Description', @value=N'Running = 10, PartialSuccess = 50, Error = 90, Ok = 100' , @level0type=N'SCHEMA',@level0name=N'{CFG:SchemaName}', @level1type=N'TABLE',@level1name=N'{CFG:TableBaseName}MigrationRunResult';;
+execute sys.sp_addextendedproperty  @name=N'MS_Description', @value=N'Running = 10, PartialSuccess = 50, Recovered = 80, Error = 90, Ok = 100' , @level0type=N'SCHEMA',@level0name=N'{CFG:SchemaName}', @level1type=N'TABLE',@level1name=N'{CFG:TableBaseName}MigrationRunResult';;
 
 
 execute sys.sp_addextendedproperty  @name=N'MS_Description', @value=N'Validate = 10,
@@ -563,6 +569,7 @@ execute sys.sp_addextendedproperty  @name=N'MS_Description', @value=N'The number
 		VALUES
 			(10, 'Running', 'Migration process is currently running'),
 			(50, 'PartialSuccess', 'Migration(s) finished but at least one file was skipped or left Failed'),
+			(80, 'Recovered', 'Migration(s) failed and the configured error recovery rolled back cleanly'),
             (90, 'Error', 'Migration(s) stopped due to error(s)'),
 			(100, 'Ok', 'Migration(s) successfully executed');
 

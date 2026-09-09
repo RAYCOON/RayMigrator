@@ -28,7 +28,7 @@ public class MariaDbRollbackReleaseTests : MariaDbTestBase
         await ctx.MigrateUpAsync();
 
         ctx.AssertSuccess(false);
-        ctx.AssertRunResult(MigrationRunResult.Error);
+        ctx.AssertRunResult(MigrationRunResult.Recovered);
         ctx.AssertRunCount(1);
 
         ctx.AssertFileStatuses(
@@ -74,7 +74,7 @@ public class MariaDbRollbackReleaseTests : MariaDbTestBase
         await ctx.MigrateUpAsync();
 
         ctx.AssertSuccess(false);
-        ctx.AssertRunResult(MigrationRunResult.Error);
+        ctx.AssertRunResult(MigrationRunResult.Recovered);
         ctx.AssertRunCount(1);
 
         ctx.AssertFileStatuses(
@@ -114,7 +114,7 @@ public class MariaDbRollbackReleaseTests : MariaDbTestBase
         await ctx.MigrateUpAsync();
 
         ctx.AssertSuccess(false);
-        ctx.AssertRunResult(MigrationRunResult.Error);
+        ctx.AssertRunResult(MigrationRunResult.Recovered);
         ctx.AssertRunCount(1);
 
         ctx.AssertFileStatuses(
@@ -147,7 +147,7 @@ public class MariaDbRollbackReleaseTests : MariaDbTestBase
         await ctx.MigrateUpAsync();
 
         ctx.AssertSuccess(false);
-        ctx.AssertRunResult(MigrationRunResult.Error);
+        ctx.AssertRunResult(MigrationRunResult.Recovered);
         ctx.AssertRunCount(1);
 
         ctx.AssertFileStatuses(

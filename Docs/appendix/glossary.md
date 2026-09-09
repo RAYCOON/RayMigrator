@@ -231,7 +231,9 @@ A single execution of the migration process for a product/environment combinatio
 The outcome of a migration run (`MigrationRunResult` enum):
 - **Undefined** (0): Value has not been set
 - **Running** (10): Migration process is currently running
-- **Error** (90): Migration stopped due to errors
+- **PartialSuccess** (50): Run finished, but at least one file was skipped or left Failed
+- **Recovered** (80): Run failed, the error-recovery rollback completed cleanly
+- **Error** (90): Migration stopped due to errors, or the error recovery did not complete cleanly
 - **Ok** (100): Migration successfully executed and finished
 
 ### Migration Status

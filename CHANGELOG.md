@@ -5,6 +5,28 @@ All notable changes to RayMigrator are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 RayMigrator follows Semantic Versioning where applicable.
 
+## [Unreleased]
+
+### Added
+
+- **Breaking (behaviour):** `MigrationRunResult.Recovered` (80). A `migrate-up`
+  that failed and whose configured error recovery (`MigrationErrorAction =
+  Rollback`, `RollbackRelease` or `RollbackErrorOnly`) rolled back without a
+  failure or warning is now persisted as `Recovered` instead of `Error`: every
+  record the recovery touched is `NotMigrated` again, repository and database
+  are consistent. `Terminate`, a failed rollback block, a missing rollback
+  file and a stopped chain keep `Error`. `info` shows the value in the run
+  history. The CLI exit code stays 1. The repository lookup table is upgraded
+  idempotently on the next start. (#18)
+
+### Fixed
+
+- The result of the error-recovery rollback chain was discarded by
+  `HandleMigrationError`, so a clean rollback and an aborted one were
+  indistinguishable in the repository. (#18)
+- Documentation: `error-handling.md` still described an `Ignore` run as
+  `Error`; the enum tables in several documents lacked `PartialSuccess`. (#18)
+
 ## [0.13.0] — 2026-09-09
 
 ### Added

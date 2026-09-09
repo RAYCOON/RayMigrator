@@ -115,7 +115,7 @@ public class SqlServerBlockLevelTests : SqlServerTestBase
         await ctx.MigrateUpAsync();
 
         ctx.AssertSuccess(false);
-        ctx.AssertRunResult(MigrationRunResult.Error);
+        ctx.AssertRunResult(MigrationRunResult.Recovered);
         ctx.AssertRunCount(1);
 
         // R1/F3: partially migrated then rolled back
@@ -155,7 +155,7 @@ public class SqlServerBlockLevelTests : SqlServerTestBase
         await ctx.MigrateUpAsync();
 
         ctx.AssertSuccess(false);
-        ctx.AssertRunResult(MigrationRunResult.Error);
+        ctx.AssertRunResult(MigrationRunResult.Recovered);
         ctx.AssertRunCount(1);
 
         // R1/F3: partially migrated then rolled back

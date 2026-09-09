@@ -83,7 +83,7 @@ public class MySqlMultiTargetTests : MySqlTestBase
         await ctx.MigrateUpAsync();
 
         ctx.AssertSuccess(false);
-        ctx.AssertRunResult(MigrationRunResult.Error);
+        ctx.AssertRunResult(MigrationRunResult.Recovered);
         ctx.AssertRunCount(1);
 
         // Both targets: R1 + R2/F1 files rolled back to NotMigrated
@@ -164,7 +164,7 @@ public class MySqlMultiTargetTests : MySqlTestBase
         await ctx.MigrateUpAsync();
 
         ctx.AssertSuccess(false);
-        ctx.AssertRunResult(MigrationRunResult.Error);
+        ctx.AssertRunResult(MigrationRunResult.Recovered);
         ctx.AssertRunCount(1);
 
         // T1 (MainDB): R1+R2 files attempted, all NotMigrated after rollback

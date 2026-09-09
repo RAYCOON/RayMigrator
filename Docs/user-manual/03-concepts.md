@@ -90,7 +90,7 @@ The repository contains these tables:
 | `MigrationRecordHistory` | Audit log for MigrationRecord entries. Each time a migration reaches a terminal state (Migrated, Failed, or NotMigrated), the current state of that `MigrationRecord` row is copied here. The original `MigrationRecord` is retained and may be reused (reset) on future runs. See [Repository Schema](../03-database-layer/repository-schema.md). |
 | `MigrationRunMode` | Lookup table for run modes: Validate (10), Simulate (20), Migrate (100). |
 | `MigrationOperation` | Lookup table for operation types: Rollback (5), MigrateDown (50), MigrateUp (100), Baseline (110). |
-| `MigrationRunResult` | Lookup table for run outcomes: Running (10), Error (90), Ok (100). |
+| `MigrationRunResult` | Lookup table for run outcomes: Running (10), PartialSuccess (50), Recovered (80), Error (90), Ok (100). |
 | `MigrationStatus` | Lookup table for per-file statuses (see next section). |
 
 The repository is created automatically on the first migration run. RayMigrator checks for the configured schema and creates it along with all required tables if they do not exist.

@@ -28,7 +28,7 @@ public class MySqlRollbackTests : MySqlTestBase
         await ctx.MigrateUpAsync();
 
         ctx.AssertSuccess(false);
-        ctx.AssertRunResult(MigrationRunResult.Error);
+        ctx.AssertRunResult(MigrationRunResult.Recovered);
         ctx.AssertRunCount(1);
 
         // All 12 files should be NotMigrated (rolled back)
@@ -75,7 +75,7 @@ public class MySqlRollbackTests : MySqlTestBase
         await ctx.MigrateUpAsync();
 
         ctx.AssertSuccess(false);
-        ctx.AssertRunResult(MigrationRunResult.Error);
+        ctx.AssertRunResult(MigrationRunResult.Recovered);
         ctx.AssertRunCount(1);
 
         // R1 + R2 (attempted files) are NotMigrated, R3+R4 have no records
@@ -115,7 +115,7 @@ public class MySqlRollbackTests : MySqlTestBase
         await ctx.MigrateUpAsync();
 
         ctx.AssertSuccess(false);
-        ctx.AssertRunResult(MigrationRunResult.Error);
+        ctx.AssertRunResult(MigrationRunResult.Recovered);
         ctx.AssertRunCount(1);
 
         // Only R1/F1 has a record (NotMigrated after rollback)

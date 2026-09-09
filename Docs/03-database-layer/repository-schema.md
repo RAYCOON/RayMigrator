@@ -184,7 +184,7 @@ The `Repository_CheckCreate` template creates **11 tables** (4 lookup + 7 data).
 | `MigrationRecordHistory` | Migration archive (records from previous runs) | Created |
 | `MigrationRunMode` | Lookup: Validate/Simulate/Migrate | Created |
 | `MigrationOperation` | Lookup: Rollback/MigrateDown/MigrateUp | Created |
-| `MigrationRunResult` | Lookup: Running/Error/Ok (used by MigrationRun) | Created |
+| `MigrationRunResult` | Lookup: Running/PartialSuccess/Recovered/Error/Ok (used by MigrationRun) | Created |
 | `MigrationStatus` | Lookup: Pending/Executing/Failed/NotMigrated/Migrated | Created |
 
 ## Core Tables
@@ -337,6 +337,8 @@ All four lookup tables (`MigrationOperation`, `MigrationRunResult`, `MigrationRu
 |----|------|-------------|
 | 0 | Undefined | Invalid value; result has not been set |
 | 10 | Running | Migration process is currently running |
+| 50 | PartialSuccess | Migration(s) finished but at least one file was skipped or left Failed |
+| 80 | Recovered | Migration(s) failed and the configured error recovery rolled back cleanly |
 | 90 | Error | Migration(s) stopped due to error(s) |
 | 100 | Ok | Migration(s) successfully executed |
 

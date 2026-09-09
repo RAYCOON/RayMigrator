@@ -5,8 +5,9 @@ namespace Raycoon.RayMigrator.Tests.Unit;
 
 /// <summary>
 /// P2: <see cref="MigrationRunResult.PartialSuccess"/> distinguishes a run that finished with skipped or
-/// ignored files from an aborted one (#18). The value is seeded into the MigrationRunResult lookup table of
-/// every DAL and must never move.
+/// ignored files from an aborted one, <see cref="MigrationRunResult.Recovered"/> a failed run whose error-recovery
+/// rollback completed cleanly (#18). The values are seeded into the MigrationRunResult lookup table of every DAL
+/// and must never move.
 /// </summary>
 public class MigrationRunResultTests
 {
@@ -18,6 +19,13 @@ public class MigrationRunResultTests
         ((byte)MigrationRunResult.Running).Should().Be(10);
         ((byte)MigrationRunResult.Error).Should().Be(90);
         ((byte)MigrationRunResult.Ok).Should().Be(100);
+    }
+
+    [Fact]
+    public void Recovered_IsDefined_BetweenPartialSuccessAndError()
+    {
+        Enum.IsDefined(MigrationRunResult.Recovered).Should().BeTrue();
+        ((byte)MigrationRunResult.Recovered).Should().Be(80, "the value is seeded into the MigrationRunResult lookup table of every DAL");
     }
 
     [Fact]

@@ -277,14 +277,22 @@ public class MigrationService : IMigrationService
                     {
                         lastErrorMessage = result.ErrorMessage;
 
+                        // Both modes: error aborts entire run. The run is Recovered only when the configured error
+                        // recovery rolled back without a failure or warning; Terminate, Ignore, a failed rollback
+                        // block, a missing rollback file and a stopped chain leave it Error (#18).
+                        var runResult = MigrationRunResult.Error;
                         if (request.RunMode.ShouldWriteRepository())
                         {
-                            // Both modes: error aborts entire run
-                            await HandleMigrationError(
+                            var recovery = await HandleMigrationError(
                                 productOptions, result.FailedFile!, result.FailedMigrationRecordId,
                                 successfullyMigratedRecords, request.RunMode);
 
-                            await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(MigrationRunResult.Error));
+                            if (recovery is { FailCount: 0, WarningCount: 0 })
+                            {
+                                runResult = MigrationRunResult.Recovered;
+                            }
+
+                            await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(runResult));
                         }
 
                         return new MigrationOperationResult
@@ -294,7 +302,7 @@ public class MigrationService : IMigrationService
                             ProductAlias = request.ProductAlias,
                             Environment = request.Environment,
                             Operation = MigrationOperation.MigrateUp,
-                            Result = MigrationRunResult.Error,
+                            Result = runResult,
                             TotalMigrations = successfulMigrations + failedMigrations,
                             SuccessfulMigrations = successfulMigrations,
                             FailedMigrations = failedMigrations,
@@ -1903,7 +1911,12 @@ public class MigrationService : IMigrationService
     /// <summary>
     /// Handles migration error based on the configured MigrationErrorAction.
     /// </summary>
-    private async Task HandleMigrationError(
+    /// <summary>
+    /// Executes the configured <see cref="MigrationErrorAction"/> for a failed file. Returns the result of the
+    /// error-recovery rollback chain, or null when the action performs no rollback (Terminate, Ignore), so the
+    /// caller can persist the run as <see cref="MigrationRunResult.Recovered"/> when the chain was clean (#18).
+    /// </summary>
+    private async Task<RollbackResult?> HandleMigrationError(
         ProductOptions productOptions,
         MigrationFileInfo failedFile,
         int failedMigrationRecordId,
@@ -1923,12 +1936,11 @@ public class MigrationService : IMigrationService
         {
             case MigrationErrorAction.Terminate:
                 _logger.LogCritical("MigrationErrorAction=Terminate: No rollback will be performed. Database may be in unclear state.");
-                break;
+                return null;
 
             case MigrationErrorAction.RollbackErrorOnly:
                 _logger.LogInformation("MigrationErrorAction=RollbackErrorOnly: Rolling back only the failed migration file.");
-                await RollbackSingleMigration(productOptions, failedFile, failedMigrationRecordId, runMode);
-                break;
+                return await RollbackSingleMigration(productOptions, failedFile, failedMigrationRecordId, runMode);
 
             case MigrationErrorAction.Rollback:
                 _logger.LogInformation(
@@ -1965,8 +1977,7 @@ public class MigrationService : IMigrationService
                     });
                 }
 
-                await ExecuteRollbackForMigrations(recordsToRollback, productOptions, runMode, isErrorRecovery: true);
-                break;
+                return await ExecuteRollbackForMigrations(recordsToRollback, productOptions, runMode, isErrorRecovery: true);
 
             case MigrationErrorAction.RollbackRelease:
                 _logger.LogInformation(
@@ -2004,25 +2015,24 @@ public class MigrationService : IMigrationService
                     });
                 }
 
-                await ExecuteRollbackForMigrations(releaseRecords, productOptions, runMode, isErrorRecovery: true);
-                break;
+                return await ExecuteRollbackForMigrations(releaseRecords, productOptions, runMode, isErrorRecovery: true);
 
             case MigrationErrorAction.Ignore:
                 _logger.LogDebug(
                     "MigrationErrorAction=Ignore: HandleMigrationError called for {Filename}. No rollback will be performed.",
                     failedFile.Filename);
-                break;
+                return null;
 
             default:
                 _logger.LogWarning("Unknown MigrationErrorAction: {ErrorAction}. Defaulting to Terminate behavior.", errorAction);
-                break;
+                return null;
         }
     }
 
     /// <summary>
     /// Rolls back a single failed migration.
     /// </summary>
-    private async Task RollbackSingleMigration(
+    private async Task<RollbackResult> RollbackSingleMigration(
         ProductOptions productOptions,
         MigrationFileInfo failedFile,
         int failedMigrationRecordId,
@@ -2042,7 +2052,7 @@ public class MigrationService : IMigrationService
             }
         };
 
-        await ExecuteRollbackForMigrations(singleRecord, productOptions, runMode, isErrorRecovery: true);
+        return await ExecuteRollbackForMigrations(singleRecord, productOptions, runMode, isErrorRecovery: true);
     }
 
     #endregion Shared Rollback Execution

@@ -203,13 +203,15 @@ All scenarios use a standard 3-release, 9-file migration set unless otherwise no
 
 ### Category 3: Rollback (Entire Run)
 
+> **Run result of a recovered run:** when the configured error recovery (`Rollback`, `RollbackRelease`, `RollbackErrorOnly`) completes without a failure or warning, the run is persisted as `Recovered` (80) instead of `Error` (90): every record the recovery touched is `NotMigrated` again and repository and database are consistent. Files the error action leaves in place on purpose (earlier releases, other targets) stay `Migrated`. A failed rollback block, a missing rollback file, a stopped chain, `Terminate` and `Ignore` keep `Error`. The CLI exit code is 1 in both cases (#18).
+
 #### S06 — Error in R3F3, All Rollbacks Succeed
 
 | Setting | Value |
 |---------|-------|
 | MigrationErrorAction | Rollback |
 | Error Position | R3F3 |
-| MigrationRunResult | Error (90) |
+| MigrationRunResult | Recovered (80) |
 
 | File | Status |
 |------|--------|
@@ -228,7 +230,7 @@ All scenarios use a standard 3-release, 9-file migration set unless otherwise no
 |---------|-------|
 | MigrationErrorAction | Rollback |
 | Error Position | R2F2 |
-| MigrationRunResult | Error (90) |
+| MigrationRunResult | Recovered (80) |
 
 | File | Status |
 |------|--------|
@@ -248,7 +250,7 @@ All scenarios use a standard 3-release, 9-file migration set unless otherwise no
 |---------|-------|
 | MigrationErrorAction | Rollback |
 | Error Position | R1F1 |
-| MigrationRunResult | Error (90) |
+| MigrationRunResult | Recovered (80) |
 
 | File | Status |
 |------|--------|
@@ -348,7 +350,7 @@ All scenarios use a standard 3-release, 9-file migration set unless otherwise no
 |---------|-------|
 | MigrationErrorAction | RollbackErrorOnly |
 | Error Position | R2F2 |
-| MigrationRunResult | Error (90) |
+| MigrationRunResult | Recovered (80) |
 
 | File | Status |
 |------|--------|
@@ -394,7 +396,7 @@ All scenarios use a standard 3-release, 9-file migration set unless otherwise no
 |---------|-------|
 | MigrationErrorAction | RollbackRelease |
 | Error Position | R2F2 |
-| MigrationRunResult | Error (90) |
+| MigrationRunResult | Recovered (80) |
 
 | File | Status |
 |------|--------|
@@ -415,7 +417,7 @@ All scenarios use a standard 3-release, 9-file migration set unless otherwise no
 |---------|-------|
 | MigrationErrorAction | RollbackRelease |
 | Error Position | R3F3 |
-| MigrationRunResult | Error (90) |
+| MigrationRunResult | Recovered (80) |
 
 | File | Status |
 |------|--------|
@@ -436,7 +438,7 @@ All scenarios use a standard 3-release, 9-file migration set unless otherwise no
 |---------|-------|
 | MigrationErrorAction | RollbackRelease |
 | Error Position | R1F3 |
-| MigrationRunResult | Error (90) |
+| MigrationRunResult | Recovered (80) |
 
 | File | Status |
 |------|--------|
@@ -643,7 +645,7 @@ All scenarios use a standard 3-release, 9-file migration set unless otherwise no
 
 **Run 1**: All succeed. MigrationRunResult = Ok (100).
 
-**Run 2**: RunAlways file fails. Rollback triggered. MigrationRunResult = Error (90). Run 1's result is untouched.
+**Run 2**: RunAlways file fails. Rollback triggered. MigrationRunResult = Recovered (80) when the rollback chain is clean, otherwise Error (90). Run 1's result is untouched.
 
 **Recovery**: Same as S29 — make the `RunAlways` file idempotent.
 

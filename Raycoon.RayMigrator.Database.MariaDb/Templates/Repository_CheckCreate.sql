@@ -257,6 +257,7 @@ INSERT IGNORE INTO {CFG:TableBaseName}migration_operation (id, name, description
 INSERT IGNORE INTO {CFG:TableBaseName}migration_run_result (id, name, description) VALUES
     (10, 'Running', 'Migration process is currently running'),
     (50, 'PartialSuccess', 'Migration(s) finished but at least one file was skipped or left Failed'),
+    (80, 'Recovered', 'Migration(s) failed and the configured error recovery rolled back cleanly'),
     (90, 'Error', 'Migration(s) stopped due to error(s)'),
     (100, 'Ok', 'Migration(s) successfully executed');
 

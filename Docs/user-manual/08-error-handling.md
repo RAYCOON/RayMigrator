@@ -47,6 +47,8 @@ Rollback triggered:
 
 > **Warning:** Rollback requires matching `.rollback.sql` files. If a rollback file is missing and `RequireRollbackFile` is `true`, the rollback itself will fail.
 
+> **Note:** When the rollback chain completes without a failure or warning, the migration run is persisted as Recovered (80) instead of Error (90): every rolled-back file is `NotMigrated` again and repository and database are consistent. This applies to Rollback, RollbackErrorOnly and RollbackRelease. A failed rollback block, a missing rollback file or a stopped chain keep Error (90). The exit code is 1 in both cases, so schedulers still see the failure; `info` shows which of the two it was.
+
 ---
 
 ### RollbackErrorOnly

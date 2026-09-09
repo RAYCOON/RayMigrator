@@ -297,7 +297,8 @@ stateDiagram-v2
 
     ExecutingMigration --> ErrorState: Migration error
     ErrorState --> RollingBack: Rollback/RollbackErrorOnly/RollbackRelease
-    RollingBack --> MigrationComplete: MigrationRunResult=Error
+    RollingBack --> MigrationComplete: MigrationRunResult=Recovered (clean chain)
+    RollingBack --> MigrationComplete: MigrationRunResult=Error (rollback failed / stopped)
 
     ErrorState --> MigrationComplete: Terminate (MigrationRunResult=Error)
     ErrorState --> ExecutingMigration: Ignore (continue run)

@@ -98,7 +98,9 @@ The `MigrationRunResult` enum tracks the overall outcome of a migration run in t
 |--------|-------|-------------|
 | `Undefined` | 0 | Invalid value -- ResultId has not been set properly |
 | `Running` | 10 | Migration process is currently running |
-| `Error` | 90 | Migration(s) stopped due to error(s) |
+| `PartialSuccess` | 50 | Finished, but at least one file was skipped or left Failed |
+| `Recovered` | 80 | Failed, but the error-recovery rollback (`Rollback`, `RollbackRelease`, `RollbackErrorOnly`) completed without a failure or warning (#18) |
+| `Error` | 90 | Migration(s) stopped due to error(s), or the error recovery did not complete cleanly |
 | `Ok` | 100 | Migration(s) successfully executed and finished |
 
 ### Run Result Transitions
@@ -107,6 +109,8 @@ The `MigrationRunResult` enum tracks the overall outcome of a migration run in t
 stateDiagram-v2
     [*] --> Running: MigrationRun record created
     Running --> Ok: All migrations completed successfully
+    Running --> PartialSuccess: Run continued past failed or skipped files
+    Running --> Recovered: Migration failed, error-recovery rollback was clean
     Running --> Error: One or more migrations failed
     Running --> Error: Unhandled exception during run
 ```
@@ -245,6 +249,8 @@ INSERT INTO MigrationStatus (Id, Name, Description) VALUES
 ```sql
 INSERT INTO MigrationRunResult (Id, Name, Description) VALUES
     (10, 'Running', 'Migration process is currently running'),
+    (50, 'PartialSuccess', 'Migration(s) finished but at least one file was skipped or left Failed'),
+    (80, 'Recovered', 'Migration(s) failed and the configured error recovery rolled back cleanly'),
     (90, 'Error', 'Migration(s) stopped due to error(s)'),
     (100, 'Ok', 'Migration(s) successfully executed');
 ```

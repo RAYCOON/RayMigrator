@@ -125,7 +125,7 @@ DatabaseLogging_Insert.sql              - Insert log entry
 - `MigrationRecordHistory` - Migration audit trail (archived records)
 - `MigrationRunMode` - Lookup: run modes (Migrate, Simulate, ...)
 - `MigrationOperation` - Lookup: operation types (MigrateUp, MigrateDown, ...)
-- `MigrationRunResult` - Lookup: run results (Running=10, PartialSuccess=50, Error=90, Ok=100)
+- `MigrationRunResult` - Lookup: run results (Running=10, PartialSuccess=50, Recovered=80, Error=90, Ok=100)
 - `MigrationStatus` - Lookup: migration status values
 
 ## Template Pattern

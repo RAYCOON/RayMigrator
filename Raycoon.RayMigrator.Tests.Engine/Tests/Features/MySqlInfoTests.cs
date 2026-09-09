@@ -308,7 +308,7 @@ public class MySqlInfoTests : MySqlTestBase
 
         await ctx.MigrateUpAsync();
         ctx.AssertSuccess(false);
-        ctx.AssertRunResult(MigrationRunResult.Error);
+        ctx.AssertRunResult(MigrationRunResult.Recovered);
 
         ctx.AssertMigrationRecord("01_CreateTableC.sql", new MigrationRecordExpectation
         {
@@ -321,7 +321,7 @@ public class MySqlInfoTests : MySqlTestBase
 
         history.Runs.Count.Should().Be(1);
         history.Runs[0].Operation.Should().Be(MigrationOperation.MigrateUp, "an error-recovery rollback happens inside the migrate-up run");
-        history.Runs[0].Result.Should().Be(MigrationRunResult.Error);
+        history.Runs[0].Result.Should().Be(MigrationRunResult.Recovered);
         history.Runs[0].TotalMigrations.Should().Be(5, "R1 (3 files), R2/F1 and the failed R2/F2 were touched");
         history.Runs[0].SuccessfulMigrations.Should().Be(0, "every record was rolled back again");
         history.Runs[0].FailedMigrations.Should().Be(0, "the failed file was rolled back too");

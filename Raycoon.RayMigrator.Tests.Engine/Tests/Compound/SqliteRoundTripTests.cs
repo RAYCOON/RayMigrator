@@ -100,7 +100,7 @@ public class SqliteRoundTripTests : SqliteTestBase
         ctx.AssertRunCount(2);
 
         // Run 1 Error, Run 2 Ok
-        ctx.AssertMigrationRun(1, new MigrationRunExpectation { MigrationRunResultId = (int)MigrationRunResult.Error });
+        ctx.AssertMigrationRun(1, new MigrationRunExpectation { MigrationRunResultId = (int)MigrationRunResult.Recovered });
         ctx.AssertMigrationRun(2, new MigrationRunExpectation { MigrationRunResultId = (int)MigrationRunResult.Ok });
 
         // R1: Migrated (untouched)

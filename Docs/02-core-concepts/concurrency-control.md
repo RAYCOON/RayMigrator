@@ -194,7 +194,7 @@ Options when encountering this error:
    └── Each block updates progress
 
 3. RepositoryMigrationRunUpdate()
-   └── Updates MigrationRunResultId to Ok (100) or Error (90)
+   └── Updates MigrationRunResultId to Ok (100), PartialSuccess (50), Recovered (80) or Error (90)
    └── Sets FinishedAt timestamp
    └── "Releases" the exclusive lock
 ```

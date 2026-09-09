@@ -22,7 +22,18 @@ public enum MigrationRunResult : byte
     PartialSuccess = 50,
 
     /// <summary>
-    /// Migration(s) stopped due to error(s).
+    /// A migrate-up failed and the configured error recovery (<see cref="MigrationErrorAction.Rollback"/>,
+    /// <see cref="MigrationErrorAction.RollbackRelease"/> or <see cref="MigrationErrorAction.RollbackErrorOnly"/>)
+    /// completed without a failure or warning: every record the recovery touched is
+    /// <see cref="MigrationStatus.NotMigrated"/> again, so repository and database are consistent. Files the error
+    /// action leaves in place on purpose (earlier releases, other targets) stay <see cref="MigrationStatus.Migrated"/>.
+    /// Terminate, Ignore, a rollback failure, a skipped or missing rollback file and a stopped chain are persisted as
+    /// <see cref="Error"/>. The CLI exit code stays 1 (#18).
+    /// </summary>
+    Recovered = 80,
+
+    /// <summary>
+    /// Migration(s) stopped due to error(s): aborted without recovery, or the error recovery did not complete cleanly.
     /// </summary>
     Error = 90,
 

@@ -200,7 +200,7 @@ flowchart TD
 - Failed files are marked as `Failed` (re-attempted on next run). The re-attempt is decided per target: a file that succeeded on one target and failed on another is executed again on the failed target only, the successful target is not touched (#8)
 - Failed files are NOT added to `successfullyMigratedRecords` — they won't be rolled back if a later file fails with Rollback
 - In FileByFile mode: if a file fails on one target, remaining targets for that file are skipped
-- The overall `MigrationRunResult` is `Error` when any ignored failures occurred
+- The overall `MigrationRunResult` is `PartialSuccess` (50) when any ignored failures occurred; the CLI exit code is 1 (#18)
 
 **Use Cases**:
 - Seed data or optional lookups where partial failure is acceptable
@@ -214,7 +214,7 @@ Both `TargetMigrationOrder` modes handle errors identically:
 - **FileByFile** (file -> target loop): If a file fails on one target, remaining targets for that file are skipped. With `Ignore`, the file is marked as `Failed` and execution continues to the next file. With any other error action, the `TargetGroup` is aborted immediately.
 - **TargetByTarget** (target -> file loop): If a file fails on a target, with `Ignore`, the file is marked as `Failed` and execution continues to the next file for that target. With any other error action, the `TargetGroup` is aborted immediately.
 
-In both modes, when a non-Ignore error aborts a `TargetGroup`, the caller (`MigrateUpAsync` Phase 3) invokes `HandleMigrationError` to execute the configured error action (Terminate, Rollback, RollbackErrorOnly, or RollbackRelease), then updates the `MigrationRun` to `MigrationRunResult.Error` and returns.
+In both modes, when a non-Ignore error aborts a `TargetGroup`, the caller (`MigrateUpAsync` Phase 3) invokes `HandleMigrationError` to execute the configured error action (Terminate, Rollback, RollbackErrorOnly, or RollbackRelease), then finalizes the `MigrationRun` and returns. The run is persisted as `MigrationRunResult.Recovered` (80) when a rollback action completed without a failure or warning (repository and database are consistent again), and as `MigrationRunResult.Error` (90) for `Terminate`, for a failed rollback block, a missing rollback file or a stopped chain. The CLI exit code is 1 in both cases (#18).
 
 See also: [Product Options](../06-configuration-reference/product-options.md) for `MigrationErrorAction` configuration.
 

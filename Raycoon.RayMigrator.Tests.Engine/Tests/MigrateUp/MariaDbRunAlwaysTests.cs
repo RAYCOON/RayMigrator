@@ -170,7 +170,7 @@ public class MariaDbRunAlwaysTests : MariaDbTestBase
 
         // Run 1 Ok, Run 2 Error
         ctx.AssertMigrationRun(1, new MigrationRunExpectation { MigrationRunResultId = (int)MigrationRunResult.Ok });
-        ctx.AssertMigrationRun(2, new MigrationRunExpectation { MigrationRunResultId = (int)MigrationRunResult.Error });
+        ctx.AssertMigrationRun(2, new MigrationRunExpectation { MigrationRunResultId = (int)MigrationRunResult.Recovered });
 
         // R1/F3: NotMigrated (rolled back after failure)
         ctx.AssertFileStatus("03_SeedDataA.sql", MigrationStatus.NotMigrated);

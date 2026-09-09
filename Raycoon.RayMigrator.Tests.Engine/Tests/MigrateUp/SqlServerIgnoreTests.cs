@@ -113,7 +113,7 @@ public class SqlServerIgnoreTests : SqlServerTestBase
         await ctx.MigrateUpAsync();
 
         ctx.AssertSuccess(false);
-        ctx.AssertRunResult(MigrationRunResult.Error);
+        ctx.AssertRunResult(MigrationRunResult.Recovered);
         ctx.AssertRunCount(1);
 
         ctx.AssertFileStatuses(

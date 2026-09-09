@@ -161,7 +161,9 @@ Tracks the outcome of a migration operation.
 |------|-------|-------------|
 | `Undefined` | 0 | Not set |
 | `Running` | 10 | Migration currently in progress |
-| `Error` | 90 | Stopped due to error |
+| `PartialSuccess` | 50 | Finished, but at least one file was skipped or left Failed |
+| `Recovered` | 80 | Failed, but the error-recovery rollback completed cleanly (#18) |
+| `Error` | 90 | Stopped due to error, or the error recovery did not complete cleanly |
 | `Ok` | 100 | Successfully completed |
 
 Source: `Raycoon.RayMigrator.Core/Configuration/Enums/MigrationRunResult.cs`
