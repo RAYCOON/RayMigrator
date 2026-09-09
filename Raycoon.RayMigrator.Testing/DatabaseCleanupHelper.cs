@@ -90,25 +90,20 @@ IF OBJECT_ID('dbo.TableC', 'U') IS NOT NULL DROP TABLE [dbo].[TableC];
 IF OBJECT_ID('dbo.TableB', 'U') IS NOT NULL DROP TABLE [dbo].[TableB];
 IF OBJECT_ID('dbo.TableA', 'U') IS NOT NULL DROP TABLE [dbo].[TableA];
 
--- Drop repository tables (FK order) — new names after Migration→MigrationRecord rename
+-- Drop repository tables (FK order)
 IF OBJECT_ID('{schemaName}.MigrationLog', 'U') IS NOT NULL DROP TABLE [{schemaName}].[MigrationLog];
 IF OBJECT_ID('{schemaName}.MigrationEvent', 'U') IS NOT NULL DROP TABLE [{schemaName}].[MigrationEvent];
 IF OBJECT_ID('{schemaName}.MigrationRecordHistory', 'U') IS NOT NULL DROP TABLE [{schemaName}].[MigrationRecordHistory];
 IF OBJECT_ID('{schemaName}.MigrationRecord', 'U') IS NOT NULL DROP TABLE [{schemaName}].[MigrationRecord];
--- Legacy table names (pre-rename) for cleanup of old test databases
-IF OBJECT_ID('{schemaName}.MigrationHistory', 'U') IS NOT NULL DROP TABLE [{schemaName}].[MigrationHistory];
-IF OBJECT_ID('{schemaName}.Migration', 'U') IS NOT NULL DROP TABLE [{schemaName}].[Migration];
 IF OBJECT_ID('{schemaName}.MigrationRunMeta', 'U') IS NOT NULL DROP TABLE [{schemaName}].[MigrationRunMeta];
 IF OBJECT_ID('{schemaName}.MigrationRun', 'U') IS NOT NULL DROP TABLE [{schemaName}].[MigrationRun];
 IF OBJECT_ID('{schemaName}.Environment', 'U') IS NOT NULL DROP TABLE [{schemaName}].[Environment];
 IF OBJECT_ID('{schemaName}.Product', 'U') IS NOT NULL DROP TABLE [{schemaName}].[Product];
 IF OBJECT_ID('{schemaName}.MigratorMeta', 'U') IS NOT NULL DROP TABLE [{schemaName}].[MigratorMeta];
-IF OBJECT_ID('{schemaName}.MigrationState', 'U') IS NOT NULL DROP TABLE [{schemaName}].[MigrationState];
 IF OBJECT_ID('{schemaName}.MigrationStatus', 'U') IS NOT NULL DROP TABLE [{schemaName}].[MigrationStatus];
 IF OBJECT_ID('{schemaName}.MigrationRunResult', 'U') IS NOT NULL DROP TABLE [{schemaName}].[MigrationRunResult];
 IF OBJECT_ID('{schemaName}.MigrationOperation', 'U') IS NOT NULL DROP TABLE [{schemaName}].[MigrationOperation];
 IF OBJECT_ID('{schemaName}.MigrationRunMode', 'U') IS NOT NULL DROP TABLE [{schemaName}].[MigrationRunMode];
-IF OBJECT_ID('{schemaName}.LogLevel', 'U') IS NOT NULL DROP TABLE [{schemaName}].[LogLevel];
 
 -- Drop schema if it exists and is empty
 IF EXISTS (SELECT 1 FROM sys.schemas WHERE name = '{schemaName}')
@@ -199,25 +194,6 @@ DROP TABLE IF EXISTS `tablec`;
 DROP TABLE IF EXISTS `tableb`;
 DROP TABLE IF EXISTS `tablea`;
 
--- Legacy PascalCase repository table names (pre-DAL-018) for cleanup of old test databases
-DROP TABLE IF EXISTS `MigrationLog`;
-DROP TABLE IF EXISTS `MigrationEvent`;
-DROP TABLE IF EXISTS `MigrationRecordHistory`;
-DROP TABLE IF EXISTS `MigrationRecord`;
-DROP TABLE IF EXISTS `MigrationHistory`;
-DROP TABLE IF EXISTS `Migration`;
-DROP TABLE IF EXISTS `MigrationRunMeta`;
-DROP TABLE IF EXISTS `MigrationRun`;
-DROP TABLE IF EXISTS `Environment`;
-DROP TABLE IF EXISTS `Product`;
-DROP TABLE IF EXISTS `MigratorMeta`;
-DROP TABLE IF EXISTS `MigrationState`;
-DROP TABLE IF EXISTS `MigrationStatus`;
-DROP TABLE IF EXISTS `MigrationRunResult`;
-DROP TABLE IF EXISTS `MigrationOperation`;
-DROP TABLE IF EXISTS `MigrationRunMode`;
-DROP TABLE IF EXISTS `LogLevel`;
-
 -- DAL-018: snake_case repository table names
 DROP TABLE IF EXISTS migration_log;
 DROP TABLE IF EXISTS migration_event;
@@ -266,19 +242,15 @@ DROP TABLE IF EXISTS MigrationLog;
 DROP TABLE IF EXISTS MigrationEvent;
 DROP TABLE IF EXISTS MigrationRecordHistory;
 DROP TABLE IF EXISTS MigrationRecord;
-DROP TABLE IF EXISTS MigrationHistory;
-DROP TABLE IF EXISTS Migration;
 DROP TABLE IF EXISTS MigrationRunMeta;
 DROP TABLE IF EXISTS MigrationRun;
 DROP TABLE IF EXISTS Environment;
 DROP TABLE IF EXISTS Product;
 DROP TABLE IF EXISTS MigratorMeta;
-DROP TABLE IF EXISTS MigrationState;
 DROP TABLE IF EXISTS MigrationStatus;
 DROP TABLE IF EXISTS MigrationRunResult;
 DROP TABLE IF EXISTS MigrationOperation;
 DROP TABLE IF EXISTS MigrationRunMode;
-DROP TABLE IF EXISTS LogLevel;
 ";
     }
 

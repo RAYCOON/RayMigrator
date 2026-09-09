@@ -31,6 +31,7 @@ public class RepositoryQueryHelperToSnakeCaseTests
     [InlineData("RayMigrator", "raymigrator")]
     [InlineData("RayMigratorVersion", "raymigrator_version")]
     [InlineData("RayMigratorHostMode", "raymigrator_host_mode")]
+    // Synthetic identifier: the brand token stays merged in the middle of a name, too.
     [InlineData("CreatedByRayMigratorVersion", "created_by_raymigrator_version")]
     // RayMigrator exception followed by additional PascalCase tokens: the brand token stays merged,
     // additional words are split mechanically.

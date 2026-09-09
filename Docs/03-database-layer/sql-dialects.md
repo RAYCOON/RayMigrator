@@ -646,7 +646,6 @@ PostgreSQL, MariaDB, and MySQL all use **unquoted snake_case** for repository id
 |---|---|
 | `RayMigratorVersion` | `raymigrator_version` |
 | `RayMigratorHostMode` | `raymigrator_host_mode` |
-| `CreatedByRayMigratorVersion` | `created_by_raymigrator_version` |
 
 The `RepositoryQueryHelper.ToSnakeCase` helper in the Testing project implements this exception via a sentinel pre-pass (`RayMigrator` → `Raymigrator` before mechanical splitting) and is covered by `P1_RepositoryQueryHelperToSnakeCaseTests`. The same `ToSnakeCase` logic is used when `RepositoryQueryHelper` formats table and column names for MariaDB and MySQL queries (DAL-018).
 

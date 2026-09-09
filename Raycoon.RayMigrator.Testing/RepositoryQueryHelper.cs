@@ -816,7 +816,6 @@ public class RepositoryQueryHelper
     /// MigrationRecord             -&gt; migration_record
     /// FileUpBlocksTotal           -&gt; file_up_blocks_total
     /// RayMigratorVersion          -&gt; raymigrator_version
-    /// CreatedByRayMigratorVersion -&gt; created_by_raymigrator_version
     /// </example>
     // Exposed as internal so the PG + MariaDB/MySQL identifier-casing unit tests can exercise the
     // RayMigrator-exception conversion rule directly without reaching the full DAL stack.

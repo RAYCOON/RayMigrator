@@ -483,7 +483,7 @@ PostgreSQL (DAL-017), MariaDB (DAL-018), and MySQL (DAL-018) use unquoted snake_
 
 The two logging tables follow the same convention: `MigrationEvent` → `migration_event`, `MigrationLog` → `migration_log`.
 
-**Product-name exception:** The brand token `RayMigrator` is treated as a single token rather than two words. `CreatedByRayMigratorVersion` → `created_by_raymigrator_version` (not `created_by_ray_migrator_version`). This exception applies equally to PostgreSQL, MariaDB, and MySQL. See [Naming Conventions per Engine](sql-dialects.md#naming-conventions-per-engine) in `sql-dialects.md` for the full rule.
+**Product-name exception:** The brand token `RayMigrator` is treated as a single token rather than two words. `RayMigratorVersion` → `raymigrator_version` (not `ray_migrator_version`), and the token stays merged in the middle of an identifier as well. This exception applies equally to PostgreSQL, MariaDB, and MySQL. See [Naming Conventions per Engine](sql-dialects.md#naming-conventions-per-engine) in `sql-dialects.md` for the full rule.
 
 **`TableBaseName` constraint:** For PostgreSQL, MariaDB, and MySQL, the `Repository.TableBaseName` and `DatabaseLogging.TableBaseName` configuration values must be all-lowercase. The `RayMigratorOptionsValidator` rejects any uppercase character with a descriptive error. Rationale: PostgreSQL folds unquoted identifiers to lowercase; the MariaDB and MySQL snake_case repository schema is stored as lowercase; any uppercase prefix character would break the `information_schema.tables` existence checks in `Repository_CheckCreate` and `DatabaseLogging_CheckCreate`.
 
