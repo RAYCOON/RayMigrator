@@ -112,7 +112,7 @@ RayMigratorOptions
     ├── Alias                           (string, required, regex: ^(?=.{1,50}$)[\p{L}\p{N}_\-]+$)
     ├── ExecutablePath                  (string, required)
     ├── ArgumentTemplate                (string, required)
-    ├── InputMode                       (string?, CliToolInputMode enum, default: File)
+    ├── InputMode                       (string?, CliToolInputMode enum, required)
     ├── SuccessExitCodes                (string[]?, default: ["0"], range notation supported)
     └── CliToolTimeoutInSeconds         (int?, default: 120)
 ```

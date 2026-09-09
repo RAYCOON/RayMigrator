@@ -24,6 +24,7 @@ public static class RuleIds
     public const string RULE_3_8 = "RULE_3_8";   // CLI_PARAMS_MISSING_REQUIRED_KEYS (Error)
     public const string RULE_3_9 = "RULE_3_9";   // CLI_PARAMS_RESERVED_KEY_COLLISION
     public const string RULE_3_10 = "RULE_3_10"; // CLI_PARAMS_UNUSED_KEYS
+    public const string RULE_3_11 = "RULE_3_11"; // CLI_TOOL_INPUT_MODE_MISSING
     public const string RULE_4_1 = "RULE_4_1";   // SCHEMA_ON_SCHEMALESS_DB
     public const string RULE_4_2 = "RULE_4_2";   // SCHEMA_MISSING_FOR_SCHEMA_DB
     public const string RULE_4_3 = "RULE_4_3";   // LOWERCASE_TABLEBASENAME_REQUIRED

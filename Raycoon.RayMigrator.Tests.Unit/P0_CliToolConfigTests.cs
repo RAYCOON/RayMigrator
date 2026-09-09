@@ -7,24 +7,24 @@ namespace Raycoon.RayMigrator.Tests.Unit;
 
 /// <summary>
 /// P0: CliToolOptions configuration model tests.
-/// Incorrect InputModeEnum defaults lead to wrong execution strategy (File vs Stdin).
+/// InputMode has no default: an unset value resolves to Undefined and is rejected by configuration validation (#19).
 /// </summary>
 public class CliToolOptionsInputModeTests
 {
     [Fact]
-    public void InputModeEnum_NullInputMode_DefaultsToFile()
+    public void InputModeEnum_NullInputMode_IsUndefined()
     {
         var tool = new CliToolOptions { InputMode = null };
 
-        tool.InputModeEnum.Should().Be(CliToolInputMode.File);
+        tool.InputModeEnum.Should().Be(CliToolInputMode.Undefined);
     }
 
     [Fact]
-    public void InputModeEnum_EmptyStringInputMode_DefaultsToFile()
+    public void InputModeEnum_EmptyStringInputMode_IsUndefined()
     {
         var tool = new CliToolOptions { InputMode = string.Empty };
 
-        tool.InputModeEnum.Should().Be(CliToolInputMode.File);
+        tool.InputModeEnum.Should().Be(CliToolInputMode.Undefined);
     }
 
     [Fact]

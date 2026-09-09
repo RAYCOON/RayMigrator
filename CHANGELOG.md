@@ -19,6 +19,23 @@ RayMigrator follows Semantic Versioning where applicable.
   history. The CLI exit code stays 1. The repository lookup table is upgraded
   idempotently on the next start. (#18)
 
+### Changed
+
+- **Breaking (config):** the former `TargetMigrationOrder` names `Simultaneously`
+  and `Successively` are no longer accepted as aliases; a configuration that
+  still uses them fails validation with the usual `Allowed values:
+  [FileByFile, TargetByTarget]` error. The alias mechanism
+  (`EnumAliasAttribute`, `EnumTypeExtensions.Aliases`) is removed, so the
+  settings snapshot, the log output and the wizard export can only ever
+  contain the current names. (#19)
+- **Breaking (config):** `CliTools[].InputMode` is required; the silent
+  `File` default is gone. A tool without it fails validation (`RayEnum` in
+  Core, new RULE_3_11 in the Validation project and the wizard). (#19)
+- The parallel-run guard in `Repository_MigrationRun_Insert` (all five DALs)
+  no longer filters on `MigrationRunModeId`, which is always 100; it blocks a
+  second run for the same product and environment while one is unfinished,
+  and its error message says so. (#19)
+
 ### Fixed
 
 - The result of the error-recovery rollback chain was discarded by

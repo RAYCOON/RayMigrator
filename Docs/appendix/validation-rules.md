@@ -46,6 +46,7 @@ Implementation lives in the `Raycoon.RayMigrator.Validation` project:
 | RULE_3_7 | EXIT_CODE_EXPRESSION_INVALID | Error | Every expression in `SuccessExitCodes` must parse as a single integer (`"0"`), closed range (`"1..5"`), open-up range (`"10.."`), or open-down range (`"..-1"`). |
 | RULE_3_8 | CLI_PARAMS_MISSING_REQUIRED_KEYS | **Error** | When a Target resolves to a CLI tool, every placeholder in that tool's `ArgumentTemplate` (except reserved `{FilePath}`) must have a non-empty entry in the effective `CliToolParameters` map. Severity upgraded from Warning to Error — missing values crash the CLI at runtime. |
 | RULE_3_9 | CLI_PARAMS_RESERVED_KEY_COLLISION | Error | `CliToolParameters` must not contain a reserved key (currently `FilePath`). Reserved keys are substituted internally by the engine. |
+| RULE_3_11 | CLI_TOOL_INPUT_MODE_MISSING | Error | Every CLI tool must set `InputMode` (`File` or `Stdin`); there is no default (#19). |
 | RULE_3_10 | CLI_PARAMS_UNUSED_KEYS | Warning | Keys in `CliToolParameters` that do not appear as placeholders in the tool's `ArgumentTemplate` are dead config — likely a typo or leftover after a template change. |
 
 ### Group 4 — Schema / lowercase identifier rules

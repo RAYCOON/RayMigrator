@@ -18,7 +18,7 @@ Behaviour = """
 - Return value >= 0: Success (MigrationRunId returned, logged at Debug level)
 - Return value < 0: Error (logged at Error level, migration aborted)
 - Checks for existing unfinished MigrationRun before inserting
-- Parallel migrations for same Product/Environment/RunMode are prevented
+- Parallel migrations for same Product/Environment are prevented
 """
 
 [ConfigPlaceholders]
@@ -38,7 +38,7 @@ MigrationRunSettingsJson = "TEXT | REQUIRED | JSON snapshot of all RayMigrator s
 [ReturnValues]
 # Format: SELECT 'code,message'
 Success_Created   = "N (MigrationRunId),MigrationRun with Id [N] successfully created for ProductId [M]"
-Error_-2_Parallel = "-2,MigrationRun for Product [Name] with Id [N] is currently in progress. Parallel migrations for the same product with MigrationRunModeId [Migrate=100] are not allowed!"
+Error_-2_Parallel = "-2,MigrationRun for Product [Name] with Id [N] is currently in progress. Parallel migrations for the same product and environment are not allowed!"
 
 [ModificationNotes]
 Note1 = "SELECT result format: 'code,message' - DO NOT change this format"
@@ -62,14 +62,13 @@ BEGIN
         WHERE
             product_id = @ProductId AND
             environment_id = @EnvironmentId AND
-            migration_run_mode_id = @MigrationRunModeId AND
             finished_at IS NULL
         LIMIT 1
     ) THEN
         SELECT name INTO v_product_name FROM {CFG:SchemaName}.{CFG:TableBaseName}product WHERE id = @ProductId;
 
-        RAISE NOTICE '-2,MigrationRun for Product [%] with Id [%] is currently in progress. Parallel migrations for the same product with MigrationRunModeId [Migrate=%] are not allowed!',
-            COALESCE(v_product_name, 'NULL'), COALESCE(CAST(@ProductId AS VARCHAR(10)), 'NULL'), COALESCE(CAST(@MigrationRunModeId AS VARCHAR(10)), 'NULL');
+        RAISE NOTICE '-2,MigrationRun for Product [%] with Id [%] is currently in progress. Parallel migrations for the same product and environment are not allowed!',
+            COALESCE(v_product_name, 'NULL'), COALESCE(CAST(@ProductId AS VARCHAR(10)), 'NULL');
     ELSE
         INSERT INTO {CFG:SchemaName}.{CFG:TableBaseName}migration_run
             (migrator_meta_id, product_id, environment_id, migration_run_mode_id, migration_run_result_id, from_release_version, to_release_version, started_at)

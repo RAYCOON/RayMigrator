@@ -209,7 +209,7 @@ public class ProductDefaultsPostConfigureOptionsTests
     [Fact]
     public void CaseVariantDefaultEnum_IsCopiedAndParses()
     {
-        var options = CreateOptionsWithDefaults(migrationErrorAction: "rollback", targetMigrationOrder: "SIMULTANEOUSLY", hashValidationScope: "sqlblocks");
+        var options = CreateOptionsWithDefaults(migrationErrorAction: "rollback", targetMigrationOrder: "FILEBYFILE", hashValidationScope: "sqlblocks");
         var postConfigure = new ProductDefaultsPostConfigureOptions();
 
         postConfigure.PostConfigure(null, options);

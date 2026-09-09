@@ -20,7 +20,7 @@ Behaviour = """
 - Return value >= 0: Success (MigrationRunId returned, logged at Debug level)
 - Return value < 0: Error (logged at Error level, migration aborted)
 - Checks for existing unfinished MigrationRun before inserting
-- Parallel migrations for same Product/Environment/RunMode are prevented
+- Parallel migrations for same Product/Environment are prevented
 """
 
 [ConfigPlaceholders]
@@ -42,7 +42,7 @@ MigrationRunSettingsJson = "NVARCHAR(MAX) | REQUIRED | JSON snapshot of all RayM
 [ReturnValues]
 # Format: SELECT 'code,message'
 Success_Created   = "N (MigrationRunId),MigrationRun with Id [N] successfully created for ProductId [M]"
-Error_-2_Parallel = "-2,MigrationRun for Product [Name] with Id [N] is currently in progress. Parallel migrations for the same product with MigrationRunModeId [Migrate=100] are not allowed!"
+Error_-2_Parallel = "-2,MigrationRun for Product [Name] with Id [N] is currently in progress. Parallel migrations for the same product and environment are not allowed!"
 
 [ModificationNotes]
 Note1 = "SELECT result format: 'code,message' - DO NOT change this format"
@@ -69,7 +69,6 @@ BEGIN TRY
                 WHERE
                     [ProductId] = @ProductId AND
                     [EnvironmentId] = @EnvironmentId AND
-                    [MigrationRunModeId] = @MigrationRunModeId AND
                     [FinishedAt] IS NULL
             )
             BEGIN
@@ -77,7 +76,7 @@ BEGIN TRY
                 SELECT @ProductName = [Name] FROM [{CFG:SchemaName}].[{CFG:TableBaseName}Product] WHERE [Id] = @ProductId;
 
                 ROLLBACK TRANSACTION;
-                SELECT '-2,MigrationRun for Product [' + COALESCE(@ProductName, 'NULL') + '] with Id [' + COALESCE(CAST(@ProductId AS VARCHAR(10)), 'NULL') + '] is currently in progress. Parallel migrations for the same product with MigrationRunModeId [Migrate=' + COALESCE(CAST(@MigrationRunModeId AS VARCHAR(10)), 'NULL') + '] are not allowed!';
+                SELECT '-2,MigrationRun for Product [' + COALESCE(@ProductName, 'NULL') + '] with Id [' + COALESCE(CAST(@ProductId AS VARCHAR(10)), 'NULL') + '] is currently in progress. Parallel migrations for the same product and environment are not allowed!';
                 RETURN;
             END;
 

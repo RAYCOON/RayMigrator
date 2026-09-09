@@ -60,9 +60,9 @@ public class OptionsEnumCaseInsensitivityTests
     }
 
     [Theory]
-    [InlineData("simultaneously", TargetMigrationOrder.FileByFile)]
-    [InlineData("SIMULTANEOUSLY", TargetMigrationOrder.FileByFile)]
-    [InlineData("successively", TargetMigrationOrder.TargetByTarget)]
+    [InlineData("filebyfile", TargetMigrationOrder.FileByFile)]
+    [InlineData("FILEBYFILE", TargetMigrationOrder.FileByFile)]
+    [InlineData("targetbytarget", TargetMigrationOrder.TargetByTarget)]
     [InlineData("TargetByTarget", TargetMigrationOrder.TargetByTarget)]
     public void TargetGroupDefaults_TargetMigrationOrderEnum_IsCaseInsensitive(string value, TargetMigrationOrder expected)
     {
@@ -70,9 +70,9 @@ public class OptionsEnumCaseInsensitivityTests
     }
 
     [Theory]
-    [InlineData("simultaneously", TargetMigrationOrder.FileByFile)]
-    [InlineData("SIMULTANEOUSLY", TargetMigrationOrder.FileByFile)]
-    [InlineData("successively", TargetMigrationOrder.TargetByTarget)]
+    [InlineData("filebyfile", TargetMigrationOrder.FileByFile)]
+    [InlineData("FILEBYFILE", TargetMigrationOrder.FileByFile)]
+    [InlineData("targetbytarget", TargetMigrationOrder.TargetByTarget)]
     public void TargetGroup_TargetMigrationOrderEnum_IsCaseInsensitive(string value, TargetMigrationOrder expected)
     {
         new TargetGroupOptions { TargetMigrationOrder = value }.TargetMigrationOrderEnum.Should().Be(expected);
@@ -131,10 +131,10 @@ public class OptionsEnumCaseInsensitivityTests
         new ProductOptions().RollbackErrorActionEnum.Should().Be(RollbackErrorAction.Undefined);
         new TargetGroupOptions().TargetMigrationOrderEnum.Should().Be(TargetMigrationOrder.Undefined);
         new TargetGroupOptions().HashValidationScopeEnum.Should().Be(HashValidationScope.Undefined);
-        new CliToolOptions().InputModeEnum.Should().Be(CliToolInputMode.File);
+        new CliToolOptions().InputModeEnum.Should().Be(CliToolInputMode.Undefined);
 
         new ProductOptions { MigrationErrorAction = "   " }.MigrationErrorActionEnum.Should().Be(MigrationErrorAction.Undefined);
-        new CliToolOptions { InputMode = "" }.InputModeEnum.Should().Be(CliToolInputMode.File);
+        new CliToolOptions { InputMode = "" }.InputModeEnum.Should().Be(CliToolInputMode.Undefined);
     }
 
     [Fact]
@@ -242,7 +242,7 @@ public class OptionsEnumCaseInsensitivityTests
               "MigrationRollbackFilesPreExtension": "rollback",
               "MigrationFilesEncoding": "UTF-8",
               "TargetGroupDefaults": {
-                "TargetMigrationOrder": "successively",
+                "TargetMigrationOrder": "targetbytarget",
                 "HashValidationScope": "File",
                 "TargetDefaults": { "DbCommandTimeoutInSeconds": 20 }
               }
@@ -290,7 +290,7 @@ public class OptionsEnumCaseInsensitivityTests
 
         var targetGroup = product.TargetGroups!.Single();
         targetGroup.HashValidationScopeEnum.Should().Be(HashValidationScope.Disabled);
-        targetGroup.TargetMigrationOrderEnum.Should().Be(TargetMigrationOrder.TargetByTarget, "merged from TargetGroupDefaults (\"successively\")");
+        targetGroup.TargetMigrationOrderEnum.Should().Be(TargetMigrationOrder.TargetByTarget, "merged from TargetGroupDefaults (\"targetbytarget\")");
 
         options.CliTools!.Single().InputModeEnum.Should().Be(CliToolInputMode.Stdin);
     }

@@ -19,7 +19,7 @@ Behaviour = """
 - Return value < 0: Error (logged at Error level, migration aborted)
 - SQLite uses file-level locking instead of advisory locks (GET_LOCK)
 - Checks for existing unfinished MigrationRun before inserting
-- Parallel migrations for same Product/Environment/RunMode are prevented
+- Parallel migrations for same Product/Environment are prevented
 """
 
 [ConfigPlaceholders]
@@ -70,7 +70,7 @@ INSERT OR REPLACE INTO "_rc_state" ("key", "val") VALUES
     ('product_name', (SELECT "Name" FROM "{CFG:TableBaseName}Product" WHERE "Id" = @ProductId)),
     ('running', CAST((SELECT COUNT(*) FROM "{CFG:TableBaseName}MigrationRun"
         WHERE "ProductId" = @ProductId AND "EnvironmentId" = @EnvironmentId
-          AND "MigrationRunModeId" = @MigrationRunModeId AND "FinishedAt" IS NULL) AS TEXT));
+          AND "FinishedAt" IS NULL) AS TEXT));
 
 -- Insert only if no running migration exists
 INSERT INTO "{CFG:TableBaseName}MigrationRun"
@@ -99,8 +99,7 @@ SELECT CASE
     WHEN CAST((SELECT "val" FROM "_rc_state" WHERE "key"='running') AS INTEGER) > 0
         THEN '-2,MigrationRun for Product [' || IFNULL((SELECT "val" FROM "_rc_state" WHERE "key"='product_name'), 'NULL')
              || '] with Id [' || IFNULL(CAST(@ProductId AS TEXT), 'NULL')
-             || '] is currently in progress. Parallel migrations for the same product with MigrationRunModeId [Migrate='
-             || IFNULL(CAST(@MigrationRunModeId AS TEXT), 'NULL') || '] are not allowed!'
+             || '] is currently in progress. Parallel migrations for the same product and environment are not allowed!'
     WHEN CAST((SELECT "val" FROM "_rc_state" WHERE "key"='inserted') AS INTEGER) = 0
         THEN '-1,Failed to create MigrationRun for ProductId [' || IFNULL(CAST(@ProductId AS TEXT), 'NULL') || ']'
     ELSE (SELECT "val" FROM "_rc_state" WHERE "key"='new_id')

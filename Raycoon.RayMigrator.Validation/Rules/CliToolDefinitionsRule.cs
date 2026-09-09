@@ -7,6 +7,7 @@ namespace Raycoon.RayMigrator.Validation.Rules;
 /// <summary>
 /// CLI tool definition-level rules:
 /// <list type="bullet">
+/// <item><see cref="RuleIds.RULE_3_11"/> — CliTool must set InputMode; there is no default (Error)</item>
 /// <item><see cref="RuleIds.RULE_3_1"/> — File-mode CliTool must contain <c>{FilePath}</c> in ArgumentTemplate (Error)</item>
 /// <item><see cref="RuleIds.RULE_3_2"/> — Stdin-mode CliTool should not contain <c>{FilePath}</c> (Warning)</item>
 /// <item><see cref="RuleIds.RULE_3_7"/> — SuccessExitCodes expressions must parse (Error)</item>
@@ -27,12 +28,21 @@ internal sealed class CliToolDefinitionsRule : IValidationRule
 
     private static void CheckFilePathPlacement(CliToolInput tool, ValidationReport report)
     {
-        // "File" mirrors CliToolOptions.DefaultInputMode in Core; this project has no project references by design (#19)
-        var effectiveMode = string.IsNullOrWhiteSpace(tool.InputMode) ? "File" : tool.InputMode!;
+        var path = $"CliTools > {tool.Alias}";
+
+        // InputMode has no default: a tool without it is an error, and the placement checks below need the mode (#19)
+        if (string.IsNullOrWhiteSpace(tool.InputMode))
+        {
+            report.AddError(
+                RuleIds.RULE_3_11,
+                path,
+                ValidationMessages.Format(ValidationMessages.InputModeMissing, tool.Alias));
+            return;
+        }
+
+        var effectiveMode = tool.InputMode!;
         var template = tool.ArgumentTemplate ?? "";
         var hasFilePath = template.Contains("{FilePath}", StringComparison.Ordinal);
-
-        var path = $"CliTools > {tool.Alias}";
 
         if (string.Equals(effectiveMode, "File", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(template) && !hasFilePath)
         {

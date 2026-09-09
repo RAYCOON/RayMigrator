@@ -6,13 +6,11 @@ namespace Raycoon.RayMigrator.Core.Configuration.Validation.RayAttributes;
 public class RayEnumAttribute : ValidationAttribute
 {
     private readonly string[] _allowedValues;
-    private readonly IReadOnlyDictionary<string, string> _aliases;
     private readonly bool _isRequired;
 
     public RayEnumAttribute(Type enumType, bool isRequired, bool ignoreFirstValue = true)
     {
         _allowedValues = enumType.AllowedValues(ignoreFirstValue);
-        _aliases = enumType.Aliases();
         _isRequired = isRequired;
     }
 
@@ -35,9 +33,8 @@ public class RayEnumAttribute : ValidationAttribute
         }
 
         // At this point, the value is not null.
-        // Is it in the list of allowed values, or a former name still accepted as alias (#19)?
-        var text = value.ToString()!;
-        return _allowedValues.Contains(text, StringComparer.OrdinalIgnoreCase) || _aliases.ContainsKey(text)
+        // Is it in the list of allowed values?
+        return _allowedValues.Contains(value.ToString(), StringComparer.OrdinalIgnoreCase)
             ? ValidationResult.Success
             : new ValidationResult("Invalid " + errorMessage, memberNames);
     }

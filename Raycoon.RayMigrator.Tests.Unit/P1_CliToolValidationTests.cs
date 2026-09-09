@@ -58,6 +58,7 @@ public class CliToolValidationTests
     {
         Alias = alias,
         ExecutablePath = "sqlcmd",
+        InputMode = "File",
         ArgumentTemplate = "-S {Server} -i {FilePath}"
     };
 

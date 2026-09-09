@@ -8,8 +8,8 @@ public class WizardOnlyChecksEnumCasingTests
 {
     [Theory]
     [InlineData("Rollback", "Terminate", "TargetByTarget", "File")]
-    [InlineData("rollback", "terminate", "successively", "file")]
-    [InlineData("ROLLBACK", "IGNORE", "SIMULTANEOUSLY", "SQLBLOCKS")]
+    [InlineData("rollback", "terminate", "targetbytarget", "file")]
+    [InlineData("ROLLBACK", "IGNORE", "FILEBYFILE", "SQLBLOCKS")]
     public void ProductDefaults_EnumValues_AreAcceptedInAnyCase(string mea, string rea, string tmo, string hvs)
     {
         var defaults = new ProductDefaultsModel { MigrationErrorAction = mea, RollbackErrorAction = rea };

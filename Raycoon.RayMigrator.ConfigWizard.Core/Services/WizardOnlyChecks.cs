@@ -16,8 +16,7 @@ internal static class WizardOnlyChecks
     private static readonly string[] ValidDatabaseTypes = { "SqlServer", "PostgreSQL", "MariaDb", "MySql", "Sqlite" };
     private static readonly string[] ValidMigrationErrorActions = { "Terminate", "Rollback", "RollbackErrorOnly", "RollbackRelease", "Ignore" };
     private static readonly string[] ValidRollbackErrorActions = { "Terminate", "Ignore" };
-    // the former names Simultaneously / Successively stay accepted as aliases, like in the engine (#19)
-    private static readonly string[] ValidTargetMigrationOrders = { "FileByFile", "TargetByTarget", "Simultaneously", "Successively" };
+    private static readonly string[] ValidTargetMigrationOrders = { "FileByFile", "TargetByTarget" };
     private static readonly string[] ValidHashValidationScopes = { "File", "SqlBlocks", "Disabled" };
     private static readonly string[] ValidLogLevels = { "Trace", "Debug", "Information", "Warning", "Error", "Critical", "None" };
     private static readonly string[] ValidSerilogLevels = { "Verbose", "Debug", "Information", "Warning", "Error", "Fatal" };

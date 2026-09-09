@@ -33,7 +33,7 @@ CLI tools are defined at the `RayMigrator` root level in the `CliTools` array, a
 | `Alias` | string | Yes | - | Unique identifier (letters, numbers, underscores, hyphens; max 50 chars). Referenced by `UseCliToolAlias` on Products, TargetGroups, Targets, migsettings, and TOML headers. |
 | `ExecutablePath` | string | Yes | - | Path to the CLI tool executable. Can be an absolute path or a command name found in the system PATH. |
 | `ArgumentTemplate` | string | Yes | - | Command-line argument template with placeholders. `{FilePath}` is replaced with the migration file path (when `InputMode` is `File`). Custom placeholders (e.g., `{Server}`, `{User}`) are resolved from `CliToolParameters` on the Target. |
-| `InputMode` | string | No | `File` | How the SQL file is passed to the CLI tool: `File` (as argument via `{FilePath}`) or `Stdin` (piped via standard input). Matching is case-insensitive: `Stdin`, `stdin` and `STDIN` are equivalent. |
+| `InputMode` | string | Yes | - | How the SQL file is passed to the CLI tool: `File` (as argument via `{FilePath}`) or `Stdin` (piped via standard input). Matching is case-insensitive: `Stdin`, `stdin` and `STDIN` are equivalent. |
 | `SuccessExitCodes` | string[] | No | `["0"]` | Exit code whitelist. Supports single values (`"0"`), closed ranges (`"1..5"`), open-ended up (`"10.."`), and open-ended down (`"..-1"`). Any exit code not matched is treated as failure. |
 | `CliToolTimeoutInSeconds` | int | No | `120` | Maximum time in seconds to wait for the CLI tool to complete. Minimum: 1. |
 
@@ -69,7 +69,7 @@ The `Alias` pattern for CLI tools is slightly different from Product/TargetGroup
 | `File` | `1` | The file path is passed as a command-line argument via the `{FilePath}` placeholder in `ArgumentTemplate`. Used by tools like `sqlcmd` (`-i`), `psql` (`-f`), `sqlite3` (`-init`). |
 | `Stdin` | `2` | The file content is piped to the process via standard input (`Process.StandardInput`) as UTF-8 without a byte-order mark, independent of the console code page. Used by tools like `mysql` and `mariadb` that read SQL from stdin. |
 
-The `CliToolInputMode` enum also defines `Undefined = 0`, which falls back to `File` behavior at runtime.
+The `CliToolInputMode` enum also defines `Undefined = 0` as the sentinel for an unset value. `InputMode` is required: a tool without it is rejected by configuration validation (RULE_3_11), there is no default (#19).
 
 ## ArgumentTemplate Placeholders
 

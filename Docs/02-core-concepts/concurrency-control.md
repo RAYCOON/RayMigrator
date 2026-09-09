@@ -42,12 +42,11 @@ BEGIN TRANSACTION;
         SELECT TOP (1) 1 FROM [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRun] WITH (UPDLOCK, HOLDLOCK)
         WHERE [ProductId] = @ProductId
           AND [EnvironmentId] = @EnvironmentId
-          AND [MigrationRunModeId] = @MigrationRunModeId
           AND [FinishedAt] IS NULL
     )
     BEGIN
         ROLLBACK TRANSACTION;
-        SELECT '-2,MigrationRun for Product [...] with Id [...] is currently in progress. Parallel migrations for the same product with MigrationRunModeId [Migrate=...] are not allowed!';
+        SELECT '-2,MigrationRun for Product [...] with Id [...] is currently in progress. Parallel migrations for the same product and environment are not allowed!';
         RETURN;
     END;
     -- INSERT new MigrationRun ...
@@ -84,7 +83,7 @@ For additional safety on SQL Server, you can add a filtered unique index:
 
 ```sql
 CREATE UNIQUE INDEX UX_MigrationRun_Product_Running
-ON [{SchemaName}].[MigrationRun] (ProductId, Environment, MigrationRunModeId)
+ON [{SchemaName}].[MigrationRun] (ProductId, EnvironmentId)
 WHERE FinishedAt IS NULL;
 ```
 
@@ -162,7 +161,7 @@ MigrationAlreadyRunningException: RayMigrator aborted because another migration 
 Error executing template Repository_MigrationRun_Insert.
 Template-execution returned a negative ResultCode [-2] with ErrorMessage:
 MigrationRun for Product [MyProduct] with Id [42] is currently in progress.
-Parallel migrations for the same product with MigrationRunModeId [Migrate=100] are not allowed!
+Parallel migrations for the same product and environment are not allowed!
 ```
 
 This exception is initially handled by `RepositoryMigrationRunInsertWithAutoFix` in `MigrationService`, which attempts automatic cleanup of orphaned runs older than 10 minutes. If auto-fix succeeds, the insert is retried and the migration proceeds. If auto-fix does not apply (no orphaned runs or runs are too recent), the exception propagates to `RayMigratorService` which logs a recommendation to use the Fix command.

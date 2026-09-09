@@ -32,7 +32,7 @@ internal static class OptionsEnumParser
         where TEnum : struct, Enum
     {
         var allowedValues = typeof(TEnum).AllowedValues();
-        // member names and their EnumAlias former names, case-insensitive (#19)
+        // member names after the Undefined sentinel, case-insensitive
         var match = typeof(TEnum).ResolveMemberName(raw);
 
         if (match is not null)
@@ -563,24 +563,18 @@ public class CliToolOptions
 
     /// <summary>
     /// Determines how the SQL file is passed to the CLI tool: "File" (as argument) or "Stdin" (piped via stdin).
-    /// Default: File.
+    /// Required; there is no default (RULE_3_11 in the Validation project, #19).
     /// </summary>
-    [RayEnum(typeof(Enums.CliToolInputMode), isRequired: false)]
+    [RayEnum(typeof(Enums.CliToolInputMode), isRequired: true)]
     public string? InputMode { get; set; }
-
-    /// <summary>
-    /// The input mode of a tool without <see cref="InputMode"/>. <c>CliToolDefinitionsRule</c> in the Validation
-    /// project (no project references by design) repeats the value as the literal "File" (#19).
-    /// </summary>
-    public const CliToolInputMode DefaultInputMode = Enums.CliToolInputMode.File;
 
     private readonly ParsedEnumOption<Enums.CliToolInputMode> _inputMode = new();
 
     /// <summary>
-    /// <see cref="InputMode"/> as enum member. Undefined while the string is unset (this one: <see cref="DefaultInputMode"/>); a value that is not a member
+    /// <see cref="InputMode"/> as enum member. Undefined while the string is unset; a value that is not a member
     /// name throws (see <see cref="ParsedEnumOption{TEnum}"/>).
     /// </summary>
-    public Enums.CliToolInputMode InputModeEnum => _inputMode.Resolve(InputMode, nameof(InputMode), DefaultInputMode);
+    public Enums.CliToolInputMode InputModeEnum => _inputMode.Resolve(InputMode, nameof(InputMode));
 
     #endregion InputMode
 

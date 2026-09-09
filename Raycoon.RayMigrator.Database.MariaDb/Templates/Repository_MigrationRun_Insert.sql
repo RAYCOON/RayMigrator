@@ -21,7 +21,7 @@ Behaviour = """
 - Lock name encodes ProductId + Environment (different environments can run in parallel)
 - Checks for existing unfinished MigrationRun after acquiring the lock
 - RELEASE_LOCK() is called before returning the result
-- Parallel migrations for same Product/Environment/RunMode are prevented
+- Parallel migrations for same Product/Environment are prevented
 """
 
 [ConfigPlaceholders]
@@ -64,7 +64,7 @@ SET @v_product_name = (SELECT name FROM {CFG:TableBaseName}product WHERE id = @P
 SET @v_running = CASE WHEN @v_lock_acquired = 1 THEN (
     SELECT COUNT(*) FROM {CFG:TableBaseName}migration_run
     WHERE product_id = @ProductId AND environment_id = @EnvironmentId
-      AND migration_run_mode_id = @MigrationRunModeId AND finished_at IS NULL
+      AND finished_at IS NULL
 ) ELSE 0 END;
 
 INSERT INTO {CFG:TableBaseName}migration_run
@@ -91,8 +91,7 @@ SET @v_result = CASE
     WHEN @v_running > 0
         THEN CONCAT('-2,MigrationRun for Product [', IFNULL(@v_product_name, 'NULL'),
              '] with Id [', IFNULL(CAST(@ProductId AS CHAR), 'NULL'),
-             '] is currently in progress. Parallel migrations for the same product with MigrationRunModeId [Migrate=',
-             IFNULL(CAST(@MigrationRunModeId AS CHAR), 'NULL'), '] are not allowed!')
+             '] is currently in progress. Parallel migrations for the same product and environment are not allowed!')
     WHEN @v_inserted = 0
         THEN CONCAT('-1,Failed to create MigrationRun for ProductId [',
              IFNULL(CAST(@ProductId AS CHAR), 'NULL'), ']')

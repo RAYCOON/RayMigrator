@@ -23,7 +23,7 @@ public class MigrationAlreadyRunningTests
     public void GetValidatedTemplateResponse_WithResultCodeMinusTwo_ThrowsTemplateResultExceptionWithCodeMinusTwo()
     {
         // Arrange: SQL template returns "-2,MigrationRun for Product [Test] is currently in progress..."
-        string scalarResult = "-2,MigrationRun for Product [Test] with Id [1] is currently in progress. Parallel migrations for the same product with MigrationRunModeId [Migrate=100] are not allowed!";
+        string scalarResult = "-2,MigrationRun for Product [Test] with Id [1] is currently in progress. Parallel migrations for the same product and environment are not allowed!";
 
         // Act
         Action act = () => TemplateExecutor.GetValidatedTemplateResponseFromExecuteScalar(scalarResult, TestTemplate);

@@ -35,7 +35,7 @@ Additional database types can be added via external DAL plugins. All targets wit
 | `FileByFile` | Execute each migration on all targets before next migration |
 | `TargetByTarget` | Complete all migrations on one target before moving to next |
 
-The former names `Simultaneously` and `Successively` are still accepted in configuration files as aliases of `FileByFile` and `TargetByTarget` (#19); everything RayMigrator writes uses the current names.
+The former names `Simultaneously` and `Successively` (before 0.13.0) are rejected with the usual `Allowed values: [FileByFile, TargetByTarget]` error; rename them in existing configuration files (#19).
 
 ### FileByFile
 

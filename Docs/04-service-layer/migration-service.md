@@ -228,7 +228,7 @@ Controls how the migration SQL file is passed to an external CLI tool.
 
 Source: `Raycoon.RayMigrator.Core/Configuration/Enums/CliToolInputMode.cs`
 
-Default when `InputMode` is null or empty in configuration: `File` (the string is parsed via `Enum.TryParse`; if parsing fails or the value is `Undefined`, the executor treats it as `File`).
+`InputMode` is required; a tool without it fails configuration validation (`RayEnum(isRequired: true)` in Core, RULE_3_11 in the Validation project). `InputModeEnum` resolves the string to the member and throws for a value that is not a member name (#19).
 
 ## Response Types
 

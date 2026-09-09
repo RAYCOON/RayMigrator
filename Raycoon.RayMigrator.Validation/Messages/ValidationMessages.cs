@@ -40,6 +40,8 @@ internal static class ValidationMessages
         "MigrationFilesExtension and MigrationRollbackFilesPreExtension must differ, but both resolve to '{0}'.";
 
     // -- CLI tool definitions ---------------------------------------------
+    public const string InputModeMissing =
+        "CLI tool '{0}': InputMode is required. Set it to 'File' or 'Stdin'.";
     public const string FileModeMissingFilePath =
         "CLI tool '{0}': InputMode is 'File' but ArgumentTemplate does not contain '{{FilePath}}'.";
     public const string StdinModeWithFilePath =

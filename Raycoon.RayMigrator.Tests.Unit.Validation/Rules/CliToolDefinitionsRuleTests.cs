@@ -31,14 +31,15 @@ public class CliToolDefinitionsRuleTests
     }
 
     [Fact]
-    public void UnsetInputMode_DefaultsToFile_AndRequiresFilePath()
+    public void UnsetInputMode_IsAnError_AndSkipsThePlacementChecks()
     {
         var input = InputFactory.Minimal(cliTools: new[]
         {
             InputFactory.CliTool("sqlcmd", argumentTemplate: "-S {Server}", inputMode: null),
         });
         var report = RuleCatalog.RunAll(input);
-        report.Issues.Should().Contain(i => i.Code == RuleIds.RULE_3_1);
+        report.Issues.Should().Contain(i => i.Code == RuleIds.RULE_3_11 && i.Severity == ValidationSeverity.Error);
+        report.Issues.Should().NotContain(i => i.Code == RuleIds.RULE_3_1);
     }
 
     // -- RULE_3_2: Stdin mode should not have {FilePath} -------------------
