@@ -1,0 +1,46 @@
+name: Sync arc42 Wiki
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "Docs/arc42/**"
+      - ".github/scripts/sync-arc42-wiki.sh"
+      - ".github/workflows/sync-arc42-wiki.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: sync-arc42-wiki
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Checkout wiki
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ github.repository }}.wiki
+          path: wiki
+
+      - name: Mirror Docs/arc42 into wiki
+        run: .github/scripts/sync-arc42-wiki.sh Docs/arc42 wiki
+
+      - name: Commit and push
+        working-directory: wiki
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Wiki already up to date."
+            exit 0
+          fi
+          git commit -m "Sync arc42 docs from ${GITHUB_SHA::7}"
+          git push

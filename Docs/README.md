@@ -7,6 +7,7 @@ This is the authoritative implementation reference for RayMigrator, a profession
 | I want to... | Go to... |
 |--------------|----------|
 | Understand the architecture | [01-architecture/overview.md](01-architecture/overview.md) |
+| Read the arc42 architecture documentation | [arc42/Home.md](arc42/Home.md) (mirrored to the [GitHub Wiki](https://github.com/RAYCOON/RayMigrator/wiki)) |
 | Learn core concepts | [02-core-concepts/migration-context.md](02-core-concepts/migration-context.md) |
 | Configure the application | [06-configuration-reference/appsettings-hierarchy.md](06-configuration-reference/appsettings-hierarchy.md) |
 | Understand all settings & inheritance | [06-configuration-reference/settings-inheritance-overview.md](06-configuration-reference/settings-inheritance-overview.md) |
@@ -167,6 +168,12 @@ Working configuration and migration examples.
 - [appsettings.docker.json](examples/appsettings.docker.json) - Docker environment
 - [appsettings.docker-cli.json](examples/appsettings.docker-cli.json) - Docker CLI tool execution across all four database engines
 - [migration-examples/](examples/migration-examples/) - Sample migrations (rollback file pair, master-data insert, environment-specific file, multi-block migration, `migsettings.txt`)
+
+### [arc42/](arc42/)
+arc42 architecture documentation (12 chapters). Source of the GitHub Wiki; synced by `.github/workflows/sync-arc42-wiki.yml` on pushes to `main`. See [arc42/README.md](arc42/README.md) for authoring conventions.
+
+- [Home.md](arc42/Home.md) - Chapter overview and entry page
+- [01-Introduction-and-Goals.md](arc42/01-Introduction-and-Goals.md) through [12-Glossary.md](arc42/12-Glossary.md) - One file per arc42 chapter
 
 ### [todo/](todo/)
 Internal audit notes and planning documents (work-in-progress, not part of the user-facing documentation).
