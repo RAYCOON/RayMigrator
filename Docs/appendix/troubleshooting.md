@@ -86,7 +86,7 @@ Common issues and solutions for RayMigrator.
 1. **Use the correct env-file and profile**
    ```bash
    cd Testing/Docker/
-   docker-compose --env-file default.env --profile all up -d
+   docker compose --env-file default.env --profile all up -d
    ```
    Available profiles: `all`, `sqlserver`, `postgresql`, `mariadb`, `mysql`.
 

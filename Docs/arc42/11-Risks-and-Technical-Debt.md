@@ -100,7 +100,7 @@ as deliberate scope boundaries and are not tracked as open risks:
 |----------|-------|------------------|
 | Code | TD-C-01 to TD-C-09 | TD-C-01 (exit code contract for configuration errors) |
 | Database access layer audit | DAL-001 to DAL-025 | none open; all 25 items are done in the master list and the plan files |
-| Documentation | TD-D-16, TD-D-17 | TD-D-16 (Config Wizard and runtime merge configuration arrays differently) |
+| Documentation | TD-D-16 | TD-D-16 (Config Wizard and runtime merge configuration arrays differently) |
 | Test coverage | five gaps below | engine suite in CI (R-10) |
 
 ### Debt retired in 0.13.0 and 0.14.0
@@ -176,7 +176,6 @@ Paths are relative to `Docs/` unless stated otherwise.
 | ID | Item | Pages affected | Suggested resolution |
 |----|------|----------------|----------------------|
 | TD-D-16 | The Config Wizard's `ConfigFileMerger` merges `Products`, `TargetGroups`, `Targets` and `CliTools` arrays by `Alias` and replaces every other array, while the runtime (`JsonOptionsSource`, plain `AddJsonFile`) merges all arrays by index; a hierarchy that previews correctly in the wizard can bind differently at run time. The wizard pages describe the wizard correctly, but no page states the difference. | `12-config-wizard/file-hierarchy.md`, `12-config-wizard/services.md`, `06-configuration-reference/appsettings-hierarchy.md` | Document the difference on both sides, or align `ConfigFileMerger` with the runtime semantics (a code change) |
-| TD-D-17 | The `docker-compose.yml` listing uses `${VAR:-default}` substitutions and states that SQL Server credentials are set only in the Dockerfile; `Testing/Docker/docker-compose.yml` uses `${VAR:?...}` (required) for every engine and gives `rm_db_sqlserver` an `environment` block (`MSSQL_SA_PASSWORD`, `MSSQL_PID`, `RM_LOGIN_PASSWORD`). | `10-testing/test-infrastructure.md` | Quote the compose file instead of copying it, as done for the healthchecks |
 
 ### Test coverage
 

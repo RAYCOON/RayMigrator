@@ -15,7 +15,7 @@ This directory contains the Docker configuration for running a MySQL 8.4 instanc
 ### Start MySQL container
 ```bash
 cd Testing/Docker
-docker-compose --env-file default.env --profile mysql up -d
+docker compose --env-file default.env --profile mysql up -d
 ```
 
 ### Connect to MySQL
@@ -25,7 +25,7 @@ docker exec rm_db_mysql mysql -u rayuser -praypass123 raydb
 
 ### Stop MySQL container
 ```bash
-docker-compose --env-file default.env --profile mysql down
+docker compose --env-file default.env --profile mysql down
 ```
 
 ## Notes

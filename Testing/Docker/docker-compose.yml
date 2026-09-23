@@ -1,3 +1,8 @@
+# RayMigrator test databases: SQL Server, MariaDB, MySQL and PostgreSQL, one profile each plus 'all'.
+# Start with RunDocker.default.<profile>.ps1, stop with TeardownDocker.ps1 or teardown.sh.
+# Every ${VAR} comes from the env file (default.env in the repository, your own <name>.env stays
+# local); a missing variable stops compose with a message that names it.
+# Documented in Docs/10-testing/test-infrastructure.md, which links here instead of copying this file.
 services:
   rm_db_sqlserver:
     container_name: rm_db_sqlserver
@@ -7,10 +12,10 @@ services:
       context: ./SqlServer
       dockerfile: Dockerfile
       args:
-        SOURCE_MICROSOFT: ${SOURCE_MICROSOFT}
+        SOURCE_MICROSOFT: ${SOURCE_MICROSOFT:?SOURCE_MICROSOFT is missing in the env file}
     environment:
       MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?MSSQL_SA_PASSWORD is missing in the env file}
-      MSSQL_PID: ${MSSQL_PID:-Developer}
+      MSSQL_PID: ${MSSQL_PID:?MSSQL_PID is missing in the env file}
       RM_LOGIN_PASSWORD: ${RM_LOGIN_PASSWORD:?RM_LOGIN_PASSWORD is missing in the env file}
     restart: always
     ports:
