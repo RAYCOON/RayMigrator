@@ -100,7 +100,7 @@ public static class ConfigurationFileChain
             return false;
 
         // A path from any client (Windows or Unix separators) is reduced to its file name.
-        int lastSeparator = Math.Max(fileName.LastIndexOf('/'), fileName.LastIndexOf('\'));
+        int lastSeparator = Math.Max(fileName.LastIndexOf('/'), fileName.LastIndexOf('\\'));
         string name = lastSeparator >= 0 ? fileName[(lastSeparator + 1)..] : fileName;
         if (!name.StartsWith(Prefix, StringComparison.OrdinalIgnoreCase) ||
             !name.EndsWith(Extension, StringComparison.OrdinalIgnoreCase))
