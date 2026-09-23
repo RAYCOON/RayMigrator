@@ -22,6 +22,19 @@ Files are merged from lowest to highest priority:
 - **Other JSON arrays** (e.g. `Serilog.WriteTo`) are completely replaced by the highest-priority file that contains them
 - **Scalar values** are replaced by the higher-priority file's value
 
+### Placement Principle (export)
+
+When the wizard writes the file family, every value is placed in the **highest** file in which it holds for every combination that file applies to, so that the most specific files stay as small as possible:
+
+1. identical in all product-environment combinations: `appsettings.json`
+2. identical in all combinations of one environment: `appsettings.{Environment}.json`
+3. identical in all environments of one product: `appsettings.{Product}.json`
+4. otherwise: `appsettings.{Product}.{Environment}.json`, and only there
+
+A file never repeats a value that its effective parent (the merge of every file below it in the chain, computed with the same merger the engine uses) already provides. Elements of alias-keyed arrays are compared and written by `Alias`, so an override file names only the product, target group or target it changes. Files that would be empty are not written.
+
+> **Interim note (until [#23](https://github.com/RAYCOON/RayMigrator/issues/23) Part B ships):** promotion currently stops at the environment level and covers a fixed set of fields, product-environment files are pruned against the environment file before the product file, and `CliTools` are written in full on every level. See the issue for the details.
+
 ### ConfigFileRole Enum
 
 | Value | Numeric | File Pattern |
