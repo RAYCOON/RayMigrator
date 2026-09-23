@@ -1,8 +1,8 @@
 # RayMigrator License Notice
 
-> **Maturity notice — 0.14.x**
+> **Maturity notice — 0.15.x**
 >
-> RayMigrator 0.14.x is a pre-1.0 release. Its behaviour has not yet been proven
+> RayMigrator 0.15.x is a pre-1.0 release. Its behaviour has not yet been proven
 > across a broad range of real-world production workloads.
 >
 > Database migrations are inherently irreversible: a failed or partially applied
