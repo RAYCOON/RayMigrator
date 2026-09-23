@@ -18,7 +18,7 @@ Priority (lowest → highest)
 Files are merged from lowest to highest priority:
 
 - **JSON objects** are recursively merged — a higher-priority file's value wins for conflicting keys
-- **Alias-keyed arrays** (`Products`, `TargetGroups`, `Targets`, `CliTools` — any array whose every element is a JSON object with a string `Alias` property) are merged by matching `Alias`: matching items are recursively merged, override items without a base match are appended, base items without an override match are preserved
+- **Alias-keyed arrays** (`Products`, `TargetGroups`, `Targets`, `CliTools` — any array whose every element is a JSON object with a string `Alias` property) are merged by matching `Alias` (case-insensitive): matching items are recursively merged, base items keep their order, override items without a base match are appended, base items without an override match are preserved. These are the RayMigrator merge semantics of [#23](https://github.com/RAYCOON/RayMigrator/issues/23); the engine uses the same shared merger, so the wizard shows what the engine runs
 - **Other JSON arrays** (e.g. `Serilog.WriteTo`) are completely replaced by the highest-priority file that contains them
 - **Scalar values** are replaced by the higher-priority file's value
 

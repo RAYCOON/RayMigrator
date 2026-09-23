@@ -28,7 +28,7 @@ bool IsEmptyDiff(string json)
 `ConfigFileMerger` (static, Core) merges a chain of configuration files following RayMigrator merge semantics. IO-free; works with in-memory JSON strings.
 
 - **JSON objects** are recursively merged (higher-priority file wins for conflicting keys)
-- **Alias-keyed arrays** (`Products`, `TargetGroups`, `Targets`, `CliTools` — any array whose every element is a JSON object with a string `Alias` property) are merged by matching `Alias`. Matching items are recursively merged, override items without a base match are appended, and base items without an override match are preserved.
+- **Alias-keyed arrays** (`Products`, `TargetGroups`, `Targets`, `CliTools` — any array whose every element is a JSON object with a string `Alias` property) are merged by matching `Alias` (case-insensitive). Matching items are recursively merged, base items keep their order, override items without a base match are appended, and base items without an override match are preserved. The merge itself is the shared `ConfigurationJsonMerger` of `Raycoon.RayMigrator.Shared` ([#23](https://github.com/RAYCOON/RayMigrator/issues/23)), the same implementation the engine's `JsonOptionsSource` uses.
 - **Other JSON arrays** are completely replaced (the highest-priority file's array is used)
 - **Scalar values** are replaced by the higher-priority file's value
 

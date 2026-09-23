@@ -31,6 +31,7 @@ followed the same day by the commit tagged `v0.10.3`; a decision already present
 | ADR-018 | Structured logging with a database sink | Accepted (refined 0.12.0, 0.13.0) | <= 0.10.3 | [Structured Logging to Console, File and Database](08-Crosscutting-Concepts.md#structured-logging-to-console-file-and-database) |
 | ADR-019 | Blazor WebAssembly Config Wizard as a separate, database-free tool | Accepted | <= 0.10.3 | [Configuration Inheritance with Validation](08-Crosscutting-Concepts.md#configuration-inheritance-with-validation), [Runtime View 6.9](06-Runtime-View.md#69-config-wizard-session-short) |
 | ADR-020 | Error handling strategies with rollback files and run results | Accepted (refined 0.13.0, 0.14.0) | <= 0.10.3 | [Rollback Strategies](08-Crosscutting-Concepts.md#rollback-strategies) |
+| ADR-021 | Configuration arrays merge by alias in every application | Accepted, implementation open (#23) | 2026-09-23 | [Configuration Inheritance with Validation](08-Crosscutting-Concepts.md#configuration-inheritance-with-validation) |
 
 ## ADRs
 
@@ -395,6 +396,30 @@ target group and product levels; a rollback chain on an engine without transacti
 corrected twice after release (#15, #18), a sign of how many combinations the five by two matrix produces.
 
 **References.** [Error Handling Strategies](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/01-architecture/design-decisions.md#error-handling-strategies), [Error handling](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/02-core-concepts/error-handling.md), [Rollback files](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/07-migration-files/rollback-files.md), CHANGELOG 0.13.0 (#15, #18), 0.14.0 (#18).
+
+### ADR-021: Configuration arrays merge by alias in every application
+
+**Context.** The `appsettings*.json` hierarchy is merged by the plain `Microsoft.Extensions.Configuration` JSON provider,
+which flattens arrays into indexed keys and therefore overrides `Products`, `TargetGroups`, `Targets` and `CliTools`
+elements by position. Authors identify these elements by `Alias`. An environment file that lists products in another
+order than the base file silently attaches its values, including the target groups, to the wrong product; reproduced on
+2026-09-23, a `migrate-up` for one product created its table in the other product's database with exit code 0. The Config
+Wizard already merged by alias, so its preview and the engine disagreed.
+
+**Decision.** Every array whose elements are objects with a string `Alias` is merged by alias (case-insensitive) at every
+nesting level, base order preserved, new aliases appended, omitted elements kept; every other array is replaced as a whole
+by the later file. One shared implementation (`ConfigurationJsonMerger` in `Raycoon.RayMigrator.Shared`) is used by the
+engine's `JsonOptionsSource`, and through it by RayMigrator Studio's standalone mode, and by the wizard's `ConfigFileMerger`.
+The engine merges the JSON documents before they enter the configuration builder, so binding, validation and `{ENV:}`
+replacement are untouched. Accepted on 2026-09-23; the implementation is tracked in issue #23, which lists the unit tests
+that pin the semantics.
+
+**Consequences.** Positive: overrides can name only the element they change, in any order; the wizard shows exactly what
+the engine runs; the rule is generic, so a future alias-bearing array needs no code change. Negative: a breaking behaviour
+change for hierarchies that relied on positional overrides of non-alias arrays (`Serilog.WriteTo` is replaced, not
+merged); `reloadOnChange` is given up, which a CLI run never used.
+
+**References.** [Configuration hierarchy](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/06-configuration-reference/appsettings-hierarchy.md#arrays), [Config Wizard file hierarchy](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/12-config-wizard/file-hierarchy.md), [issue #23](https://github.com/RAYCOON/RayMigrator/issues/23).
 
 ## Related documentation
 

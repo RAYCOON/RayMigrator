@@ -75,31 +75,32 @@ Objects are merged recursively. Properties from later files override earlier one
 
 ### Arrays
 
-Arrays are **merged by index**, not replaced. The configuration files are loaded with `Microsoft.Extensions.Configuration` (`AddJsonFile`), which flattens every array into indexed keys (`RayMigrator:Products:0:Alias`, `RayMigrator:Products:0:TargetGroups:0:Alias`, `RayMigrator:Products:1:Alias`, ...). A later file overrides these keys one by one, exactly like object properties:
+Arrays whose elements carry an `Alias` are **merged by alias**, never by position. This is the rule for `Products`, `TargetGroups`, `Targets` and `CliTools` today and for any future array whose every element is a JSON object with a string `Alias`. The same merger is used by the engine, by RayMigrator Studio (standalone mode) and by the Config Wizard, so what the wizard shows is what the engine runs.
 
-- An element in a later file overrides the element at the **same position** in the earlier file, property by property. Elements are matched by position only, never by `Alias`.
-- A **shorter** array in a later file keeps the surplus elements of the earlier file. A later file can never remove an element.
-- A **longer** array in a later file appends its extra elements.
-- A **different element order** in a later file merges unrelated elements into each other (e.g. the properties of `Product2` from the later file land on `Product1` from the base file).
+- An element in a later file is matched with the element of the **same `Alias`** in the earlier file (case-insensitive) and merged property by property; nested alias arrays (`TargetGroups` inside a product, `Targets` inside a target group) merge by alias at every level.
+- An element whose alias is **new** in the later file is appended after the elements of the earlier file.
+- An element the later file does **not mention is kept** unchanged. A later file never removes an element; to remove a product, target group, target or CLI tool, remove it from the file that defines it.
+- The **order** of the earlier file is preserved, whatever the order in the later file.
+- All **other arrays** (for example `Serilog.Using` and `Serilog.WriteTo`, or any array with an element that has no `Alias`) are **replaced as a whole** by the later file.
 
 **appsettings.json**:
 ```json
 {
   "RayMigrator": {
     "Products": [
-      { "Alias": "Product1", "MigrationErrorAction": "Terminate" },
-      { "Alias": "Product2" }
+      { "Alias": "Shop", "MigrationErrorAction": "Terminate", "TargetGroups": [ "...shop targets..." ] },
+      { "Alias": "Crm",  "MigrationErrorAction": "Terminate", "TargetGroups": [ "...crm targets..." ] }
     ]
   }
 }
 ```
 
-**appsettings.Production.json**:
+**appsettings.Production.json** (only the product that changes, in any order):
 ```json
 {
   "RayMigrator": {
     "Products": [
-      { "Alias": "Product1", "MigrationErrorAction": "Rollback" }
+      { "Alias": "Crm", "MigrationErrorAction": "Rollback" }
     ]
   }
 }
@@ -110,18 +111,16 @@ Arrays are **merged by index**, not replaced. The configuration files are loaded
 {
   "RayMigrator": {
     "Products": [
-      { "Alias": "Product1", "MigrationErrorAction": "Rollback" }, // index 0: overridden
-      { "Alias": "Product2" }                                      // index 1: kept from base
+      { "Alias": "Shop", "MigrationErrorAction": "Terminate", "TargetGroups": [ "...shop targets..." ] },
+      { "Alias": "Crm",  "MigrationErrorAction": "Rollback",  "TargetGroups": [ "...crm targets..." ] }
     ]
   }
 }
 ```
 
-**Rules for overriding arrays**:
+`Shop` is untouched, `Crm` keeps its own target groups and receives the new error action. Position plays no role: the same result is produced when the production file lists `Crm` first or lists both products in reversed order.
 
-1. Every file that overrides an array must repeat the array **completely**, with the elements in the **same order** as in the earlier file. Repeating only the element you want to change is safe only if it is at the same index as in the earlier file.
-2. To **remove** an element (a product, target group, target or CLI tool), remove it from the earlier file. Omitting it from a later file does not remove it.
-3. Keep the element order identical across all files. Reordering, inserting or deleting an element in one file shifts the indexes and silently merges different elements into one.
+> **Interim note (until [#23](https://github.com/RAYCOON/RayMigrator/issues/23) ships):** the engine still merges arrays by position. Until then, repeat every array completely and in the same element order in each file that overrides it. This note is removed with the fix.
 
 ## Environment Detection
 
