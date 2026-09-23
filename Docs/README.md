@@ -175,11 +175,8 @@ arc42 architecture documentation (12 chapters). Source of the GitHub Wiki; synce
 - [Home.md](arc42/Home.md) - Chapter overview and entry page
 - [01-Introduction-and-Goals.md](arc42/01-Introduction-and-Goals.md) through [12-Glossary.md](arc42/12-Glossary.md) - One file per arc42 chapter
 
-### [todo/](todo/)
-Internal audit notes and planning documents (work-in-progress, not part of the user-facing documentation).
-
-- [dal-best-practices-audit.md](todo/dal-best-practices-audit.md) - DAL best-practices audit
-- [dal-audit/](todo/dal-audit/) - Per-DAL audit working files
+### todo/
+Local audit notes and planning documents (the folder is gitignored and not part of the repository): the DAL best-practices audit master list and its per-item plan files.
 
 ## How to Use This Documentation
 
@@ -253,4 +250,4 @@ raymigrator validate-hash -p RayMigratorTests -env Docker
 
 ## Version
 
-This documentation is for RayMigrator v0.10.x
+This documentation tracks the develop branch (currently 0.15.0-dev; see `RayMigratorVersion` in `Directory.Build.props` and `CHANGELOG.md`)

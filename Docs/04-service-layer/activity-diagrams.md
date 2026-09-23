@@ -254,7 +254,7 @@ Baseline marks migration files as applied in the repository **without executing 
 
 ```mermaid
 flowchart TD
-    Start([BaselineAsync]) --> P1["<b>Phase 1: Initialization</b><br/>RepositoryCheckCreate()<br/>RepositoryProductCheckInsert()<br/>RepositoryEnvironmentCheckInsert()<br/>MigrationRunResult = Running<br/>MigrationOperation = MigrateUp<br/>RepositoryMigrationRunInsertWithAutoFix()"]
+    Start([BaselineAsync]) --> P1["<b>Phase 1: Initialization</b><br/>RepositoryCheckCreate()<br/>RepositoryProductCheckInsert()<br/>RepositoryEnvironmentCheckInsert()<br/>MigrationRunResult = Running<br/>MigrationOperation = Baseline<br/>RepositoryMigrationRunInsertWithAutoFix()"]
 
     P1 --> P2["<b>Phase 2: File Discovery</b><br/>DiscoverAndPrepareMigrationFiles()"]
     P2 --> FilesExist{Files found?}
@@ -301,7 +301,7 @@ flowchart TD
     style ReturnOk fill:#c8e6c9
 ```
 
-**Note**: Baseline records `MigrationOperation = MigrateUp` in the repository, making baselined files indistinguishable from executed ones at the record level.
+**Note**: Baseline stamps `MigrationOperation = Baseline` (110) on the run and on every record it writes, so the run history and the `MigrationRecord` rows distinguish baselined files from executed ones (`MigrateUp`). The records still reach `MigrationStatus = Migrated`, so `FilterAlreadyMigratedFiles()` skips them on the next migrate-up.
 
 ---
 

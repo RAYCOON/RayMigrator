@@ -25,6 +25,7 @@ Raycoon.RayMigrator.Database.SqlServer/
     ├── Repository_Drop.sql
     ├── Repository_Environment_CheckInsert.sql
     ├── Repository_Environment_Select.sql
+    ├── Repository_MigrationRecordHistory_Select.sql
     ├── Repository_MigrationRecord_FixOrphaned.sql
     ├── Repository_MigrationRecord_GetInterrupted.sql
     ├── Repository_MigrationRecord_Insert.sql
@@ -41,7 +42,7 @@ Raycoon.RayMigrator.Database.SqlServer/
     └── Repository_Product_Select.sql
 ```
 
-Each DAL (SqlServer, PostgreSQL, MariaDb, MySql, Sqlite) has the same 20 template files with database-specific SQL. Template file names correspond to `TemplateType` enum values. `TemplateCache` loads templates from `DataAccessLayers/{Type}/` on the filesystem at startup.
+Each DAL (SqlServer, PostgreSQL, MariaDb, MySql, Sqlite) has the same 21 template files with database-specific SQL. Template file names correspond to `TemplateType` enum values. `TemplateCache` loads templates from `DataAccessLayers/{Type}/` on the filesystem at startup.
 
 ## Template TOML Headers
 

@@ -19,11 +19,11 @@ Professional cross platform database migration framework for versioned and relea
 
 - **Multi-Database Support** — SQL Server, PostgreSQL, MariaDB, MySQL, SQLite
 - **Versioned Migrations** — Track schema changes across releases with file-based migration scripts
-- **Rollback Support** — Automatic rollback on error with configurable strategies (Terminate, Rollback, RollbackRelease)
+- **Rollback Support** — Configurable error action on failure (Terminate, Rollback, RollbackErrorOnly, RollbackRelease, Ignore), set per product, directory or migration file
 - **Hash Validation** — Detect unauthorized changes to executed migration files
 - **Transaction Control** — Per-migration transaction configuration, respecting database-specific capabilities
 - **Product-Specific Migrations** — Target different products and their respective environments and database targets with a single configuration
-- **Execution Modes** — Run migrations simultaneously or successively across target groups
+- **Execution Order** — Apply a target group's migration files FileByFile or TargetByTarget across its targets
 - **Resilience** — Retry logic, orphaned run detection, and recovery procedures
 
 ## Supported Databases

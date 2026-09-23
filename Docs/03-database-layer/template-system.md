@@ -23,6 +23,7 @@ RayMigrator uses SQL templates with placeholder substitution for database-agnost
 | `Repository_MigrationRecord_UpdateHash` | Update hash fields of a migration record |
 | `Repository_MigrationRecord_GetInterrupted` | Check for interrupted migrations |
 | `Repository_MigrationRun_Select` | Query MigrationRun records for history |
+| `Repository_MigrationRecordHistory_Select` | Select the terminal state transitions (MigrationRecordHistory rows) of a product/environment; the `info` run history is built from it (#13) |
 | `Repository_Drop` | Drop repository (cleanup) |
 | `DatabaseLogging_CheckCreate` | Create logging tables |
 | `DatabaseLogging_Insert` | Insert log entry |
@@ -49,8 +50,9 @@ RayMigrator uses SQL templates with placeholder substitution for database-agnost
 | `Repository_MigrationRecord_UpdateRollback` | Active | Active | Active | Active | Active |
 | `Repository_MigrationRecord_UpdateHash` | Active | Active | Active | Active | Active |
 | `Repository_MigrationRecord_GetInterrupted` | Active | Active | Active | Active | Active |
+| `Repository_MigrationRecordHistory_Select` | Active | Active | Active | Active | Active |
 
-> **Note:** The 20 templates listed above are shared by all DAL plugins, including the SQLite DAL.
+> **Note:** The 21 templates listed above are shared by all DAL plugins, including the SQLite DAL.
 
 ## Template Location
 

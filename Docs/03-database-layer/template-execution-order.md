@@ -206,7 +206,7 @@ This template is **not executed immediately**. It is first used when the Serilog
 **Call site:** `MigrationService` entry point -> `TemplateExecutor.RepositoryEnvironmentCheckInsert()`
 **Target database:** Repository database
 
-Called immediately after Product registration at all 8 `MigrationService` entry points (e.g., `MigrateUpAsync`, `MigrateDownAsync`, `BaselineAsync`, `ValidateHashAsync`, `UpdateHashAsync`, `InfoAsync`, `FixAsync`).
+Called immediately after Product registration by every `MigrationService` entry point whose command profile writes the repository: `MigrateUpAsync` and `MigrateDownAsync` in `Migrate` run mode (directly), and `BaselineAsync`, `UpdateHashAsync` and `FixIssuesAsync` in `Migrate` run mode (via `InitializeRepositoryAsync()`). The read-only paths (`MigrateUpAsync` / `MigrateDownAsync` in `Simulate` run mode, `ValidateHashAsync`, `GetStatusAsync`, `GetHistoryAsync`, `FixIssuesAsync` in `Simulate` run mode) execute `Repository_Product_Select` / `Repository_Environment_Select` instead, so they leave no rows behind (#6).
 
 ### Template 4b: `Repository_Environment_CheckInsert`
 
@@ -301,8 +301,8 @@ Called immediately after Product registration at all 8 `MigrationService` entry 
 | 2 | `DatabaseLogging_Insert` | Logging DB | From startup onward, async (when `DatabaseLogging` configured) | Writes log entries (loaded in Phase 1, executed after `SetWriter`) |
 | 3 | `Repository_CheckCreate` | Repository DB | `MigrateUpAsync` | Creates schema + 11 tables + 15 FKs + master data + VersionId |
 | 4 | `Repository_Product_CheckInsert` | Repository DB | `MigrateUpAsync` | Registers the product, returns ProductId |
-| 4b | `Repository_Environment_CheckInsert` | Repository DB | All 8 entry points (after Product check-insert) | Registers the environment, returns EnvironmentId |
-| 4a/4b (Simulate) | `Repository_Product_Select`, `Repository_Environment_Select` | Repository DB | `MigrateUpAsync` / `MigrateDownAsync` in `Simulate` run mode, instead of the two CheckInsert templates | Resolves ProductId/EnvironmentId read-only; `0` when not registered, in which case all files are treated as pending (#7) |
+| 4b | `Repository_Environment_CheckInsert` | Repository DB | All repository-writing entry points (after Product check-insert): `MigrateUpAsync` / `MigrateDownAsync` / `BaselineAsync` / `UpdateHashAsync` / `FixIssuesAsync` in `Migrate` run mode | Registers the environment, returns EnvironmentId |
+| 4a/4b (read-only) | `Repository_Product_Select`, `Repository_Environment_Select` | Repository DB | `MigrateUpAsync` / `MigrateDownAsync` / `FixIssuesAsync` in `Simulate` run mode, `ValidateHashAsync`, `GetStatusAsync`, `GetHistoryAsync`, instead of the two CheckInsert templates | Resolves ProductId/EnvironmentId read-only; `0` when not registered, in which case all files are treated as pending (#6, #7) |
 | 4c | `Repository_MigrationRecord_GetInterrupted` | Repository DB | `MigrateUpAsync` | Checks for interrupted migrations (informational) |
 | 5 | `Repository_MigrationRun_Insert` | Repository DB | `MigrateUpAsync` (via `RepositoryMigrationRunInsertWithAutoFix`) | Creates MigrationRun record, returns MigrationRunId |
 
@@ -321,10 +321,11 @@ These templates exist in the template cache but are only used during specific op
 | `Repository_MigrationRecord_UpdateRollback` | Update migration record with rollback (FileDown) metadata and progress |
 | `Repository_MigrationRecord_UpdateHash` | Update hash fields (used by update-hash command) |
 | `Repository_MigrationRecord_Select` | Query existing migration records for filtering and rollback |
-| `Repository_MigrationRun_SelectOrphaned` | Fix command: select orphaned runs (also used by `RepositoryMigrationRunInsertWithAutoFix` for auto-fix) |
-| `Repository_MigrationRun_FixOrphaned` | Fix command: mark orphaned MigrationRun as Error (also used by `RepositoryMigrationRunInsertWithAutoFix` for auto-fix) |
-| `Repository_MigrationRecord_FixOrphaned` | Fix command: update orphaned Migration entries (also used by `RepositoryMigrationRunInsertWithAutoFix` for auto-fix) |
-| `Repository_MigrationRun_Select` | Query MigrationRun records (used by Info command) |
+| `Repository_MigrationRun_SelectOrphaned` | `FixIssuesAsync` (fix command): select orphaned runs (also used by `RepositoryMigrationRunInsertWithAutoFix` for auto-fix) |
+| `Repository_MigrationRun_FixOrphaned` | `FixIssuesAsync` in `Migrate` run mode: mark orphaned MigrationRun as Error (also used by `RepositoryMigrationRunInsertWithAutoFix` for auto-fix) |
+| `Repository_MigrationRecord_FixOrphaned` | `FixIssuesAsync` in `Migrate` run mode: update orphaned Migration entries to the assumed status (also used by `RepositoryMigrationRunInsertWithAutoFix` for auto-fix, always `NotMigrated`) |
+| `Repository_MigrationRun_Select` | Query MigrationRun records (`GetStatusAsync` reads the latest run, `GetHistoryAsync` the last `limit` runs; both back the info command) |
+| `Repository_MigrationRecordHistory_Select` | Query `MigrationRecordHistory` rows (`GetHistoryAsync`, info command) |
 
 ---
 

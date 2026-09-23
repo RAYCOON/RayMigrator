@@ -1,6 +1,6 @@
 # Open Features
 
-Central registry of open features in RayMigrator v0.10.x.
+Central registry of open features in RayMigrator (state as of 0.15.0-dev; the current version is `RayMigratorVersion` in `Directory.Build.props`, released versions are listed in `CHANGELOG.md`).
 
 ---
 
@@ -27,7 +27,7 @@ Detection of orphaned runs and interrupted migrations works and logs warnings. O
 
 Oracle DAL is not yet implemented. The pluggable DAL architecture supports adding new database engines via the `Database.Example` skeleton project.
 
-- **What exists:** Pluggable DAL architecture with 5 migration engines (SqlServer, PostgreSQL, MariaDb, MySql, Sqlite), `Database.Example` skeleton for external DAL development (19 placeholder templates including `Repository_MigrationRecordHistory_Archive.sql`)
+- **What exists:** Pluggable DAL architecture with 5 migration engines (SqlServer, PostgreSQL, MariaDb, MySql, Sqlite), `Database.Example` skeleton for external DAL development (22 placeholder templates including `Repository_MigrationRecordHistory_Archive.sql`)
 - **What's missing:** Oracle DAL
 - **Docs:** [Adding New Database](../03-database-layer/adding-new-database.md), [New Database Type](../09-extending/new-database-type.md), [External DAL Development](../09-extending/external-dal-development.md)
 

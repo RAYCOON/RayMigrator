@@ -111,6 +111,7 @@ Repository_MigrationRecord_UpdateHash.sql     - Update hash fields (update-hash 
 Repository_MigrationRecord_Select.sql         - Query migrations
 Repository_MigrationRecord_FixOrphaned.sql    - Fix orphaned migration entries
 Repository_MigrationRecord_GetInterrupted.sql - Find interrupted migrations for recovery
+Repository_MigrationRecordHistory_Select.sql - Query terminal state transitions (info run history)
 DatabaseLogging_CheckCreate.sql         - Create database logging table
 DatabaseLogging_Insert.sql              - Insert log entry
 ```
@@ -352,19 +353,19 @@ DataAccessLayers/
 ├── SqlServer/
 │   ├── Raycoon.RayMigrator.Database.SqlServer.dll
 │   ├── Repository_CheckCreate.sql
-│   └── ... (20 templates per DAL, flat layout)
+│   └── ... (21 templates per DAL, flat layout)
 ├── PostgreSQL/
 │   ├── Raycoon.RayMigrator.Database.PostgreSQL.dll
-│   └── *.sql (20 template files)
+│   └── *.sql (21 template files)
 ├── MariaDb/
 │   ├── Raycoon.RayMigrator.Database.MariaDb.dll
-│   └── *.sql (20 template files)
+│   └── *.sql (21 template files)
 ├── MySql/
 │   ├── Raycoon.RayMigrator.Database.MySql.dll
-│   └── *.sql (20 template files)
+│   └── *.sql (21 template files)
 └── Sqlite/
     ├── Raycoon.RayMigrator.Database.Sqlite.dll
-    └── *.sql (20 template files)
+    └── *.sql (21 template files)
 ```
 
 ```csharp

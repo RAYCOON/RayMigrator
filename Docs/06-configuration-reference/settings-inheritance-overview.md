@@ -573,7 +573,7 @@ Environments = ["Docker", "Development"]
 
 1. **CLI does not override config values**: `--product` and `--environment` select which configuration files to load and which product to operate on, but they do not override settings like connection strings or timeouts.
 
-2. **Arrays are replaced, not merged**: In both appsettings file merging and migsettings hierarchy, arrays (like `Environments` and `Targets`) are completely replaced by the overriding layer, not merged with the parent.
+2. **Array handling differs between appsettings and migsettings**: In the migsettings hierarchy, arrays (`Environments` and `Targets`) are completely replaced by the overriding layer, not merged with the parent. In appsettings file merging, arrays (`Products`, `TargetGroups`, `Targets`, `CliTools`) are merged **by index**: a later file overrides elements at the same position, a shorter array keeps the surplus elements of the earlier file, and elements are never removed by a later file. Every appsettings file that overrides an array must repeat it completely in the same element order; to remove an element, remove it from the earlier file. See [Arrays in Configuration Hierarchy](appsettings-hierarchy.md#arrays).
 
 3. **`{ENV:}` placeholders are resolved after merge**: Environment variable replacement (`{ENV:VARIABLE_NAME}`) happens after all appsettings files are merged but before binding to option classes. Non-existent or empty environment variables cause the application to terminate with an `ApplicationStartupException`.
 

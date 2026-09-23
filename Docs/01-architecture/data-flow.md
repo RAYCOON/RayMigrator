@@ -278,33 +278,49 @@ flowchart TD
 
 ## MigrationContext State Transitions
 
-The `MigrationState.MigrationRunResult` property tracks the run state:
+`MigrationState` carries two persisted state enums: `MigrationStatus` (per migration record, `MigrationRecord.MigrationStatusId`) and `MigrationRunResult` (per run, `MigrationRun.MigrationRunResultId`). Both are written by `MigrationService` through `TemplateExecutor`.
+
+### MigrationStatus (per record)
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Initialized: CreateContext()
+    [*] --> Pending: RepositoryMigrationInsert()
 
-    Initialized --> Running: MigrationRunResult=Running
-    Running --> ValidatingRepository: RepositoryCheckCreate()
-    ValidatingRepository --> RepositoryReady: MigrationRunInsert()
+    Pending --> Executing: First SQL block or CLI tool starts - RepositoryMigrationUpdate(Executing)
+    Executing --> Executing: Next block - RepositoryMigrationUpdate(Executing, blocksMigrated)
+    Executing --> Migrated: All blocks executed - RepositoryMigrationUpdate(Migrated)
+    Executing --> Failed: Block error or exception - RepositoryMigrationUpdate(Failed)
 
-    RepositoryReady --> DiscoveringFiles: DiscoverAndPrepareMigrationFiles()
-    DiscoveringFiles --> FilesDiscovered: Files found
+    Migrated --> Executing: Rollback starts (migrate-down or error recovery) - RepositoryMigrationUpdateRollback(Executing)
+    Failed --> Executing: Rollback of the failed file (error recovery or migrate-down) - RepositoryMigrationUpdateRollback(Executing)
+    Executing --> NotMigrated: All rollback blocks executed - RepositoryMigrationUpdateRollback(NotMigrated)
+    Executing --> Failed: Rollback block error - RepositoryMigrationUpdateRollback(Failed)
 
-    FilesDiscovered --> ExecutingMigration: ExecuteTargetGroup*()
-    ExecutingMigration --> ExecutingMigration: Next file/target
-    ExecutingMigration --> MigrationComplete: MigrationRunResult=Ok
-
-    ExecutingMigration --> ErrorState: Migration error
-    ErrorState --> RollingBack: Rollback/RollbackErrorOnly/RollbackRelease
-    RollingBack --> MigrationComplete: MigrationRunResult=Recovered (clean chain)
-    RollingBack --> MigrationComplete: MigrationRunResult=Error (rollback failed / stopped)
-
-    ErrorState --> MigrationComplete: Terminate (MigrationRunResult=Error)
-    ErrorState --> ExecutingMigration: Ignore (continue run)
-
-    MigrationComplete --> [*]
+    Executing --> Migrated: Interrupted record with all blocks done - TryFinalizeCompletedMigration()
+    Pending --> NotMigrated: fix (orphaned run) - RepositoryMigrationRecordFixOrphaned(assumed status)
+    Executing --> NotMigrated: fix (orphaned run) - RepositoryMigrationRecordFixOrphaned(assumed status)
 ```
+
+`fix` writes the `--assumed-status` (`NotMigrated` or `Migrated`) to every `Pending`/`Executing` record of an orphaned run; the auto-fix in `RepositoryMigrationRunInsertWithAutoFix()` always uses `NotMigrated`. `Undefined` (0) is never persisted.
+
+### MigrationRunResult (per run)
+
+```mermaid
+stateDiagram-v2
+    [*] --> Running: RepositoryMigrationRunInsert()
+
+    Running --> Ok: All files migrated / rolled back, or nothing to do
+    Running --> PartialSuccess: migrate-up continued past a Failed file (MigrationErrorAction=Ignore), or migrate-down skipped a missing rollback file / ignored a failed rollback block
+    Running --> Recovered: migrate-up failed and the error-recovery rollback (Rollback / RollbackRelease / RollbackErrorOnly) completed without failure or warning
+    Running --> Error: migrate-up aborted (Terminate, or recovery not clean), migrate-down rollback failed, unhandled exception, or fix closes an orphaned run
+
+    Ok --> [*]
+    PartialSuccess --> [*]
+    Recovered --> [*]
+    Error --> [*]
+```
+
+Every terminal value is written by `RepositoryMigrationRunUpdate()`; `fix` and the auto-fix close an orphaned run with `RepositoryMigrationRunFixOrphaned()` (result `Error`). See [Migration State Machine](../02-core-concepts/migration-state-machine.md) for the per-command flows.
 
 ## Related Documentation
 

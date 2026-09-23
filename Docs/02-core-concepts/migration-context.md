@@ -156,14 +156,14 @@ public class AsyncLocalMigrationContextAccessor : IMigrationContextAccessor
 
 ### `IMigrationContextFactory` / `MigrationContextFactory`
 
-Factory for creating `MigrationContext` instances. CLI creates one at startup; API creates one per request.
+Factory for creating `MigrationContext` instances. CLI creates one at startup; API creates one per request. The `command` is stamped into the MigrationRun settings snapshot and drives the command's side effects (`CommandProfile`), so it must be the command that is actually executed (#6). `runMode` is only a choice for `MigrateUp` / `MigrateDown`; pass `MigrationRunMode.Migrate` for every other command.
 
 ```csharp
 public interface IMigrationContextFactory
 {
     MigrationContext Create(
         RayMigratorOptions options, string product, string environment,
-        MigrationRunMode runMode, string version,
+        MigrationCommand command, MigrationRunMode runMode, string version,
         string? targetReleaseVersion = null, bool revealSensitiveData = false);
 }
 
@@ -171,12 +171,12 @@ public class MigrationContextFactory : IMigrationContextFactory
 {
     public MigrationContext Create(
         RayMigratorOptions options, string product, string environment,
-        MigrationRunMode runMode, string version,
+        MigrationCommand command, MigrationRunMode runMode, string version,
         string? targetReleaseVersion = null, bool revealSensitiveData = false)
     {
         var consoleOptions = new RayMigratorConsoleOptions
         {
-            Command = MigrationCommand.MigrateUp, // Will be overridden per operation
+            Command = command,
             Product = product,
             Environment = environment,
             RunMode = runMode,
@@ -214,7 +214,7 @@ sequenceDiagram
     participant Svc as MigrationService
 
     Client->>Endpoint: POST /api/v1/migrations/up
-    Endpoint->>Factory: Create(options, product, env, ...)
+    Endpoint->>Factory: Create(options, product, env, command, ...)
     Factory-->>Endpoint: new MigrationContext
     Endpoint->>Accessor: accessor.Current = ctx
 
@@ -259,10 +259,10 @@ sequenceDiagram
 | Value | Meaning |
 |-------|---------|
 | `Undefined` (0) | Not set |
-| `Rollback` (5) | Error recovery rollback |
-| `MigrateDown` (50) | Rollback to version |
-| `MigrateUp` (100) | Forward migration |
-| `Baseline` (110) | Baseline (records written without executing SQL) |
+| `Rollback` (5) | Performing rollback (stamped on records written by an error-recovery rollback chain) |
+| `MigrateDown` (50) | Performing down-migration |
+| `MigrateUp` (100) | Performing up-migration |
+| `Baseline` (110) | Marking migration files as migrated without executing them (baseline command) |
 
 ### MigrationRunResult
 
@@ -270,7 +270,9 @@ sequenceDiagram
 |-------|---------|
 | `Undefined` (0) | Invalid value -- ResultId has not been set properly |
 | `Running` (10) | Migration process is currently running |
-| `Error` (90) | Migration(s) stopped due to error(s) |
+| `PartialSuccess` (50) | The run finished, but at least one file was skipped or left `Failed`: a migrate-up that continued past a failure with `MigrationErrorAction.Ignore`, or a migrate-down that skipped a missing rollback file or ignored a failed rollback block (`RollbackErrorAction.Ignore`). CLI exit code unchanged (1 for migrate-up, 0 for migrate-down) (#18) |
+| `Recovered` (80) | A migrate-up failed and the configured error recovery (`Rollback`, `RollbackRelease` or `RollbackErrorOnly`) completed without a failure or warning: every record the recovery touched is `NotMigrated` again. Terminate, Ignore, a rollback failure, a skipped or missing rollback file and a stopped chain are persisted as `Error`. CLI exit code stays 1 (#18) |
+| `Error` (90) | Migration(s) stopped due to error(s): aborted without recovery, or the error recovery did not complete cleanly |
 | `Ok` (100) | Migration(s) successfully executed and finished |
 
 ### MigrationStatus

@@ -46,10 +46,28 @@ it as a starting point for your plugin.
 ## Process
 
 1. Fork the repository
-2. Create a feature branch
-3. Submit a Pull Request
+2. Create a feature branch from `develop`
+3. Submit a Pull Request against `develop`
 4. Confirm the CLA in the PR template
 5. Wait for review
+
+---
+
+## Branches and releases
+
+- `develop` is the working branch. Feature branches are based on it and
+  Pull Requests target it. Every push to `develop` runs the **Build & Test**
+  workflow (Linux build plus unit tests).
+- `main` only ever receives a fast-forward from `develop` when a release is
+  made; nothing is committed to `main` directly.
+- A release is tagged `v<version>` (for example `v0.14.0`) on that commit.
+  The tag triggers **Build & Test** again, and on its success **Publish
+  Release** (GitHub release with `win-x64`, `osx-arm64` and `linux-x64`
+  archives) and **Deploy ConfigWizard Web** run automatically. The NuGet
+  packages are published by the manually dispatched **Publish NuGet**
+  workflow.
+- **Build & Test** runs on pushes to `develop`, on `v*` tags and on Pull
+  Requests to `main` (see `.github/workflows/build-test.yml`).
 
 ---
 

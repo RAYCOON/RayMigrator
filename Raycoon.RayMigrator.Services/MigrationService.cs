@@ -896,12 +896,6 @@ public class MigrationService : IMigrationService
     }
 
     /// <summary>
-    /// Determines whether a migration file can use the atomic shared-connection path,
-    /// where target SQL blocks and repository status updates execute in a single transaction.
-    /// Requires: UseTransaction=true, no retries, block errors not ignored,
-    /// same DatabaseType, and identical ConnectionString between target and repository.
-    /// </summary>
-    /// <summary>
     /// The execution path reads the run mode from the request, while every repository stamp and the
     /// DatabaseLogging gate read it from the <see cref="MigrationContext"/>. The CLI fills both from the same
     /// options; a programmatic caller could let them diverge or send <see cref="MigrationRunMode.Undefined"/>,
@@ -925,6 +919,12 @@ public class MigrationService : IMigrationService
         }
     }
 
+    /// <summary>
+    /// Determines whether a migration file can use the atomic shared-connection path,
+    /// where target SQL blocks and repository status updates execute in a single transaction.
+    /// Requires: UseTransaction=true, block errors not ignored, same DatabaseType,
+    /// and identical ConnectionString between target and repository.
+    /// </summary>
     internal static bool CanUseSharedConnection(
         MigrationFileInfo file,
         TargetOptions targetOptions,

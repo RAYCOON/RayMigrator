@@ -8,7 +8,7 @@ This chapter walks you through creating a minimal project, writing your first mi
 - **A SQL Server instance** — either a local installation or a Docker container
 - **RayMigrator** available on your PATH — download the latest release for your platform from [GitHub Releases](https://github.com/RAYCOON/RayMigrator/releases), extract it, and add the directory to your PATH:
 
-  **Linux:** `tar -xzf RayMigrator-<version>-linux-x64.tar.gz -C /opt/raymigrator && export PATH="$PATH:/opt/raymigrator"`
+  **Linux:** `mkdir -p /opt/raymigrator && tar -xzf RayMigrator-<version>-linux-x64.tar.gz -C /opt/raymigrator && export PATH="$PATH:/opt/raymigrator"`
 
   **macOS:** `tar -xzf RayMigrator-<version>-osx-arm64.tar.gz -C /usr/local/raymigrator && export PATH="$PATH:/usr/local/raymigrator"`
 

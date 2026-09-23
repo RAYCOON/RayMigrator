@@ -128,10 +128,12 @@ The Console project includes the following Serilog packages:
 | `Serilog.Enrichers.Environment` | 3.0.1 | `WithMachineName`, `WithEnvironmentUserName` |
 | `Serilog.Enrichers.Thread` | 4.0.0 | `WithThreadId` |
 | `Serilog.Extensions.Hosting` | 10.0.0 | `.UseSerilog()` host integration |
-| `Serilog.Settings.Configuration` | 10.0.0 | JSON configuration binding |
+| `Serilog.Settings.Configuration` | 10.0.1 | JSON configuration binding |
 | `Serilog.Sinks.Console` | 6.1.1 | Console output |
 | `Serilog.Sinks.File` | 7.0.0 | File output with rolling |
 | `Raycoon.Serilog.Sinks.SQLite` | 1.2.2 | SQLite file-based Serilog sink |
+
+Package versions are pinned centrally in `Directory.Packages.props` (Central Package Management); the table reflects that file at the time of writing.
 
 > **Note**: `Raycoon.Serilog.Sinks.SQLite` is a Serilog file sink that writes log events to a local SQLite file. This is separate from the `DatabaseLogging` feature which writes structured migration logs to a migration database via DAL and SQL templates.
 

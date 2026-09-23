@@ -75,35 +75,53 @@ Objects are merged recursively. Properties from later files override earlier one
 
 ### Arrays
 
-Arrays are **completely replaced**, not merged:
+Arrays are **merged by index**, not replaced. The configuration files are loaded with `Microsoft.Extensions.Configuration` (`AddJsonFile`), which flattens every array into indexed keys (`RayMigrator:Products:0:Alias`, `RayMigrator:Products:0:TargetGroups:0:Alias`, `RayMigrator:Products:1:Alias`, ...). A later file overrides these keys one by one, exactly like object properties:
+
+- An element in a later file overrides the element at the **same position** in the earlier file, property by property. Elements are matched by position only, never by `Alias`.
+- A **shorter** array in a later file keeps the surplus elements of the earlier file. A later file can never remove an element.
+- A **longer** array in a later file appends its extra elements.
+- A **different element order** in a later file merges unrelated elements into each other (e.g. the properties of `Product2` from the later file land on `Product1` from the base file).
 
 **appsettings.json**:
 ```json
 {
-  "Products": [
-    { "Alias": "Product1" },
-    { "Alias": "Product2" }
-  ]
+  "RayMigrator": {
+    "Products": [
+      { "Alias": "Product1", "MigrationErrorAction": "Terminate" },
+      { "Alias": "Product2" }
+    ]
+  }
 }
 ```
 
 **appsettings.Production.json**:
 ```json
 {
-  "Products": [
-    { "Alias": "Product1" }
-  ]
+  "RayMigrator": {
+    "Products": [
+      { "Alias": "Product1", "MigrationErrorAction": "Rollback" }
+    ]
+  }
 }
 ```
 
 **Merged Result**:
 ```json
 {
-  "Products": [
-    { "Alias": "Product1" }  // Only Product1, Product2 removed
-  ]
+  "RayMigrator": {
+    "Products": [
+      { "Alias": "Product1", "MigrationErrorAction": "Rollback" }, // index 0: overridden
+      { "Alias": "Product2" }                                      // index 1: kept from base
+    ]
+  }
 }
 ```
+
+**Rules for overriding arrays**:
+
+1. Every file that overrides an array must repeat the array **completely**, with the elements in the **same order** as in the earlier file. Repeating only the element you want to change is safe only if it is at the same index as in the earlier file.
+2. To **remove** an element (a product, target group, target or CLI tool), remove it from the earlier file. Omitting it from a later file does not remove it.
+3. Keep the element order identical across all files. Reordering, inserting or deleting an element in one file shifts the indexes and silently merges different elements into one.
 
 ## Environment Detection
 

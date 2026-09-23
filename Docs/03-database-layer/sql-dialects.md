@@ -29,7 +29,7 @@ MySQL and MariaDB share a common ancestor and most SQL syntax, but they are two 
 
 **Rationale**
 
-- **Volume is manageable.** Each engine has approximately 20 SQL template files under 300 lines each. The maintenance cost of duplicated files is measurable but bounded, and considerably cheaper than the readability cost of inline placeholders for every dialect-specific token.
+- **Volume is manageable.** Each engine has 21 SQL template files under 300 lines each. The maintenance cost of duplicated files is measurable but bounded, and considerably cheaper than the readability cost of inline placeholders for every dialect-specific token.
 - **Templates stay idiomatic.** Readers see native MySQL SQL or native MariaDB SQL — no `{ENGINE:Var}` placeholders obscuring which dialect is actually running.
 - **Divergence is expected to grow.** JSON path expressions, window-function variants, vector types, and dialect-specific optimizer hints are all areas where MySQL 8+ and MariaDB 10.10+ have already moved apart. A placeholder-shared file scales poorly into that future.
 - **Per-engine CI catches regressions.** `dotnet test Raycoon.RayMigrator.Tests.Engine/ --filter "Database=MySql"` runs only the MySQL engine; the equivalent MariaDB filter runs the MariaDB engine. A template change that breaks one engine is caught before merge.

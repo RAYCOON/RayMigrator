@@ -423,17 +423,22 @@ UseTransaction = true
 
 ```mermaid
 flowchart TD
-    A[Begin Transaction] --> B[Execute SQL Blocks]
-    B --> C{Success?}
-    C -->|Yes| D[Commit Transaction]
-    C -->|No| E[Rollback Transaction]
-    E --> F[Apply Error Action]
+    A[Next SQL Block] --> B[Begin Transaction]
+    B --> C[Execute Block]
+    C --> D{Success?}
+    D -->|Yes| E[Commit Transaction]
+    E --> F[Update Block Progress in Repository]
+    F --> A
+    D -->|No| G[Rollback Transaction]
+    G --> H[Apply Error Action]
 ```
 
 **Behavior**:
-- All blocks in file are atomic
-- Database handles rollback on error
-- Consistent state guaranteed
+- A transaction spans **one SQL block**, not the whole file. `ExecuteSqlBlocks` passes `UseTransaction` to the DAL via `DalSettings`, and each `ExecuteNonQueryAsync` call opens its own connection, begins a transaction, executes the block and commits it.
+- A failed block is rolled back by the database and the configured `MigrationErrorAction` applies. Blocks that already committed stay committed, so a multi-block file is **not atomic** on this path.
+- The committed block count is tracked in `MigrationState.FileBlocksCommitted` and persisted per block; a re-run resumes at the first uncommitted block (`FindResumableBlock`).
+- Transient-error retries (`DbCommandMaxRetries`) repeat the failed block only.
+- File-level atomicity exists only on the atomic shared-connection path: when `CanUseSharedConnection` returns `true` (`UseTransaction = true`, `MigrationErrorAction != Ignore`, repository and target with the same `DatabaseType` and byte-identical `ConnectionString`), `ExecuteSqlBlocks` delegates to `ExecuteSqlBlocksAtomic`, which runs all blocks and the repository status updates in a single transaction that commits or rolls back as a whole. See [Atomic Shared Connection](#atomic-shared-connection) below.
 
 ### Without Transactions
 
@@ -448,7 +453,7 @@ UseTransaction = false
 - Large data migrations
 - Operations requiring intermediate commits
 
-**Warning**: Partial execution possible on error
+**Warning**: Partial execution possible on error, including inside a single block. `UseTransaction = false` also disables the atomic shared-connection path.
 
 ### Database-Specific DDL Transaction Limitations
 

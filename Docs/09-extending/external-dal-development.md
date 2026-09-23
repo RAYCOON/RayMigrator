@@ -6,7 +6,7 @@ Guide for developing custom RayMigrator database providers in an external reposi
 
 RayMigrator's plugin architecture allows developing database providers (DALs) outside the main repository. Your DAL is built as a standalone .NET class library that references `Database.Common` and `Shared` via NuGet packages.
 
-The `Database.Example` project in the main repository serves as a skeleton template. It contains placeholder implementations for all required methods and 21 SQL template files (the 20 required by the engine plus `Repository_MigrationRecordHistory_Archive.sql`, which is an extra placeholder for archive operations). The recommended workflow is to copy (or fork) this project and replace "Example" with your database type name throughout.
+The `Database.Example` project in the main repository serves as a skeleton template. It contains placeholder implementations for all required methods and 22 SQL template files (the 21 required by the engine plus `Repository_MigrationRecordHistory_Archive.sql`, which is an extra placeholder for archive operations). The recommended workflow is to copy (or fork) this project and replace "Example" with your database type name throughout.
 
 > **License note**: The `Raycoon.RayMigrator.Database.Example` directory is licensed under the **MIT License** (see `Raycoon.RayMigrator.Database.Example/LICENSE.md`), separately from the rest of RayMigrator (which is BUSL-1.1 with Additional Use Grant). You may freely copy the Example skeleton as a starting point for your own DAL plugin. The plugin source code you write from there is your own, under whatever license you choose. **Running** your plugin inside a RayMigrator process is a use of the Licensed Work and is governed by `LICENSE.md` — for this version that use is free of charge, whatever the size or nature of your organization.
 
@@ -64,13 +64,14 @@ Then reference them in your external project:
 
 ```xml
 <ItemGroup>
-    <PackageReference Include="Raycoon.RayMigrator.Database.Common" Version="0.10.3" />
-    <PackageReference Include="Raycoon.RayMigrator.Shared" Version="0.10.3" />
+    <!-- Version = RayMigratorVersion in Directory.Build.props of the release you build against (0.15.0 on develop) -->
+    <PackageReference Include="Raycoon.RayMigrator.Database.Common" Version="0.15.0" />
+    <PackageReference Include="Raycoon.RayMigrator.Shared" Version="0.15.0" />
     <PackageReference Include="YourDb.AdoNetDriver" Version="..." />
 </ItemGroup>
 ```
 
-The version is controlled centrally via the `RayMigratorVersion` property in `Directory.Build.props` (currently `0.10.3`).
+The version is controlled centrally via the `RayMigratorVersion` property in `Directory.Build.props`; the packages you pack carry that value, so the `PackageReference` versions must match it (see `CHANGELOG.md` for the released versions).
 
 ### 3. Multi-Target Frameworks
 
@@ -224,9 +225,9 @@ public class DalYourDb : DalBase, IDal
 
 ## Template Contract
 
-All 20 template files must be present. `TemplateCache` loads templates from `DataAccessLayers/{Type}/` on the filesystem. Templates are delivered as `<Content>` items that propagate transitively through ProjectReference and as `contentFiles` in NuGet packages. `TemplateCache` validates completeness at startup and throws a `ConfigurationValidationException` listing any missing templates. Template files must not be empty -- if a template is not needed for your database type, add a SQL comment explaining why.
+All 21 template files must be present. `TemplateCache` loads templates from `DataAccessLayers/{Type}/` on the filesystem. Templates are delivered as `<Content>` items that propagate transitively through ProjectReference and as `contentFiles` in NuGet packages. `TemplateCache` validates completeness at startup and throws a `ConfigurationValidationException` listing any missing templates. Template files must not be empty -- if a template is not needed for your database type, add a SQL comment explaining why.
 
-The `Database.Example` project includes all 21 files as placeholders with TODO comments (20 required templates plus `Repository_MigrationRecordHistory_Archive.sql`). `TemplateCache` recognizes only the 20 files that correspond to `TemplateType` enum values; `Repository_MigrationRecordHistory_Archive.sql` is silently skipped during loading. Use `Database.SqlServer` or `Database.PostgreSQL` templates as reference implementations.
+The `Database.Example` project includes all 22 files as placeholders with TODO comments (21 required templates plus `Repository_MigrationRecordHistory_Archive.sql`). `TemplateCache` recognizes only the 21 files that correspond to `TemplateType` enum values; `Repository_MigrationRecordHistory_Archive.sql` is silently skipped during loading. Use `Database.SqlServer` or `Database.PostgreSQL` templates as reference implementations.
 
 ### Required Templates
 
@@ -239,6 +240,7 @@ The `Database.Example` project includes all 21 files as placeholders with TODO c
 | `Repository_Environment_CheckInsert.sql` | Insert environment if not exists, return EnvironmentId |
 | `Repository_MigrationRecord_FixOrphaned.sql` | Fix orphaned migration records |
 | `Repository_MigrationRecord_GetInterrupted.sql` | Get interrupted migrations |
+| `Repository_MigrationRecordHistory_Select.sql` | Select the terminal state transitions (MigrationRecordHistory rows) of a product/environment for the `info` run history |
 | `Repository_MigrationRecord_Insert.sql` | Insert migration record |
 | `Repository_MigrationRecord_Select.sql` | Select migrations for a product |
 | `Repository_MigrationRecord_Update.sql` | Update migration status and hash (includes inline MigrationRecordHistory insert) |
@@ -369,7 +371,7 @@ DataAccessLayers/YourDb/
 ├── DatabaseLogging_CheckCreate.sql
 ├── DatabaseLogging_Insert.sql
 ├── Repository_CheckCreate.sql
-├── ... (20 .sql files total)
+├── ... (21 .sql files total)
 ```
 
 For built-in DALs, the Console project's `CopyDalAssembliesToDataAccessLayers` post-build target handles this automatically. External DALs must be deployed manually.
@@ -386,7 +388,7 @@ After deployment, verify your DAL is discovered:
 
 1. Start RayMigrator with logging at Debug level
 2. `TemplateCache` logs each discovered DAL: `DataAccessLayer [YourDb] found`
-3. `TemplateCache` validates that all 20 templates are present for each discovered DAL
+3. `TemplateCache` validates that all 21 templates are present for each discovered DAL
 4. `ValidateConfigurationAgainstTemplateCache` verifies that configured `DatabaseType` values (in Repository and TargetGroups) match available DALs
 5. Use your database type in configuration:
 

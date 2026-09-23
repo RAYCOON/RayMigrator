@@ -11,7 +11,7 @@ Version        = "2026-04-18.1"
 [Description]
 Function = """
 Creates a new MigrationRun record to track a migration session.
-Prevents parallel migrations for the same Product/Environment/RunMode.
+Prevents parallel migrations for the same Product/Environment.
 """
 
 Behaviour = """

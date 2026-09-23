@@ -59,7 +59,9 @@ jobs:
       - name: Install RayMigrator
         run: |
           gh release download --repo RAYCOON/raymigrator --pattern "RayMigrator-*-linux-x64.tar.gz" --dir /tmp
-          tar -xzf /tmp/RayMigrator-*-linux-x64.tar.gz -C /usr/local/bin
+          sudo mkdir -p /opt/raymigrator
+          sudo tar -xzf /tmp/RayMigrator-*-linux-x64.tar.gz -C /opt/raymigrator
+          sudo ln -sf /opt/raymigrator/raymigrator /usr/local/bin/raymigrator
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Validate migrations
@@ -80,7 +82,9 @@ jobs:
       - name: Install RayMigrator
         run: |
           gh release download --repo RAYCOON/raymigrator --pattern "RayMigrator-*-linux-x64.tar.gz" --dir /tmp
-          tar -xzf /tmp/RayMigrator-*-linux-x64.tar.gz -C /usr/local/bin
+          sudo mkdir -p /opt/raymigrator
+          sudo tar -xzf /tmp/RayMigrator-*-linux-x64.tar.gz -C /opt/raymigrator
+          sudo ln -sf /opt/raymigrator/raymigrator /usr/local/bin/raymigrator
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Simulate in staging
@@ -101,7 +105,9 @@ jobs:
       - name: Install RayMigrator
         run: |
           gh release download --repo RAYCOON/raymigrator --pattern "RayMigrator-*-linux-x64.tar.gz" --dir /tmp
-          tar -xzf /tmp/RayMigrator-*-linux-x64.tar.gz -C /usr/local/bin
+          sudo mkdir -p /opt/raymigrator
+          sudo tar -xzf /tmp/RayMigrator-*-linux-x64.tar.gz -C /opt/raymigrator
+          sudo ln -sf /opt/raymigrator/raymigrator /usr/local/bin/raymigrator
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Backup database
@@ -111,6 +117,8 @@ jobs:
           DB_CONNECTION: ${{ secrets.PROD_DB_CONNECTION }}
         run: raymigrator migrate-up -p MyProduct -env Production -rm migrate --startup-info false
 ```
+
+> **Archive layout matters.** The release archive (`RayMigrator-<version>-linux-x64.tar.gz`, `RayMigrator-<version>-osx-arm64.tar.gz`, `RayMigrator-<version>-win-x64.zip`) contains the `raymigrator` executable, the `DataAccessLayers/` directory (SQL templates and DAL assemblies for `SqlServer`, `PostgreSQL`, `MariaDb`, `MySql`, `Sqlite`) and the license files `LICENSE.md`, `NOTICE.md` and `THIRD-PARTY-NOTICES.md`. RayMigrator loads `DataAccessLayers/` from the executable's own directory, so the archive must be extracted as a whole into a directory of its own (`/opt/raymigrator` above). Do not extract it into `/usr/local/bin` and do not copy only the executable: make the executable reachable via a symlink (as above) or by adding the directory to `PATH`. The same applies to macOS (`/usr/local/raymigrator` or `/opt/raymigrator`). The published binaries are framework-dependent, so the .NET 10 runtime must be installed (the `Setup .NET` step above).
 
 ### Pipeline Best Practices
 

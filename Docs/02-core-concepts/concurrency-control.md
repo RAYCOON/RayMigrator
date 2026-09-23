@@ -4,7 +4,7 @@ This document describes how RayMigrator prevents race conditions and ensures saf
 
 ## Overview
 
-RayMigrator enforces **exclusive migration runs** per product, environment, and run mode combination. Only one migration process can execute for a given combination at any time. This is enforced at the database level using engine-specific locking mechanisms, ensuring safety across multiple processes and machines. All five supported engines (SQL Server, PostgreSQL, MariaDB, MySQL, SQLite) implement this pattern.
+RayMigrator enforces **exclusive migration runs** per product and environment combination. Only one migration process can execute for a given combination at any time. The run mode is not part of the predicate: only Migrate runs write a MigrationRun row (Validate and Simulate never do), so the guard blocks any second run for the same product and environment while one is unfinished. This is enforced at the database level using engine-specific locking mechanisms, ensuring safety across multiple processes and machines. All five supported engines (SQL Server, PostgreSQL, MariaDB, MySQL, SQLite) implement this pattern.
 
 ## Exclusive Run Guarantee (Database-Level)
 
@@ -12,7 +12,7 @@ RayMigrator enforces **exclusive migration runs** per product, environment, and 
 
 Before starting a migration, RayMigrator:
 
-1. Checks for existing "Running" status migrations for the product
+1. Checks for existing unfinished runs (`FinishedAt IS NULL`) for the product and environment
 2. Attempts to create a new MigrationRun with "Running" status
 3. If another run exists, the operation fails immediately
 
@@ -134,7 +134,7 @@ If the orphaned run is newer than 10 minutes, Process B receives the exception a
 Process A migrates ProductA in "DEV" environment
 Process B migrates ProductA in "PROD" environment
 → Both processes run independently
-→ No conflicts (different ProductId + Environment + RunMode combinations)
+→ No conflicts (different ProductId + EnvironmentId combinations)
 ```
 
 The concurrency check includes the `Environment` parameter, so the same product can be migrated simultaneously in different environments.
