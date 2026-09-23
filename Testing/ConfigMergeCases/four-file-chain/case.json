@@ -1,0 +1,5 @@
+{
+  "product": "Shop",
+  "environment": "Production",
+  "description": "base < environment < product < product.environment, each file changes one level of the same product"
+}

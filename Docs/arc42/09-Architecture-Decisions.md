@@ -31,7 +31,7 @@ followed the same day by the commit tagged `v0.10.3`; a decision already present
 | ADR-018 | Structured logging with a database sink | Accepted (refined 0.12.0, 0.13.0) | <= 0.10.3 | [Structured Logging to Console, File and Database](08-Crosscutting-Concepts.md#structured-logging-to-console-file-and-database) |
 | ADR-019 | Blazor WebAssembly Config Wizard as a separate, database-free tool | Accepted | <= 0.10.3 | [Configuration Inheritance with Validation](08-Crosscutting-Concepts.md#configuration-inheritance-with-validation), [Runtime View 6.9](06-Runtime-View.md#69-config-wizard-session-short) |
 | ADR-020 | Error handling strategies with rollback files and run results | Accepted (refined 0.13.0, 0.14.0) | <= 0.10.3 | [Rollback Strategies](08-Crosscutting-Concepts.md#rollback-strategies) |
-| ADR-021 | Configuration arrays merge by alias in every application | Accepted, implementation open (#23) | 2026-09-23 | [Configuration Inheritance with Validation](08-Crosscutting-Concepts.md#configuration-inheritance-with-validation) |
+| ADR-021 | Configuration arrays merge by alias in every application | Accepted (0.15.0, #23; wizard export follow-up open) | 2026-09-23 | [Configuration Inheritance with Validation](08-Crosscutting-Concepts.md#configuration-inheritance-with-validation) |
 
 ## ADRs
 
@@ -413,8 +413,10 @@ engine's `JsonOptionsSource`, and through it by RayMigrator Studio's standalone 
 The engine merges the JSON documents before they enter the configuration builder, so binding, validation and `{ENV:}`
 replacement are untouched. Engine and wizard share the code, not only the rules: besides the merger, `Shared` owns the
 alias comparer, the names and order of the four hierarchy files (`ConfigurationFileChain`) and the JSON reader options,
-and golden merge cases under `Testing/ConfigMergeCases/` run through both test suites. Accepted on 2026-09-23; the
-implementation is tracked in issue #23, which lists the unit tests that pin the semantics.
+and golden merge cases under `Testing/ConfigMergeCases/` run through both test suites. Accepted and implemented on
+2026-09-23 for 0.15.0 (#23, Part A); `P0_ConfigurationJsonMergerTests`, `P0_ConfigurationFileChainTests`,
+`P1_JsonOptionsSourceAliasMergeTests` and `ConfigFileMergerSharedTests` pin the semantics. The wizard's export side
+(#23, Part B: place every value as high in the hierarchy as it holds) is still open.
 
 **Consequences.** Positive: overrides can name only the element they change, in any order; the wizard shows exactly what
 the engine runs; the rule is generic, so a future alias-bearing array needs no code change. Negative: a breaking behaviour

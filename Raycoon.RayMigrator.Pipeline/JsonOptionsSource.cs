@@ -1,17 +1,22 @@
+using System.Text;
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Raycoon.RayMigrator.Core.Configuration.Options;
 using Raycoon.RayMigrator.Core.Configuration.Replacer;
 using Raycoon.RayMigrator.Core.Configuration.Sources;
+using Raycoon.RayMigrator.Shared.Configuration;
 using Raycoon.RayMigrator.Shared.Constants;
 using Raycoon.RayMigrator.Shared.Exceptions;
 
 namespace Raycoon.RayMigrator.Pipeline;
 
 /// <summary>
-/// Loads RayMigrator configuration from JSON files (appsettings.json hierarchy).
-/// Searches up to 4 JSON files: base, environment-specific, product-specific, product+environment-specific.
-/// Replaces {ENV:...} placeholders with environment variable values.
+/// Loads RayMigrator configuration from the appsettings hierarchy: base, environment-specific, product-specific
+/// and product+environment-specific file, in that order (<see cref="ConfigurationFileChain"/>).
+/// The files are merged as JSON documents with <see cref="ConfigurationJsonMerger"/> before they enter the
+/// configuration builder, so arrays whose elements carry an <c>Alias</c> merge by alias and every other array
+/// is replaced by the later file (#23). Replaces {ENV:...} placeholders with environment variable values.
 /// </summary>
 public class JsonOptionsSource : IOptionsSource
 {
@@ -54,57 +59,21 @@ public class JsonOptionsSource : IOptionsSource
 
         IConfigurationSection rayMigratorConfigurationSection;
         List<EnvironmentVariableWithMetadata> replacedEnvironmentVariables;
-        IConfigurationBuilder configurationBuilder;
+        IConfigurationRoot hostConfiguration;
         var configFilesSearched = new List<(string Filename, bool Found)>();
 
         try
         {
-            // Read base configuration
-            configurationBuilder = new ConfigurationBuilder()
-                .SetBasePath(_basePath)
-                .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
-            var baseConfigFullPath = Path.Combine(_basePath, "appsettings.json");
-            bool baseConfigExists = File.Exists(baseConfigFullPath);
-            configFilesSearched.Add((baseConfigFullPath, baseConfigExists));
-            _logger?.LogDebug("Configuration file {Filename}: {Found}", baseConfigFullPath, baseConfigExists ? "found" : "not found");
-
-            string envConfigurationFilename = $"appsettings.{environment}.json";
-            var envConfigFullPath = Path.Combine(_basePath, envConfigurationFilename);
-            bool envConfigExists = !string.IsNullOrWhiteSpace(environment) && File.Exists(envConfigFullPath);
-            configFilesSearched.Add((envConfigFullPath, envConfigExists));
-            _logger?.LogDebug("Configuration file {Filename}: {Found}", envConfigFullPath, envConfigExists ? "found" : "not found");
-            if (envConfigExists)
-            {
-                configurationBuilder.AddJsonFile(envConfigurationFilename, optional: true, reloadOnChange: true);
-            }
-
-            if (!string.IsNullOrWhiteSpace(product))
-            {
-                string productConfigurationFilename = $"appsettings.{product}.json";
-                var productConfigFullPath = Path.Combine(_basePath, productConfigurationFilename);
-                bool productConfigExists = File.Exists(productConfigFullPath);
-                configFilesSearched.Add((productConfigFullPath, productConfigExists));
-                if (productConfigExists)
-                {
-                    configurationBuilder.AddJsonFile(productConfigurationFilename, optional: true, reloadOnChange: true);
-                }
-
-                string productEnvConfigurationFilename = $"appsettings.{product}.{environment}.json";
-                var productEnvConfigFullPath = Path.Combine(_basePath, productEnvConfigurationFilename);
-                bool productEnvConfigExists = File.Exists(productEnvConfigFullPath);
-                configFilesSearched.Add((productEnvConfigFullPath, productEnvConfigExists));
-                if (productEnvConfigExists)
-                {
-                    configurationBuilder.AddJsonFile(productEnvConfigurationFilename, optional: true, reloadOnChange: true);
-                }
-            }
-            else
+            if (string.IsNullOrWhiteSpace(product))
             {
                 throw new ConfigurationValidationException(
                     $"Could not properly read RayMigrator configuration for product [{product ?? "{null}"}] and environment [{environment ?? "{null}"}].");
             }
 
-            IConfigurationRoot rayMigratorConfiguration = configurationBuilder.Build();
+            JsonNode merged = MergeConfigurationFiles(_basePath, product, environment, configFilesSearched, _logger);
+            byte[] mergedJson = Encoding.UTF8.GetBytes(merged.ToJsonString());
+
+            IConfigurationRoot rayMigratorConfiguration = BuildConfiguration(mergedJson);
 
             if (!rayMigratorConfiguration.AsEnumerable().Any())
                 throw new ConfigurationValidationException("Could not find any RayMigrator configuration in provided configuration files.");
@@ -114,6 +83,9 @@ public class JsonOptionsSource : IOptionsSource
             // Replace {ENV:...} placeholders with environment variable values
             replacedEnvironmentVariables = EnvironmentVariableReplacer.ReplaceWithEnvironmentVariables(rayMigratorConfigurationSection);
             _logger?.LogDebug("Environment variable replacement completed: {Count} variable(s) replaced", replacedEnvironmentVariables.Count);
+
+            // The host configuration is a second, untouched build of the same merged document.
+            hostConfiguration = BuildConfiguration(mergedJson);
         }
         catch (Exception ex) when (ex is not ConfigurationValidationException)
         {
@@ -127,11 +99,46 @@ public class JsonOptionsSource : IOptionsSource
             RayMigratorConfigSection = rayMigratorConfigurationSection,
             PreBuiltOptions = null, // JSON mode: resolved via DI
             ReplacedEnvironmentVariables = replacedEnvironmentVariables,
-            HostConfiguration = configurationBuilder.Build(),
+            HostConfiguration = hostConfiguration,
             ModeName = "Standalone mode",
             ConfigFileDiagnostics = configFilesSearched
         };
 
         return Task.FromResult(result);
+    }
+
+    /// <summary>
+    /// Reads the files of the hierarchy that exist under <paramref name="basePath"/> and merges them with
+    /// <see cref="ConfigurationJsonMerger.MergeChain"/>. Every file name of the chain is reported in
+    /// <paramref name="diagnostics"/> with its full path and whether it was found.
+    /// </summary>
+    internal static JsonNode MergeConfigurationFiles(
+        string basePath,
+        string product,
+        string environment,
+        List<(string Filename, bool Found)> diagnostics,
+        ILogger? logger = null)
+    {
+        var documents = new List<JsonNode?>();
+
+        foreach (var (_, fileName) in ConfigurationFileChain.FileNamesFor(product, environment))
+        {
+            string fullPath = Path.Combine(basePath, fileName);
+            bool exists = File.Exists(fullPath);
+            diagnostics.Add((fullPath, exists));
+            logger?.LogDebug("Configuration file {Filename}: {Found}", fullPath, exists ? "found" : "not found");
+
+            if (exists)
+                documents.Add(ConfigurationJsonMerger.Parse(File.ReadAllText(fullPath, Encoding.UTF8)));
+        }
+
+        return ConfigurationJsonMerger.MergeChain(documents);
+    }
+
+    private static IConfigurationRoot BuildConfiguration(byte[] mergedJson)
+    {
+        return new ConfigurationBuilder()
+            .AddJsonStream(new MemoryStream(mergedJson))
+            .Build();
     }
 }

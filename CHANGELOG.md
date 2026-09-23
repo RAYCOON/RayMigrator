@@ -5,6 +5,46 @@ All notable changes to RayMigrator are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 RayMigrator follows Semantic Versioning where applicable.
 
+## [Unreleased]
+
+### Changed
+
+- **Breaking (behaviour):** the `appsettings*.json` hierarchy merges arrays
+  whose elements carry an `Alias` (`Products`, `TargetGroups`, `Targets`,
+  `CliTools`, any future one) **by alias**, case-insensitively and at every
+  nesting level: a later file overrides the element with the same alias
+  property by property, new aliases are appended after the elements of the
+  earlier file, elements the later file does not mention are kept. Every
+  other array (`Serilog.Using`, `Serilog.WriteTo`, ...) is replaced as a whole
+  by the later file. Until now the .NET configuration provider merged every
+  array by position, so an environment file that listed products in another
+  order than the base file, or named only the product it changed, attached
+  its values (target groups included) to the wrong product; a `migrate-up`
+  could migrate another product's database with exit code `0`. Hierarchies
+  that relied on positional merging of non-alias arrays (a later file
+  changing one `WriteTo` sink and inheriting the others) must now repeat the
+  whole array. (#23, ADR-021)
+- The Config Wizard imports and merges with the same code as the engine:
+  `ConfigFileMerger` delegates to the shared merger, merged alias arrays keep
+  the base order (override elements were listed first before), file names are
+  classified through the shared chain so that `appsettings.{Product}.json`
+  is recognized as a product file when the base file defines that product,
+  and files with comments or trailing commas import like the engine reads
+  them. (#23)
+
+### Added
+
+- `Raycoon.RayMigrator.Shared.Configuration`: `ConfigurationJsonMerger`
+  (the merge, the alias-array rule, the shared JSON reader options),
+  `AliasComparer` (ordinal, case-insensitive alias equality),
+  `ConfigurationFileChain` (the four file names in merge order and the
+  inverse classification) and `ConfigFileRole` (moved from the wizard).
+  `JsonOptionsSource` merges the existing files as JSON documents and feeds
+  one document to the configuration builder; its constructors and
+  `LoadAsync` are unchanged, `reloadOnChange` is gone. Golden merge cases
+  under `Testing/ConfigMergeCases/` run in both `Tests.Unit` and
+  `Tests.Unit.ConfigWizard.Core`. (#23)
+
 ## [0.14.0] — 2026-09-09
 
 ### Added

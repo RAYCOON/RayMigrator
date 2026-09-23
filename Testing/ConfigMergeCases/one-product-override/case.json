@@ -1,0 +1,5 @@
+{
+  "product": "Crm",
+  "environment": "Production",
+  "description": "Environment file names only the product it changes; Shop stays untouched, Crm keeps its targets"
+}

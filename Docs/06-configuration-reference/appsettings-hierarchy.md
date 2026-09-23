@@ -120,8 +120,6 @@ Arrays whose elements carry an `Alias` are **merged by alias**, never by positio
 
 `Shop` is untouched, `Crm` keeps its own target groups and receives the new error action. Position plays no role: the same result is produced when the production file lists `Crm` first or lists both products in reversed order.
 
-> **Interim note (until [#23](https://github.com/RAYCOON/RayMigrator/issues/23) ships):** the engine still merges arrays by position. Until then, repeat every array completely and in the same element order in each file that overrides it. This note is removed with the fix.
-
 ## Environment Detection
 
 The environment is determined by (in order of priority):

@@ -1,0 +1,61 @@
+{
+  "RayMigrator": {
+    "Repository": {
+      "DatabaseType": "Sqlite",
+      "ConnectionString": "Data Source=repo.sqlite",
+      "TableBaseName": ""
+    },
+    "CliTools": [
+      {
+        "Alias": "SQLCMD",
+        "ExecutablePath": "sqlcmd",
+        "ArgumentTemplate": "-i {FilePath}",
+        "InputMode": "Stdin",
+        "SuccessExitCodes": "0"
+      },
+      {
+        "Alias": "psql",
+        "ExecutablePath": "psql",
+        "ArgumentTemplate": "-f {FilePath}",
+        "InputMode": "File",
+        "SuccessExitCodes": "0"
+      }
+    ],
+    "Products": [
+      {
+        "Alias": "Shop",
+        "MigrationFilesRootDirectory": "./Migrations/Shop",
+        "MigrationErrorAction": "Terminate",
+        "TargetGroups": [
+          {
+            "Alias": "Backend",
+            "DatabaseType": "Sqlite",
+            "Targets": [
+              {
+                "Alias": "Main",
+                "ConnectionString": "Data Source=shop.sqlite"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "Alias": "Crm",
+        "MigrationFilesRootDirectory": "./Migrations/Crm",
+        "MigrationErrorAction": "Terminate",
+        "TargetGroups": [
+          {
+            "Alias": "Backend",
+            "DatabaseType": "Sqlite",
+            "Targets": [
+              {
+                "Alias": "Main",
+                "ConnectionString": "Data Source=crm.sqlite"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -220,8 +220,8 @@ public class ConfigFileMergerAdditionalTests
         var result = ConfigFileMerger.MergeChain(files);
         // Different aliases: both preserved
         result.CliTools.Should().HaveCount(2);
-        result.CliTools[0].Alias.Should().Be("psql");
-        result.CliTools[1].Alias.Should().Be("sqlcmd");
+        result.CliTools[0].Alias.Should().Be("sqlcmd");
+        result.CliTools[1].Alias.Should().Be("psql");
     }
 
     [Fact]

@@ -45,10 +45,10 @@ public class ConfigFileMergerTests
         };
 
         var result = ConfigFileMerger.MergeChain(files);
-        // Different aliases: both preserved (override first, then base-only)
+        // Different aliases: both preserved, base order first, new aliases appended (#23)
         result.Products.Should().HaveCount(2);
-        result.Products[0].Alias.Should().Be("NewApp");
-        result.Products[1].Alias.Should().Be("OldApp");
+        result.Products[0].Alias.Should().Be("OldApp");
+        result.Products[1].Alias.Should().Be("NewApp");
     }
 
     [Fact]

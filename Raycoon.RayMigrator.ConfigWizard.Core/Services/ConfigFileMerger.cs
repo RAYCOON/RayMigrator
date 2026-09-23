@@ -1,14 +1,17 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Raycoon.RayMigrator.ConfigWizard.Core.Models;
+using Raycoon.RayMigrator.Shared.Configuration;
 
 namespace Raycoon.RayMigrator.ConfigWizard.Core.Services;
 
 /// <summary>
-/// Merges multiple appsettings configuration JSON strings following RayMigrator merge semantics:
-/// objects are recursively merged, alias-keyed arrays (Products, TargetGroups, Targets, CliTools)
-/// are merged by matching Alias, other arrays are completely replaced.
-/// IO-free: works with strings, not file paths.
+/// Merges multiple appsettings configuration JSON strings following the RayMigrator merge semantics of #23:
+/// objects are recursively merged, alias-keyed arrays (any array whose every element is an object with a
+/// string <c>Alias</c>, i.e. Products, TargetGroups, Targets, CliTools) are merged by alias with the base
+/// order preserved, other arrays are completely replaced. The merge itself is
+/// <see cref="ConfigurationJsonMerger"/> in <c>Raycoon.RayMigrator.Shared</c>, the same code the engine's
+/// <c>JsonOptionsSource</c> runs, so the wizard shows what the engine does. IO-free: works with strings, not file paths.
 /// </summary>
 public static class ConfigFileMerger
 {
@@ -21,21 +24,7 @@ public static class ConfigFileMerger
         if (jsonStrings.Count == 0)
             return new ConfigurationModel();
 
-        JsonNode? merged = null;
-        foreach (var json in jsonStrings)
-        {
-            try
-            {
-                var node = JsonNode.Parse(json);
-                if (node == null) continue;
-                merged = merged == null ? node : MergeJson(merged, node);
-            }
-            catch (Exception)
-            {
-                // Skip strings that can't be parsed
-            }
-        }
-
+        var merged = MergeParsed(jsonStrings);
         if (merged == null)
             return new ConfigurationModel();
 
@@ -51,21 +40,7 @@ public static class ConfigFileMerger
         if (jsonStrings.Count == 0)
             return "{}";
 
-        JsonNode? merged = null;
-        foreach (var json in jsonStrings)
-        {
-            try
-            {
-                var node = JsonNode.Parse(json);
-                if (node == null) continue;
-                merged = merged == null ? node : MergeJson(merged, node);
-            }
-            catch (Exception)
-            {
-                // Skip strings that can't be parsed
-            }
-        }
-
+        var merged = MergeParsed(jsonStrings);
         if (merged == null)
             return "{}";
 
@@ -73,153 +48,42 @@ public static class ConfigFileMerger
     }
 
     /// <summary>
-    /// Recursively merges two JSON nodes. Objects are merged recursively,
-    /// alias-keyed arrays are merged by matching Alias, other arrays are
-    /// completely replaced, and scalar values are overwritten by the override.
+    /// Recursively merges two JSON nodes with the shared RayMigrator semantics; neither argument is modified.
     /// </summary>
     public static JsonNode? MergeJson(JsonNode? baseNode, JsonNode? overrideNode)
-    {
-        if (overrideNode == null)
-            return baseNode != null ? JsonNode.Parse(baseNode.ToJsonString()) : null;
-
-        if (baseNode == null)
-            return JsonNode.Parse(overrideNode.ToJsonString());
-
-        // Both are objects: recursive merge
-        if (baseNode is JsonObject baseObj && overrideNode is JsonObject overrideObj)
-        {
-            var result = JsonNode.Parse(baseObj.ToJsonString())!.AsObject();
-
-            foreach (var kvp in overrideObj)
-            {
-                if (result.ContainsKey(kvp.Key))
-                {
-                    var baseValue = result[kvp.Key];
-                    var overrideValue = kvp.Value;
-
-                    if (overrideValue is JsonArray overrideArr)
-                    {
-                        // Alias-keyed arrays: merge items by Alias (Products, TargetGroups, Targets, CliTools)
-                        if (baseValue is JsonArray baseArr && IsAliasKeyedArray(baseArr) && IsAliasKeyedArray(overrideArr))
-                        {
-                            result.Remove(kvp.Key);
-                            result[kvp.Key] = MergeAliasKeyedArrays(baseArr, overrideArr);
-                        }
-                        else
-                        {
-                            // Non-keyed arrays: complete replacement
-                            result.Remove(kvp.Key);
-                            result[kvp.Key] = JsonNode.Parse(overrideValue.ToJsonString());
-                        }
-                    }
-                    // Objects are recursively merged
-                    else if (baseValue is JsonObject && overrideValue is JsonObject)
-                    {
-                        result.Remove(kvp.Key);
-                        result[kvp.Key] = MergeJson(baseValue, overrideValue);
-                    }
-                    // Scalars are replaced
-                    else
-                    {
-                        result.Remove(kvp.Key);
-                        result[kvp.Key] = overrideValue != null
-                            ? JsonNode.Parse(overrideValue.ToJsonString())
-                            : null;
-                    }
-                }
-                else
-                {
-                    // New key from override
-                    result[kvp.Key] = kvp.Value != null
-                        ? JsonNode.Parse(kvp.Value.ToJsonString())
-                        : null;
-                }
-            }
-
-            return result;
-        }
-
-        // Override is not an object or types differ: replace entirely
-        return JsonNode.Parse(overrideNode.ToJsonString());
-    }
+        => ConfigurationJsonMerger.Merge(baseNode, overrideNode);
 
     /// <summary>
-    /// Returns true if every element in the array is a JsonObject with a string "Alias" property.
-    /// Used to identify arrays that should be merged by alias (Products, TargetGroups, Targets, CliTools).
+    /// Returns true if the array is non-empty and every element is a JsonObject with a string "Alias" property.
     /// </summary>
-    internal static bool IsAliasKeyedArray(JsonArray arr)
-    {
-        if (arr.Count == 0) return false;
-
-        foreach (var item in arr)
-        {
-            if (item is not JsonObject obj) return false;
-            if (obj["Alias"] is not JsonValue aliasVal) return false;
-            if (aliasVal.GetValueKind() != JsonValueKind.String) return false;
-        }
-
-        return true;
-    }
+    internal static bool IsAliasKeyedArray(JsonArray arr) => ConfigurationJsonMerger.IsAliasKeyedArray(arr);
 
     /// <summary>
-    /// Merges two alias-keyed arrays by matching items on "Alias" and recursively merging them.
-    /// Override items without a matching base item are appended.
-    /// Base items without a matching override item are preserved.
+    /// Merges two alias-keyed arrays by matching items on "Alias": base items keep their order and are merged
+    /// with their override, override items without a base match are appended, base items without an override
+    /// match are preserved.
     /// </summary>
     internal static JsonArray MergeAliasKeyedArrays(JsonArray baseArr, JsonArray overrideArr)
+        => ConfigurationJsonMerger.MergeAliasKeyedArrays(baseArr, overrideArr);
+
+    /// <summary>Parses every string with the shared reader options (unparsable strings are skipped) and merges the rest.</summary>
+    private static JsonNode? MergeParsed(IReadOnlyList<string> jsonStrings)
     {
-        // Build a lookup of base items by alias (preserve original order)
-        var baseItems = new List<(string alias, JsonObject obj)>();
-        foreach (var item in baseArr)
+        var documents = new List<JsonNode?>();
+        foreach (var json in jsonStrings)
         {
-            if (item is JsonObject obj && obj["Alias"]?.GetValue<string>() is { } alias)
-                baseItems.Add((alias, JsonNode.Parse(obj.ToJsonString())!.AsObject()));
-        }
-
-        var matchedAliases = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var result = new JsonArray();
-
-        // Process override items: merge with matching base items, or add new
-        foreach (var overrideItem in overrideArr)
-        {
-            if (overrideItem is not JsonObject overrideObj)
+            try
             {
-                // Non-object items: add as-is
-                result.Add(overrideItem != null ? JsonNode.Parse(overrideItem.ToJsonString()) : null);
-                continue;
+                var node = ConfigurationJsonMerger.Parse(json);
+                if (node != null)
+                    documents.Add(node);
             }
-
-            var overrideAlias = overrideObj["Alias"]?.GetValue<string>();
-            if (overrideAlias == null)
+            catch (JsonException)
             {
-                result.Add(JsonNode.Parse(overrideObj.ToJsonString()));
-                continue;
-            }
-
-            var baseMatch = baseItems.FirstOrDefault(b =>
-                string.Equals(b.alias, overrideAlias, StringComparison.OrdinalIgnoreCase));
-
-            if (baseMatch.obj != null)
-            {
-                // Matched by alias: recursively merge base + override
-                matchedAliases.Add(overrideAlias);
-                var merged = MergeJson(baseMatch.obj, overrideObj);
-                result.Add(merged);
-            }
-            else
-            {
-                // New item from override
-                result.Add(JsonNode.Parse(overrideObj.ToJsonString()));
+                // Skip strings that can't be parsed
             }
         }
 
-        // Append base items that had no match in override (preserve base-only items)
-        foreach (var (alias, obj) in baseItems)
-        {
-            if (!matchedAliases.Contains(alias))
-                result.Add(JsonNode.Parse(obj.ToJsonString()));
-        }
-
-        return result;
+        return documents.Count == 0 ? null : ConfigurationJsonMerger.MergeChain(documents);
     }
 }

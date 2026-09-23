@@ -1,0 +1,5 @@
+{
+  "product": "Shop",
+  "environment": "Production",
+  "description": "Serilog.Using and Serilog.WriteTo have no Alias: the environment file replaces them completely"
+}

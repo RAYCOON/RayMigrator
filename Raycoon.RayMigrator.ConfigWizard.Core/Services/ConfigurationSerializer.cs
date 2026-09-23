@@ -13,11 +13,11 @@ public static class ConfigurationSerializer
     public static ConfigurationModel LoadFromJson(string json, string? filePath = null)
     {
         var model = new ConfigurationModel { FilePath = filePath };
-        var doc = JsonNode.Parse(json);
+        var doc = ConfigurationJsonMerger.Parse(json);
 
         // Preserve the full original document for round-trip safety
         // (re-parse because JsonNode instances can only have one parent)
-        model.PreservedDocument = JsonNode.Parse(json);
+        model.PreservedDocument = ConfigurationJsonMerger.Parse(json);
 
         var raySection = doc?["RayMigrator"];
         if (raySection == null)
@@ -1115,7 +1115,7 @@ public static class ConfigurationSerializer
     /// </summary>
     public static bool IsEmptyDiff(string json)
     {
-        var doc = JsonNode.Parse(json);
+        var doc = ConfigurationJsonMerger.Parse(json);
         if (doc?["RayMigrator"] is not JsonObject ray)
             return true;
         return ray.Count == 0;

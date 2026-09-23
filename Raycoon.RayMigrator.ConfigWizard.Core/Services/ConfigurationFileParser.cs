@@ -8,9 +8,6 @@ namespace Raycoon.RayMigrator.ConfigWizard.Core.Services;
 /// </summary>
 public static class ConfigurationFileParser
 {
-    private const string AppSettingsPrefix = "appsettings";
-    private const string JsonExtension = ".json";
-
     /// <summary>
     /// Parses a set of named JSON strings (filename -> content) and produces a WizardState.
     /// Classifies files by their appsettings naming convention.
@@ -22,24 +19,29 @@ public static class ConfigurationFileParser
         if (files.Count == 0)
             return state;
 
+        // Parse the base file first: its product aliases tell a product file from an environment file
+        var baseFile = files.FirstOrDefault(f => ClassifyFileName(f.Key).role == ConfigFileRole.Base);
+        if (baseFile.Value != null)
+        {
+            try
+            {
+                state.BaseModel = ConfigurationSerializer.LoadFromJson(baseFile.Value, baseFile.Key);
+                state.BaseModel.FileRole = ConfigFileRole.Base;
+            }
+            catch (Exception) { /* Skip if base file can't be parsed */ }
+        }
+
+        var knownProducts = state.BaseModel.Products
+            .Select(p => p.Alias)
+            .Where(a => !string.IsNullOrWhiteSpace(a))
+            .ToList();
+
         // Classify all files
         var classified = new List<(string fileName, string content, ConfigFileRole role, string? product, string? environment)>();
         foreach (var (fileName, content) in files)
         {
-            var (role, product, environment) = ClassifyFileName(fileName);
+            var (role, product, environment) = ClassifyFileName(fileName, knownProducts);
             classified.Add((fileName, content, role, product, environment));
-        }
-
-        // Parse base file
-        var baseFile = classified.FirstOrDefault(c => c.role == ConfigFileRole.Base);
-        if (baseFile.content != null)
-        {
-            try
-            {
-                state.BaseModel = ConfigurationSerializer.LoadFromJson(baseFile.content, baseFile.fileName);
-                state.BaseModel.FileRole = ConfigFileRole.Base;
-            }
-            catch (Exception) { /* Skip if base file can't be parsed */ }
         }
 
         // Parse environment files
@@ -94,61 +96,25 @@ public static class ConfigurationFileParser
     }
 
     /// <summary>
-    /// Classifies a single filename into a ConfigFileRole.
+    /// Classifies a single filename into a ConfigFileRole through the shared
+    /// <see cref="ConfigurationFileChain"/> (#23). A name with one middle segment is a product file when
+    /// the segment is one of <paramref name="knownProductAliases"/>, otherwise an environment file; a name
+    /// outside the hierarchy is treated as the base file, as before.
     /// </summary>
-    public static (ConfigFileRole role, string? product, string? environment) ClassifyFileName(string fileName)
+    public static (ConfigFileRole role, string? product, string? environment) ClassifyFileName(
+        string fileName, IReadOnlyCollection<string>? knownProductAliases = null)
     {
-        // Normalize: take just the filename, not a path
-        fileName = Path.GetFileName(fileName);
+        if (ConfigurationFileChain.TryClassify(fileName, out var role, out var product, out var environment, knownProductAliases))
+            return (role, product, environment);
 
-        string[] segments = ParseSegments(fileName);
-
-        switch (segments.Length)
-        {
-            case 0:
-                return (ConfigFileRole.Base, null, null);
-
-            case 1:
-                // Single segment: could be environment or product.
-                // Without additional context, default to environment (most common use case).
-                return (ConfigFileRole.Environment, null, segments[0]);
-
-            case 2:
-                // appsettings.Product.Environment.json
-                return (ConfigFileRole.ProductEnvironment, segments[0], segments[1]);
-
-            default:
-                // 3+ segments: first N-1 = Product, last = Environment
-                string product = string.Join(".", segments.Take(segments.Length - 1));
-                string environment = segments[^1];
-                return (ConfigFileRole.ProductEnvironment, product, environment);
-        }
+        return (ConfigFileRole.Base, null, null);
     }
 
     /// <summary>
     /// Parses the middle segments from an appsettings filename.
     /// </summary>
     internal static string[] ParseSegments(string fileName)
-    {
-        if (!fileName.StartsWith(AppSettingsPrefix, StringComparison.OrdinalIgnoreCase))
-            return Array.Empty<string>();
-
-        string withoutPrefix = fileName[AppSettingsPrefix.Length..];
-
-        if (!withoutPrefix.EndsWith(JsonExtension, StringComparison.OrdinalIgnoreCase))
-            return Array.Empty<string>();
-
-        string withoutExtension = withoutPrefix[..^JsonExtension.Length];
-
-        // Remove leading dot if present
-        if (withoutExtension.StartsWith('.'))
-            withoutExtension = withoutExtension[1..];
-
-        if (string.IsNullOrEmpty(withoutExtension))
-            return Array.Empty<string>();
-
-        return withoutExtension.Split('.');
-    }
+        => ConfigurationFileChain.TryGetSegments(fileName, out var segments) ? segments : Array.Empty<string>();
 
     private static WizardSetupAnswers ReverseEngineerAnswers(WizardState state)
     {

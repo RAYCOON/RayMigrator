@@ -20,5 +20,6 @@
   <ItemGroup>
     <!-- Only project reference: the shared validation catalog is WASM-safe by construction (zero deps). -->
     <ProjectReference Include="..\Raycoon.RayMigrator.Validation\Raycoon.RayMigrator.Validation.csproj" />
+    <ProjectReference Include="..\Raycoon.RayMigrator.Shared\Raycoon.RayMigrator.Shared.csproj" />
   </ItemGroup>
 </Project>

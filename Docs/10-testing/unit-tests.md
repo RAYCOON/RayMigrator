@@ -238,6 +238,8 @@ Raycoon.RayMigrator.Tests.Unit/
 |-----------|---------|-------------|
 | `P0_CliToolConfigTests` | `CliToolOptionsInputModeTests` | `CliToolOptions.InputModeEnum` parsing (null, empty, valid, invalid, case-sensitive behavior) |
 | `P0_ConfigDirTests` | `ConfigDirTests` | `--config-dir` CLI option and `JsonOptionsSource` configDir parameter: null/empty/whitespace fallback to CWD, non-existent directory validation, file resolution from custom directory, `{ENV:VAR}` resolution, `CommandLineConfiguration` parsing with `--config-dir` and `-cd` aliases across all commands |
+| `P0_ConfigurationFileChainTests` | `ConfigurationFileChainTests` | `ConfigurationFileChain` (Shared): the four hierarchy file names in merge order, `TryClassify` round trip, product versus environment for single-segment names, rejection of unrelated names (#23) |
+| `P0_ConfigurationJsonMergerTests` | `ConfigurationJsonMergerTests` | `ConfigurationJsonMerger` (Shared): alias-keyed arrays merge by alias (case-insensitive, nested, base order kept, new aliases appended, omitted elements kept), other arrays replaced, explicit null, key casing, four-file precedence, arguments untouched, comments and trailing commas (#23) |
 | `P0_EnvironmentVariableReplacerTests` | `EnvironmentVariableReplacerTests` | `{ENV:VAR}` placeholder replacement in configuration values |
 | `P0_FileClassificationTests` | `FileClassificationTests` | Migration file discovery, rollback file matching, environment/target filtering |
 | `P0_LineEndingTests` | `LineEndingExtractTomlAndSqlTests`, `LineEndingParseTomlConfigTests`, `LineEndingSplitSqlIntoBlocksTests`, `LineEndingHashSensitivityTests` | Line ending normalization across platforms (CRLF, LF, CR) |
@@ -308,6 +310,7 @@ Raycoon.RayMigrator.Tests.Unit/
 | `P1_TemplateExecutorEnvironmentIdTests` | `TemplateExecutorEnvironmentIdTests` | `TemplateExecutor` parameter binding for the EnvironmentId FK feature: verifies the five flipped methods bind `@EnvironmentId` (int) and not a text `@Environment` parameter to `IDal` |
 | `P1_TryFinalizeCompletedMigrationTests` | `TryFinalizeCompletedMigrationTests` | Migration finalization (status updates after execution) |
 | `P1_UseCliToolAliasInheritanceTests` | `UseCliToolAliasInheritanceTests` | `UseCliToolAlias` inheritance cascade via `ProductDefaultsPostConfigureOptions.MergeDefaults` (ProductDefaults -> Product -> TargetGroup -> Target, explicit values not overridden) |
+| `P1_JsonOptionsSourceAliasMergeTests` | `JsonOptionsSourceAliasMergeTests` | `JsonOptionsSource.LoadAsync` with real files: overrides by alias, reversed order, non-alias arrays replaced, `{ENV:}` after the merge, diagnostics from the shared chain, comments accepted, error paths; golden cases under `Testing/ConfigMergeCases/` shared with the wizard suite (#23) |
 
 ### P2 — Secondary Features and Utilities
 

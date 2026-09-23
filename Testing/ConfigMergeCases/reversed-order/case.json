@@ -1,0 +1,5 @@
+{
+  "product": "Crm",
+  "environment": "Staging",
+  "description": "Reversed element order in the environment file must not swap products or their targets"
+}

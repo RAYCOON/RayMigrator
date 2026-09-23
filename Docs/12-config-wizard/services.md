@@ -319,7 +319,9 @@ The Overview page calls both methods automatically in `OnInitialized`: cross-mod
 static WizardState Parse(Dictionary<string, string> files)
 
 // Classify a single filename into its hierarchy role, product, and environment
-static (ConfigFileRole role, string? product, string? environment) ClassifyFileName(string fileName)
+static (ConfigFileRole role, string? product, string? environment) ClassifyFileName(string fileName, IReadOnlyCollection<string>? knownProductAliases = null)
+// Delegates to the shared ConfigurationFileChain.TryClassify (#23); a single-segment name is a product file
+// when the segment is a known product alias (the base file's products in Parse), otherwise an environment file
 ```
 
 File classification follows the `appsettings` naming convention described in [File Hierarchy](./file-hierarchy.md#file-family-discovery). Unknown filenames are skipped. Parse errors on individual files are silently skipped.

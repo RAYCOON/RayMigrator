@@ -39,4 +39,8 @@
         <ProjectReference Include="..\Raycoon.RayMigrator.Testing\Raycoon.RayMigrator.Testing.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+        <Content Include="..\Testing\ConfigMergeCases\**\*.json" Link="ConfigMergeCases\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+
 </Project>

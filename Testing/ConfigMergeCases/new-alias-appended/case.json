@@ -1,0 +1,5 @@
+{
+  "product": "Crm",
+  "environment": "Production",
+  "description": "A product and a CLI tool that exist only in the environment file are appended; the existing tool merges by alias"
+}
