@@ -31,6 +31,21 @@ RayMigrator follows Semantic Versioning where applicable.
   is recognized as a product file when the base file defines that product,
   and files with comments or trailing commas import like the engine reads
   them. (#23)
+- **Breaking (behaviour, Config Wizard export):** the wizard places every
+  exported value in the highest file in which it holds for every combination
+  that file applies to: identical in all product-environment combinations
+  into `appsettings.json`, identical within one environment into
+  `appsettings.{Environment}.json`, identical across all environments of one
+  product into `appsettings.{Product}.json`, otherwise into
+  `appsettings.{Product}.{Environment}.json`. No file repeats what the files
+  below it already provide, elements of `Products` belong to their product
+  (base file or that product's product-environment file), `CliTools` are
+  overridden by alias instead of repeated, and files without content are not
+  written; with a single combination the export is the base file alone. Until
+  now promotion stopped at the environment level and covered a fixed list of
+  fields, product-environment files were pruned against the environment file
+  before the product file (a wrong value on a conflict), arrays were skipped
+  and `CliTools` were repeated on every level. (#23, Part B)
 
 ### Added
 
@@ -44,6 +59,13 @@ RayMigrator follows Semantic Versioning where applicable.
   `LoadAsync` are unchanged, `reloadOnChange` is gone. Golden merge cases
   under `Testing/ConfigMergeCases/` run in both `Tests.Unit` and
   `Tests.Unit.ConfigWizard.Core`. (#23)
+- `ConfigurationJsonDiff` in `Raycoon.RayMigrator.Shared.Configuration`
+  (`Diff` and `TryCommon`, the inverse operations of the shared merger) and
+  `HierarchyFactoring` in `Raycoon.RayMigrator.ConfigWizard.Core`; golden
+  export cases under `Testing/ConfigExportCases/` run in the wizard suite
+  (files, round trip, no repetition, minimality) and in `Tests.Unit` (the
+  engine reads the exported files back to the effective configuration).
+  (#23, Part B)
 
 ## [0.14.0] — 2026-09-09
 

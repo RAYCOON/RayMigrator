@@ -29,17 +29,26 @@ public static class ConfigurationFileChain
         bool hasProduct = !string.IsNullOrWhiteSpace(product);
 
         if (hasEnvironment)
-            files.Add((ConfigFileRole.Environment, $"{Prefix}.{environment}{Extension}"));
+            files.Add((ConfigFileRole.Environment, EnvironmentFileName(environment!)));
 
         if (hasProduct)
         {
-            files.Add((ConfigFileRole.Product, $"{Prefix}.{product}{Extension}"));
+            files.Add((ConfigFileRole.Product, ProductFileName(product!)));
             if (hasEnvironment)
-                files.Add((ConfigFileRole.ProductEnvironment, $"{Prefix}.{product}.{environment}{Extension}"));
+                files.Add((ConfigFileRole.ProductEnvironment, ProductEnvironmentFileName(product!, environment!)));
         }
 
         return files;
     }
+
+    /// <summary>The environment file, <c>appsettings.{Environment}.json</c>.</summary>
+    public static string EnvironmentFileName(string environment) => $"{Prefix}.{environment}{Extension}";
+
+    /// <summary>The product file, <c>appsettings.{Product}.json</c>.</summary>
+    public static string ProductFileName(string product) => $"{Prefix}.{product}{Extension}";
+
+    /// <summary>The product+environment file, <c>appsettings.{Product}.{Environment}.json</c>.</summary>
+    public static string ProductEnvironmentFileName(string product, string environment) => $"{Prefix}.{product}.{environment}{Extension}";
 
     /// <summary>
     /// Classifies a file name (a path is reduced to its file name) into its role. Returns false for a name

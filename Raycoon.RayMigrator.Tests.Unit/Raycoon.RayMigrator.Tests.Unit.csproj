@@ -43,4 +43,8 @@
         <Content Include="..\Testing\ConfigMergeCases\**\*.json" Link="ConfigMergeCases\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
 
+    <ItemGroup>
+        <Content Include="..\Testing\ConfigExportCases\**\*.json" Link="ConfigExportCases\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+
 </Project>

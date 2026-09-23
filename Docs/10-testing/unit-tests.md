@@ -55,6 +55,8 @@ A separate **ConfigWizard.Core unit test project** (`Raycoon.RayMigrator.Tests.U
 | `CliToolModelValidationTests.cs` | CLI tool model validation |
 | `CliToolPresetProviderTests.cs` | CLI tool preset catalog |
 | `ConfigFileMergerTests.cs` / `ConfigFileMergerAdditionalTests.cs` | JSON merge semantics |
+| `ConfigFileMergerSharedTests.cs` | The wizard reads the hierarchy with the engine's code: golden merge cases, byte-identical output with the shared merger, reader options, classification through the shared chain (#23) |
+| `HierarchyFactoringTests.cs` | Placement principle of the export (#23 Part B): one test per level, conflicts, product-owned elements, CLI tools, non-alias arrays, golden export cases with round trip, no-repetition and minimality properties |
 | `ConfigurationFileParserTests.cs` / `ConfigurationFileParserAdditionalTests.cs` | Config file role/pattern parsing |
 | `ConfigurationScaffolderTests.cs` | Migration directory scaffold generation |
 | `ConfigurationSerializerTests.cs` / `ConfigurationSerializerAdditionalTests.cs` | JSON load/save round-trips |
@@ -240,6 +242,7 @@ Raycoon.RayMigrator.Tests.Unit/
 | `P0_ConfigDirTests` | `ConfigDirTests` | `--config-dir` CLI option and `JsonOptionsSource` configDir parameter: null/empty/whitespace fallback to CWD, non-existent directory validation, file resolution from custom directory, `{ENV:VAR}` resolution, `CommandLineConfiguration` parsing with `--config-dir` and `-cd` aliases across all commands |
 | `P0_ConfigurationFileChainTests` | `ConfigurationFileChainTests` | `ConfigurationFileChain` (Shared): the four hierarchy file names in merge order, `TryClassify` round trip, product versus environment for single-segment names, rejection of unrelated names (#23) |
 | `P0_ConfigurationJsonMergerTests` | `ConfigurationJsonMergerTests` | `ConfigurationJsonMerger` (Shared): alias-keyed arrays merge by alias (case-insensitive, nested, base order kept, new aliases appended, omitted elements kept), other arrays replaced, explicit null, key casing, four-file precedence, arguments untouched, comments and trailing commas (#23) |
+| `P0_ConfigurationJsonDiffTests` | `ConfigurationJsonDiffTests` | `ConfigurationJsonDiff` (Shared): `Diff` yields the smallest document that merges back to the target, `TryCommon` the part all documents agree on, both alias-aware; round trip over the golden merge cases (#23 Part B) |
 | `P0_EnvironmentVariableReplacerTests` | `EnvironmentVariableReplacerTests` | `{ENV:VAR}` placeholder replacement in configuration values |
 | `P0_FileClassificationTests` | `FileClassificationTests` | Migration file discovery, rollback file matching, environment/target filtering |
 | `P0_LineEndingTests` | `LineEndingExtractTomlAndSqlTests`, `LineEndingParseTomlConfigTests`, `LineEndingSplitSqlIntoBlocksTests`, `LineEndingHashSensitivityTests` | Line ending normalization across platforms (CRLF, LF, CR) |
@@ -311,6 +314,7 @@ Raycoon.RayMigrator.Tests.Unit/
 | `P1_TryFinalizeCompletedMigrationTests` | `TryFinalizeCompletedMigrationTests` | Migration finalization (status updates after execution) |
 | `P1_UseCliToolAliasInheritanceTests` | `UseCliToolAliasInheritanceTests` | `UseCliToolAlias` inheritance cascade via `ProductDefaultsPostConfigureOptions.MergeDefaults` (ProductDefaults -> Product -> TargetGroup -> Target, explicit values not overridden) |
 | `P1_JsonOptionsSourceAliasMergeTests` | `JsonOptionsSourceAliasMergeTests` | `JsonOptionsSource.LoadAsync` with real files: overrides by alias, reversed order, non-alias arrays replaced, `{ENV:}` after the merge, diagnostics from the shared chain, comments accepted, error paths; golden cases under `Testing/ConfigMergeCases/` shared with the wizard suite (#23) |
+| `P1_ConfigExportCasesTests` | `ConfigExportCasesTests` | The engine's loader reads the file families of the golden export cases (`Testing/ConfigExportCases/`) back to the effective configuration of every combination (#23 Part B) |
 
 ### P2 — Secondary Features and Utilities
 

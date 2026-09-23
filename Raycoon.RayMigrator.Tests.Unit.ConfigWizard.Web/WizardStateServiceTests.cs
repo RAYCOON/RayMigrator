@@ -610,8 +610,10 @@ public class WizardStateServiceTests
 
         var json = svc.GetEnvironmentJson("Staging");
 
-        json.Should().NotBeNullOrWhiteSpace();
-        json.Should().NotBe("{}");
+        // One product and one environment: everything holds for the only combination and lives in the base file,
+        // so the environment preview is empty and the base preview carries the environment's connection string (#23 Part B).
+        json.Should().Be("{}");
+        svc.GetBaseJson().Should().Contain("REPO_CONNECTION_STRING_STAGING");
     }
 
     [Fact]

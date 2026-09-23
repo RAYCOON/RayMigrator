@@ -215,17 +215,18 @@ public class ZipExportServiceTests
     [Fact]
     public async Task ExportAsync_WithProductModels_IncludesProductFiles()
     {
+        // One product and no environment: a single combination, so everything it needs is in the base file (#23 Part B).
         var (service, js) = CreateService();
         var state = BuildMinimalState();
         var productModel = new ConfigurationModel { FilePath = "appsettings.OrderService.json" };
-        // Add a field that differs from the base so the diff is non-empty and the file is written
         productModel.Repository.DatabaseType = "PostgreSQL";
         state.ProductModels["OrderService"] = productModel;
 
         await service.ExportAsync(state);
 
         var entries = ReadZipEntries(GetDownload(js).content);
-        entries.Should().ContainKey("appsettings.OrderService.json");
+        entries.Should().NotContainKey("appsettings.OrderService.json", "a value that holds for the only combination belongs in the base file");
+        JsonNode.Parse(entries["appsettings.json"])!["RayMigrator"]!["Repository"]!["DatabaseType"]!.GetValue<string>().Should().Be("PostgreSQL");
     }
 
     // ── ZIP contents: product+environment overrides ───────────────
@@ -233,17 +234,18 @@ public class ZipExportServiceTests
     [Fact]
     public async Task ExportAsync_WithProductEnvironmentModels_IncludesProductEnvFiles()
     {
+        // A single product-environment combination: its overrides are the whole configuration, so they sit in the base file (#23 Part B).
         var (service, js) = CreateService();
         var state = BuildMinimalState();
         var peModel = new ConfigurationModel { FilePath = "appsettings.MyProduct.Docker.json" };
-        // Add a field that differs from the base so the diff is non-empty and the file is written
         peModel.Repository.ConnectionString = "{ENV:DOCKER_CONN}";
         state.ProductEnvironmentModels["MyProduct.Docker"] = peModel;
 
         await service.ExportAsync(state);
 
         var entries = ReadZipEntries(GetDownload(js).content);
-        entries.Should().ContainKey("appsettings.MyProduct.Docker.json");
+        entries.Should().NotContainKey("appsettings.MyProduct.Docker.json");
+        JsonNode.Parse(entries["appsettings.json"])!["RayMigrator"]!["Repository"]!["ConnectionString"]!.GetValue<string>().Should().Be("{ENV:DOCKER_CONN}");
     }
 
     // ── ZIP entry count ───────────────────────────────────────────
@@ -251,20 +253,18 @@ public class ZipExportServiceTests
     [Fact]
     public async Task ExportAsync_WithTwoEnvironments_ZipHasSixEntries()
     {
-        // base + 2 env overrides + 2 product-env overrides (MyProduct.Docker, MyProduct.Production) + example.env = 6
+        // base + 2 environment files + example.env = 4: a product-environment value shared by every combination moves to the base (#23 Part B)
         var (service, js) = CreateService();
         var state = BuildStateWithEnvironments();
-
-        // Scaffolded PE models are bare — give them overrides that differ from BOTH base and env
-        foreach (var (key, peModel) in state.ProductEnvironmentModels)
-        {
+        foreach (var (_, peModel) in state.ProductEnvironmentModels)
             peModel.ProductDefaults.RequireRollbackFile = false;
-        }
 
         await service.ExportAsync(state);
 
         var entries = ReadZipEntries(GetDownload(js).content);
-        entries.Should().HaveCount(6);
+        entries.Should().HaveCount(4);
+        entries.Keys.Should().Contain("appsettings.Docker.json").And.Contain("appsettings.Production.json");
+        JsonNode.Parse(entries["appsettings.json"])!["RayMigrator"]!["ProductDefaults"]!["RequireRollbackFile"]!.GetValue<bool>().Should().BeFalse();
     }
 
     [Fact]
@@ -344,222 +344,15 @@ public class ZipExportServiceTests
     }
 
     // ══════════════════════════════════════════════════════════════
-    // RemoveRedundantOverrides — unit tests
     // ══════════════════════════════════════════════════════════════
 
     // ── Scalar field matching ────────────────────────────────────
 
-    [Fact]
-    public void RemoveRedundantOverrides_MatchingScalarField_RemovedFromChild()
-    {
-        var child = """{"RayMigrator":{"Repository":{"ConnectionString":"X","SchemaName":"custom"}}}""";
-        var parent = """{"RayMigrator":{"Repository":{"ConnectionString":"X"}}}""";
-
-        var result = ZipExportService.RemoveRedundantOverrides(child, parent);
-        var repo = JsonNode.Parse(result)?["RayMigrator"]?["Repository"];
-
-        repo!["SchemaName"]!.GetValue<string>().Should().Be("custom");
-        repo["ConnectionString"].Should().BeNull();
-    }
-
-    [Fact]
-    public void RemoveRedundantOverrides_DifferentScalarValues_ChildUnchanged()
-    {
-        var child = """{"RayMigrator":{"Repository":{"ConnectionString":"A"}}}""";
-        var parent = """{"RayMigrator":{"Repository":{"ConnectionString":"B"}}}""";
-
-        var result = ZipExportService.RemoveRedundantOverrides(child, parent);
-        var conn = JsonNode.Parse(result)?["RayMigrator"]?["Repository"]?["ConnectionString"]?.GetValue<string>();
-
-        conn.Should().Be("A");
-    }
-
-    [Fact]
-    public void RemoveRedundantOverrides_MatchingBoolField_Removed()
-    {
-        var child = """{"RayMigrator":{"ProductDefaults":{"RequireRollbackFile":false,"MigrationErrorAction":"Rollback"}}}""";
-        var parent = """{"RayMigrator":{"ProductDefaults":{"RequireRollbackFile":false}}}""";
-
-        var result = ZipExportService.RemoveRedundantOverrides(child, parent);
-        var pd = JsonNode.Parse(result)?["RayMigrator"]?["ProductDefaults"];
-
-        pd!["MigrationErrorAction"]!.GetValue<string>().Should().Be("Rollback");
-        pd["RequireRollbackFile"].Should().BeNull();
-    }
-
-    [Fact]
-    public void RemoveRedundantOverrides_MatchingIntField_Removed()
-    {
-        var child = """{"RayMigrator":{"Repository":{"DbCommandTimeoutInSeconds":30,"SchemaName":"custom"}}}""";
-        var parent = """{"RayMigrator":{"Repository":{"DbCommandTimeoutInSeconds":30}}}""";
-
-        var result = ZipExportService.RemoveRedundantOverrides(child, parent);
-        var repo = JsonNode.Parse(result)?["RayMigrator"]?["Repository"];
-
-        repo!["SchemaName"]!.GetValue<string>().Should().Be("custom");
-        repo["DbCommandTimeoutInSeconds"].Should().BeNull();
-    }
-
     // ── Nested object pruning ────────────────────────────────────
-
-    [Fact]
-    public void RemoveRedundantOverrides_AllFieldsInSectionMatch_EntireSectionPruned()
-    {
-        var child = """{"RayMigrator":{"Repository":{"ConnectionString":"X"},"ProductDefaults":{"MigrationErrorAction":"Rollback"}}}""";
-        var parent = """{"RayMigrator":{"Repository":{"ConnectionString":"X"}}}""";
-
-        var result = ZipExportService.RemoveRedundantOverrides(child, parent);
-        var ray = JsonNode.Parse(result)?["RayMigrator"]?.AsObject();
-
-        ray!["Repository"].Should().BeNull("Repository section should be pruned after all fields removed");
-        ray["ProductDefaults"]!["MigrationErrorAction"]!.GetValue<string>().Should().Be("Rollback");
-    }
-
-    [Fact]
-    public void RemoveRedundantOverrides_AllFieldsMatchAcrossAllSections_EmptyRayMigrator()
-    {
-        var child = """{"RayMigrator":{"Repository":{"ConnectionString":"X"},"ProductDefaults":{"RequireRollbackFile":false}}}""";
-        var parent = """{"RayMigrator":{"Repository":{"ConnectionString":"X"},"ProductDefaults":{"RequireRollbackFile":false}}}""";
-
-        var result = ZipExportService.RemoveRedundantOverrides(child, parent);
-
-        ConfigurationSerializer.IsEmptyDiff(result).Should().BeTrue();
-    }
-
-    [Fact]
-    public void RemoveRedundantOverrides_DeeplyNestedMatch_PrunedUpward()
-    {
-        var child = """{"RayMigrator":{"ProductDefaults":{"TargetGroupDefaults":{"TargetDefaults":{"DbCommandTimeoutInSeconds":90}}}}}""";
-        var parent = """{"RayMigrator":{"ProductDefaults":{"TargetGroupDefaults":{"TargetDefaults":{"DbCommandTimeoutInSeconds":90}}}}}""";
-
-        var result = ZipExportService.RemoveRedundantOverrides(child, parent);
-
-        ConfigurationSerializer.IsEmptyDiff(result).Should().BeTrue("entire nested tree should be pruned");
-    }
-
-    [Fact]
-    public void RemoveRedundantOverrides_DeeplyNestedPartialMatch_OnlyMatchingFieldPruned()
-    {
-        var child = """{"RayMigrator":{"ProductDefaults":{"TargetGroupDefaults":{"TargetMigrationOrder":"FileByFile","HashValidationScope":"Header"}}}}""";
-        var parent = """{"RayMigrator":{"ProductDefaults":{"TargetGroupDefaults":{"TargetMigrationOrder":"FileByFile"}}}}""";
-
-        var result = ZipExportService.RemoveRedundantOverrides(child, parent);
-        var tgd = JsonNode.Parse(result)?["RayMigrator"]?["ProductDefaults"]?["TargetGroupDefaults"];
-
-        tgd!["HashValidationScope"]!.GetValue<string>().Should().Be("Header");
-        tgd["TargetMigrationOrder"].Should().BeNull();
-    }
 
     // ── Array handling ───────────────────────────────────────────
 
-    [Fact]
-    public void RemoveRedundantOverrides_IdenticalArray_Removed()
-    {
-        var child = """{"RayMigrator":{"Serilog":{"WriteTo":[{"Name":"Console"}]},"Repository":{"ConnectionString":"X"}}}""";
-        var parent = """{"RayMigrator":{"Serilog":{"WriteTo":[{"Name":"Console"}]}}}""";
-
-        var result = ZipExportService.RemoveRedundantOverrides(child, parent);
-        var ray = JsonNode.Parse(result)?["RayMigrator"]?.AsObject();
-
-        ray!["Serilog"].Should().BeNull("identical Serilog section should be pruned");
-        ray["Repository"]!["ConnectionString"]!.GetValue<string>().Should().Be("X");
-    }
-
-    [Fact]
-    public void RemoveRedundantOverrides_DifferentArray_Kept()
-    {
-        var child = """{"RayMigrator":{"Serilog":{"WriteTo":[{"Name":"File"}]}}}""";
-        var parent = """{"RayMigrator":{"Serilog":{"WriteTo":[{"Name":"Console"}]}}}""";
-
-        var result = ZipExportService.RemoveRedundantOverrides(child, parent);
-        var writeTo = JsonNode.Parse(result)?["RayMigrator"]?["Serilog"]?["WriteTo"]?.AsArray();
-
-        writeTo.Should().HaveCount(1);
-        writeTo![0]!["Name"]!.GetValue<string>().Should().Be("File");
-    }
-
     // ── Edge cases ───────────────────────────────────────────────
-
-    [Fact]
-    public void RemoveRedundantOverrides_ParentHasFieldsChildDoesNot_NoEffect()
-    {
-        var child = """{"RayMigrator":{"Repository":{"ConnectionString":"A"}}}""";
-        var parent = """{"RayMigrator":{"Repository":{"ConnectionString":"B","SchemaName":"custom"},"ProductDefaults":{"RequireRollbackFile":false}}}""";
-
-        var result = ZipExportService.RemoveRedundantOverrides(child, parent);
-        var conn = JsonNode.Parse(result)?["RayMigrator"]?["Repository"]?["ConnectionString"]?.GetValue<string>();
-
-        conn.Should().Be("A");
-    }
-
-    [Fact]
-    public void RemoveRedundantOverrides_ChildHasSectionsParentDoesNot_SectionsKept()
-    {
-        var child = """{"RayMigrator":{"Repository":{"ConnectionString":"A"},"DatabaseLogging":{"ConnectionString":"B"}}}""";
-        var parent = """{"RayMigrator":{"Repository":{"ConnectionString":"C"}}}""";
-
-        var result = ZipExportService.RemoveRedundantOverrides(child, parent);
-        var ray = JsonNode.Parse(result)?["RayMigrator"]?.AsObject();
-
-        ray!["Repository"]!["ConnectionString"]!.GetValue<string>().Should().Be("A");
-        ray["DatabaseLogging"]!["ConnectionString"]!.GetValue<string>().Should().Be("B");
-    }
-
-    [Fact]
-    public void RemoveRedundantOverrides_EmptyParentDiff_ChildUnchanged()
-    {
-        var child = """{"RayMigrator":{"Repository":{"ConnectionString":"A"}}}""";
-        var parent = """{"RayMigrator":{}}""";
-
-        var result = ZipExportService.RemoveRedundantOverrides(child, parent);
-        var conn = JsonNode.Parse(result)?["RayMigrator"]?["Repository"]?["ConnectionString"]?.GetValue<string>();
-
-        conn.Should().Be("A");
-    }
-
-    [Fact]
-    public void RemoveRedundantOverrides_EmptyChildDiff_StaysEmpty()
-    {
-        var child = """{"RayMigrator":{}}""";
-        var parent = """{"RayMigrator":{"Repository":{"ConnectionString":"X"}}}""";
-
-        var result = ZipExportService.RemoveRedundantOverrides(child, parent);
-
-        ConfigurationSerializer.IsEmptyDiff(result).Should().BeTrue();
-    }
-
-    [Fact]
-    public void RemoveRedundantOverrides_MultipleSections_OnlyMatchingSectionsRemoved()
-    {
-        var child = """
-        {
-          "RayMigrator": {
-            "Repository": {"ConnectionString": "X", "SchemaName": "custom"},
-            "DatabaseLogging": {"ConnectionString": "Y"},
-            "ProductDefaults": {"MigrationErrorAction": "Rollback"}
-          }
-        }
-        """;
-        var parent = """
-        {
-          "RayMigrator": {
-            "Repository": {"ConnectionString": "X"},
-            "DatabaseLogging": {"ConnectionString": "Y"}
-          }
-        }
-        """;
-
-        var result = ZipExportService.RemoveRedundantOverrides(child, parent);
-        var ray = JsonNode.Parse(result)?["RayMigrator"]?.AsObject();
-
-        // Repository: ConnectionString removed (matched), SchemaName kept (unique)
-        ray!["Repository"]!["SchemaName"]!.GetValue<string>().Should().Be("custom");
-        ray["Repository"]!["ConnectionString"].Should().BeNull();
-        // DatabaseLogging: entirely pruned (all fields matched)
-        ray["DatabaseLogging"].Should().BeNull();
-        // ProductDefaults: kept (not in parent)
-        ray["ProductDefaults"]!["MigrationErrorAction"]!.GetValue<string>().Should().Be("Rollback");
-    }
 
     // ══════════════════════════════════════════════════════════════
     // ExportAsync — redundant override removal integration tests
@@ -568,109 +361,89 @@ public class ZipExportServiceTests
     [Fact]
     public async Task ExportAsync_PeFileOmitsValuesAlreadyInEnvFile()
     {
+        // A single combination: every value holds for it, so the export is one base file (#23 Part B).
         var (service, js) = CreateService();
         var state = BuildMinimalState();
         state.BaseModel.Repository.ConnectionString = "{ENV:REPO_CONN}";
-
-        // Env model overrides ConnectionString
         var envModel = new ConfigurationModel();
         envModel.Repository.ConnectionString = "{ENV:REPO_CONN_DEV}";
         state.EnvironmentModels["Development"] = envModel;
-
-        // PE model has same ConnectionString as env + an additional override
         var peModel = new ConfigurationModel();
-        peModel.Repository.ConnectionString = "{ENV:REPO_CONN_DEV}"; // same as env → redundant
-        peModel.ProductDefaults.RequireRollbackFile = false; // unique override
+        peModel.Repository.ConnectionString = "{ENV:REPO_CONN_DEV}";
+        peModel.ProductDefaults.RequireRollbackFile = false;
         state.ProductEnvironmentModels["MyApp.Development"] = peModel;
 
         await service.ExportAsync(state);
 
         var entries = ReadZipEntries(GetDownload(js).content);
-        var peJson = entries["appsettings.MyApp.Development.json"];
-        var peRay = JsonNode.Parse(peJson)?["RayMigrator"];
-
-        // ConnectionString should NOT be in PE file (already in env file)
-        peRay!["Repository"].Should().BeNull();
-        // RequireRollbackFile should still be present
-        peRay["ProductDefaults"]!["RequireRollbackFile"]!.GetValue<bool>().Should().BeFalse();
+        entries.Keys.Where(k => k.StartsWith("appsettings")).Should().Equal("appsettings.json");
+        var baseRay = JsonNode.Parse(entries["appsettings.json"])!["RayMigrator"]!;
+        baseRay["Repository"]!["ConnectionString"]!.GetValue<string>().Should().Be("{ENV:REPO_CONN_DEV}");
+        baseRay["ProductDefaults"]!["RequireRollbackFile"]!.GetValue<bool>().Should().BeFalse();
     }
 
     [Fact]
     public async Task ExportAsync_PeFileOmitsValuesAlreadyInProductFile()
     {
+        // A single combination: every value holds for it, so the export is one base file (#23 Part B).
         var (service, js) = CreateService();
         var state = BuildMinimalState();
-
-        // Product model overrides MigrationErrorAction
         var productModel = new ConfigurationModel();
         productModel.ProductDefaults.MigrationErrorAction = "Rollback";
         state.ProductModels["MyApp"] = productModel;
-
-        // PE model has same MigrationErrorAction as product + a unique override
         var peModel = new ConfigurationModel();
-        peModel.ProductDefaults.MigrationErrorAction = "Rollback"; // same as product → redundant
-        peModel.Repository.ConnectionString = "{ENV:PE_CONN}"; // unique
+        peModel.ProductDefaults.MigrationErrorAction = "Rollback";
+        peModel.Repository.ConnectionString = "{ENV:PE_CONN}";
         state.ProductEnvironmentModels["MyApp.Docker"] = peModel;
 
         await service.ExportAsync(state);
 
         var entries = ReadZipEntries(GetDownload(js).content);
-        var peJson = entries["appsettings.MyApp.Docker.json"];
-        var peRay = JsonNode.Parse(peJson)?["RayMigrator"];
-
-        // MigrationErrorAction should NOT be in PE file (already in product file)
-        peRay!["ProductDefaults"].Should().BeNull();
-        // ConnectionString should still be present
-        peRay["Repository"]!["ConnectionString"]!.GetValue<string>().Should().Be("{ENV:PE_CONN}");
+        entries.Keys.Where(k => k.StartsWith("appsettings")).Should().Equal("appsettings.json");
+        var baseRay = JsonNode.Parse(entries["appsettings.json"])!["RayMigrator"]!;
+        baseRay["ProductDefaults"]!["MigrationErrorAction"]!.GetValue<string>().Should().Be("Rollback");
+        baseRay["Repository"]!["ConnectionString"]!.GetValue<string>().Should().Be("{ENV:PE_CONN}");
     }
 
     [Fact]
     public async Task ExportAsync_PeFileOmitsValuesFromBothEnvAndProductFiles()
     {
+        // A single combination: every value holds for it, so the export is one base file (#23 Part B).
         var (service, js) = CreateService();
         var state = BuildMinimalState();
         state.BaseModel.Repository.ConnectionString = "{ENV:BASE_CONN}";
-
-        // Env overrides ConnectionString
         var envModel = new ConfigurationModel();
         envModel.Repository.ConnectionString = "{ENV:ENV_CONN}";
         state.EnvironmentModels["Docker"] = envModel;
-
-        // Product overrides MigrationErrorAction
         var productModel = new ConfigurationModel();
         productModel.ProductDefaults.MigrationErrorAction = "Rollback";
         state.ProductModels["MyApp"] = productModel;
-
-        // PE model repeats both parent overrides + has a unique field
         var peModel = new ConfigurationModel();
-        peModel.Repository.ConnectionString = "{ENV:ENV_CONN}"; // same as env → redundant
-        peModel.ProductDefaults.MigrationErrorAction = "Rollback"; // same as product → redundant
-        peModel.ProductDefaults.RequireRollbackFile = false; // unique
+        peModel.Repository.ConnectionString = "{ENV:ENV_CONN}";
+        peModel.ProductDefaults.MigrationErrorAction = "Rollback";
+        peModel.ProductDefaults.RequireRollbackFile = false;
         state.ProductEnvironmentModels["MyApp.Docker"] = peModel;
 
         await service.ExportAsync(state);
 
         var entries = ReadZipEntries(GetDownload(js).content);
-        var peJson = entries["appsettings.MyApp.Docker.json"];
-        var peRay = JsonNode.Parse(peJson)?["RayMigrator"];
-
-        peRay!["Repository"].Should().BeNull("ConnectionString already in env file");
-        peRay["ProductDefaults"]!["MigrationErrorAction"].Should().BeNull("already in product file");
-        peRay["ProductDefaults"]!["RequireRollbackFile"]!.GetValue<bool>().Should().BeFalse("unique to PE");
+        entries.Keys.Where(k => k.StartsWith("appsettings")).Should().Equal("appsettings.json");
+        var baseRay = JsonNode.Parse(entries["appsettings.json"])!["RayMigrator"]!;
+        baseRay["Repository"]!["ConnectionString"]!.GetValue<string>().Should().Be("{ENV:ENV_CONN}", "the dead base value is not exported");
+        baseRay["ProductDefaults"]!["MigrationErrorAction"]!.GetValue<string>().Should().Be("Rollback");
+        baseRay["ProductDefaults"]!["RequireRollbackFile"]!.GetValue<bool>().Should().BeFalse();
     }
 
     [Fact]
     public async Task ExportAsync_PeFileWithUniqueConnectionString_Kept()
     {
+        // A single combination: every value holds for it, so the export is one base file (#23 Part B).
         var (service, js) = CreateService();
         var state = BuildMinimalState();
         state.BaseModel.Repository.ConnectionString = "{ENV:BASE_CONN}";
-
         var envModel = new ConfigurationModel();
         envModel.Repository.ConnectionString = "{ENV:ENV_CONN}";
         state.EnvironmentModels["Docker"] = envModel;
-
-        // PE model has a DIFFERENT ConnectionString than both base and env
         var peModel = new ConfigurationModel();
         peModel.Repository.ConnectionString = "{ENV:PE_SPECIFIC_CONN}";
         state.ProductEnvironmentModels["MyApp.Docker"] = peModel;
@@ -678,10 +451,8 @@ public class ZipExportServiceTests
         await service.ExportAsync(state);
 
         var entries = ReadZipEntries(GetDownload(js).content);
-        var peJson = entries["appsettings.MyApp.Docker.json"];
-        var peConn = JsonNode.Parse(peJson)?["RayMigrator"]?["Repository"]?["ConnectionString"]?.GetValue<string>();
-
-        peConn.Should().Be("{ENV:PE_SPECIFIC_CONN}");
+        entries.Keys.Where(k => k.StartsWith("appsettings")).Should().Equal("appsettings.json");
+        JsonNode.Parse(entries["appsettings.json"])!["RayMigrator"]!["Repository"]!["ConnectionString"]!.GetValue<string>().Should().Be("{ENV:PE_SPECIFIC_CONN}", "the most specific value is the effective one");
     }
 
     [Fact]
@@ -711,236 +482,47 @@ public class ZipExportServiceTests
     [Fact]
     public async Task ExportAsync_MultipleProductsSameEnv_CorrectParentMatching()
     {
+        // Two products, one environment: what each product needs holds for all (one) of its environments, so it goes to the product file,
+        // never to a product-environment file, and nothing is attached to the wrong product (#23 Part B).
         var (service, js) = CreateService();
         var state = BuildMinimalState();
         state.BaseModel.Repository.ConnectionString = "{ENV:BASE_CONN}";
-
         var envModel = new ConfigurationModel();
         envModel.Repository.ConnectionString = "{ENV:ENV_CONN_DOCKER}";
         state.EnvironmentModels["Docker"] = envModel;
-
-        // App1.Docker: same ConnectionString as env, has unique field
         var pe1 = new ConfigurationModel();
-        pe1.Repository.ConnectionString = "{ENV:ENV_CONN_DOCKER}"; // redundant
-        pe1.ProductDefaults.RequireRollbackFile = false; // unique
+        pe1.Repository.ConnectionString = "{ENV:ENV_CONN_DOCKER}";
+        pe1.ProductDefaults.RequireRollbackFile = false;
         state.ProductEnvironmentModels["App1.Docker"] = pe1;
-
-        // App2.Docker: different ConnectionString from env
         var pe2 = new ConfigurationModel();
-        pe2.Repository.ConnectionString = "{ENV:APP2_DOCKER_CONN}"; // unique
+        pe2.Repository.ConnectionString = "{ENV:APP2_DOCKER_CONN}";
         state.ProductEnvironmentModels["App2.Docker"] = pe2;
 
         await service.ExportAsync(state);
 
         var entries = ReadZipEntries(GetDownload(js).content);
-
-        // App1: ConnectionString removed (matches env), RequireRollbackFile kept
-        var pe1Ray = JsonNode.Parse(entries["appsettings.App1.Docker.json"])?["RayMigrator"];
-        pe1Ray!["Repository"].Should().BeNull();
-        pe1Ray["ProductDefaults"]!["RequireRollbackFile"]!.GetValue<bool>().Should().BeFalse();
-
-        // App2: ConnectionString kept (differs from env)
-        var pe2Ray = JsonNode.Parse(entries["appsettings.App2.Docker.json"])?["RayMigrator"];
-        pe2Ray!["Repository"]!["ConnectionString"]!.GetValue<string>().Should().Be("{ENV:APP2_DOCKER_CONN}");
+        entries.Keys.Should().NotContain("appsettings.App1.Docker.json").And.NotContain("appsettings.App2.Docker.json");
+        var app1 = JsonNode.Parse(entries["appsettings.App1.json"])!["RayMigrator"]!;
+        app1["Repository"]!["ConnectionString"]!.GetValue<string>().Should().Be("{ENV:ENV_CONN_DOCKER}");
+        app1["ProductDefaults"]!["RequireRollbackFile"]!.GetValue<bool>().Should().BeFalse();
+        var app2 = JsonNode.Parse(entries["appsettings.App2.json"])!["RayMigrator"]!;
+        app2["Repository"]!["ConnectionString"]!.GetValue<string>().Should().Be("{ENV:APP2_DOCKER_CONN}");
+        app2["ProductDefaults"]!["RequireRollbackFile"]!.GetValue<bool>().Should().BeTrue("the two products disagree, so each product file carries its own value");
+        JsonNode.Parse(entries["appsettings.json"])!["RayMigrator"]!["Repository"]!["ConnectionString"].Should().BeNull("the two products disagree");
     }
 
     // ══════════════════════════════════════════════════════════════
-    // PruneCoveredProperties — unit tests
     // ══════════════════════════════════════════════════════════════
 
     // ── Single combination ───────────────────────────────────────
 
-    [Fact]
-    public void PruneCoveredProperties_SingleCombo_AllLeavesCovered_AllPruned()
-    {
-        var parent = """{"RayMigrator":{"Repository":{"ConnectionString":"X","SchemaName":"ray"}}}""";
-        var child = """{"RayMigrator":{"Repository":{"ConnectionString":"Y","SchemaName":"custom"}}}""";
-        var groups = new List<IReadOnlyList<string>> { new List<string> { child } };
-
-        var result = ZipExportService.PruneCoveredProperties(parent, groups);
-
-        ConfigurationSerializer.IsEmptyDiff(result).Should().BeTrue("all leaves are covered");
-    }
-
-    [Fact]
-    public void PruneCoveredProperties_SingleCombo_PartialCoverage_OnlyCoveredPruned()
-    {
-        var parent = """{"RayMigrator":{"Repository":{"ConnectionString":"X","SchemaName":"ray"}}}""";
-        var child = """{"RayMigrator":{"Repository":{"ConnectionString":"Y"}}}""";
-        var groups = new List<IReadOnlyList<string>> { new List<string> { child } };
-
-        var result = ZipExportService.PruneCoveredProperties(parent, groups);
-        var repo = JsonNode.Parse(result)?["RayMigrator"]?["Repository"];
-
-        repo!["SchemaName"]!.GetValue<string>().Should().Be("ray", "not covered by child");
-        repo["ConnectionString"].Should().BeNull("covered by child");
-    }
-
     // ── Multiple combinations ────────────────────────────────────
-
-    [Fact]
-    public void PruneCoveredProperties_TwoCombos_AllCovered_Pruned()
-    {
-        var parent = """{"RayMigrator":{"Repository":{"ConnectionString":"X"}}}""";
-        var child1 = """{"RayMigrator":{"Repository":{"ConnectionString":"A"}}}""";
-        var child2 = """{"RayMigrator":{"Repository":{"ConnectionString":"B"}}}""";
-        var groups = new List<IReadOnlyList<string>>
-        {
-            new List<string> { child1 },
-            new List<string> { child2 }
-        };
-
-        var result = ZipExportService.PruneCoveredProperties(parent, groups);
-        var ray = JsonNode.Parse(result)?["RayMigrator"]?.AsObject();
-
-        ray!["Repository"].Should().BeNull("ConnectionString covered in both combos");
-    }
-
-    [Fact]
-    public void PruneCoveredProperties_TwoCombos_OneUncovered_Stays()
-    {
-        var parent = """{"RayMigrator":{"Repository":{"ConnectionString":"X","SchemaName":"ray"}}}""";
-        var child1 = """{"RayMigrator":{"Repository":{"ConnectionString":"A","SchemaName":"s1"}}}""";
-        // child2 only covers ConnectionString, not SchemaName
-        var child2 = """{"RayMigrator":{"Repository":{"ConnectionString":"B"}}}""";
-        var groups = new List<IReadOnlyList<string>>
-        {
-            new List<string> { child1 },
-            new List<string> { child2 }
-        };
-
-        var result = ZipExportService.PruneCoveredProperties(parent, groups);
-        var repo = JsonNode.Parse(result)?["RayMigrator"]?["Repository"];
-
-        repo!["ConnectionString"].Should().BeNull("covered in both combos");
-        repo["SchemaName"]!.GetValue<string>().Should().Be("ray", "not covered in combo 2");
-    }
-
-    [Fact]
-    public void PruneCoveredProperties_MultipleChildrenPerCombo_AnyCovers()
-    {
-        var parent = """{"RayMigrator":{"Repository":{"ConnectionString":"X"}}}""";
-        // Combo 1: env covers ConnectionString
-        var envChild = """{"RayMigrator":{"Repository":{"ConnectionString":"ENV"}}}""";
-        // Combo 2: env doesn't cover, but PE does
-        var envChild2 = """{"RayMigrator":{"ProductDefaults":{"MigrationErrorAction":"Rollback"}}}""";
-        var peChild2 = """{"RayMigrator":{"Repository":{"ConnectionString":"PE"}}}""";
-
-        var groups = new List<IReadOnlyList<string>>
-        {
-            new List<string> { envChild },
-            new List<string> { envChild2, peChild2 }
-        };
-
-        var result = ZipExportService.PruneCoveredProperties(parent, groups);
-        var ray = JsonNode.Parse(result)?["RayMigrator"]?.AsObject();
-
-        ray!["Repository"].Should().BeNull("covered in both combos via different children");
-    }
 
     // ── Nested objects ───────────────────────────────────────────
 
-    [Fact]
-    public void PruneCoveredProperties_NestedFullCoverage_PrunedUpward()
-    {
-        var parent = """{"RayMigrator":{"ProductDefaults":{"TargetGroupDefaults":{"TargetDefaults":{"DbCommandTimeoutInSeconds":20}}}}}""";
-        var child = """{"RayMigrator":{"ProductDefaults":{"TargetGroupDefaults":{"TargetDefaults":{"DbCommandTimeoutInSeconds":90}}}}}""";
-        var groups = new List<IReadOnlyList<string>> { new List<string> { child } };
-
-        var result = ZipExportService.PruneCoveredProperties(parent, groups);
-
-        ConfigurationSerializer.IsEmptyDiff(result).Should().BeTrue("entire nested tree covered");
-    }
-
-    [Fact]
-    public void PruneCoveredProperties_NestedPartialCoverage_OnlyMatchingPruned()
-    {
-        var parent = """{"RayMigrator":{"ProductDefaults":{"MigrationErrorAction":"Terminate","RequireRollbackFile":true}}}""";
-        var child = """{"RayMigrator":{"ProductDefaults":{"MigrationErrorAction":"Rollback"}}}""";
-        var groups = new List<IReadOnlyList<string>> { new List<string> { child } };
-
-        var result = ZipExportService.PruneCoveredProperties(parent, groups);
-        var pd = JsonNode.Parse(result)?["RayMigrator"]?["ProductDefaults"];
-
-        pd!["MigrationErrorAction"].Should().BeNull("covered by child");
-        pd["RequireRollbackFile"]!.GetValue<bool>().Should().BeTrue("not covered");
-    }
-
     // ── Arrays ───────────────────────────────────────────────────
 
-    [Fact]
-    public void PruneCoveredProperties_ArrayValues_NotPruned()
-    {
-        var parent = """{"RayMigrator":{"Products":[{"Alias":"MyApp"}],"Repository":{"ConnectionString":"X"}}}""";
-        var child = """{"RayMigrator":{"Products":[{"Alias":"MyApp"}],"Repository":{"ConnectionString":"Y"}}}""";
-        var groups = new List<IReadOnlyList<string>> { new List<string> { child } };
-
-        var result = ZipExportService.PruneCoveredProperties(parent, groups);
-        var ray = JsonNode.Parse(result)?["RayMigrator"]?.AsObject();
-
-        ray!["Products"].Should().NotBeNull("arrays should not be pruned");
-        ray["Repository"].Should().BeNull("scalar section should be pruned");
-    }
-
     // ── Edge cases ───────────────────────────────────────────────
-
-    [Fact]
-    public void PruneCoveredProperties_EmptyChildGroups_ParentUnchanged()
-    {
-        var parent = """{"RayMigrator":{"Repository":{"ConnectionString":"X"}}}""";
-        var groups = new List<IReadOnlyList<string>>();
-
-        var result = ZipExportService.PruneCoveredProperties(parent, groups);
-        var conn = JsonNode.Parse(result)?["RayMigrator"]?["Repository"]?["ConnectionString"]?.GetValue<string>();
-
-        conn.Should().Be("X", "empty groups means no pruning");
-    }
-
-    [Fact]
-    public void PruneCoveredProperties_OneComboGroupEmpty_PropertyStays()
-    {
-        var parent = """{"RayMigrator":{"Repository":{"ConnectionString":"X"}}}""";
-        var child1 = """{"RayMigrator":{"Repository":{"ConnectionString":"A"}}}""";
-        var groups = new List<IReadOnlyList<string>>
-        {
-            new List<string> { child1 },
-            new List<string>() // empty group — no children cover this combo
-        };
-
-        var result = ZipExportService.PruneCoveredProperties(parent, groups);
-        var conn = JsonNode.Parse(result)?["RayMigrator"]?["Repository"]?["ConnectionString"]?.GetValue<string>();
-
-        conn.Should().Be("X", "one combo has no coverage");
-    }
-
-    [Fact]
-    public void PruneCoveredProperties_MixedSections_OnlyCoveredSectionsPruned()
-    {
-        var parent = """
-        {
-          "RayMigrator": {
-            "Repository": {"ConnectionString": "X", "DatabaseType": "SqlServer"},
-            "ProductDefaults": {"MigrationErrorAction": "Terminate"}
-          }
-        }
-        """;
-        var child1 = """{"RayMigrator":{"Repository":{"ConnectionString":"A"},"ProductDefaults":{"MigrationErrorAction":"Rollback"}}}""";
-        var child2 = """{"RayMigrator":{"Repository":{"ConnectionString":"B"}}}""";
-        var groups = new List<IReadOnlyList<string>>
-        {
-            new List<string> { child1 },
-            new List<string> { child2 }
-        };
-
-        var result = ZipExportService.PruneCoveredProperties(parent, groups);
-        var ray = JsonNode.Parse(result)?["RayMigrator"]?.AsObject();
-
-        // Repository.ConnectionString covered in both, DatabaseType not → Repository stays with DatabaseType
-        ray!["Repository"]!["DatabaseType"]!.GetValue<string>().Should().Be("SqlServer");
-        ray["Repository"]!["ConnectionString"].Should().BeNull();
-        // ProductDefaults.MigrationErrorAction only covered in combo 1
-        ray["ProductDefaults"]!["MigrationErrorAction"]!.GetValue<string>().Should().Be("Terminate");
-    }
 
     // ══════════════════════════════════════════════════════════════
     // ComputeExportJsons — integration tests
@@ -970,61 +552,52 @@ public class ZipExportServiceTests
     [Fact]
     public void ComputeExportJsons_BasePropertyOverriddenInAllPEs_PrunedFromBase()
     {
+        // The only combination overrides the base value: the override is the effective value and moves to the base; the dead base value disappears (#23 Part B).
         var state = BuildMinimalState();
         state.BaseModel.Repository.ConnectionString = "{ENV:BASE_CONN}";
-
-        var envModel = new ConfigurationModel();
-        state.EnvironmentModels["Docker"] = envModel;
-
-        // PE overrides ConnectionString
+        state.EnvironmentModels["Docker"] = new ConfigurationModel();
         var pe = new ConfigurationModel();
         pe.Repository.ConnectionString = "{ENV:PE_CONN}";
         state.ProductEnvironmentModels["MyApp.Docker"] = pe;
-
-        // Single product in base
         state.BaseModel.Products.Add(new ProductModel { Alias = "MyApp" });
 
         var result = ZipExportService.ComputeExportJsons(state);
 
-        var baseRay = JsonNode.Parse(result["appsettings.json"])?["RayMigrator"];
-        baseRay!["Repository"]!["ConnectionString"].Should().BeNull("overridden in all PE combos");
+        result.Keys.Should().Equal("appsettings.json");
+        JsonNode.Parse(result["appsettings.json"])!["RayMigrator"]!["Repository"]!["ConnectionString"]!.GetValue<string>().Should().Be("{ENV:PE_CONN}");
     }
 
     [Fact]
     public void ComputeExportJsons_BasePropertyOverriddenInSomeNotAll_StaysInBase()
     {
+        // Two environments disagree on the connection string: neither value holds for every combination, so each environment file carries its own (#23 Part B).
         var state = BuildMinimalState();
         state.BaseModel.Repository.ConnectionString = "{ENV:BASE_CONN}";
-
         var envDev = new ConfigurationModel();
         envDev.Repository.ConnectionString = "{ENV:DEV_CONN}";
         state.EnvironmentModels["Development"] = envDev;
-
-        // Production env does NOT override ConnectionString
-        var envProd = new ConfigurationModel();
-        state.EnvironmentModels["Production"] = envProd;
+        state.EnvironmentModels["Production"] = new ConfigurationModel();
 
         var result = ZipExportService.ComputeExportJsons(state);
 
-        var baseRay = JsonNode.Parse(result["appsettings.json"])?["RayMigrator"];
-        baseRay!["Repository"]!["ConnectionString"]!.GetValue<string>().Should().Be("{ENV:BASE_CONN}",
-            "not overridden in Production env");
+        JsonNode.Parse(result["appsettings.json"])!["RayMigrator"]!["Repository"]!["ConnectionString"].Should().BeNull();
+        JsonNode.Parse(result["appsettings.Development.json"])!["RayMigrator"]!["Repository"]!["ConnectionString"]!.GetValue<string>().Should().Be("{ENV:DEV_CONN}");
+        JsonNode.Parse(result["appsettings.Production.json"])!["RayMigrator"]!["Repository"]!["ConnectionString"]!.GetValue<string>().Should().Be("{ENV:BASE_CONN}");
+        JsonNode.Parse(result["appsettings.json"])!["RayMigrator"]!["Repository"]!["DatabaseType"]!.GetValue<string>().Should().Be("SqlServer", "common to both environments");
     }
 
     [Fact]
     public void ComputeExportJsons_EnvPropertyOverriddenInAllPEs_PrunedFromEnv()
     {
+        // A single combination: every value holds for it, so the export is one base file (#23 Part B).
         var state = BuildMinimalState();
         state.BaseModel.Repository.ConnectionString = "{ENV:BASE_CONN}";
         state.BaseModel.Repository.SchemaName = "ray";
-
         var envDev = new ConfigurationModel();
         envDev.Repository.ConnectionString = "{ENV:DEV_CONN}";
-        envDev.Repository.SchemaName = "dev_schema"; // unique to env, PE does NOT override this
+        envDev.Repository.SchemaName = "dev_schema";
         envDev.ProductDefaults.MigrationErrorAction = "Rollback";
         state.EnvironmentModels["Development"] = envDev;
-
-        // PE overrides ConnectionString and MigrationErrorAction (different from BOTH base and env)
         var pe = new ConfigurationModel();
         pe.Repository.ConnectionString = "{ENV:PE_CONN}";
         pe.ProductDefaults.MigrationErrorAction = "RollbackRelease";
@@ -1032,35 +605,33 @@ public class ZipExportServiceTests
 
         var result = ZipExportService.ComputeExportJsons(state);
 
-        var envRay = JsonNode.Parse(result["appsettings.Development.json"])?["RayMigrator"];
-        // ConnectionString and MigrationErrorAction are covered by PE → pruned
-        envRay!["Repository"]!["ConnectionString"].Should().BeNull("overridden by PE");
-        envRay["ProductDefaults"].Should().BeNull("MigrationErrorAction overridden by PE");
-        // SchemaName is NOT overridden by PE → stays
-        envRay["Repository"]!["SchemaName"]!.GetValue<string>().Should().Be("dev_schema");
+        result.Keys.Should().Equal("appsettings.json");
+        var baseRay = JsonNode.Parse(result["appsettings.json"])!["RayMigrator"]!;
+        baseRay["Repository"]!["ConnectionString"]!.GetValue<string>().Should().Be("{ENV:PE_CONN}");
+        baseRay["Repository"]!["SchemaName"]!.GetValue<string>().Should().Be("dev_schema");
+        baseRay["ProductDefaults"]!["MigrationErrorAction"]!.GetValue<string>().Should().Be("RollbackRelease");
     }
 
     [Fact]
     public void ComputeExportJsons_PeRedundancyRemoval_MatchesExistingBehavior()
     {
+        // A single combination: every value holds for it, so the export is one base file (#23 Part B).
         var state = BuildMinimalState();
         state.BaseModel.Repository.ConnectionString = "{ENV:BASE_CONN}";
-
         var envModel = new ConfigurationModel();
         envModel.Repository.ConnectionString = "{ENV:ENV_CONN}";
         state.EnvironmentModels["Docker"] = envModel;
-
-        // PE has same ConnectionString as env + unique field
         var pe = new ConfigurationModel();
-        pe.Repository.ConnectionString = "{ENV:ENV_CONN}"; // same as env → redundant in PE
-        pe.ProductDefaults.RequireRollbackFile = false; // unique
+        pe.Repository.ConnectionString = "{ENV:ENV_CONN}";
+        pe.ProductDefaults.RequireRollbackFile = false;
         state.ProductEnvironmentModels["MyApp.Docker"] = pe;
 
         var result = ZipExportService.ComputeExportJsons(state);
 
-        var peRay = JsonNode.Parse(result["appsettings.MyApp.Docker.json"])?["RayMigrator"];
-        peRay!["Repository"].Should().BeNull("ConnectionString matches env parent");
-        peRay["ProductDefaults"]!["RequireRollbackFile"]!.GetValue<bool>().Should().BeFalse();
+        result.Keys.Should().Equal("appsettings.json");
+        var baseRay = JsonNode.Parse(result["appsettings.json"])!["RayMigrator"]!;
+        baseRay["Repository"]!["ConnectionString"]!.GetValue<string>().Should().Be("{ENV:ENV_CONN}");
+        baseRay["ProductDefaults"]!["RequireRollbackFile"]!.GetValue<bool>().Should().BeFalse();
     }
 
     [Fact]

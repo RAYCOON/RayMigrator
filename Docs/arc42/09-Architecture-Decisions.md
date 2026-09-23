@@ -31,7 +31,7 @@ followed the same day by the commit tagged `v0.10.3`; a decision already present
 | ADR-018 | Structured logging with a database sink | Accepted (refined 0.12.0, 0.13.0) | <= 0.10.3 | [Structured Logging to Console, File and Database](08-Crosscutting-Concepts.md#structured-logging-to-console-file-and-database) |
 | ADR-019 | Blazor WebAssembly Config Wizard as a separate, database-free tool | Accepted | <= 0.10.3 | [Configuration Inheritance with Validation](08-Crosscutting-Concepts.md#configuration-inheritance-with-validation), [Runtime View 6.9](06-Runtime-View.md#69-config-wizard-session-short) |
 | ADR-020 | Error handling strategies with rollback files and run results | Accepted (refined 0.13.0, 0.14.0) | <= 0.10.3 | [Rollback Strategies](08-Crosscutting-Concepts.md#rollback-strategies) |
-| ADR-021 | Configuration arrays merge by alias in every application | Accepted (0.15.0, #23; wizard export follow-up open) | 2026-09-23 | [Configuration Inheritance with Validation](08-Crosscutting-Concepts.md#configuration-inheritance-with-validation) |
+| ADR-021 | Configuration arrays merge by alias in every application | Accepted (0.15.0, #23) | 2026-09-23 | [Configuration Inheritance with Validation](08-Crosscutting-Concepts.md#configuration-inheritance-with-validation) |
 
 ## ADRs
 
@@ -416,7 +416,10 @@ alias comparer, the names and order of the four hierarchy files (`ConfigurationF
 and golden merge cases under `Testing/ConfigMergeCases/` run through both test suites. Accepted and implemented on
 2026-09-23 for 0.15.0 (#23, Part A); `P0_ConfigurationJsonMergerTests`, `P0_ConfigurationFileChainTests`,
 `P1_JsonOptionsSourceAliasMergeTests` and `ConfigFileMergerSharedTests` pin the semantics. The wizard's export side
-(#23, Part B: place every value as high in the hierarchy as it holds) is still open.
+(#23, Part B) followed the same day: `ConfigurationJsonDiff` in `Shared` provides the inverse operations of the merge,
+`HierarchyFactoring` in the wizard core places every value in the highest file in which it holds for every combination
+that file applies to, product elements in the base or their product-environment file, and golden export cases under
+`Testing/ConfigExportCases/` are read back by the engine's loader in `Tests.Unit`.
 
 **Consequences.** Positive: overrides can name only the element they change, in any order; the wizard shows exactly what
 the engine runs; the rule is generic, so a future alias-bearing array needs no code change. Negative: a breaking behaviour

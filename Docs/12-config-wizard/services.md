@@ -309,7 +309,25 @@ After cross-model field promotion, `PromoteAcrossModels` also calls `ReconcileBa
 
 The Overview page calls both methods automatically in `OnInitialized`: cross-model promotion first, then intra-model promotion on the base model.
 
+Since #23 Part B the placement of values in the exported files no longer depends on the promoter: `ZipExportService.ComputeExportJsons` recomputes the effective configuration per combination and factors it with `HierarchyFactoring`. The promoter still tidies the in-memory models and feeds the Overview page's promotion report.
+
 `PromotionResult` has `PropertyName`, `PromotedValue`, `AffectedProducts` (count), and `Level` (`"ProductDefaults"`, `"TargetGroupDefaults"`, or `"BaseModel"`).
+
+## HierarchyFactoring (Core)
+
+`HierarchyFactoring` (static, Core) splits the effective configuration of every product-environment combination into the appsettings file family following the placement principle of #23 Part B: every value goes into the highest file in which it holds for every combination that file applies to, no file repeats what its effective parent already provides, and elements of `Products` belong to their product (base file or that product's product-environment file). It uses `ConfigurationJsonDiff` (`Raycoon.RayMigrator.Shared`, the inverse operations of the shared merger: `Diff` and `TryCommon`) and `ConfigurationJsonMerger`, so what it writes merges back to what the engine reads.
+
+```csharp
+record Combination(string? Product, string? Environment, JsonNode Effective);
+
+// File name -> document; the base file is always present, other files only with content
+static Dictionary<string, JsonNode> Factor(IReadOnlyList<Combination> combinations)
+
+// The configuration the engine ends up with for a combination when it merges the given files (verification)
+static JsonNode MergeFor(IReadOnlyDictionary<string, JsonNode> files, string? product, string? environment)
+```
+
+Golden cases under `Testing/ConfigExportCases/<case>/` (`effective.json` per combination, `expected/appsettings*.json`) are run by `Raycoon.RayMigrator.Tests.Unit.ConfigWizard.Core` (files equal expected, round trip, no file repeats its parent, nothing repeated on the most specific level) and by `Raycoon.RayMigrator.Tests.Unit` (the engine's loader reads the expected files back to the effective configuration).
 
 ## ConfigurationFileParser (Core)
 
@@ -441,12 +459,12 @@ These services handle Blazor WASM infrastructure concerns and are registered in 
 // Instance method — triggers ZIP download via FileInteropService
 Task ExportAsync(WizardState state)
 
-// Static method — computes all pruned export JSON strings keyed by filename;
+// Static method — computes all export JSON strings keyed by filename (HierarchyFactoring);
 // used by both ExportAsync and WizardStateService.GetExportJsons() for JSON preview
 static Dictionary<string, string> ComputeExportJsons(WizardState state)
 ```
 
-The export applies a full hierarchy-pruning pass: base-file properties that are overridden in every runtime combination are removed from the base file; environment and product-file properties that are already covered by their respective product-environment files are pruned as well. This keeps each file minimal and avoids redundant repetition across the hierarchy.
+The export merges the wizard's layers (base, environment, product and product-environment models, each serialized as a diff against the base) per runtime combination with the shared `ConfigurationJsonMerger` into the configuration the engine must end up with, and `HierarchyFactoring` splits that into the smallest file family in which every value sits as high as it holds (#23 Part B). Files without content are not written; with a single combination the export is the base file alone.
 
 `ExportAsync` also calls `EnvFileGenerator.GenerateFromExportedJsons` (scanning all exported JSON files) to produce an `example.env` file and includes it in the ZIP alongside the configuration files. The ZIP is downloaded as `raymigrator-config.zip`.
 

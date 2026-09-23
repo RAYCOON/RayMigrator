@@ -63,7 +63,7 @@ Quality goal names are those of section 1.2. Mitigations link to the concept in
 | R-11 | A SQLite repository is shared between hosts or written by two processes; SQLite is a single writer, file based engine. | Portability across database engines, Reliability | Low | Medium | `DalSqlite` enables `Foreign Keys=true` unless the connection string sets it, and `PRAGMA journal_mode=WAL`; the run lock uses a write transaction | Documented as a limitation only; no detection of a network file system |
 | R-12 | Very large migration files (bulk data loads) exhaust memory: `MigrationService` reads each file with `File.ReadAllBytes`, keeps every block in memory and hashes the whole content. | Reliability | Low | Medium | None beyond the operating system limits; CLI tools can stream a file through the vendor client instead (`UseCliToolAlias`) | Size guard or streaming for the ADO.NET path; document a recommended maximum file size |
 | R-13 | `HashValidationScope = Disabled` on a target group hides modified migration files; a changed file is neither re-executed nor reported. | Functional correctness and integrity | Low | High | [Hash validation](08-Crosscutting-Concepts.md#hash-validation): default scope `File`, `validate-hash --scope` overrides the configuration, block level resume still requires an unchanged `FileUpBlocksHash` | Startup warning when a target group disables hash validation |
-| R-14 | An environment or product file lists `Products` (or nested `TargetGroups` / `Targets`) in another order than the base file, or names only the element it changes. Before 0.15.0 the engine merged arrays by position and attached the override, including target groups, to the wrong product; reproduced: `migrate-up` of one product migrated the other product's database with exit `0`. | Functional correctness and integrity | Low (since 0.15.0) | High | Fixed in 0.15.0 (#23, ADR-021): `ConfigurationJsonMerger` in `Shared` merges alias-keyed arrays by alias for the engine, RayMigrator Studio's standalone mode and the Config Wizard; golden cases under `Testing/ConfigMergeCases/` run in both test suites | The wizard export may still repeat values on the wrong level until #23 Part B ships (TD-D-16); reading is safe |
+| R-14 | An environment or product file lists `Products` (or nested `TargetGroups` / `Targets`) in another order than the base file, or names only the element it changes. Before 0.15.0 the engine merged arrays by position and attached the override, including target groups, to the wrong product; reproduced: `migrate-up` of one product migrated the other product's database with exit `0`. | Functional correctness and integrity | Low (since 0.15.0) | High | Fixed in 0.15.0 (#23, ADR-021): `ConfigurationJsonMerger` in `Shared` merges alias-keyed arrays by alias for the engine, RayMigrator Studio's standalone mode and the Config Wizard; golden cases under `Testing/ConfigMergeCases/` run in both test suites | None known: the export (#23 Part B) factors every value into the highest file it holds for, and golden export cases are read back by the engine's loader |
 
 ### Risk matrix
 
@@ -101,7 +101,7 @@ as deliberate scope boundaries and are not tracked as open risks:
 |----------|-------|------------------|
 | Code | TD-C-01 to TD-C-09 | TD-C-01 (exit code contract for configuration errors) |
 | Database access layer audit | DAL-001 to DAL-025 | none open; all 25 items are done in the master list and the plan files |
-| Documentation | TD-D-16 | TD-D-16 (Config Wizard and runtime merge configuration arrays differently) |
+| Documentation | none open | the documentation debt of the 2026-09 review is resolved |
 | Test coverage | five gaps below | engine suite in CI (R-10) |
 
 ### Debt retired in 0.13.0 and 0.14.0
@@ -176,7 +176,6 @@ Paths are relative to `Docs/` unless stated otherwise.
 
 | ID | Item | Pages affected | Suggested resolution |
 |----|------|----------------|----------------------|
-| TD-D-16 | The Config Wizard export does not yet follow the placement principle of #23 Part B: no promotion to the product file, a fixed list of promoted fields, product-environment files pruned against the environment file before the product file (wrong value on a conflict), arrays skipped by the pruning, `CliTools` written in full on every level; the wizard file-hierarchy page carries an interim note. | `12-config-wizard/file-hierarchy.md`, `12-config-wizard/services.md` | Implement #23 Part B on the shared merger (effective-parent diffs, generic factoring, alias-aware pruning) with its ten tests, then remove the interim note |
 
 ### Test coverage
 

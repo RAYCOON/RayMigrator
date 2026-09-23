@@ -1,0 +1,198 @@
+{
+  "Shop.Dev": {
+    "RayMigrator": {
+      "Repository": {
+        "DatabaseType": "PostgreSQL",
+        "ConnectionString": "{ENV:REPO_DEV}",
+        "TableBaseName": ""
+      },
+      "ProductDefaults": {
+        "MigrationErrorAction": "Rollback",
+        "MigrationFilesEncoding": "UTF-8"
+      },
+      "Products": [
+        {
+          "Alias": "Shop",
+          "MigrationFilesRootDirectory": "./Migrations/Shop",
+          "TargetGroups": [
+            {
+              "Alias": "Backend",
+              "DatabaseType": "PostgreSQL",
+              "HashValidationScope": "File",
+              "Targets": [
+                {
+                  "Alias": "Main",
+                  "ConnectionString": "{ENV:SHOP_DEV}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "Alias": "Crm",
+          "MigrationFilesRootDirectory": "./Migrations/Crm",
+          "TargetGroups": [
+            {
+              "Alias": "Backend",
+              "DatabaseType": "PostgreSQL",
+              "HashValidationScope": "SqlBlocks",
+              "Targets": [
+                {
+                  "Alias": "Main",
+                  "ConnectionString": "{ENV:CRM_DB}"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "Shop.Prod": {
+    "RayMigrator": {
+      "Repository": {
+        "DatabaseType": "PostgreSQL",
+        "ConnectionString": "{ENV:REPO_PROD}",
+        "TableBaseName": ""
+      },
+      "ProductDefaults": {
+        "MigrationErrorAction": "Rollback",
+        "MigrationFilesEncoding": "UTF-8"
+      },
+      "Products": [
+        {
+          "Alias": "Shop",
+          "MigrationFilesRootDirectory": "./Migrations/Shop",
+          "TargetGroups": [
+            {
+              "Alias": "Backend",
+              "DatabaseType": "PostgreSQL",
+              "HashValidationScope": "File",
+              "Targets": [
+                {
+                  "Alias": "Main",
+                  "ConnectionString": "{ENV:SHOP_PROD}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "Alias": "Crm",
+          "MigrationFilesRootDirectory": "./Migrations/Crm",
+          "TargetGroups": [
+            {
+              "Alias": "Backend",
+              "DatabaseType": "PostgreSQL",
+              "HashValidationScope": "SqlBlocks",
+              "Targets": [
+                {
+                  "Alias": "Main",
+                  "ConnectionString": "{ENV:CRM_DB}"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "Crm.Dev": {
+    "RayMigrator": {
+      "Repository": {
+        "DatabaseType": "PostgreSQL",
+        "ConnectionString": "{ENV:REPO_DEV}",
+        "TableBaseName": ""
+      },
+      "ProductDefaults": {
+        "MigrationErrorAction": "Terminate",
+        "MigrationFilesEncoding": "UTF-8"
+      },
+      "Products": [
+        {
+          "Alias": "Shop",
+          "MigrationFilesRootDirectory": "./Migrations/Shop",
+          "TargetGroups": [
+            {
+              "Alias": "Backend",
+              "DatabaseType": "PostgreSQL",
+              "HashValidationScope": "File",
+              "Targets": [
+                {
+                  "Alias": "Main",
+                  "ConnectionString": "{ENV:SHOP_DB}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "Alias": "Crm",
+          "MigrationFilesRootDirectory": "./Migrations/Crm",
+          "TargetGroups": [
+            {
+              "Alias": "Backend",
+              "DatabaseType": "PostgreSQL",
+              "HashValidationScope": "SqlBlocks",
+              "Targets": [
+                {
+                  "Alias": "Main",
+                  "ConnectionString": "{ENV:CRM_DEV}"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "Crm.Prod": {
+    "RayMigrator": {
+      "Repository": {
+        "DatabaseType": "PostgreSQL",
+        "ConnectionString": "{ENV:REPO_PROD}",
+        "TableBaseName": ""
+      },
+      "ProductDefaults": {
+        "MigrationErrorAction": "Terminate",
+        "MigrationFilesEncoding": "UTF-8"
+      },
+      "Products": [
+        {
+          "Alias": "Shop",
+          "MigrationFilesRootDirectory": "./Migrations/Shop",
+          "TargetGroups": [
+            {
+              "Alias": "Backend",
+              "DatabaseType": "PostgreSQL",
+              "HashValidationScope": "File",
+              "Targets": [
+                {
+                  "Alias": "Main",
+                  "ConnectionString": "{ENV:SHOP_DB}"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "Alias": "Crm",
+          "MigrationFilesRootDirectory": "./Migrations/Crm",
+          "TargetGroups": [
+            {
+              "Alias": "Backend",
+              "DatabaseType": "PostgreSQL",
+              "HashValidationScope": "SqlBlocks",
+              "Targets": [
+                {
+                  "Alias": "Main",
+                  "ConnectionString": "{ENV:CRM_PROD}"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

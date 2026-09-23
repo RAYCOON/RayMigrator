@@ -33,7 +33,9 @@ When the wizard writes the file family, every value is placed in the **highest**
 
 A file never repeats a value that its effective parent (the merge of every file below it in the chain, computed with the same merger the engine uses) already provides. Elements of alias-keyed arrays are compared and written by `Alias`, so an override file names only the product, target group or target it changes. Files that would be empty are not written.
 
-> **Interim note (until [#23](https://github.com/RAYCOON/RayMigrator/issues/23) Part B ships):** promotion currently stops at the environment level and covers a fixed set of fields, product-environment files are pruned against the environment file before the product file, and `CliTools` are written in full on every level. See the issue for the details.
+Elements of the top-level `Products` array belong to their product: what holds for every environment of that product goes to the base file, everything else to that product's `appsettings.{Product}.{Environment}.json`. With a single product, a value specific to one environment therefore lands in the environment file when it is shared configuration (repository, defaults, CLI tools, Serilog) and in the product-environment file when it is part of the product's own element.
+
+The export is computed by `HierarchyFactoring` (Core) from the effective configuration of every product-environment combination; see [Services Reference: HierarchyFactoring](./services.md#hierarchyfactoring-core).
 
 ### ConfigFileRole Enum
 
