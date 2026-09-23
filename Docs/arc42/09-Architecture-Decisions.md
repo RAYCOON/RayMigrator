@@ -411,8 +411,10 @@ nesting level, base order preserved, new aliases appended, omitted elements kept
 by the later file. One shared implementation (`ConfigurationJsonMerger` in `Raycoon.RayMigrator.Shared`) is used by the
 engine's `JsonOptionsSource`, and through it by RayMigrator Studio's standalone mode, and by the wizard's `ConfigFileMerger`.
 The engine merges the JSON documents before they enter the configuration builder, so binding, validation and `{ENV:}`
-replacement are untouched. Accepted on 2026-09-23; the implementation is tracked in issue #23, which lists the unit tests
-that pin the semantics.
+replacement are untouched. Engine and wizard share the code, not only the rules: besides the merger, `Shared` owns the
+alias comparer, the names and order of the four hierarchy files (`ConfigurationFileChain`) and the JSON reader options,
+and golden merge cases under `Testing/ConfigMergeCases/` run through both test suites. Accepted on 2026-09-23; the
+implementation is tracked in issue #23, which lists the unit tests that pin the semantics.
 
 **Consequences.** Positive: overrides can name only the element they change, in any order; the wizard shows exactly what
 the engine runs; the rule is generic, so a future alias-bearing array needs no code change. Negative: a breaking behaviour
