@@ -5,6 +5,22 @@ All notable changes to RayMigrator are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 RayMigrator follows Semantic Versioning where applicable.
 
+## [Unreleased]
+
+### Fixed
+
+- SQL Server: a migration file that alters the login RayMigrator itself
+  connects with (`ALTER LOGIN [sa] WITH DEFAULT_LANGUAGE = German`, a default
+  database change, ...) invalidates every pooled session opened before the
+  change. SQL Server fails the reset on reuse with error 4021 (*Resetting the
+  connection results in a different state than the initial login*) and kills
+  the session (596); the repository update after the file, and the database
+  log insert, failed with that error even with `DbCommandMaxRetries` set,
+  because neither number was classified as transient. Both numbers are now
+  retried, and the SQL Server DAL clears its connection pool when either
+  appears in the error chain, so the next attempt logs in afresh instead of
+  failing once per poisoned pooled connection.
+
 ## [0.15.0] — 2026-09-23
 
 ### Changed

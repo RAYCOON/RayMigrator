@@ -582,7 +582,7 @@ Each DAL plugin overrides the `IsTransient(Exception)` virtual method from `DalB
 
 | Database | Exception Type | Transient Error Codes |
 |----------|---------------|----------------------|
-| SQL Server | `Microsoft.Data.SqlClient.SqlException` | -2 (timeout), 20, 64, 233, 10053, 10054, 10060, 40197, 40501, 40613, 49918, 49919, 49920 |
+| SQL Server | `Microsoft.Data.SqlClient.SqlException` | -2 (timeout), 20, 64, 233, 596, 4021, 10053, 10054, 10060, 40197, 40501, 40613, 49918, 49919, 49920 |
 | PostgreSQL | `Npgsql.PostgresException` | SQLSTATE codes: 08000, 08001, 08003, 08004, 08006, 57P01, 57P02, 57P03, 40001, 40P01 |
 | MariaDB | `MySqlConnector.MySqlException` | 1040, 1205, 1213, 1614, 2002, 2003, 2006, 2013, 2055 |
 | MySQL | `MySqlConnector.MySqlException` | 1040, 1205, 1213, 1614, 2002, 2003, 2006, 2013, 2055 |

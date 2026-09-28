@@ -704,6 +704,7 @@ If the orphaned run is younger than 10 minutes, RayMigrator aborts with a `Migra
    - `40501`: Service is currently busy (Azure SQL)
    - `40613`: Database unavailable (Azure SQL) -- wait and retry
    - `49918`/`49919`/`49920`: Resource or operation limits (Azure SQL)
+   - `4021`/`596`: Pooled session killed because the login's state changed after an `ALTER LOGIN` (the DAL also clears the connection pool)
 
    **PostgreSQL** (uses SQLSTATE codes):
    - `08000`/`08001`/`08003`/`08004`/`08006`: Connection errors
@@ -724,6 +725,24 @@ If the orphaned run is younger than 10 minutes, RayMigrator aborts with a `Migra
    **SQLite:**
    - `5` (SQLITE_BUSY): Database file is locked by another process
    - `6` (SQLITE_LOCKED): Table in the database is locked
+
+### Login Altered by a Migration (SQL Server Error 4021)
+
+**Symptoms:**
+- A migration file completes (CLI tool exit code 0 or all blocks executed), then the run fails at `Repository_MigrationRecord_Update` or `DatabaseLogging_Insert` with SQL Server error `4021`: "Resetting the connection results in a different state than the initial login. The login fails.", followed by "Login failed for user" and "Cannot continue the execution because the session is in the kill state" (596)
+- The file contains `ALTER LOGIN` for the login RayMigrator connects with (default language, default database, password, disable)
+
+**Cause:**
+
+ADO.NET pools physical connections. Every pooled session was authenticated before the file ran. On reuse, SQL Server resets the session and compares the login's current state with the state at the initial login; when they differ it kills the session. SqlClient discards only the one connection that failed, so each further attempt hits the next poisoned pooled connection. Repository, DatabaseLogging and targets that share a connection string share one pool.
+
+**Solutions:**
+
+1. **Nothing, on current versions.** The SQL Server DAL retries 4021 and 596 and clears its connection pool when either appears, so the next attempt logs in afresh. The file is recorded as executed; if the run failed before this fix, the next `Migrate-Up` finalizes the record without executing the file again (see "Interrupted Migration Detected").
+
+2. **Keep `ALTER LOGIN` for the migration login out of migrations.** Set the login's default language or database once at provisioning, or connect RayMigrator with a dedicated login no migration touches. A password change or `DISABLE` for that login fails every fresh login afterwards too, and no retry helps there.
+
+3. **Disable pooling as a workaround** on older versions: append `Pooling=false;` to the Repository, DatabaseLogging and target connection strings.
 
 ### Block-Level Progress Not Persisted
 

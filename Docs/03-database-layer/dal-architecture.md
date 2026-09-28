@@ -332,7 +332,8 @@ public class DalSqlServer : DalBase, IDal
 
     private static readonly string[] s_transientCodes =
         ["-2", "20", "64", "233", "10053", "10054", "10060",
-         "40197", "40501", "40613", "49918", "49919", "49920"];
+         "40197", "40501", "40613", "49918", "49919", "49920",
+         "4021", "596"]; // pooled session killed after ALTER LOGIN: retried, and the pool is cleared
 
     public override (bool isTransient, string? errorCode) IsTransient(Exception ex)
     {

@@ -108,6 +108,7 @@ public delegate void RetryLogCallback(
 - `10053`, `10054`, `10060`: Network-related errors
 - `40197`, `40501`, `40613`: Azure SQL service errors
 - `49918`, `49919`, `49920`: Azure SQL resource/throttling errors
+- `4021`, `596`: Pooled session killed by the server because the login's state changed after the session logged in (a migration ran `ALTER LOGIN` on the login RayMigrator uses: default language, default database, ...). Error 4021 is raised only on reuse of a pooled connection; a fresh login either succeeds or fails with a different, non-transient code. Besides retrying, the SQL Server DAL clears the connection pool for its connection string when either number appears in the error chain, so the next attempt logs in afresh instead of failing once per poisoned pooled connection.
 
 **PostgreSQL** (SQLSTATE codes via `Npgsql.PostgresException`):
 - `08000`, `08001`, `08003`, `08004`, `08006`: Connection exceptions

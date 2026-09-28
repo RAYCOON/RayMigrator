@@ -47,7 +47,74 @@ public class DalSqlServer : DalBase, IDal
         "49918", // Azure SQL: Not enough resources to process request
         "49919", // Azure SQL: Too many create or update operations in progress
         "49920", // Azure SQL: Too many operations in progress
+        "4021",  // Pooled session reset failed: the login's state (default language, default database, ...) changed
+                 // since the session logged in. Raised only on reuse of a pooled connection; a fresh login either
+                 // succeeds or fails with a different, non-transient code.
+        "596",   // Session is in the kill state (follows 4021, or a KILL / failover mid-batch)
     ];
+
+    // SQL Server kills a pooled session whose login state no longer matches the state at its initial login (4021,
+    // followed by 596). SqlClient discards only that one physical connection, so every other pooled connection opened
+    // before the change fails the same way, one per attempt. Clearing the pool lets the very next attempt log in afresh.
+    private static readonly int[] s_poolInvalidatingCodes = [4021, 596];
+
+    /// <summary>
+    /// True when <paramref name="errorNumber"/> is one of the SQL Server error numbers this DAL retries.
+    /// </summary>
+    internal static bool IsTransientErrorNumber(int errorNumber) => s_transientCodes.Contains(errorNumber.ToString());
+
+    /// <summary>
+    /// True when one of the error numbers in an exception's error chain marks the pooled session as killed by the
+    /// server (4021 login state changed, 596 session in kill state), so the connection pool must be cleared.
+    /// </summary>
+    internal static bool RequiresPoolClear(IEnumerable<int> errorNumbers) => errorNumbers.Any(s_poolInvalidatingCodes.Contains);
+
+    private static bool RequiresPoolClear(SqlException ex) => RequiresPoolClear(ex.Errors.Cast<SqlError>().Select(e => e.Number));
+
+    private void ClearPool()
+    {
+        // ClearPool resolves the pool by connection string; the SqlConnection does not need to be opened.
+        SqlConnection.ClearPool(new SqlConnection(_connectionString));
+    }
+
+    private async Task<T> ClearPoolOnKilledSessionAsync<T>(Func<Task<T>> operation)
+    {
+        try
+        {
+            return await operation();
+        }
+        catch (SqlException ex) when (RequiresPoolClear(ex))
+        {
+            ClearPool();
+            throw;
+        }
+    }
+
+    private async Task ClearPoolOnKilledSessionAsync(Func<Task> operation)
+    {
+        try
+        {
+            await operation();
+        }
+        catch (SqlException ex) when (RequiresPoolClear(ex))
+        {
+            ClearPool();
+            throw;
+        }
+    }
+
+    private void ClearPoolOnKilledSession(Action operation)
+    {
+        try
+        {
+            operation();
+        }
+        catch (SqlException ex) when (RequiresPoolClear(ex))
+        {
+            ClearPool();
+            throw;
+        }
+    }
 
     public override (bool isTransient, string? errorCode) IsTransient(Exception ex)
     {
@@ -74,7 +141,8 @@ public class DalSqlServer : DalBase, IDal
     public override async Task ExecuteNonQueryAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null)
     {
         await ExecuteWithRetryAsync(
-            async () => { await ExecuteNonQueryAsyncInternal(sqlCode, dalSettings, dalParameterList); }, dalSettings);
+            () => ClearPoolOnKilledSessionAsync(
+                () => ExecuteNonQueryAsyncInternal(sqlCode, dalSettings, dalParameterList)), dalSettings);
     }
 
     private async Task ExecuteNonQueryAsyncInternal(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null)
@@ -136,7 +204,8 @@ public class DalSqlServer : DalBase, IDal
     public override void ExecuteNonQuery(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null)
     {
         ExecuteWithRetry(
-            () => { ExecuteNonQueryInternal(sqlCode, dalSettings, dalParameterList); }, dalSettings);
+            () => ClearPoolOnKilledSession(
+                () => ExecuteNonQueryInternal(sqlCode, dalSettings, dalParameterList)), dalSettings);
     }
 
     private void ExecuteNonQueryInternal(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null)
@@ -198,7 +267,8 @@ public class DalSqlServer : DalBase, IDal
     public override async Task<object?> ExecuteScalarAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null)
     {
         return await ExecuteWithRetryAsync(
-            async () => await ExecuteScalarAsyncInternal(sqlCode, dalSettings, dalParameterList), dalSettings);
+            () => ClearPoolOnKilledSessionAsync(
+                () => ExecuteScalarAsyncInternal(sqlCode, dalSettings, dalParameterList)), dalSettings);
     }
 
     private async Task<object?> ExecuteScalarAsyncInternal(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null)
@@ -262,7 +332,8 @@ public class DalSqlServer : DalBase, IDal
     public override async Task<List<Dictionary<string, object?>>> ExecuteReaderAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null)
     {
         return await ExecuteWithRetryAsync(
-            async () => await ExecuteReaderAsyncInternal(sqlCode, dalSettings, dalParameterList), dalSettings);
+            () => ClearPoolOnKilledSessionAsync(
+                () => ExecuteReaderAsyncInternal(sqlCode, dalSettings, dalParameterList)), dalSettings);
     }
 
     private async Task<List<Dictionary<string, object?>>> ExecuteReaderAsyncInternal(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null)
