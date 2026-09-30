@@ -74,13 +74,18 @@ Where these differ, record the earliest date and note which channel it was.
 
 ## Procedure on each release
 
-1. Bump `RayMigratorVersion` in `Directory.Build.props`.
-2. Update the **Licensed Work** row in `LICENSE.md` to the same version.
+1. Confirm that `RayMigratorVersion` in `Directory.Build.props` and the
+   **Licensed Work** row in `LICENSE.md` already carry the version being
+   released. Both are bumped together right after the previous release
+   (the `Start X.Y.Z on develop` commit), not in the release commit.
    `.github/scripts/check-license-version.sh` enforces that these two agree and
    runs in both `build-test.yml` and `publish-release.yml`.
-3. Publish the release.
-4. Add a row here with the actual publication date and the resulting Change Date
-   (publication date + 4 years).
+2. Add a row here, in the release commit, with the publication date and the
+   resulting Change Date (publication date + 4 years).
+3. Publish the release following
+   [`11-development/release-process.md`](11-development/release-process.md).
+4. If the actual first public distribution happened on another day or through
+   another channel than recorded, correct the row.
 5. If the Additional Use Grant differs from the previous version, say so in the
    *License regime* column — that column is what tells a later reader which terms
    a given version was distributed under.

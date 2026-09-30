@@ -17,6 +17,9 @@ This is the authoritative implementation reference for RayMigrator, a profession
 | Follow a step-by-step tutorial | [user-manual/README.md](user-manual/README.md) |
 | Recover from a failed migration | [02-core-concepts/error-scenarios-and-recovery.md](02-core-concepts/error-scenarios-and-recovery.md) |
 | Debug an issue | [appendix/troubleshooting.md](appendix/troubleshooting.md) |
+| Build, test and publish from a working copy | [11-development/developer-workflow.md](11-development/developer-workflow.md) |
+| Write code that matches the codebase | [11-development/coding-conventions.md](11-development/coding-conventions.md) |
+| Publish a release | [11-development/release-process.md](11-development/release-process.md) |
 | Use the interactive configuration wizard | [12-config-wizard/overview.md](12-config-wizard/overview.md) |
 
 ## Documentation Structure
@@ -118,9 +121,16 @@ Extension guides for developers.
 Testing infrastructure and test documentation.
 
 - [test-infrastructure.md](10-testing/test-infrastructure.md) - Docker setup and container configuration
-- [engine-tests.md](10-testing/engine-tests.md) - Engine integration tests (~888 tests across 171 test class files, test matrix, ScenarioBuilder API)
+- [engine-tests.md](10-testing/engine-tests.md) - Engine integration tests (~1,080 tests across 175 test class files, test matrix, ScenarioBuilder API)
 - [unit-tests.md](10-testing/unit-tests.md) - Unit test structure and conventions
 - [cli-test-coverage-matrix.md](10-testing/cli-test-coverage-matrix.md) - CLI command test coverage matrix across unit and engine tests
+
+### [11-development/](11-development/)
+Working on the repository itself: tooling, conventions, releases.
+
+- [developer-workflow.md](11-development/developer-workflow.md) - Prerequisites, build matrix, running the CLI from source, test commands per project, Docker containers, local publish, NuGet packages, CI workflows, branch and commit conventions
+- [coding-conventions.md](11-development/coding-conventions.md) - Prescriptive C# conventions for new and changed code (naming, formatting, null handling, async, logging, error handling, tests, SQL templates, Blazor), with the measured inconsistencies of the existing code; the machine-readable subset is `.editorconfig`
+- [release-process.md](11-development/release-process.md) - Release checklist: release commit, fast-forward of `main`, tag, automated workflows, manual NuGet publish, post-release bump
 
 ### [12-config-wizard/](12-config-wizard/)
 Blazor WASM wizard and shared domain library for creating and editing RayMigrator configuration files.
@@ -189,6 +199,7 @@ Local audit notes and planning documents (the folder is gitignored and not part 
 1. Check [03-database-layer/](03-database-layer/) and [04-service-layer/](04-service-layer/)
 2. Follow guides in [09-extending/](09-extending/)
 3. Reference [06-configuration-reference/](06-configuration-reference/)
+4. Write the code to [11-development/coding-conventions.md](11-development/coding-conventions.md) and test it as described in [11-development/developer-workflow.md](11-development/developer-workflow.md)
 
 ### For Debugging
 1. Check [appendix/troubleshooting.md](appendix/troubleshooting.md)
@@ -241,7 +252,7 @@ raymigrator validate-hash -p RayMigratorTests -env Docker
 
 ## Related Files
 
-- **CLAUDE.md** - Project guidance for Claude Code (architecture overview, build commands, development guidelines)
+- **[CLAUDE.md](../CLAUDE.md)** - Project guidance for Claude Code (rules, solution map, build and test commands, documentation map). Tracked in the repository and read by the `claude-code-action` workflows.
 - **[license-change-dates.md](license-change-dates.md)** - Per-version Change Date register. BUSL-1.1 applies separately to each version; this file records when each version was first publicly distributed and when it converts to Apache 2.0. Must be updated on every release.
 - **Examples/** - Two complete example migration products (`MySimpleApplication`, `MyComplexApplication`) with Docker infrastructure (SQL Server + PostgreSQL). See [Examples/README.md](../Examples/README.md).
 - **Testing/MigrationFiles/Tests_SqlServer/** (and `Tests_PostgreSQL/`, `Tests_MariaDb/`, `Tests_MySql/`) - Example migrations (additional active test sets: `Tests_Success_*` for success-only scenarios and `Tests_SqlCmdDemo` for CLI tool execution)
@@ -250,4 +261,4 @@ raymigrator validate-hash -p RayMigratorTests -env Docker
 
 ## Version
 
-This documentation tracks the develop branch (currently 0.15.0-dev; see `RayMigratorVersion` in `Directory.Build.props` and `CHANGELOG.md`)
+This documentation tracks the develop branch (currently 0.16.0-dev; see `RayMigratorVersion` in `Directory.Build.props` and `CHANGELOG.md`). The version here is updated in the release commit and in the post-release bump, see [11-development/release-process.md](11-development/release-process.md).

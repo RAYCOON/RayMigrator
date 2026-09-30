@@ -12,9 +12,8 @@
 *.userosscache
 *.sln.docstates
 
-# Claude Code
+# Claude Code (CLAUDE.md itself is tracked; only machine-local files are ignored)
 CLAUDE.local.md
-CLAUDE.md
 Claude-Code-Commands-Skills-Agents.md
 
 # Claude (entire directory, except GitHub Actions workflows)
