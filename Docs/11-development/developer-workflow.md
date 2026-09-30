@@ -111,9 +111,13 @@ The `/full-test` skill builds, runs the unit tests, checks the containers and ru
 
 ## Publish locally
 
-Rider users have 18 run configurations in `.run/`: `Publish RayMigrator (<rid>)`, `Publish ConfigWizard (<rid>)` and the compound `Publish All (<rid>)` for `win-x64`, `win-arm64`, `linux-x64`, `linux-arm64`, `osx-x64` and `osx-arm64`. They publish Release, `net10.0`, single-file, self-extracting builds into `_publish/<rid>/` (gitignored). They do not set `BuildStage`, so the result is neither Partner nor Professional edition.
+Rider users have 13 run configurations in `.run/`:
 
-Known defects in these configurations: every `Publish ConfigWizard (<rid>)` writes into the same `_publish/<rid>/` folder as `Publish RayMigrator (<rid>)`, and both have `delete_existing_files="true"`, so the second step of `Publish All (<rid>)` wipes the first one's output. In addition, `Publish ConfigWizard (osx-arm64)` carries the `uuid_high`/`uuid_low` of the RayMigrator Console project instead of the wizard project (the other ConfigWizard configurations share one UUID pair, `3219175904523338600` / `-7980300595007162909`); Rider rewrites these UUIDs when a configuration is edited, so compare them after every change. Fix the run configurations before relying on them; do not change them silently as a side effect of other work.
+- `Publish RayMigrator (<rid>)` for `win-x64`, `win-arm64`, `linux-x64`, `linux-arm64`, `osx-x64` and `osx-arm64`: Release, `net10.0`, single-file, self-extracting, output `_publish/<rid>/` (gitignored). They do not set `BuildStage`, so the result is neither Partner nor Professional edition.
+- `Publish ConfigWizard`: Release, `net10.0`, no runtime identifier and no single-file (a Blazor WebAssembly app is the same static bundle for every platform; a RID plus `PublishSingleFile` fails with `NETSDK1098`), output `_publish/configwizard/`.
+- `Publish All (<rid>)`: compound of the two above.
+
+Rider identifies the project of a publish configuration by `uuid_high`/`uuid_low`, which are the two signed 64-bit halves of the project GUID in `RayMigrator.sln` (Console `AB25DF86-3E01-4642-A093-F5128B1FDB3B`, ConfigWizard.Web `FD34468E-97DA-4435-8B1B-E90BE2B9A047`). When you add or edit a configuration, check that the pair still matches the intended project.
 
 The command CI uses for a release binary:
 

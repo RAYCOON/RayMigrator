@@ -1,0 +1,8 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Publish ConfigWizard" type="DotNetFolderPublish" factoryName="Publish to folder">
+    <riderPublish configuration="Release" delete_existing_files="true" platform="Any CPU" produce_single_file="false" target_folder="$PROJECT_DIR$/_publish/configwizard" target_framework="net10.0" uuid_high="-201458505077865419" uuid_low="-8422882440808652729">
+      <runtimes />
+    </riderPublish>
+    <method v="2" />
+  </configuration>
+</component>
