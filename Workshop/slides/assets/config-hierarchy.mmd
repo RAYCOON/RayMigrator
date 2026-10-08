@@ -1,0 +1,5 @@
+flowchart LR
+  A["appsettings.json<br/>structure and defaults"] --> B["appsettings.Workshop.json<br/>per environment: connection strings"]
+  B --> C["appsettings.BookStore.json<br/>per product"]
+  C --> D["appsettings.BookStore.Workshop.json<br/>per product and environment"]
+  D --> M["effective configuration"]

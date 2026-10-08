@@ -1,0 +1,16 @@
+# Participant-specific configuration: contains credentials and absolute paths
+exercises/bookstore/appsettings.Workshop.json
+
+# Participants' own migration files stay local; the model solutions live under exercises/solutions/
+exercises/bookstore/Migrations/*
+!exercises/bookstore/Migrations/.gitkeep
+
+# Rendered slide output
+slides/*.html
+slides/*.pdf
+slides/*.pptx
+
+# Logs written by the CLI during exercises
+**/RayMigratorLog*
+*.log
+logs/

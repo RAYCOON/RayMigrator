@@ -1,0 +1,11 @@
+flowchart LR
+  X["Block N of a file fails"] --> REC["record becomes Failed<br/>progress saved"]
+  REC --> A{"MigrationErrorAction"}
+  A -->|Terminate| E["run result Error (90)"]
+  A -->|Rollback<br/>RollbackErrorOnly<br/>RollbackRelease| RB["run the rollback files<br/>of this run"]
+  RB -->|all succeed| RV["run result Recovered (80)"]
+  RB -->|a rollback fails| E
+  A -->|Ignore| IG["mark the file Failed,<br/>continue with the next"] --> PS["run result PartialSuccess (50)"]
+  E --> C1["exit code 1"]
+  RV --> C1
+  PS --> C1

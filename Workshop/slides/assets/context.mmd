@@ -1,0 +1,12 @@
+flowchart LR
+  subgraph IN["Your git repository"]
+    direction TB
+    F["Migration files<br/>{Release}/{TargetGroup}/NNN_Name.sql<br/>+ NNN_Name.rollback.sql"]
+    C["appsettings.json<br/>appsettings.{Environment}.json"]
+  end
+  CLI["raymigrator CLI<br/>migrate-up · migrate-down · info<br/>validate-hash · update-hash · baseline · fix"]
+  F --> CLI
+  C --> CLI
+  CLI -->|executes SQL blocks| T[("Target databases<br/>SQL Server · PostgreSQL<br/>MariaDB · MySQL · SQLite")]
+  CLI -->|records runs, files, blocks, hashes| R[("Repository: schema ray, 11 tables<br/>+ optional log database")]
+  CLI -->|exit code 0 or 1| P["CI/CD pipeline"]

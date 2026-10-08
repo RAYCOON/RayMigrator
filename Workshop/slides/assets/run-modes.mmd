@@ -1,0 +1,5 @@
+flowchart LR
+  V["Validate<br/>parses files and TOML headers<br/>checks rollback files exist<br/>no database contact"]
+  S["Simulate<br/>connects to the targets<br/>reads the repository<br/>lists what would run"]
+  M["Migrate<br/>executes the blocks<br/>records every file<br/>writes the log"]
+  V --> S --> M

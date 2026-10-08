@@ -1,0 +1,157 @@
+/* @theme raycoon */
+/* RayMigrator workshop theme for Marp. Colours and fonts follow the RayMigrator website tokens. */
+@import 'default';
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;600&display=swap');
+
+:root {
+  --rc-blue: #2196f3;
+  --rc-blue-dark: #1565c0;
+  --rc-blue-light: #e3f2fd;
+  --rc-green: #10b981;
+  --rc-green-light: #ecfdf5;
+  --rc-ink: #0f172a;
+  --rc-slate: #1e293b;
+  --rc-muted: #64748b;
+  --rc-line: #e2e8f0;
+  --rc-bg: #ffffff;
+}
+
+section {
+  font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-size: 26px;
+  line-height: 1.35;
+  padding: 52px 64px 64px 64px;
+  background: var(--rc-bg);
+  color: var(--rc-ink);
+  justify-content: flex-start;
+}
+
+section h1 {
+  font-size: 1.55em;
+  font-weight: 800;
+  color: var(--rc-ink);
+  margin: 0 0 0.6em 0;
+  padding-bottom: 0.15em;
+  border-bottom: 4px solid var(--rc-blue);
+  display: inline-block;
+  align-self: flex-start;
+}
+
+section h2 { font-size: 1.15em; font-weight: 600; color: var(--rc-blue-dark); margin: 0.6em 0 0.3em 0; }
+section h3 { font-size: 1em; font-weight: 600; color: var(--rc-slate); margin: 0.5em 0 0.2em 0; }
+section p, section li { margin: 0.15em 0; }
+section ul, section ol { margin: 0.2em 0 0.4em 0; }
+section li > ul { margin: 0; }
+section strong { color: var(--rc-ink); }
+section a { color: var(--rc-blue-dark); }
+
+section code, section pre, section kbd {
+  font-family: 'JetBrains Mono', 'Fira Code', Consolas, 'Courier New', monospace;
+}
+section code { background: var(--rc-blue-light); color: #0d47a1; padding: 0.05em 0.3em; border-radius: 4px; font-size: 0.82em; }
+section pre {
+  background: var(--rc-ink);
+  color: #e2e8f0;
+  border-radius: 10px;
+  padding: 0.8em 1em;
+  margin: 0.4em 0;
+  font-size: 0.6em;
+  line-height: 1.45;
+}
+section pre code { background: transparent; color: inherit; padding: 0; font-size: 1em; }
+
+section table { font-size: 0.7em; margin: 0.4em 0; border-collapse: collapse; }
+section th { background: var(--rc-slate); color: #fff; border: none; }
+section td { border-color: var(--rc-line); }
+section tr:nth-child(even) td { background: #f8fafc; }
+
+section blockquote {
+  border-left: 6px solid var(--rc-green);
+  background: var(--rc-green-light);
+  color: var(--rc-slate);
+  padding: 0.4em 0.8em;
+  margin: 0.5em 0;
+  font-size: 0.85em;
+}
+
+section footer, section::after { color: var(--rc-muted); font-size: 0.5em; }
+section img { display: block; margin: 0.3em auto; max-width: 100%; }
+
+/* Section title slides */
+section.lead {
+  background: linear-gradient(135deg, var(--rc-ink) 0%, var(--rc-slate) 100%);
+  color: #fff;
+  justify-content: center;
+}
+section.lead h1 { color: #fff; font-size: 2.2em; border-bottom-color: var(--rc-green); }
+section.lead h2 { color: #90caf9; font-weight: 600; }
+section.lead p, section.lead li { color: #cbd5e1; }
+section.lead code { background: rgba(255, 255, 255, 0.12); color: #e2e8f0; }
+section.lead footer, section.lead::after { color: #94a3b8; }
+section.lead a { color: #90caf9; }
+
+/* Hands-on exercise slides */
+section.exercise { background: var(--rc-green-light); border-left: 18px solid var(--rc-green); padding-left: 56px; }
+section.exercise h1 { border-bottom-color: var(--rc-green); }
+section.exercise h1::before { content: "⌨️ "; }
+section.exercise pre { font-size: 0.56em; }
+
+/* Predict-the-outcome slides */
+section.question { background: var(--rc-blue-dark); color: #fff; justify-content: center; text-align: center; }
+section.question h1 { color: #90caf9; font-size: 1.1em; border: none; align-self: center; font-weight: 600; }
+section.question h1::before { content: "🤔 "; }
+section.question p { font-size: 1.45em; font-weight: 600; color: #fff; margin: 0.3em 0; }
+section.question li { text-align: left; color: #e2e8f0; font-size: 1.05em; }
+section.question ul { display: inline-block; margin: 0.5em auto; }
+section.question code { background: rgba(255, 255, 255, 0.14); color: #fff; }
+section.question footer, section.question::after { color: #90caf9; }
+
+/* Reveal slides: terminal output */
+section.reveal h1 { border-bottom-color: var(--rc-green); }
+section.reveal pre { font-size: 0.62em; }
+
+/* Spot-the-bug slides */
+section.spot h1 { border-bottom-color: #f59e0b; }
+section.spot h1::before { content: "🔍 "; }
+
+/* Slides skipped on the 45-minute path */
+section.optional::before {
+  content: "60-min";
+  position: absolute;
+  top: 40px;
+  right: 64px;
+  background: var(--rc-line);
+  color: var(--rc-muted);
+  font-size: 0.55em;
+  font-weight: 700;
+  padding: 0.25em 0.8em;
+  border-radius: 999px;
+}
+
+/* Helpers */
+.timer {
+  position: absolute;
+  top: 40px;
+  right: 64px;
+  background: var(--rc-green);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.75em;
+  padding: 0.25em 0.8em;
+  border-radius: 999px;
+}
+.columns { display: grid; grid-template-columns: 1fr 1fr; gap: 1.2em; align-items: start; }
+.columns-wide { display: grid; grid-template-columns: 3fr 2fr; gap: 1.2em; align-items: start; }
+.small { font-size: 0.78em; }
+.tiny { font-size: 0.65em; }
+.muted { color: var(--rc-muted); }
+.wordmark { font-weight: 800; letter-spacing: -0.02em; }
+.wordmark span { color: var(--rc-green); }
+.badge { display: inline-block; background: var(--rc-blue-light); color: var(--rc-blue-dark); font-weight: 600; font-size: 0.7em; padding: 0.1em 0.6em; border-radius: 999px; margin-right: 0.3em; }
+.badge-ops { background: #fef3c7; color: #92400e; }
+.badge-dev { background: var(--rc-green-light); color: #065f46; }
+.catchup { position: absolute; bottom: 70px; left: 56px; right: 64px; font-size: 0.6em; color: var(--rc-muted); border-top: 1px solid var(--rc-line); padding-top: 0.3em; }
+
+/* Fixes after the first visual check */
+section th strong { color: #fff; }
+section.exercise.optional::before { right: 230px; }

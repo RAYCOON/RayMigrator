@@ -1,0 +1,4 @@
+# Release-level defaults for every migration file below this folder.
+# Copy this file to Migrations/Release 1.2/migsettings.txt in exercise 4, step 3.
+[RayMigrator]
+MigrationErrorAction = "Rollback"

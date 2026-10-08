@@ -1,0 +1,14 @@
+stateDiagram-v2
+  direction LR
+  state "Pending (10)" as Pending
+  state "Executing (20)" as Executing
+  state "Migrated (100)" as Migrated
+  state "Failed (30)" as Failed
+  state "NotMigrated (50)" as NotMigrated
+  [*] --> Pending : file discovered
+  Pending --> Executing : first block starts
+  Executing --> Migrated : all blocks committed
+  Executing --> Failed : a block fails
+  Failed --> Executing : next migrate-up retries
+  Migrated --> NotMigrated : migrate-down or rollback action
+  NotMigrated --> Executing : next migrate-up

@@ -255,6 +255,7 @@ raymigrator validate-hash -p RayMigratorTests -env Docker
 - **[CLAUDE.md](../CLAUDE.md)** - Project guidance for Claude Code (rules, solution map, build and test commands, documentation map). Tracked in the repository and read by the `claude-code-action` workflows.
 - **[license-change-dates.md](license-change-dates.md)** - Per-version Change Date register. BUSL-1.1 applies separately to each version; this file records when each version was first publicly distributed and when it converts to Apache 2.0. Must be updated on every release.
 - **Examples/** - Two complete example migration products (`MySimpleApplication`, `MyComplexApplication`) with Docker infrastructure (SQL Server + PostgreSQL). See [Examples/README.md](../Examples/README.md).
+- **Workshop/** - Interactive 60-minute workshop for developers and operators: Marp slide deck, four hands-on exercises against SQL Server, model solutions, cheat sheet and bonus exercises. See [Workshop/README.md](../Workshop/README.md).
 - **Testing/MigrationFiles/Tests_SqlServer/** (and `Tests_PostgreSQL/`, `Tests_MariaDb/`, `Tests_MySql/`) - Example migrations (additional active test sets: `Tests_Success_*` for success-only scenarios and `Tests_SqlCmdDemo` for CLI tool execution)
 - **Built-in DAL plugin projects** (`Database.SqlServer/`, `Database.PostgreSQL/`, `Database.MariaDb/`, `Database.MySql/`, `Database.Sqlite/`) — each contains SQL templates copied to `DataAccessLayers/` at build time
 - **External DAL skeleton** (`Database.Example/`) — template project for developing external DAL plugins

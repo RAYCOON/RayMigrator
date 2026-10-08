@@ -1,0 +1,7 @@
+flowchart LR
+  R["for each Release, sorted by folder name"] --> G["for each TargetGroup, configuration order or -tgmo"]
+  G --> O{"TargetMigrationOrder"}
+  O -->|TargetByTarget| T1["for each Target<br/>for each file"]
+  O -->|FileByFile| F1["for each file<br/>for each Target"]
+  T1 --> B["for each block: own transaction, progress saved in the repository"]
+  F1 --> B
