@@ -4,7 +4,7 @@ This chapter answers which known risks threaten the quality goals of
 [Introduction and Goals](01-Introduction-and-Goals.md#12-quality-goals), which
 mitigations already exist for them, and which technical debt in code,
 database templates, documentation and test coverage a maintainer or adopter
-should know about. RayMigrator is a pre-1.0 product (release line 0.15.x, 0.16.0 in development). Its
+should know about. RayMigrator is a pre-1.0 product (release line 0.16.x, 0.17.0 in development). Its
 `README.md` maturity notice states that the behavior has not yet been proven
 across a broad range of production workloads and asks for a verified backup
 before every run; everything below is to be read against that background.

@@ -28,6 +28,7 @@ Edit, in one commit titled `Release X.Y.Z`:
 | `Raycoon.RayMigrator.ConfigWizard.Web/Services/LocalizationService.cs` | Key `Welcome.MaturityNotice`, English and German entries (`X.Y.x`). |
 | `Docs/license-change-dates.md` | New register row and a note: first public distribution date (today), Change Date = date + 4 years, licence regime. |
 | `Docs/README.md` | Version line at the bottom. |
+| `Docs/arc42/01-Introduction-and-Goals.md`, `08-Crosscutting-Concepts.md`, `10-Quality-Requirements.md`, `11-Risks-and-Technical-Debt.md`, `12-Glossary.md`, `Docs/09-extending/new-database-type.md`, `external-dal-development.md` | Release-line statements (`X.Y.x`, `X.Y+1.0 in development`, `X.Y+1.0 on develop; X.Y.Z is the latest published package`). They already carry the post-release wording, because `main` and the wiki mirrored from it show the release commit. |
 
 Then verify locally:
 

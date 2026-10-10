@@ -11,7 +11,7 @@ RayMigrator is a cross platform database migration framework for versioned,
 release based schema migrations. It is written in C# for .NET 8, 9 and 10,
 published as a command line tool (`Raycoon.RayMigrator.Console`) and as NuGet
 packages, and developed by RAYCOON.com GmbH under the Business Source License
-1.1 with an Additional Use Grant. The current release line is 0.15.x (0.16.0 in development), a
+1.1 with an Additional Use Grant. The current release line is 0.16.x (0.17.0 in development), a
 pre-1.0 version that is explicitly not yet proven across a broad range of
 production workloads.
 

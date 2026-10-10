@@ -140,7 +140,7 @@ For external development (outside the monorepo), replace `ProjectReference` with
 
 ```xml
 <ItemGroup>
-    <!-- Version = RayMigratorVersion in Directory.Build.props of the release you build against (0.16.0 on develop; 0.15.0 is the latest published package) -->
+    <!-- Version = RayMigratorVersion in Directory.Build.props of the release you build against (0.17.0 on develop; 0.16.0 is the latest published package) -->
     <PackageReference Include="Raycoon.RayMigrator.Database.Common" Version="0.15.0" />
     <PackageReference Include="Raycoon.RayMigrator.Shared" Version="0.15.0" />
 </ItemGroup>

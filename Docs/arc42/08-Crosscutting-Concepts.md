@@ -339,7 +339,7 @@ RayMigrator. Migration SQL runs exactly as written and `{ENV:*}` values are subs
 templates bind values as parameters. Least privilege: the repository account must create the schema and the 11 tables on first
 contact (`Repository_CheckCreate`) and needs only DML afterwards. `SECURITY.md` asks operators to restrict database accounts to
 what the migrations need and to keep a verified backup; vulnerabilities are reported privately (GitHub private reporting or
-`raymigrator@raycoon.com`), acknowledged within five business days and fixed in the latest 0.15.x only.
+`raymigrator@raycoon.com`), acknowledged within five business days and fixed in the latest 0.16.x only.
 Authoritative pages: [Security policy](https://github.com/RAYCOON/RayMigrator/blob/main/SECURITY.md), [Environment variables](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/06-configuration-reference/environment-variables.md), [CLI tools options](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/06-configuration-reference/cli-tools-options.md).
 
 ## 8.7 Development Concepts

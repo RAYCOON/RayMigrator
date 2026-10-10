@@ -7,6 +7,8 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ## [Unreleased]
 
+## [0.16.0] — 2026-10-10
+
 ### Added
 
 - The transient error codes a DAL retries ship as an editable

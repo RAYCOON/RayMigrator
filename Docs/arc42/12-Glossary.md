@@ -11,7 +11,7 @@ the mechanism. The
 [appendix glossary](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/appendix/glossary.md)
 in the repository remains the reference for class level entries (exception
 types, model classes, event ids); this page is the architecture level subset
-and every value on it was verified against the source tree of the 0.15.x
+and every value on it was verified against the source tree of the 0.16.x
 line. Spellings follow the terminology table of the arc42 authoring guide, so
 a term is written here exactly as it appears in chapters 01 to 11.
 
