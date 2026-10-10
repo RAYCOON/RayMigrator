@@ -7,7 +7,7 @@ Please finish these steps **before** the session. Every later exercise builds on
 | Item | Where from |
 |---|---|
 | .NET 10 runtime | <https://dotnet.microsoft.com/download/dotnet/10.0> (the runtime is enough, the SDK also works) |
-| RayMigrator 0.15.0 | <https://github.com/RAYCOON/RayMigrator/releases/tag/v0.15.0> |
+| RayMigrator 0.16.0 | <https://github.com/RAYCOON/RayMigrator/releases/tag/v0.16.0> |
 | SQL Server Management Studio (SSMS) | <https://aka.ms/ssms> |
 | Server name and SQL login for the shared workshop instance | from the presenter |
 | This `Workshop/` folder | `git clone --depth 1 https://github.com/RAYCOON/RayMigrator.git` or the ZIP download on GitHub |
@@ -22,9 +22,9 @@ dotnet --list-runtimes
 
 The list must contain a line starting with `Microsoft.NETCore.App 10.`.
 
-## Step 2: RayMigrator 0.15.0
+## Step 2: RayMigrator 0.16.0
 
-1. Download the archive for your platform: `RayMigrator-0.15.0-win-x64.zip`, `RayMigrator-0.15.0-linux-x64.tar.gz` or `RayMigrator-0.15.0-osx-arm64.tar.gz`.
+1. Download the archive for your platform: `RayMigrator-0.16.0-win-x64.zip`, `RayMigrator-0.16.0-linux-x64.tar.gz` or `RayMigrator-0.16.0-osx-arm64.tar.gz`.
 2. Extract the **whole** archive into a folder of its own, for example `C:\Tools\raymigrator` or `~/raymigrator`. The `DataAccessLayers/` folder must stay next to the executable; RayMigrator loads its database plugins from there.
 3. Add that folder to your `PATH`.
 4. macOS only: if Gatekeeper refuses to start the binary, run `xattr -d com.apple.quarantine ~/raymigrator/raymigrator` once.
@@ -34,7 +34,7 @@ The list must contain a line starting with `Microsoft.NETCore.App 10.`.
 raymigrator --version
 ```
 
-Expected: `0.15.0+<commit hash>`.
+Expected: `0.16.0+<commit hash>`.
 
 ## Step 3: Your personal database
 
@@ -74,19 +74,20 @@ Expected (abridged):
 [WRN] Config warning [RULE_7_3] at Products > BookStore > ... > MainDB > ConnectionString: ...
 [WRN] Config warning [RULE_7_1] at Products > BookStore > ... > MainDB > ConnectionString: Repository ConnectionString is identical to Target 'MainDB' ...
  (RayMigrator banner)
+[INF] Transient error codes for DatabaseType [SqlServer] loaded from [TransientErrorCodes.txt]: [-2, 20, 64, 233, 10053, 10054, 10060, 40197, 40501, 40613, 49918, 49919, 49920, 4021, 596]
 [INF] Executing Migrate-Up for product BookStore in environment Workshop
 [INF] No migration files found for product BookStore
 ```
 
-The exit code is `0` (`echo $?` in bash, `$LASTEXITCODE` in PowerShell). The three warnings are expected in this workshop setup; the first session block explains them. Validate mode reads only your files and configuration, so it does not prove that the login works. That proof came from SSMS in step 3.
+The exit code is `0` (`echo $?` in bash, `$LASTEXITCODE` in PowerShell). The three warnings are expected in this workshop setup; the first session block explains them. The `Transient error codes` line names the SQL Server error numbers RayMigrator retries; they come from an editable file next to the executable. Validate mode reads only your files and configuration, so it does not prove that the login works. That proof came from SSMS in step 3.
 
 ## Troubleshooting
 
 | Symptom | Cause and fix |
 |---|---|
 | `raymigrator: command not found` | The folder from step 2 is not on `PATH`, or the terminal was opened before you changed it. |
-| `No 'Serilog' configuration found` or exit code 4 | You are not in `Workshop/exercises/bookstore/`. RayMigrator reads `appsettings*.json` from the current directory (or from `--config-dir`). |
-| Exit code 3, "no environment" | `-env Workshop` is missing. |
+| `Could not find any RayMigrator configuration in provided configuration files`, exit code 100 | You are not in `Workshop/exercises/bookstore/`. RayMigrator reads `appsettings*.json` from the current directory (or from `--config-dir`). |
+| `Option '--environment' is required.`, exit code 1 | `-env Workshop` is missing. |
 | `... MigrationFilesRootDirectory ... does not exist` | `<ABSOLUTE_PATH>` is wrong. Relative paths resolve against the RayMigrator executable, not against your folder, so keep it absolute. |
 | `Login failed for user` | Check `<LOGIN>`, `<PASSWORD>` and that you replaced the placeholders in **both** connection strings. |
 | Certificate error (`The certificate chain was issued by an authority that is not trusted`) | Keep `TrustServerCertificate=True` in both connection strings. |

@@ -1,6 +1,6 @@
 # RayMigrator workshop
 
-An interactive, 60-minute introduction to RayMigrator for developers and operators: a Marp slide deck, four hands-on exercises against SQL Server, model solutions, a cheat sheet and bonus exercises. The material targets RayMigrator **0.15.0** and was verified end-to-end against SQL Server 2022 with the 0.15.0 release binaries.
+An interactive, 60-minute introduction to RayMigrator for developers and operators: a Marp slide deck, four hands-on exercises against SQL Server, model solutions, a cheat sheet and bonus exercises. The material targets RayMigrator **0.16.0** and was verified end-to-end against SQL Server 2022 with the 0.16.0 release binaries.
 
 Audience: teams evaluating or introducing RayMigrator, and colleagues or partners being onboarded. No prior RayMigrator knowledge is needed; participants should be comfortable with SQL and a terminal.
 
@@ -8,13 +8,13 @@ Audience: teams evaluating or introducing RayMigrator, and colleagues or partner
 
 | Path | What it is |
 |---|---|
-| [slides/raymigrator-workshop.md](slides/raymigrator-workshop.md) | The deck, 55 slides, speaker notes in HTML comments |
+| [slides/raymigrator-workshop.md](slides/raymigrator-workshop.md) | The deck, 56 slides, speaker notes in HTML comments |
 | [slides/themes/raycoon.css](slides/themes/raycoon.css) | Marp theme (Inter, JetBrains Mono, RayMigrator colours) |
 | [slides/assets/](slides/assets/) | Diagrams as SVG with their Mermaid sources (`.mmd`) |
 | [exercises/00-setup/](exercises/00-setup/README.md) | Pre-session setup guide, `create-database.sql`, `reset-database.sql` |
 | [exercises/bookstore/](exercises/bookstore/) | The participants' working folder: `appsettings.json`, the config template, an empty `Migrations/` tree |
 | [exercises/01-first-migration/](exercises/01-first-migration/README.md) … [04-error-handling/](exercises/04-error-handling/README.md) | One README per exercise with steps, expected output and checks; `files/` holds copy-ready migrations |
-| [exercises/05-bonus/](exercises/05-bonus/README.md) | Take-home tasks: secrets, a PostgreSQL target group, CLI tools |
+| [exercises/05-bonus/](exercises/05-bonus/README.md) | Take-home tasks: secrets, a PostgreSQL target group, CLI tools, a `RunAlways` file after a newer release |
 | [exercises/solutions/](exercises/solutions/README.md) | The state of the working folder after each exercise, for catching up |
 | [cheatsheet.md](cheatsheet.md) | One page: commands, run modes, TOML keys, configuration chain, exit codes |
 
@@ -78,7 +78,9 @@ npx @mermaid-js/mermaid-cli@latest -i assets/context.mmd -o assets/context.svg -
 
 ## Verifying the exercises
 
-Every command and every expected output in the exercise READMEs was captured from a real run of RayMigrator 0.15.0 against SQL Server 2022 in Docker (`Testing/Docker`, container `rm_db_sqlserver`). To re-verify after a RayMigrator release: create an empty database, point an `appsettings.Workshop.json` at it, and follow the four READMEs in order. The behaviours the exercises depend on are listed at the end of each README under "What you have seen".
+Every command and every expected output in the exercise READMEs was captured from a real run of RayMigrator 0.16.0 against SQL Server 2022 in Docker (`Testing/Docker`, container `rm_db_sqlserver`). To re-verify after a RayMigrator release: create an empty database, point an `appsettings.Workshop.json` at it, and follow the four READMEs in order, then bonus exercise D and the exit codes on the cheat sheet. The behaviours the exercises depend on are listed at the end of each README under "What you have seen".
+
+Changes that came with 0.16.0 and are part of the material: three Information lines in every run (`Transient error codes ... loaded from [TransientErrorCodes.txt]`, `Repository created` on first contact, `Target [MainDB] ... shares the repository connection`), the `RULE_7_3` hint printing `{ENV:VARIABLE}` with single braces, and `RunAlways` files that keep re-running from an older release (bonus exercise D).
 
 ## Licence
 

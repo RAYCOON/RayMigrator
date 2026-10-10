@@ -58,13 +58,13 @@ In this workshop the run then stops for a second reason: Release 1.1 is already 
 [ERR] Out-of-order migrations detected but --allow-out-of-order not specified. 1 file(s) from releases before 'Release 1.1' not applied. Aborting.
 ```
 
-Had you passed `--allow-out-of-order`, `CREATE TABLE dbo.Books` would have run again and failed. Two lessons: never edit an applied migration file without `update-hash`, and let `validate-hash` guard your pipeline.
+Nothing was executed on the target; the aborted run is still recorded, with result `Error` and 0 migrations. Had you passed `--allow-out-of-order`, `CREATE TABLE dbo.Books` would have run again and failed. Two lessons: never edit an applied migration file without `update-hash`, and let `validate-hash` guard your pipeline.
 
 ## What you have seen
 
 - Three SHA-256 hashes per file (whole file, TOML header, SQL blocks) are stored in `ray.MigrationRecord`. `HashValidationScope` per target group decides which one `migrate-up` compares: `File` (default), `SqlBlocks` (header edits allowed) or `Disabled`.
 - `validate-hash` is read-only and exits `1` on Modified or Missing files; `update-hash` rewrites the stored hashes after a review.
-- Files from a release older than the highest applied release abort the run unless `--allow-out-of-order` is given.
+- Files from a release older than the highest applied release abort the run unless `--allow-out-of-order` is given. The one exception is a `RunAlways` file the target has already received (exercise 4, bonus exercise D).
 
 ## Behind?
 

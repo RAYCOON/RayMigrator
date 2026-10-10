@@ -93,6 +93,7 @@ You work in `Workshop/exercises/bookstore/`. The migration files of this exercis
 
    ```text
    [INF] Found 3 migration files to execute for product BookStore
+   [INF] Target [MainDB] in TargetGroup [Backend] shares the repository connection: ...
    [INF] Migration successful | ... | Release: Release 1.1 | ... | File: 001_CreateAuthors.sql | MigrationRecordId: 2 | SqlBlocks: 1
    [INF] Migration successful | ... | Release: Release 1.1 | ... | File: 002_AddBookAuthorFK.sql | MigrationRecordId: 3 | SqlBlocks: 2
    [INF] Migration successful | ... | Release: Release 1.1 | ... | File: 003_SeedBooks.Workshop.sql | MigrationRecordId: 4 | SqlBlocks: 2
@@ -110,6 +111,7 @@ You work in `Workshop/exercises/bookstore/`. The migration files of this exercis
 
    ```text
    [INF] Rolling back 3 migration(s) for product BookStore to release Release 1.0
+   [INF] Target [MainDB] in TargetGroup [Backend] shares the repository connection: ...
    [INF] Rollback successful | ... | File: 003_SeedBooks.Workshop.sql | MigrationRecordId: 4 | SqlBlocks: 1
    [INF] Rollback successful | ... | File: 002_AddBookAuthorFK.sql | MigrationRecordId: 3 | SqlBlocks: 2
    [INF] Rollback successful | ... | File: 001_CreateAuthors.sql | MigrationRecordId: 2 | SqlBlocks: 1
@@ -132,7 +134,7 @@ You work in `Workshop/exercises/bookstore/`. The migration files of this exercis
 
 - `Validate` reads files only, `Simulate` reads the repository and checks connectivity, `Migrate` writes. Run them in this order in a pipeline.
 - A rollback file is `<name>.rollback.sql` next to its migration. With `RequireRollbackFile` on, a missing one stops the run before any SQL executes.
-- `GO` on its own line splits a file into blocks (`SqlBlocks: 2`). Each block runs in its own transaction.
+- `GO` on its own line splits a file into blocks (`SqlBlocks: 2`). By default each block runs in its own transaction; the `shares the repository connection` line announces the exception used in this workshop, where all blocks of a file commit or roll back together (exercise 4).
 - `003_SeedBooks.Workshop.sql` runs only when `-env Workshop` is given; the TOML key `Environments = ["Workshop"]` does the same.
 - `migrate-down` walks the repository records backwards, release by release, and keeps the named release.
 

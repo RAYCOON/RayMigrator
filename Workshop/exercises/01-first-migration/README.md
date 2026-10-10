@@ -34,12 +34,14 @@ You work in `Workshop/exercises/bookstore/`. Behind? Jump to the end of this pag
 
    ```text
    [INF] Executing Migrate-Up for product BookStore in environment Workshop
+   [INF] Repository created: DatabaseType [SqlServer], schema [*** HIDDEN ***], VersionId [1]. RayMigrator repository-tables with master data and new VersionId [1] successfully created
    [INF] Found 1 migration files to execute for product BookStore
+   [INF] Target [MainDB] in TargetGroup [Backend] shares the repository connection: migration files with UseTransaction = true and an error action other than Ignore run on the atomic shared connection path (all blocks of a file and the repository update commit or roll back together)
    [INF] Migration successful | Product: BookStore | Env: Workshop | Release: Release 1.0 | TargetGroup: Backend | Target: MainDB | File: 001_CreateBooks.sql | MigrationRecordId: 1 | SqlBlocks: 1
    [INF] Migrate-Up completed successfully for product BookStore with 1 migrations
    ```
 
-   Exit code `0`. On this first run RayMigrator also created the `ray` schema with its eleven repository tables; that happens silently at Information level.
+   Exit code `0`. The `Repository created` line tells you that this first run created the `ray` schema with its eleven repository tables; the schema name is masked in the log unless you pass `--reveal-sensitive-data true`. The `shares the repository connection` line appears on every run in this workshop because repository and target are the same database; exercise 4 shows what it changes.
 
 4. Ask for the status:
 
@@ -88,6 +90,7 @@ You work in `Workshop/exercises/bookstore/`. Behind? Jump to the end of this pag
 - `migrate-up` applies every pending file once and records it in the `ray` schema.
 - `info` and the `ray.*` tables are the audit trail.
 - The warnings `RULE_7_3` (literal password) and `RULE_7_1` (repository and target in the same database) are configuration hints, not errors. Production setups use `{ENV:VARIABLE}` placeholders and a separate repository database.
+- Two Information lines to know: `Repository created` appears once, on first contact; `Target [MainDB] ... shares the repository connection` appears on every run that executes SQL while repository and target sit in one database.
 
 ## Behind?
 

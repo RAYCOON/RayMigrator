@@ -5,7 +5,7 @@ paginate: true
 size: 16:9
 title: RayMigrator Workshop
 description: Interactive 60-minute workshop on RayMigrator for developers and operators
-footer: 'RayMigrator 0.15.0 · Workshop · source-available (BUSL-1.1)'
+footer: 'RayMigrator 0.16.0 · Workshop · source-available (BUSL-1.1)'
 ---
 
 <!-- _class: lead -->
@@ -22,7 +22,7 @@ SQL Server · PostgreSQL · MariaDB · MySQL · SQLite
 
 <!--
 Timing: 0:00. Welcome, who is in the room (developers, DBAs, release engineers, evaluators).
-Everyone finished Exercise 0 (setup) before the session: raymigrator 0.15.0 on PATH, their own BookStore_<Name> database, appsettings.Workshop.json filled in.
+Everyone finished Exercise 0 (setup) before the session: raymigrator 0.16.0 on PATH, their own BookStore_<Name> database, appsettings.Workshop.json filled in.
 Ask who has NOT run the setup check; pair them with a neighbour now.
 -->
 
@@ -288,7 +288,7 @@ Timing: 0:08. This is the single most common surprise in the first week with any
 
 - Files are read from the current directory (or `--config-dir`).
 - Entries with the same `Alias` merge across files.
-- `Serilog` is mandatory: without it, exit code 4 and no output.
+- `Serilog` is mandatory: without it, exit code 4 and a console message instead of a log.
 
 </div>
 </div>
@@ -316,10 +316,10 @@ raymigrator <command> -p <Product> -env <Environment> [-rm migrate|simulate|vali
 | `baseline` | record files as applied without running them | repository |
 | `fix` | repair runs that crashed | repository |
 
-Exit codes: **0** success · **1** run failed, hash mismatch or startup error · 2/3 environment problems · 4 no configuration · 5 bad arguments · 100 unexpected exception
+Exit codes: **0** success · **1** run failed, hash mismatch, startup error or bad arguments · **2** `-env` and `DOTNET_ENVIRONMENT` differ · **4** no `Serilog` section · **100** unexpected exception, including a missing or invalid configuration
 
 <!--
-Timing: 0:10. Product and environment are matched case-sensitively. -rm defaults to migrate.
+Timing: 0:10. Product and environment are matched case-sensitively. -rm defaults to migrate. -env is required on the command line; DOTNET_ENVIRONMENT is only cross-checked against it (exit 2 when they differ, exit 3 for an empty -env without the variable). Ordinary parse errors return 1, a parser crash 5; the cheat sheet has the full list.
 The exit code is the only machine-readable result; there is no JSON report. Pipelines call info afterwards.
 -->
 
@@ -360,7 +360,7 @@ FROM ray.MigrationRun ORDER BY Id DESC;
 </div>
 
 <!--
-Timing: 0:11. In the exercise, participants look at exactly these two queries in SSMS.
+Timing: 0:11. In the exercise, participants look at exactly these two queries in SSMS. Their first migrate-up also printed the "Repository created" line (once per repository, schema name masked).
 -->
 
 ---
@@ -411,7 +411,7 @@ The three warnings everyone sees are explained on the next slide; do not explain
 - The same rule catalog runs in the Config Wizard, with the same `RULE_` codes.
 
 <!--
-Timing: 0:18. Also mention: sharing the database switches on the "atomic shared connection" path; Part 4 shows what that changes.
+Timing: 0:18. Also mention the two Information lines from Exercise 1: "Repository created" (first contact) and "Target [MainDB] in TargetGroup [Backend] shares the repository connection" (every run). Sharing the database switches on the atomic shared connection path; Part 4 shows what that changes. The "Transient error codes ... loaded from [TransientErrorCodes.txt]" line at startup is covered in Part 4 as well.
 -->
 
 ---
@@ -521,7 +521,7 @@ Engine notes: MariaDB and MySQL commit DDL implicitly; a transaction cannot undo
 </div>
 
 <!--
-Timing: 0:21. The docs say "file" in two places where they mean "block"; the slide is correct. Part 4 adds the one exception: repository and target in the same database make the whole file atomic.
+Timing: 0:21. Since 0.16.0 the user manual says the same: one transaction per block by default. Part 4 adds the one exception: repository and target in the same database make the whole file atomic, announced by the "shares the repository connection" line everyone saw in Exercise 1.
 -->
 
 ---
@@ -604,14 +604,14 @@ Timing: 0:24.
 - Re-executed on every run: views, procedures, grants, reference data.
 - Must be idempotent (`CREATE OR ALTER`).
 - Always counted as pending in `info`.
-- Keep RunAlways files in the **newest** release: a pending file in an older release trips the out-of-order guard (Part 3).
+- May live in **any** release: once a target has received it, it keeps re-running after newer releases without tripping the out-of-order guard (Part 3). Only a RunAlways file a target has never received counts as out of order.
 - With `HashValidationScope = File` you get warning Rule 2.6; it is informational.
 
 </div>
 </div>
 
 <!--
-Timing: 0:25. The RunAlways view is part of Exercise 4, where it lives in Release 1.2 for exactly the reason on the slide.
+Timing: 0:25. The RunAlways view is part of Exercise 4 (Release 1.2); bonus exercise D ships a Release 1.3 and shows the view still re-running from 1.2. Before 0.16.0 that tripped the guard, which is why older material said "keep RunAlways files in the newest release".
 -->
 
 ---
@@ -721,7 +721,7 @@ Timing: 0:34. Most rooms say A. The answer is C, with a twist shown on the next 
 - Had it run, `CREATE TABLE dbo.Books` would have failed. The gate you want is `validate-hash`, before `migrate-up`.
 
 <!--
-Timing: 0:35. Real output from this workshop's exercise set. Exit code 1, nothing was changed in the database.
+Timing: 0:35. Real output from this workshop's exercise set. Exit code 1; nothing was executed on the target, the aborted run is recorded with result Error and 0 migrations.
 -->
 
 ---
@@ -849,12 +849,12 @@ A failing block · two execution paths · `MigrationErrorAction` · locks and or
 
 # What happens when block 3 of 3 fails
 
-![w:1100](assets/failure-flow.svg)
+![w:900](assets/failure-flow.svg)
 
 - The failing block's transaction is rolled back and the record becomes `Failed` with its block progress.
 - The configured `MigrationErrorAction` decides what happens to the **rest of the run**.
 - On the next `migrate-up`, a `Failed` file resumes at the first uncommitted block if its SQL hash is unchanged, otherwise it starts again at block 1.
-- Transient errors (deadlock, timeout, connection drop) are retried before any of this: linear backoff, `DbCommandMaxRetries` per target (default 0), 100 for the repository.
+- Transient errors (deadlock, timeout, connection drop) are retried before any of this: linear backoff, `DbCommandMaxRetries` per target (default 0), 100 for the repository. The retried codes: `DataAccessLayers/<Db>/TransientErrorCodes.txt`, editable.
 
 <!--
 Timing: 0:44.
@@ -876,7 +876,7 @@ Timing: 0:44.
 > Production recommendation: a separate repository database. This workshop shares one database so that you create only one, and Exercise 4 shows the atomic path.
 
 <!--
-Timing: 0:45. The "atomic shared connection" is announced at Debug level only: "Using atomic shared connection for {Filename}". Set the Serilog override "Raycoon.RayMigrator.Services": "Debug" to see it.
+Timing: 0:45. Since 0.16.0 the atomic path is announced once per run at Information level: "Target [MainDB] in TargetGroup [Backend] shares the repository connection: ..."; participants have seen it in every run. The per-file Debug line "Using atomic shared connection for {Filename}" still exists (Serilog override "Raycoon.RayMigrator.Services": "Debug").
 -->
 
 ---
@@ -1035,7 +1035,7 @@ Configuration hierarchy · secrets · the Config Wizard · several targets · lo
 
 - Up to four files are merged in this order. A later file overrides a value, never removes one.
 - Arrays whose elements carry an `Alias` (`Products`, `TargetGroups`, `Targets`, `CliTools`) merge **by alias**; an override file names only what it changes. Everything else, including `Serilog.WriteTo`, is replaced as a whole.
-- The environment comes from `-env` or `DOTNET_ENVIRONMENT`: both set and different → exit 2; neither → exit 3.
+- `-env` is required on the command line; if `DOTNET_ENVIRONMENT` is set as well, both must match (exit 2 otherwise).
 - `--config-dir` reads the files from another folder, for example a mounted secret.
 
 <!--
@@ -1061,22 +1061,22 @@ raymigrator migrate-up -p BookStore -env Production -cd /run/secrets/raymigrator
 | Where | Missing variable |
 |---|---|
 | configuration value | startup aborts, all unresolved names listed |
-| CLI option value | exit 5 |
+| CLI option value | parse error, exit 1 |
 | inside migration SQL | empty string plus a warning; the hash uses the original text |
 
 </div>
 <div>
 
 - Resolved after the files are merged, before validation. Names are case-sensitive.
-- Logs mask connection strings, schema names, paths and resolved values as `*** HIDDEN ***`; the settings snapshot in `MigrationRunMeta` is masked too.
+- Logs and the `MigrationRunMeta` snapshot mask connection strings, schema names, paths and resolved values as `*** HIDDEN ***`.
 - `--reveal-sensitive-data true` (`-rsd`) lifts the mask for one run. Never in production.
-- RULE_7_3 flags `Password=` / `Pwd=` without a placeholder.
+- RULE_7_3 flags a literal `Password=` / `Pwd=`.
 
 </div>
 </div>
 
 <!--
-Timing: 1:00. Bonus exercise A does this with the workshop configuration.
+Timing: 1:00. Bonus exercise A does this with the workshop configuration. The CLI runs the rule catalog after placeholder resolution, so RULE_7_3 still fires when the value came from a variable; the Config Wizard checks the unresolved file and shows no hint for a placeholder.
 -->
 
 ---
@@ -1178,7 +1178,7 @@ raymigrator migrate-up -p BookStore -env Production -tg Reporting -tr "Release 1
 
 - Console, rolling file, SQLite file sink; each with its own minimum level.
 - Enrichers for output templates: `{MigrationRunId}`, `{TargetGroupAlias}`, `{TargetAlias}`, `{MigrationFilename}`, `{MigrationBlockId}`.
-- `Debug` shows repository creation, block execution and the atomic-path decision; `Verbose` prints the resolved configuration, masked.
+- `Information` (default) shows repository creation, the atomic-path decision and the transient error codes in use; `Debug` adds block execution; `Verbose` prints the resolved configuration, masked.
 
 </div>
 <div>
@@ -1253,9 +1253,9 @@ Timing: 1:06. Keep it to one minute. Source: Docs/02-core-concepts/execution-mod
 
 ### Business Source License 1.1 with Additional Use Grant
 
-- Production use is **free for anyone, for any purpose**, SaaS and managed services included. No seat or revenue threshold.
-- **Source-available**, not OSI open source: you may read, modify and redistribute the source under the same licence; derivatives may not use the RayMigrator or RAYCOON marks.
-- Each version converts to **Apache 2.0** four years after its release (0.15.0: September 2030).
+- Production use is **free for anyone, for any purpose**, SaaS included. No seat or revenue threshold.
+- **Source-available**, not OSI open source: read, modify and redistribute under the same licence; derivatives may not use the RayMigrator or RAYCOON marks.
+- Each version converts to **Apache 2.0** four years after its release (0.16.0: October 2030).
 - `Database.Example`, the plugin skeleton, is MIT.
 
 </div>
@@ -1263,7 +1263,7 @@ Timing: 1:06. Keep it to one minute. Source: Docs/02-core-concepts/execution-mod
 
 ### Where it stands
 
-- **0.15.0**, released 2026-09-23. Pre-1.0: not yet proven in production. Use it where a failure is tolerable, with a verified backup before each run.
+- **0.16.0**, released 2026-10-10. Pre-1.0: not yet proven in production. Use it where a failure is tolerable, with a verified backup before each run.
 - No in-place repository upgrades before 1.0; a schema change means drop and recreate.
 - 15 NuGet packages (`Raycoon.RayMigrator.*`, .NET 8/9/10) for embedding the engine or writing a DAL plugin.
 - Security reports: see `SECURITY.md` in the repository.

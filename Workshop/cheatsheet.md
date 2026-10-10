@@ -1,8 +1,8 @@
-# RayMigrator cheat sheet (0.15.0)
+# RayMigrator cheat sheet (0.16.0)
 
 ## Commands
 
-Every command needs `-p <Product>` and `-env <Environment>` (or `DOTNET_ENVIRONMENT`). Values are case-sensitive.
+Every command needs `-p <Product>` and `-env <Environment>`; if `DOTNET_ENVIRONMENT` is set as well, both must carry the same value. Values are case-sensitive.
 
 | Command | Does | Database access | Useful options |
 |---|---|---|---|
@@ -26,7 +26,7 @@ Global options: `--config-dir`/`-cd <folder>`, `--startup-info`/`-si false`, `--
 
 ## Exit codes
 
-`0` success · `1` run failed (Error, Recovered or PartialSuccess), hash mismatch, refused parallel run, startup error · `2` `-env` conflicts with `DOTNET_ENVIRONMENT` · `3` no environment · `4` no configuration or no `Serilog` section · `5` command-line parse error · `100` unexpected exception
+`0` success · `1` run failed (Error, Recovered or PartialSuccess), hash mismatch, refused parallel run, startup error (unresolved `{ENV:}` placeholder, login failed), bad command line · `2` `-env` and `DOTNET_ENVIRONMENT` differ · `3` empty `-env` and no `DOTNET_ENVIRONMENT` · `4` no `Serilog` section · `5` command-line parser crash (rare) · `100` unexpected exception, including no configuration files in the current directory and an invalid configuration
 
 ## Files
 
@@ -51,7 +51,7 @@ Description = "..."
 Environments = ["Production"]      # default: all
 Targets = ["MainDB"]               # default: all targets of the group
 UseTransaction = true              # per block
-RunAlways = false                  # true: re-run every time, must be idempotent, keep in the newest release
+RunAlways = false                  # true: re-run on every run, must be idempotent; may live in any release
 RequireRollbackFile = true
 MigrationErrorAction = "Terminate" # Terminate | Rollback | RollbackErrorOnly | RollbackRelease | Ignore
 RollbackErrorAction = "Terminate"  # Terminate | Ignore
@@ -79,6 +79,8 @@ RayMigrator
 ├── DatabaseLogging       optional log database
 └── Serilog               required
 ```
+
+Retries: `DbCommandMaxRetries` per target (default 0). The retried error numbers are the editable `DataAccessLayers/<Db>/TransientErrorCodes.txt` next to the executable; the startup log names the list in use, upgrades overwrite the file.
 
 ## Repository (schema `ray`)
 

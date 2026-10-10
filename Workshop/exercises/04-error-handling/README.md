@@ -25,6 +25,8 @@ You work in `Workshop/exercises/bookstore/`. The files for Release 1.2 are prepa
    ```text
    [INF] Found 3 migration files to execute for product BookStore
    [WRN] [Rule 2.6 RUN_ALWAYS_WITH_HASH_VALIDATION] 900_vwBooks.sql has RunAlways=true but HashValidationScope=File on TargetGroup 'Backend'. ...
+   [WRN] Safety check: 1 warning(s) detected. Review migration files before proceeding.
+   [INF] Target [MainDB] in TargetGroup [Backend] shares the repository connection: ...
    [INF] Migration successful | ... | Release: Release 1.2 | ... | File: 001_CreateCategories.sql | MigrationRecordId: 5 | SqlBlocks: 1
    [ERR] Migration FAILED | ... | Release: Release 1.2 | ... | File: 002_SeedCategories.sql | MigrationRecordId: 6 | SqlBlock: 3/3
    Microsoft.Data.SqlClient.SqlException (0x80131904): Violation of PRIMARY KEY constraint 'PK_Categories'. Cannot insert duplicate key in object 'dbo.Categories'. The duplicate key value is (1).
@@ -48,7 +50,7 @@ You work in `Workshop/exercises/bookstore/`. The files for Release 1.2 are prepa
    | 001_CreateCategories.sql | 100 (Migrated) | 1 | 1 |
    | 002_SeedCategories.sql | 30 (Failed) | 0 | 3 |
 
-   Blocks 1 and 2 had inserted `Fiction` and `Science`, yet the table is empty. Because repository and target share one database, RayMigrator ran all blocks of the file and the repository update in **one** transaction and rolled everything back (the "atomic shared connection"). With a separate repository database, each block commits on its own: the table would hold two rows, `FileUpBlocksMigrated` would be `2`, and the next run would resume at block 3.
+   Blocks 1 and 2 had inserted `Fiction` and `Science`, yet the table is empty. Because repository and target share one database, RayMigrator ran all blocks of the file and the repository update in **one** transaction and rolled everything back (the "atomic shared connection"); the `shares the repository connection` line at the start of every run announces this path. With a separate repository database, each block commits on its own: the table would hold two rows, `FileUpBlocksMigrated` would be `2`, and the next run would resume at block 3.
 
 4. Clean up what the terminated run left behind by going back to the last good release:
 
@@ -96,7 +98,7 @@ You work in `Workshop/exercises/bookstore/`. The files for Release 1.2 are prepa
 
    All three files succeed, result `Ok`, exit code `0`. The view `dbo.vwBooks` exists now.
 
-7. Run `migrate-up` once more. Only `900_vwBooks.sql` runs again: `RunAlways = true` re-creates the view on every run. `info` reports `Pending Migrations: 1` from now on; a RunAlways file is always pending by design.
+7. Run `migrate-up` once more. Only `900_vwBooks.sql` runs again: `RunAlways = true` re-creates the view on every run. `info` reports `Pending Migrations: 1` from now on; a RunAlways file is always pending by design. It may also stay in Release 1.2 when you ship Release 1.3: a RunAlways file a target has already received keeps re-running without tripping the out-of-order guard (bonus exercise D).
 
 8. Look at the repair tool for crashed runs:
 
@@ -115,7 +117,7 @@ You work in `Workshop/exercises/bookstore/`. The files for Release 1.2 are prepa
 
 ## What you have seen
 
-- A file is executed block by block (`SqlBlock: 3/3`). Each block has its own transaction, unless repository and target share the database, in which case the whole file is atomic.
+- A file is executed block by block (`SqlBlock: 3/3`). Each block has its own transaction, unless repository and target share the database, in which case the whole file is atomic (the `shares the repository connection` line).
 - `MigrationErrorAction` decides what happens after a failure: `Terminate` (stop, nothing undone), `Rollback` (undo this run), `RollbackErrorOnly`, `RollbackRelease`, `Ignore` (skip the file, continue, result `PartialSuccess`).
 - Run results: `Ok` (100), `PartialSuccess` (50), `Recovered` (80), `Error` (90). Every result except `Ok` exits with `1`, so pipelines must read `info` or the repository to tell them apart.
 - `migsettings.txt` files set defaults per folder; the TOML header of a file wins over them, they win over `appsettings.json`.
