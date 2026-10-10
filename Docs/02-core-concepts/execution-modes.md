@@ -501,6 +501,7 @@ This is a deliberate, per-run decision — not a permanent setting.
 ### Considerations
 
 - **Hash validation**: Out-of-order files still undergo hash validation if enabled
+- **RunAlways files**: a file with `RunAlways = true` is pending by design. It is not out of order on a target that has already received it, whichever release it lives in; only its first execution on a target can be out of order
 - **Dependencies**: Files executed out of order may reference objects created by later-numbered files — developers must ensure correctness
 - **Audit trail**: Repository records should clearly indicate that a migration was executed out of order
 - **Rollback**: Rolling back to a release that was partially executed out of order requires careful handling

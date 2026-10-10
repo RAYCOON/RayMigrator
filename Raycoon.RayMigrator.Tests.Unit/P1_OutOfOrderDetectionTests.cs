@@ -291,4 +291,115 @@ public class DetectOutOfOrderFilesTests
 
         result.Should().ContainSingle();
     }
+    // === #25: RunAlways files are pending by design and never out of order on a target that has received them ===
+
+    [Fact]
+    public void RunAlwaysFile_RecordOnTheTargetBeyondItsRelease_IsNotOutOfOrder()
+    {
+        var file = TestFactories.CreateMigrationFile(filename: "90_View.sql", release: "Release 1.0", runAlways: true);
+        var records = new List<MigrationRecord>
+        {
+            TestFactories.CreateMigrationRecord(filename: "90_View.sql", release: "Release 1.0", targetAlias: "MainDB"),
+            TestFactories.CreateMigrationRecord(filename: "10_Create.sql", release: "Release 2.0", targetAlias: "MainDB")
+        };
+
+        var result = MigrationService.DetectOutOfOrderFiles(new List<MigrationFileInfo> { file }, records);
+
+        result.Should().BeEmpty("MainDB has already received the RunAlways file; re-running it is its purpose (#25)");
+    }
+
+    [Theory]
+    [InlineData(MigrationStatus.Failed)]
+    [InlineData(MigrationStatus.NotMigrated)]
+    public void RunAlwaysFile_NonMigratedRecordOnTheTarget_IsNotOutOfOrder(MigrationStatus status)
+    {
+        // After a failed re-run or a rollback the current record is Failed or NotMigrated; the file still re-runs.
+        var file = TestFactories.CreateMigrationFile(filename: "90_View.sql", release: "Release 1.0", runAlways: true);
+        var records = new List<MigrationRecord>
+        {
+            TestFactories.CreateMigrationRecord(filename: "90_View.sql", release: "Release 1.0", targetAlias: "MainDB", status: status),
+            TestFactories.CreateMigrationRecord(filename: "10_Create.sql", release: "Release 2.0", targetAlias: "MainDB")
+        };
+
+        var result = MigrationService.DetectOutOfOrderFiles(new List<MigrationFileInfo> { file }, records);
+
+        result.Should().BeEmpty($"a {status} record proves MainDB has received the RunAlways file before (#25)");
+    }
+
+    [Fact]
+    public void RunAlwaysFile_NoRecordOnATargetBeyondItsRelease_IsOutOfOrder()
+    {
+        var file = TestFactories.CreateMigrationFile(filename: "90_View.sql", release: "Release 1.0", runAlways: true);
+        var records = new List<MigrationRecord>
+        {
+            TestFactories.CreateMigrationRecord(filename: "10_Create.sql", release: "Release 2.0", targetAlias: "MainDB")
+        };
+
+        var result = MigrationService.DetectOutOfOrderFiles(new List<MigrationFileInfo> { file }, records);
+
+        result.Should().ContainSingle("a RunAlways file newly added to an old release is out of order like any other new file (#25)");
+    }
+
+    [Fact]
+    public void RunAlwaysFile_RecordOnOneTargetOnly_IsOutOfOrderForTheOtherTarget()
+    {
+        var file = TestFactories.CreateMigrationFile(filename: "90_View.sql", release: "Release 1.0", runAlways: true);
+        file.PendingTargetAliases = null;
+        var records = new List<MigrationRecord>
+        {
+            TestFactories.CreateMigrationRecord(filename: "90_View.sql", release: "Release 1.0", targetAlias: "MainDB"),
+            TestFactories.CreateMigrationRecord(filename: "10_Create.sql", release: "Release 2.0", targetAlias: "MainDB"),
+            TestFactories.CreateMigrationRecord(filename: "10_Create.sql", release: "Release 2.0", targetAlias: "SecondDB")
+        };
+
+        var result = MigrationService.DetectOutOfOrderFiles(new List<MigrationFileInfo> { file }, records);
+
+        result.Should().ContainSingle("SecondDB is beyond Release 1.0 and has never received the RunAlways file (#25)");
+    }
+
+    [Fact]
+    public void RunAlwaysFile_RecordFromAnotherRelease_DoesNotCount()
+    {
+        var file = TestFactories.CreateMigrationFile(filename: "90_View.sql", release: "Release 1.0", runAlways: true);
+        var records = new List<MigrationRecord>
+        {
+            TestFactories.CreateMigrationRecord(filename: "90_View.sql", release: "Release 0.9", targetAlias: "MainDB"),
+            TestFactories.CreateMigrationRecord(filename: "10_Create.sql", release: "Release 2.0", targetAlias: "MainDB")
+        };
+
+        var result = MigrationService.DetectOutOfOrderFiles(new List<MigrationFileInfo> { file }, records);
+
+        result.Should().ContainSingle("the record belongs to another release, so the file in Release 1.0 is new to MainDB (#25)");
+    }
+
+    [Fact]
+    public void RunAlwaysFile_TargetAliasMatchIsCaseInsensitive()
+    {
+        var file = TestFactories.CreateMigrationFile(filename: "90_View.sql", release: "Release 1.0", runAlways: true);
+        var records = new List<MigrationRecord>
+        {
+            TestFactories.CreateMigrationRecord(filename: "90_View.sql", release: "Release 1.0", targetAlias: "maindb"),
+            TestFactories.CreateMigrationRecord(filename: "10_Create.sql", release: "Release 2.0", targetAlias: "MainDB")
+        };
+
+        var result = MigrationService.DetectOutOfOrderFiles(new List<MigrationFileInfo> { file }, records);
+
+        result.Should().BeEmpty("target aliases are compared case-insensitively, as in IsAppliedOnTarget (#25)");
+    }
+
+    [Fact]
+    public void NonRunAlwaysFile_HashMismatchRecord_IsStillOutOfOrder()
+    {
+        // A changed file in an older release stays pending with a hash mismatch and must still trip the guard.
+        var file = TestFactories.CreateMigrationFile(filename: "15_Create.sql", release: "Release 1.5", hash: "new");
+        var records = new List<MigrationRecord>
+        {
+            TestFactories.CreateMigrationRecord(filename: "15_Create.sql", release: "Release 1.5", targetAlias: "MainDB", hash: "old"),
+            TestFactories.CreateMigrationRecord(filename: "20_Create.sql", release: "Release 2.0", targetAlias: "MainDB")
+        };
+
+        var result = MigrationService.DetectOutOfOrderFiles(new List<MigrationFileInfo> { file }, records);
+
+        result.Should().ContainSingle("the RunAlways exemption of #25 does not apply to ordinary files");
+    }
 }

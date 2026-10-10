@@ -159,7 +159,7 @@ raymigrator migrate-up -p X -env Y --target-group Backend
 
 ### Out-of-Order Detection
 
-After filtering, `DetectOutOfOrderFiles` identifies pending files from releases older than the highest already-migrated release (determined from existing `Migrated` records, using ordinal case-insensitive comparison). If out-of-order files are found and `--allow-out-of-order` is not specified, the migration aborts with an `InvalidOperationException`. When `--allow-out-of-order` is specified, out-of-order files are executed with a warning.
+After filtering, `DetectOutOfOrderFiles` identifies pending files from releases older than the highest already-migrated release (determined from existing `Migrated` records, using ordinal case-insensitive comparison). If out-of-order files are found and `--allow-out-of-order` is not specified, the migration aborts with an `InvalidOperationException`. When `--allow-out-of-order` is specified, out-of-order files are executed with a warning. `RunAlways` files are exempt on every target that already holds a record for them (of any status): they are pending by design and re-run without the flag. A `RunAlways` file a target has never received counts as out of order like any other file.
 
 ## Discovery Result
 

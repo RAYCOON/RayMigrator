@@ -618,6 +618,8 @@ GO
 
 **Hash validation:** During migrate-up, RunAlways files bypass the hash-based skip logic and are always re-executed regardless of whether their content has changed. To detect unintended changes to RunAlways files, use the `validate-hash` command, which compares current file hashes against the repository records.
 
+**Out-of-order detection:** A RunAlways file may live in any release. Once a target has received it, it is re-executed on every run without triggering the out-of-order check, even after newer releases have been migrated on that target. A RunAlways file that has never been executed on a target counts as out of order like any other new file in an older release and needs `--allow-out-of-order` for its first run on that target.
+
 > **Tip:** Place RunAlways files at the end of your sequence (e.g., `900_RecreateViews.sql`) so they execute after all schema changes are applied.
 
 ---

@@ -3923,6 +3923,10 @@ public class MigrationService : IMigrationService
     /// <summary>
     /// Detects migration files that would be executed out of order
     /// (files from releases older than the highest already-migrated release).
+    /// A <see cref="MigrationFileInfo.RunAlways"/> file is pending on every target by design; it counts as
+    /// out of order only on a target that has no record for it at all, i.e. where it has never been executed
+    /// in release order (#25). A record of any status qualifies: after a failed re-run or a rollback the
+    /// current record is Failed or NotMigrated, and the file still re-runs by design.
     /// </summary>
     internal static List<MigrationFileInfo> DetectOutOfOrderFiles(
         List<MigrationFileInfo> filesToMigrate, List<MigrationRecord> existingRecords)
@@ -3944,13 +3948,27 @@ public class MigrationService : IMigrationService
         if (highestMigratedReleaseByTarget.Count == 0)
             return new List<MigrationFileInfo>();
 
+        // Files a target has already received, regardless of status (#25).
+        var receivedFileKeys = existingRecords
+            .Select(r => ReceivedFileKey(r.ReleaseVersion, r.TargetGroupAlias, r.TargetAlias, r.Filename))
+            .ToHashSet(StringComparer.Ordinal);
+
         return filesToMigrate
             .Where(f => highestMigratedReleaseByTarget.Any(kvp =>
                 string.Equals(kvp.Key.TargetGroupAlias, f.TargetGroupAlias, StringComparison.OrdinalIgnoreCase) &&
                 f.IsPendingOn(kvp.Key.TargetAlias) &&
-                string.Compare(f.ReleaseVersion, kvp.Value, StringComparison.OrdinalIgnoreCase) < 0))
+                string.Compare(f.ReleaseVersion, kvp.Value, StringComparison.OrdinalIgnoreCase) < 0 &&
+                !(f.RunAlways && receivedFileKeys.Contains(
+                    ReceivedFileKey(f.ReleaseVersion, f.TargetGroupAlias, kvp.Key.TargetAlias, f.Filename)))))
             .ToList();
     }
+
+    /// <summary>
+    /// Key of a migration record as seen by a target. Mirrors the comparisons of <see cref="IsAppliedOnTarget"/>:
+    /// ReleaseVersion, TargetGroupAlias and Filename are compared ordinally, the TargetAlias case-insensitively.
+    /// </summary>
+    private static string ReceivedFileKey(string? releaseVersion, string? targetGroupAlias, string? targetAlias, string? filename) =>
+        $"{releaseVersion}\n{targetGroupAlias}\n{targetAlias?.ToUpperInvariant()}\n{filename}";
 
     /// <summary>Case-insensitive comparer for (TargetGroupAlias, TargetAlias) keys.</summary>
     private sealed class TupleIgnoreCaseComparer : IEqualityComparer<(string TargetGroupAlias, string TargetAlias)>

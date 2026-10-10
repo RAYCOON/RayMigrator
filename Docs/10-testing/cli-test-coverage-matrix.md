@@ -176,7 +176,7 @@ This document provides a comprehensive overview of unit and engine test coverage
 | Rollback (Release) | `RollbackReleaseTests.cs` | SqlServer, MariaDb, MySql, Sqlite | Roll back only latest release; preserve earlier |
 | Terminate | `TerminateTests.cs` | SqlServer, MariaDb, MySql, Sqlite | Stop execution, record failures |
 | Ignore | `IgnoreTests.cs` | SqlServer, MariaDb, MySql, Sqlite | Continue despite errors |
-| RunAlways | `RunAlwaysTests.cs` | SqlServer, MariaDb, MySql, Sqlite | Re-execute on each run (uses `allowOutOfOrder: true`) |
+| RunAlways | `RunAlwaysTests.cs` | SqlServer, MariaDb, MySql, Sqlite | Re-execute on each run without `--allow-out-of-order`; a third run after a failed re-run is still in order |
 | FlatLayout | `FlatLayoutTests.cs` | SqlServer, MariaDb, MySql, Sqlite | Files at release root (no /Backend) |
 | Incremental | `IncrementalTests.cs` | SqlServer, MariaDb, MySql, Sqlite | Multiple migration runs, partial state progression |
 | MultiTarget | `MultiTargetTests.cs` | SqlServer, MariaDb, MySql, Sqlite | Multiple databases per target group |

@@ -26,6 +26,12 @@ RayMigrator follows Semantic Versioning where applicable.
   because the message template was used verbatim instead of being formatted.
   It now reads `{ENV:VARIABLE}`. (#26)
 
+- A migration file with `RunAlways = true` in an older release was reported as
+  out of order on every `migrate-up` once a newer release had been migrated, so
+  every later run aborted unless `--allow-out-of-order` was passed. A RunAlways
+  file now counts as out of order only on a target that has never received it;
+  once applied, it re-runs on every migration without the flag. (#25)
+
 ## [0.15.0] — 2026-09-23
 
 ### Changed

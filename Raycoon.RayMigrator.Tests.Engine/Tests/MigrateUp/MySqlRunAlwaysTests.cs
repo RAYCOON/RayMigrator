@@ -31,9 +31,8 @@ public class MySqlRunAlwaysTests : MySqlTestBase
         ctx.AssertRunCount(1);
 
         // Phase 2: MigrateUp all -- R1/F3 re-executed because RunAlways=true
-        // AllowOutOfOrder needed because RunAlways file from R1 must re-execute while R4 is already applied
         await ctx.RebuildForAsync(MigrationCommand.MigrateUp, MigrationRunMode.Migrate);
-        await ctx.MigrateUpAsync(allowOutOfOrder: true);
+        await ctx.MigrateUpAsync();
         ctx.AssertSuccess(true);
         ctx.AssertRunCount(2);
 
@@ -99,7 +98,7 @@ public class MySqlRunAlwaysTests : MySqlTestBase
 
         // Phase 2: MigrateUp all -- R1/F3 re-executed, fails (duplicate key 999)
         await ctx.RebuildForAsync(MigrationCommand.MigrateUp, MigrationRunMode.Migrate);
-        await ctx.MigrateUpAsync(allowOutOfOrder: true);
+        await ctx.MigrateUpAsync();
         ctx.AssertSuccess(false);
         ctx.AssertRunCount(2);
 
@@ -124,6 +123,15 @@ public class MySqlRunAlwaysTests : MySqlTestBase
             ("02_CreateTableH.sql", MigrationStatus.Migrated),
             ("03_SeedDataD.sql", MigrationStatus.Migrated)
         );
+
+        // Phase 3: MigrateUp all once more without --allow-out-of-order. The Failed record proves the target has
+        // received the RunAlways file, so it is not out of order although Release_4.0 is already applied (#25).
+        await ctx.RebuildForAsync(MigrationCommand.MigrateUp, MigrationRunMode.Migrate);
+        var thirdRun = await ctx.MigrateUpAsync();
+        (thirdRun.ErrorMessage ?? string.Empty).Should().NotContain("Out-of-order",
+            "a RunAlways file the target has already received is never out of order (#25)");
+        ctx.AssertSuccess(false);
+        ctx.AssertRunCount(3);
     }
 
     /// <summary>
@@ -164,7 +172,7 @@ public class MySqlRunAlwaysTests : MySqlTestBase
 
         // Phase 2: MigrateUp all -- R1/F3 re-executed, fails (duplicate key), Rollback
         await ctx.RebuildForAsync(MigrationCommand.MigrateUp, MigrationRunMode.Migrate);
-        await ctx.MigrateUpAsync(allowOutOfOrder: true);
+        await ctx.MigrateUpAsync();
         ctx.AssertSuccess(false);
         ctx.AssertRunCount(2);
 

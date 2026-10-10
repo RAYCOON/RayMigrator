@@ -418,7 +418,7 @@ public class MigSettingsInheritanceTests : PostgreSqlTestBase
 
         // Phase 2: MigrateUp again -- R1/F3 should re-execute (RunAlways=true from migsettings)
         await ctx.RebuildForAsync(MigrationCommand.MigrateUp, MigrationRunMode.Migrate);
-        var result2 = await ctx.MigrateUpAsync(allowOutOfOrder: true);
+        var result2 = await ctx.MigrateUpAsync();
         result2.Success.Should().BeTrue($"Second MigrateUp failed: {result2.ErrorMessage}");
         result2.SuccessfulMigrations.Should().BeGreaterThanOrEqualTo(1,
             "RunAlways=true from migsettings should cause at least one re-execution");
