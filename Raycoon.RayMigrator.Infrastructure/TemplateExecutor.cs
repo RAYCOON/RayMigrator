@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Globalization;
 using Microsoft.Extensions.Logging;
 using Raycoon.RayMigrator.Core.Extensions;
 using Raycoon.RayMigrator.Core.Configuration;
@@ -84,6 +85,22 @@ public class TemplateExecutor
         var templateResponse = ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId);
 
         _ctxAccessor.Current.MigrationState.MigratorMetaId = templateResponse.ResultCode;
+
+        // Repository_CheckCreate returns 'VersionId,RepositoryWasCreated,message'. The second code is 1 when this run
+        // created the schema and the repository tables, which an operator should see without Debug logging: a first
+        // run creates them in a database that may belong to someone else (#27). A customised template that still
+        // returns 'code,message' produces no Information line.
+        bool repositoryCreated = templateResponse.ResultCodes.Length > 1 && templateResponse.ResultCodes[1] == 1;
+        if (repositoryCreated)
+        {
+            _logger.LogInformation(eventId,
+                "Repository created: DatabaseType [{DatabaseType}], schema [{SchemaName}], VersionId [{VersionId}]. {ResultMessage}{MigrationContext}",
+                _repositoryDal.DatabaseType,
+                SensitiveDataMasker.Mask(_repository.SchemaName),
+                templateResponse.ResultCode,
+                templateResponse.ResultMessage,
+                _ctxAccessor.Current.Clone);
+        }
     }
 
     /// <summary>
@@ -861,36 +878,33 @@ public class TemplateExecutor
             throw new TemplateResultException($"Error executing template {template}: Execution returned empty string as result");
         }
 
-        TemplateResponse templateResponse = new();
-        templateResponse.ResultMessage = string.Empty;
-        string[] resultSplit;
-
-        int commaIndex = resultString.IndexOf(',');
-        if (commaIndex == -1)
+        // Contract 'code[,code...],message': the leading integer tokens are the codes, everything after them is
+        // the message. Messages contain no commas by contract; one that does is still kept intact because the
+        // split stops at the first token that is not an integer (#27).
+        string[] tokens = resultString.Split(',');
+        List<int> codes = [];
+        int messageStart = 0;
+        while (messageStart < tokens.Length
+               && int.TryParse(tokens[messageStart].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out int code))
         {
-            resultSplit = new string[] { resultString, string.Empty };
-        }
-        else
-        {
-            string firstPart = resultString.Substring(0, commaIndex);
-            string secondPart = resultString.Substring(commaIndex + 1);
-            resultSplit = new string[] { firstPart, secondPart };
+            codes.Add(code);
+            messageStart++;
         }
 
-        string intValueString = resultSplit[0].Trim();
-        if (!int.TryParse(intValueString, out int resultCode))
+        if (codes.Count == 0)
         {
             throw new TemplateResultException($"Error executing template {template}: Execution returned incorrect result. " +
-                                                $"The first (or only) part of [{resultString}], which is [{intValueString}], needs to be converted into an integer-value. This was NOT possible!");
+                                                $"The first (or only) part of [{resultString}], which is [{tokens[0].Trim()}], needs to be converted into an integer-value. This was NOT possible!");
         }
 
-        // Set TemplateResponse
-        templateResponse.ResultCode = resultCode;
-        if (resultSplit.Length == 2)
+        TemplateResponse templateResponse = new()
         {
-            templateResponse.ResultMessage = resultSplit[1].Trim();
-        }
-        
+            ResultCode = codes[0],
+            ResultCodes = codes.ToArray(),
+            ResultMessage = string.Join(',', tokens.Skip(messageStart)).Trim()
+        };
+        int resultCode = templateResponse.ResultCode;
+
         if (resultCode < 0)
         {
             // Template returns a negative result => error

@@ -7,6 +7,20 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ## [Unreleased]
 
+### Changed
+
+- Two decisions an operator should see at the default Information level were
+  logged at Debug only: that a run created the repository (schema and tables)
+  on first contact, and that a target shares the repository connection and
+  therefore runs on the atomic shared connection path, where all blocks of a
+  file and the repository update commit or roll back together. Both are now
+  one Information line per run. To make the creation detectable, the SQL
+  template result contract allows further integer codes between the result
+  code and the message (`'code[,code...],message'`); `Repository_CheckCreate`
+  returns `RepositoryWasCreated` as its second code in all five databases. A
+  customised `Repository_CheckCreate` template in the old `'code,message'`
+  format keeps working but produces no "Repository created" line. (#27)
+
 ### Fixed
 
 - SQL Server: a migration file that alters the login RayMigrator itself

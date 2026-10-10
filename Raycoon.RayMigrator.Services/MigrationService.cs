@@ -225,6 +225,15 @@ public class MigrationService : IMigrationService
             // OPT-3: Log safety warnings for dangerous configuration combinations
             LogMigrationSafetyWarnings(filesToMigrate, productOptions);
 
+            // The atomic shared-connection path changes what a failure leaves behind; name the targets it applies to (#27).
+            if (request.RunMode.ShouldExecuteSql())
+            {
+                LogAtomicSharedConnectionTargets(
+                    InvolvedTargets(filesToMigrate, productOptions),
+                    productOptions,
+                    _ctxAccessor.Current.RayMigratorOptions.Repository!);
+            }
+
             // --- Phase 3: Execute Migrations ---
             // Track successfully migrated records for potential rollback
             var successfullyMigratedRecords = new List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)>();
@@ -934,8 +943,71 @@ public class MigrationService : IMigrationService
     {
         return file.UseTransaction
             && !ignoreBlockErrors
-            && string.Equals(repository.DatabaseType, targetGroupDatabaseType, StringComparison.OrdinalIgnoreCase)
+            && TargetSharesRepositoryConnection(targetOptions, repository, targetGroupDatabaseType);
+    }
+
+    /// <summary>
+    /// Whether a target shares the repository's connection: same DatabaseType (case-insensitive) and an identical
+    /// ConnectionString. This is the target-level half of <see cref="CanUseSharedConnection"/>; the file-level half
+    /// (UseTransaction, error action) is decided per file.
+    /// </summary>
+    internal static bool TargetSharesRepositoryConnection(
+        TargetOptions targetOptions,
+        RepositoryOptions repository,
+        string targetGroupDatabaseType)
+    {
+        return string.Equals(repository.DatabaseType, targetGroupDatabaseType, StringComparison.OrdinalIgnoreCase)
             && string.Equals(targetOptions.ConnectionString, repository.ConnectionString, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Logs, once per run, every involved target that shares the repository connection. On those targets the atomic
+    /// shared-connection path commits all blocks of a file together with the repository update, or rolls everything
+    /// back; after a failure the target shows none of the file's changes instead of the blocks that had succeeded.
+    /// The per-file conditions of <see cref="CanUseSharedConnection"/> still decide per file; this line tells the
+    /// operator which targets are affected at all (#27).
+    /// </summary>
+    internal void LogAtomicSharedConnectionTargets(
+        IEnumerable<(string TargetGroupAlias, string TargetAlias)> involvedTargets,
+        ProductOptions productOptions,
+        RepositoryOptions repository)
+    {
+        foreach (var (targetGroupAlias, targetAlias) in involvedTargets.Distinct(TupleIgnoreCaseComparer.Instance))
+        {
+            var targetGroup = productOptions.TargetGroups?.FirstOrDefault(tg =>
+                string.Equals(tg.Alias, targetGroupAlias, StringComparison.OrdinalIgnoreCase));
+            var target = targetGroup?.Targets?.FirstOrDefault(t =>
+                string.Equals(t.Alias, targetAlias, StringComparison.OrdinalIgnoreCase));
+            if (targetGroup?.DatabaseType == null || target == null)
+                continue;
+
+            if (TargetSharesRepositoryConnection(target, repository, targetGroup.DatabaseType))
+            {
+                _logger.LogInformation(
+                    "Target [{Target}] in TargetGroup [{TargetGroup}] shares the repository connection: migration files with UseTransaction = true and an error action other than Ignore run on the atomic shared connection path (all blocks of a file and the repository update commit or roll back together)",
+                    target.Alias, targetGroup.Alias);
+            }
+        }
+    }
+
+    /// <summary>The (TargetGroupAlias, TargetAlias) pairs the given files are pending on.</summary>
+    internal static IEnumerable<(string TargetGroupAlias, string TargetAlias)> InvolvedTargets(
+        List<MigrationFileInfo> files, ProductOptions productOptions)
+    {
+        foreach (var targetGroup in productOptions.TargetGroups ?? [])
+        {
+            foreach (var target in targetGroup.Targets ?? [])
+            {
+                if (targetGroup.Alias == null || target.Alias == null)
+                    continue;
+
+                if (files.Any(f => string.Equals(f.TargetGroupAlias, targetGroup.Alias, StringComparison.OrdinalIgnoreCase)
+                                   && f.IsPendingOn(target.Alias)))
+                {
+                    yield return (targetGroup.Alias, target.Alias);
+                }
+            }
+        }
     }
 
     /// <summary>
@@ -1197,6 +1269,15 @@ public class MigrationService : IMigrationService
 
             // --- Phase 3: Execute rollbacks ---
             var productOptions = _options.Value.Products!.First(p => p.Alias == request.ProductAlias);
+
+            // The atomic shared-connection path changes what a failed rollback leaves behind; name the targets it applies to (#27).
+            if (request.RunMode.ShouldExecuteSql())
+            {
+                LogAtomicSharedConnectionTargets(
+                    migrationsToRollback.Select(r => (r.TargetGroupAlias, r.TargetAlias)),
+                    productOptions,
+                    _ctxAccessor.Current.RayMigratorOptions.Repository!);
+            }
 
             var rollbackResult = await ExecuteRollbackForMigrations(
                 migrationsToRollback, productOptions, request.RunMode);

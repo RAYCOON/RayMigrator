@@ -162,6 +162,7 @@ Raycoon.RayMigrator.Tests.Unit/
 ├── P0_TomlParsingTests.cs
 ├── P1_AutoFixOrphanedRunTests.cs
 ├── P1_BuildMigrationRunSettingsJsonTests.cs
+├── P1_AtomicSharedConnectionLoggingTests.cs
 ├── P1_CanUseSharedConnectionTests.cs
 ├── P1_CliToolExecutionHelpersTests.cs
 ├── P1_CliToolExecutorTests.cs
@@ -212,6 +213,7 @@ Raycoon.RayMigrator.Tests.Unit/
 ├── P1_TargetMigrationOrderExecutionTests.cs
 ├── P1_TemplateCacheCfgValidationTests.cs
 ├── P1_TemplateExecutorEnvironmentIdTests.cs
+├── P1_TemplateExecutorRepositoryCreatedLoggingTests.cs
 ├── P1_TryFinalizeCompletedMigrationTests.cs
 ├── P1_UseCliToolAliasInheritanceTests.cs
 ├── P2_EnsureConnectionStringOptionsTests.cs
@@ -225,6 +227,7 @@ Raycoon.RayMigrator.Tests.Unit/
 ├── P2_PostgreSqlIdentifierCasingTests.cs
 ├── P2_RayMigratorDatabaseSinkTests.cs
 ├── P2_StringExtensionsTests.cs
+├── P2_TemplateResponseMultiCodeTests.cs
 ├── P2_TemplateResultCodeTests.cs
 ├── P2_ToDetailStringMaskingTests.cs
 ├── P3_BaselineAndInfoModelTests.cs
@@ -259,6 +262,7 @@ Raycoon.RayMigrator.Tests.Unit/
 |-----------|---------|-------------|
 | `P1_AutoFixOrphanedRunTests` | `AutoFixOrphanedRunTests` | Automatic detection and repair of orphaned MigrationRun records |
 | `P1_BuildMigrationRunSettingsJsonTests` | `BuildMigrationRunSettingsJsonTests` | `MigrationRunSettingsJson` serialization for MigrationRunMeta |
+| `P1_AtomicSharedConnectionLoggingTests` | `AtomicSharedConnectionLoggingTests` | The once-per-run Information line naming the targets that share the repository connection (atomic shared-connection path, #27), `MigrationService.TargetSharesRepositoryConnection` and `InvolvedTargets` |
 | `P1_CanUseSharedConnectionTests` | `CanUseSharedConnectionTests` | `MigrationService.CanUseSharedConnection` static guard — four conditions required for atomic shared-connection path: `UseTransaction=true`, `MigrationErrorAction != Ignore` (ignoreBlockErrors=false), matching `DatabaseType` (case-insensitive), identical `ConnectionString` (ordinal). `DbCommandMaxRetries` is explicitly not a guard condition; retries are handled at file level within the atomic path. |
 | `P1_CliToolExecutionHelpersTests` | `ResolveUseCliToolAliasTests`, `ResolveCliToolArgumentsTests` | `MigrationService.ResolveUseCliToolAlias` (file vs target alias precedence) and `MigrationService.ResolveCliToolArguments` (placeholder substitution in CLI argument templates) |
 | `P1_CliToolExecutorTests` | `CliToolExecutorTests` | `CliToolExecutor.ExecuteAsync` with real OS processes: File mode, Stdin mode, exit code evaluation (custom success/error codes, unexpected codes), stderr capture, timeout (`CliToolTimeoutException`), nonexistent executable (`CliToolExecutionException`), cancellation, and duration measurement. Platform: macOS and Linux only (skipped on Windows). |
@@ -311,6 +315,7 @@ Raycoon.RayMigrator.Tests.Unit/
 | `P1_TargetMigrationOrderExecutionTests` | `TargetMigrationOrderExecutionTests` | `TargetMigrationOrder` (FileByFile vs TargetByTarget) execution order |
 | `P1_TemplateCacheCfgValidationTests` | `TemplateCacheCfgValidationTests` | `TemplateCache` configuration validation against available templates |
 | `P1_TemplateExecutorEnvironmentIdTests` | `TemplateExecutorEnvironmentIdTests` | `TemplateExecutor` parameter binding for the EnvironmentId FK feature: verifies the five flipped methods bind `@EnvironmentId` (int) and not a text `@Environment` parameter to `IDal` |
+| `P1_TemplateExecutorRepositoryCreatedLoggingTests` | `TemplateExecutorRepositoryCreatedLoggingTests` | `TemplateExecutor.RepositoryCheckCreate` logs "Repository created" at Information level only when the template's second result code is 1; schema name masked unless `--reveal-sensitive-data` (#27) |
 | `P1_TryFinalizeCompletedMigrationTests` | `TryFinalizeCompletedMigrationTests` | Migration finalization (status updates after execution) |
 | `P1_UseCliToolAliasInheritanceTests` | `UseCliToolAliasInheritanceTests` | `UseCliToolAlias` inheritance cascade via `ProductDefaultsPostConfigureOptions.MergeDefaults` (ProductDefaults -> Product -> TargetGroup -> Target, explicit values not overridden) |
 | `P1_JsonOptionsSourceAliasMergeTests` | `JsonOptionsSourceAliasMergeTests` | `JsonOptionsSource.LoadAsync` with real files: overrides by alias, reversed order, non-alias arrays replaced, `{ENV:}` after the merge, diagnostics from the shared chain, comments accepted, error paths; golden cases under `Testing/ConfigMergeCases/` shared with the wizard suite (#23) |
@@ -333,6 +338,7 @@ Raycoon.RayMigrator.Tests.Unit/
 | `P2_PostgreSqlIdentifierCasingTests` | `PostgreSqlIdentifierCasingTests` | DAL-017 regression guard: zero double-quoted PascalCase identifiers in any of the 18 PostgreSQL templates (outside TOML/comments and SELECT aliases); confirms reader-output SELECT templates expose the expected number of PascalCase output aliases (Strategy B) |
 | `P2_RayMigratorDatabaseSinkTests` | `RayMigratorDatabaseSinkTests` | `RayMigratorDatabaseSink.Emit()` gate — events carrying `DbLogEnabled = false` are dropped, `true` is enqueued, early-pipeline logs without the property pass through; `RunModeId` is a stamp, not a gate (#6) |
 | `P2_StringExtensionsTests` | `StringExtensionsPathTests`, `PlaceholderReplacementTests`, `GetFileEncodingTests` | String extension methods (SHA-256, path parsing, connection string utilities) |
+| `P2_TemplateResponseMultiCodeTests` | `TemplateResponseMultiCodeTests` | Template result contract `'code[,code...],message'`: leading integer tokens become `ResultCodes`, the rest stays the message, negative first code still throws (#27) |
 | `P2_TemplateResultCodeTests` | `TemplateResultCodeTests` | Template execution result code interpretation |
 | `P2_ToDetailStringMaskingTests` | `ToDetailStringMaskingTests` | `ToDetailString()` output masking for sensitive data |
 

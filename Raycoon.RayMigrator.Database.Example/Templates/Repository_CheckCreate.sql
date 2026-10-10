@@ -1,6 +1,7 @@
 -- TODO: Implement for your database engine
 -- Purpose: Creates all repository tables (MigrationRun, MigrationRecord, MigrationRecordHistory, lookup tables) if they don't exist
 -- See the corresponding template in Database.SqlServer or Database.PostgreSQL for reference.
+-- Returns: 'VersionId,RepositoryWasCreated,message' (RepositoryWasCreated: 1 = created in this run, 0 = existed before).
 --
 -- Parameters used in this template:
 -- {CFG:SchemaName} - The repository schema name

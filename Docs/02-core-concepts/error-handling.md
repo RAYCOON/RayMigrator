@@ -439,6 +439,7 @@ flowchart TD
 - The committed block count is tracked in `MigrationState.FileBlocksCommitted` and persisted per block; a re-run resumes at the first uncommitted block (`FindResumableBlock`).
 - Transient-error retries (`DbCommandMaxRetries`) repeat the failed block only.
 - File-level atomicity exists only on the atomic shared-connection path: when `CanUseSharedConnection` returns `true` (`UseTransaction = true`, `MigrationErrorAction != Ignore`, repository and target with the same `DatabaseType` and byte-identical `ConnectionString`), `ExecuteSqlBlocks` delegates to `ExecuteSqlBlocksAtomic`, which runs all blocks and the repository status updates in a single transaction that commits or rolls back as a whole. See [Atomic Shared Connection](#atomic-shared-connection) below.
+- Which targets run on that path is logged once per run at Information level (`Target [X] in TargetGroup [Y] shares the repository connection: ...`), so the default log tells an operator whether a failed file left its first blocks committed or rolled everything back.
 
 ### Without Transactions
 

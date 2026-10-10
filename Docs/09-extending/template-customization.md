@@ -112,7 +112,7 @@ Note4 = "ResultCode catalog: see TemplateResultCode.cs in Shared project"
 | `[Description]` | `Function` (what the template does) and `Behaviour` (return value semantics) |
 | `[ConfigPlaceholders]` | Documents which `{CFG:*}` placeholders the template uses |
 | `[Parameters]` | Documents which `@Parameter` SQL parameters are expected at runtime |
-| `[ReturnValues]` | Documents the `'code,message'` SELECT format returned by the template |
+| `[ReturnValues]` | Documents the `'code[,code...],message'` SELECT format returned by the template |
 | `[ModificationNotes]` | Rules and constraints for anyone modifying the template |
 
 ## Placeholder Syntax
@@ -146,13 +146,14 @@ Standard ADO.NET parameters used in DML operations.
 
 ## Template Result Convention
 
-All templates that use `ExecuteScalar` must return a result string in the format `'code,message'`:
+All templates that use `ExecuteScalar` must return a result string in the format `'code,message'`, optionally with further integer codes before the message (`'code,code,message'`):
 
 - **ResultCode >= 0**: Success (e.g., the new record ID)
 - **ResultCode < 0**: Error (migration aborted, see `TemplateResultCode.cs` for the catalog of known codes)
-- **ResultMessage**: A human-readable description after the comma
+- **Further codes**: template-specific information; `Repository_CheckCreate` returns `RepositoryWasCreated` (`1`/`0`) as its second code so that the engine can log the creation at Information level
+- **ResultMessage**: A human-readable description after the last code; it must not start with an integer followed by a comma
 
-The result is parsed by `TemplateExecutor.ExecuteScalarWithNegativeResultCodeException()` into a `TemplateResponse` object with `ResultCode` (int) and `ResultMessage` (string?).
+The result is parsed by `TemplateExecutor.ExecuteScalarWithNegativeResultCodeException()` into a `TemplateResponse` object with `ResultCode` (int), `ResultCodes` (int[]) and `ResultMessage` (string?).
 
 Known result codes (from `TemplateResultCode` in `Shared/Constants/`):
 

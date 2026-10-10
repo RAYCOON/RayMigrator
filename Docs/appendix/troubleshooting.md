@@ -1031,7 +1031,11 @@ When the Repository and a migration Target share the **same ConnectionString**, 
 
 **Verification:**
 
-Enable Information-level logging (the default). When the atomic path is active, RayMigrator logs:
+At the default Information level, RayMigrator names every involved target that shares the repository connection once per run:
+```
+Target [MainDB] in TargetGroup [Backend] shares the repository connection: migration files with UseTransaction = true and an error action other than Ignore run on the atomic shared connection path (all blocks of a file and the repository update commit or roll back together)
+```
+At Debug level each file additionally logs:
 ```
 Using atomic shared connection for {Filename} (target and repository share the same database)
 ```

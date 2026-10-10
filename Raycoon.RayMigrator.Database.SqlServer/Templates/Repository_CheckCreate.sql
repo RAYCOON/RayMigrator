@@ -6,7 +6,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_CheckCreate"
 DatabaseType   = "SqlServer"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-09-09.1"
+Version        = "2026-10-10.1"
 
 [Description]
 Function = """
@@ -33,16 +33,16 @@ RayMigratorVersion     = "VARCHAR(20) | REQUIRED | The RayMigrator application v
 RepositoryDatabaseType = "VARCHAR(20) | REQUIRED | The database type for the repository (e.g., 'SqlServer')"
 
 [ReturnValues]
-# Format: SELECT 'code,message'
-Success_N           = "N (VersionId),RayMigrator repository already exists. Using VersionId [N]."
-Success_N_Created   = "N (VersionId),RayMigrator repository-tables with master data and new VersionId [N] successfully created"
-Success_N_NewVer    = "N (VersionId),RayMigrator repository already exists. New VersionId [N] created."
+# Format: SELECT 'VersionId,RepositoryWasCreated,message' (RepositoryWasCreated: 1 = created in this run, 0 = existed before)
+Success_N           = "N (VersionId),0,RayMigrator repository already exists. Using VersionId [N]."
+Success_N_Created   = "N (VersionId),1,RayMigrator repository-tables with master data and new VersionId [N] successfully created"
+Success_N_NewVer    = "N (VersionId),0,RayMigrator repository already exists. New VersionId [N] created."
 Error_-10_Incomplete        = "-10,RayMigrator repository incomplete or corrupt. Repository contains [X] tables instead of [11]."
 Error_-11_PartialNoVersion  = "-11,RayMigrator repository incomplete or corrupt. Repository contains [X] tables instead of the expected amount of [0]."
 Error_-12_MultipleVersions  = "-12,Multiple [MigratorMeta]-entries found for RayMigratorVersion [...] RepositoryDatabaseType [...]."
 
 [ModificationNotes]
-Note1 = "SELECT result format: 'code,message' - DO NOT change this format"
+Note1 = "SELECT result format: 'VersionId,RepositoryWasCreated,message' - RayMigrator logs the repository creation from the second value (#27); DO NOT change this format"
 Note2 = "No commas allowed in error messages"
 Note3 = "Use SYSUTCDATETIME() for all timestamps"
 Note4 = "MigratorMeta lists the RayMigrator versions that used the repository; the first row is the version that created it and therefore identifies the schema. There is no RepositoryVersion constant and no in-place upgrade."
@@ -118,7 +118,7 @@ BEGIN TRY
 				SET @VersionIdString = CAST(@VersionId AS VARCHAR(10));
 
 				COMMIT TRANSACTION;
-				SELECT @VersionIdString + ',RayMigrator repository already exists. Using VersionId [' + @VersionIdString + '].';
+				SELECT @VersionIdString + ',0,RayMigrator repository already exists. Using VersionId [' + @VersionIdString + '].';
 				RETURN;
 			END
 			ELSE IF (@NumberOfRows = 0)
@@ -142,7 +142,7 @@ BEGIN TRY
 
 				COMMIT TRANSACTION;
 				SET @VersionIdString = CAST(@VersionId AS VARCHAR(10));
-				SELECT @VersionIdString + ',RayMigrator repository already exists. New VersionId [' + @VersionIdString + '] created.';
+				SELECT @VersionIdString + ',0,RayMigrator repository already exists. New VersionId [' + @VersionIdString + '] created.';
 				RETURN;
 
 			END
@@ -574,7 +574,7 @@ execute sys.sp_addextendedproperty  @name=N'MS_Description', @value=N'The number
 		COMMIT TRANSACTION;
 
 		SET @VersionIdString = CAST(@VersionId AS VARCHAR(10));
-		SELECT @VersionIdString + ',RayMigrator repository-tables with master data and new VersionId [' + @VersionIdString + '] successfully created';
+		SELECT @VersionIdString + ',1,RayMigrator repository-tables with master data and new VersionId [' + @VersionIdString + '] successfully created';
 
 END TRY
 BEGIN CATCH

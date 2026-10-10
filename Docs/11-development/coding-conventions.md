@@ -172,7 +172,7 @@ Reference files are cited so that a rule can be checked against real code.
 - Location `Raycoon.RayMigrator.Database.<Db>/Templates/<Area>_<Entity>_<Action>.sql`; the name equals the `TemplateType` member. Templates are `Content` items copied to `DataAccessLayers/<Db>/` and packed as `contentFiles`, not embedded resources.
 - Every template starts with the `[RayMigratorTemplate]` header block (`TemplateType`, `DatabaseType`, `Author`, `Version = "YYYY-MM-DD.n"`), followed by `[Description]`, `[ConfigPlaceholders]`, `[Parameters]`, `[ReturnValues]` and `[ModificationNotes]`. Bump `Version` on every change.
 - Placeholders: `{CFG:SchemaName}` and `{CFG:TableBaseName}` are substituted at load time and must appear in the allow-list in `Core/Configuration/ConfigurationConstants.cs`. Runtime values are ADO parameters (`@ProductId`), never string-concatenated.
-- Result contract: the last statement returns `'code,message'`; `code >= 0` is success, negative codes come from `TemplateResultCode`; messages contain no commas.
+- Result contract: the last statement returns `'code[,code...],message'`; the first `code >= 0` is success, negative codes come from `TemplateResultCode`, further integer codes are template-specific (`Repository_CheckCreate` returns `RepositoryWasCreated`); messages contain no commas and never start with an integer.
 - SQL Server templates use `SET NOCOUNT ON; SET XACT_ABORT ON;`, `BEGIN TRY ... END TRY BEGIN CATCH ... ;THROW; END CATCH` and `SYSUTCDATETIME()`. PostgreSQL identifiers are quoted PascalCase. Keep the five dialects functionally identical; a change in one template is a change in five.
 
 ## 15. Blazor Config Wizard

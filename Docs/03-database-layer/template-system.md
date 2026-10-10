@@ -216,16 +216,16 @@ RayMigratorVersion     = "VARCHAR(20) | REQUIRED | The RayMigrator application v
 RepositoryDatabaseType = "VARCHAR(20) | REQUIRED | The database type for the repository (e.g., 'SqlServer')"
 
 [ReturnValues]
-# Format: SELECT 'code,message'
-Success_N           = "N (VersionId),RayMigrator repository already exists. Using VersionId [N]."
-Success_N_Created   = "N (VersionId),RayMigrator repository-tables with master data and new VersionId [N] successfully created"
-Success_N_NewVer    = "N (VersionId),RayMigrator repository already exists. New VersionId [N] created."
+# Format: SELECT 'VersionId,RepositoryWasCreated,message' (RepositoryWasCreated: 1 = created in this run, 0 = existed before)
+Success_N           = "N (VersionId),0,RayMigrator repository already exists. Using VersionId [N]."
+Success_N_Created   = "N (VersionId),1,RayMigrator repository-tables with master data and new VersionId [N] successfully created"
+Success_N_NewVer    = "N (VersionId),0,RayMigrator repository already exists. New VersionId [N] created."
 Error_-10_Incomplete        = "-10,RayMigrator repository incomplete or corrupt. Repository contains [X] tables instead of [11]."
 Error_-11_PartialNoVersion  = "-11,RayMigrator repository incomplete or corrupt. Repository contains [X] tables instead of the expected amount of [0]."
 Error_-12_MultipleVersions  = "-12,Multiple [MigratorMeta]-entries found for RayMigratorVersion [...] RepositoryDatabaseType [...]."
 
 [ModificationNotes]
-Note1 = "SELECT result format: 'code,message' - DO NOT change this format"
+Note1 = "SELECT result format: 'VersionId,RepositoryWasCreated,message' - RayMigrator logs the repository creation from the second value (#27); DO NOT change this format"
 Note2 = "No commas allowed in error messages"
 Note3 = "Use SYSUTCDATETIME() for all timestamps"
 Note4 = "MigratorMeta lists the RayMigrator versions that used the repository; the first row is the version that created it and therefore identifies the schema. There is no RepositoryVersion constant and no in-place upgrade."
@@ -241,16 +241,20 @@ Templates return results via SELECT:
 
 ```sql
 -- Success: ResultCode >= 0
-SELECT '1,Repository created successfully';
+SELECT '1,MigrationRun created successfully';
 
 -- Error: ResultCode < 0
 SELECT '-1,Error message without commas';
+
+-- Further integer codes between the result code and the message (Repository_CheckCreate)
+SELECT '3,1,RayMigrator repository-tables with master data and new VersionId [3] successfully created';
 ```
 
-**Format**: `{ResultCode},{Message}`
+**Format**: `{ResultCode}[,{Code}...],{Message}`
 
 - `ResultCode >= 0`: Success (code can carry additional info like VersionId)
 - `ResultCode < 0`: Error (triggers migration abort)
+- Further integer codes before the message carry template-specific information. `Repository_CheckCreate` returns `RepositoryWasCreated` as its second code (`1` when this run created the repository, `0` when it existed), which `TemplateExecutor.RepositoryCheckCreate` reports at Information level. The parser takes every leading integer token as a code and the rest as the message, so a message must not start with an integer followed by a comma.
 
 ## Template Class
 
@@ -360,15 +364,13 @@ public class TemplateExecutor
 ```csharp
 public class TemplateResponse
 {
-    public int ResultCode { get; set; }
+    public int ResultCode { get; set; }            // first code
+    public int[] ResultCodes { get; set; } = [];   // every integer code in order; [0] == ResultCode
     public string? ResultMessage { get; set; }
-
-    public override string ToString()
-        => $"ResultCode: {ResultCode}, ResultMessage: {(string.IsNullOrWhiteSpace(ResultMessage) ? "{NullOrEmpty}" : ResultMessage)}";
 }
 ```
 
-Templates return a comma-separated string `"ResultCode,ResultMessage"`. A negative `ResultCode` causes `ExecuteScalarWithNegativeResultCodeException` to throw a `TemplateResultException`. Known negative codes (defined in `TemplateResultCode` in `Raycoon.RayMigrator.Shared.Constants`) throw `TemplateResultException`, while unknown negative codes throw `UndefinedTemplateResultException`.
+Templates return a comma-separated string `"ResultCode[,Code...],ResultMessage"`; `ResultCodes` holds every leading integer code and `ResultCode` equals its first entry. A negative `ResultCode` causes `ExecuteScalarWithNegativeResultCodeException` to throw a `TemplateResultException`. Known negative codes (defined in `TemplateResultCode` in `Raycoon.RayMigrator.Shared.Constants`) throw `TemplateResultException`, while unknown negative codes throw `UndefinedTemplateResultException`.
 
 ## TemplateCache
 
@@ -447,7 +449,7 @@ The `Version` header of a template is the revision of that file and is maintaine
 [RayMigratorTemplate]
 TemplateType = "Repository_CheckCreate"
 DatabaseType = "SqlServer"
-Version = "2026-09-09.1"
+Version = "2026-10-10.1"
 */
 
 SET NOCOUNT ON;
@@ -458,7 +460,7 @@ BEGIN TRY
     IF OBJECT_ID('{CFG:SchemaName}.{CFG:TableBaseName}MigratorMeta', 'U') IS NOT NULL
     BEGIN
         -- Repository exists, return existing VersionId
-        SELECT @VersionId + ',Repository already exists';
+        SELECT @VersionId + ',0,Repository already exists';
         RETURN;
     END;
 
@@ -476,7 +478,7 @@ BEGIN TRY
 
     -- ... more tables ...
 
-    SELECT '1,Repository created successfully';
+    SELECT '1,1,Repository created successfully';
 END TRY
 BEGIN CATCH
     IF @@TRANCOUNT > 0 ROLLBACK;
@@ -491,7 +493,7 @@ END CATCH;
 [RayMigratorTemplate]
 TemplateType = "Repository_CheckCreate"
 DatabaseType = "PostgreSQL"
-Version = "2026-09-09.1"
+Version = "2026-10-10.1"
 */
 
 DO $$
@@ -504,7 +506,7 @@ BEGIN
                AND tablename = '{CFG:TableBaseName}migrator_meta')
     THEN
         -- Repository exists
-        RAISE NOTICE '1,Repository already exists';
+        RAISE NOTICE '1,0,Repository already exists';
         RETURN;
     END IF;
 
@@ -521,7 +523,7 @@ BEGIN
 
     -- ... more tables ...
 
-    RAISE NOTICE '1,Repository created successfully';
+    RAISE NOTICE '1,1,Repository created successfully';
 END $$;
 ```
 

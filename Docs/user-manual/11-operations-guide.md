@@ -237,6 +237,8 @@ RayMigrator uses structured logging with Serilog. Key log patterns to look for:
 [INF] MigrationRun completed with result: Ok
 ```
 
+Two decisions that change what a run leaves behind are visible at the default Information level: `Repository created: DatabaseType [...], schema [...], VersionId [...]` when a run creates the repository schema and tables on first contact (also for `info`, `validate-hash`, `update-hash`, `baseline` and `fix`), and `Target [...] in TargetGroup [...] shares the repository connection: ...` once per run for every target on which migration files run on the atomic shared connection path, where all blocks of a file and the repository update commit or roll back together.
+
 ---
 
 ## Concurrency
