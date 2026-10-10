@@ -21,6 +21,11 @@ RayMigrator follows Semantic Versioning where applicable.
   appears in the error chain, so the next attempt logs in afresh instead of
   failing once per poisoned pooled connection.
 
+- The RULE_7_3 hint for a hardcoded credential printed its placeholder with
+  doubled braces (`{{ENV:VARIABLE}}`) in the CLI log and in the Config Wizard,
+  because the message template was used verbatim instead of being formatted.
+  It now reads `{ENV:VARIABLE}`. (#26)
+
 ## [0.15.0] — 2026-09-23
 
 ### Changed

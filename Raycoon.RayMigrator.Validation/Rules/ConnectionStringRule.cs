@@ -73,10 +73,12 @@ internal sealed class ConnectionStringRule : IValidationRule
 
         if (HardcodedCredentialPattern.IsMatch(connectionString))
         {
+            // The constant is a string.Format template with escaped braces ({{ENV:VARIABLE}}); an argument-less
+            // Format renders them as single braces. Passing the constant verbatim printed the doubled braces (#26).
             report.AddWarning(
                 RuleIds.RULE_7_3,
                 path,
-                ValidationMessages.HardcodedCredentials);
+                ValidationMessages.Format(ValidationMessages.HardcodedCredentials));
         }
     }
 }

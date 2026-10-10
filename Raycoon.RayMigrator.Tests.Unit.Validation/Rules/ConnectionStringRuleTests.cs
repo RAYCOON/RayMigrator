@@ -24,6 +24,27 @@ public class ConnectionStringRuleTests
     }
 
     [Fact]
+    public void HardcodedPassword_MessageShowsSingleBracePlaceholder()
+    {
+        var input = new ValidationInput
+        {
+            Repository = new RepositoryInput
+            {
+                DatabaseType = "SqlServer",
+                ConnectionString = "Server=.;User Id=sa;Password=secret;",
+                SchemaName = "dbo",
+            },
+        };
+
+        var report = RuleCatalog.RunAll(input);
+        var issue = report.Issues.Single(i => i.Code == RuleIds.RULE_7_3);
+        issue.Message.Should().Contain("{ENV:VARIABLE}",
+            because: "the message template escapes its braces for string.Format and must be formatted before it is reported (#26)");
+        issue.Message.Should().NotContain("{{",
+            because: "doubled braces in the CLI log and the Config Wizard were the symptom of #26");
+    }
+
+    [Fact]
     public void EnvPlaceholderConnectionString_IsAccepted()
     {
         var input = new ValidationInput
