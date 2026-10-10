@@ -95,13 +95,15 @@ See [06-configuration-reference/product-options.md](../06-configuration-referenc
 
 ### [appsettings.docker.json](appsettings.docker.json)
 
-A development/CI configuration for running against Docker containers. The `{ENV:SA_PASSWORD}` placeholder keeps credentials out of source control while using literal host/port values for the container addresses.
+A development/CI configuration for the test containers started by `Testing/Docker/RunDocker.default.sqlserver.ps1`. The `{ENV:MSSQL_SA_PASSWORD}` placeholder (the variable name of `Testing/Docker/default.env`) keeps credentials out of source control while using literal host/port values for the container addresses.
 
 Key characteristics:
-- Repository and database logging both point to `localhost:1433` (Docker-mapped port)
-- Product `RayMigratorTests` with two SQL Server target groups: `Backend` (two targets) and `Frontend` (one target)
+- Repository and database logging live in schemas `ray` and `logs` of the `Backend_1` database on `localhost:1433` (Docker-mapped port); the test container creates `Backend_1`, `Backend_2` and `Frontend`
+- Product `RayMigratorTests` with two SQL Server target groups: `Backend` (targets `Backend1`, `Backend2`) and `Frontend` (one target), the layout of the test set `Testing/MigrationFiles/Tests_SqlServer`
 - `MinimumLevel: Debug` for detailed output during testing
-- Migration files served from `Testing/MigrationFiles/RayMigratorTests` (relative path)
+- Migration files served from `{ENV:MIGRATION_ROOT}`; set the variable to the absolute path of `Testing/MigrationFiles/Tests_SqlServer` in your clone
+
+> **Relative root paths:** a relative `MigrationFilesRootDirectory` resolves against the folder of the `raymigrator` executable, not against the working directory or the configuration folder. Use an absolute path or an `{ENV:...}` placeholder as every example here does.
 
 See [10-testing/test-infrastructure.md](../10-testing/test-infrastructure.md) for Docker container setup.
 

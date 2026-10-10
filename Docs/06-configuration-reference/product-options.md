@@ -7,7 +7,7 @@ Products represent separate applications or systems with their own migration set
 | Property | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `Alias` | string | Yes | - | Unique product identifier (Unicode letters, numbers, underscores, max 50 chars) |
-| `MigrationFilesRootDirectory` | string | Yes | - | Root path for migration files (must exist) |
+| `MigrationFilesRootDirectory` | string | Yes | - | Root path for migration files (must exist). A relative path resolves against the folder of the `raymigrator` executable, not the working directory or the configuration folder; prefer an absolute path or an `{ENV:...}` placeholder |
 | `MigrationErrorAction` | string | Yes* | - | Error handling mode (*inherited from `ProductDefaults`). Matching is case-insensitive: `Rollback`, `rollback` and `ROLLBACK` are equivalent. |
 | `RollbackErrorAction` | string | No | - | Error handling during rollback (inherited from `ProductDefaults`). Matching is case-insensitive: `Terminate`, `terminate` and `TERMINATE` are equivalent. |
 | `MigrationFilesExtension` | string | No | - | Migration file extension (inherited from `ProductDefaults`) |
