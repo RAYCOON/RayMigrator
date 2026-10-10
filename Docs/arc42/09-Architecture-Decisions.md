@@ -32,6 +32,7 @@ followed the same day by the commit tagged `v0.10.3`; a decision already present
 | ADR-019 | Blazor WebAssembly Config Wizard as a separate, database-free tool | Accepted | <= 0.10.3 | [Configuration Inheritance with Validation](08-Crosscutting-Concepts.md#configuration-inheritance-with-validation), [Runtime View 6.9](06-Runtime-View.md#69-config-wizard-session-short) |
 | ADR-020 | Error handling strategies with rollback files and run results | Accepted (refined 0.13.0, 0.14.0) | <= 0.10.3 | [Rollback Strategies](08-Crosscutting-Concepts.md#rollback-strategies) |
 | ADR-021 | Configuration arrays merge by alias in every application | Accepted (0.15.0, #23) | 2026-09-23 | [Configuration Inheritance with Validation](08-Crosscutting-Concepts.md#configuration-inheritance-with-validation) |
+| ADR-022 | Transient error codes ship as an editable file per DAL folder | Accepted (0.16.0, #24) | 2026-10-10 | [Retry on Transient Errors](08-Crosscutting-Concepts.md#retry-on-transient-errors), [DAL Abstraction and plugin discovery](08-Crosscutting-Concepts.md#dal-abstraction-and-plugin-discovery) |
 
 ## ADRs
 
@@ -79,8 +80,8 @@ parties should be able to add an engine without a fork.
 carries `[DatabaseType("...")]` and references only `Raycoon.RayMigrator.Database.Common` and `Shared`. The static `DalFactory`
 discovers built in plugins from `DependencyContext.Default` (runtime libraries named `Raycoon.RayMigrator.*`) and external plugins
 from `DataAccessLayers/*/*.dll`, instantiates them with `Activator.CreateInstance(type, connectionString)` and caches one instance
-per `{databaseType}_{connectionString}`. Engine facts are data in `DalSpecificProperties`; transient error codes live in each
-plugin's `IsTransient` override. `Raycoon.RayMigrator.Database.Example` is the MIT licensed skeleton.
+per `{databaseType}_{connectionString}`. Engine facts are data in `DalSpecificProperties`; the built-in transient error codes live in each
+plugin (`DefaultTransientErrorCodes`, classified in its `IsTransient` override) and are replaced by a shipped `TransientErrorCodes.txt` since ADR-022. `Raycoon.RayMigrator.Database.Example` is the MIT licensed skeleton.
 
 **Consequences.** Positive: a new engine is a drop-in folder with assembly, provider and templates; the engine code never branches
 on an engine name; discovery survives single file publish. Negative: reflection instead of compile time checks (a DAL must be a
@@ -427,6 +428,39 @@ change for hierarchies that relied on positional overrides of non-alias arrays (
 merged); `reloadOnChange` is given up, which a CLI run never used.
 
 **References.** [Configuration hierarchy](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/06-configuration-reference/appsettings-hierarchy.md#arrays), [Config Wizard file hierarchy](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/12-config-wizard/file-hierarchy.md), [issue #23](https://github.com/RAYCOON/RayMigrator/issues/23).
+
+### ADR-022: Transient error codes ship as an editable file per DAL folder
+
+**Context.** Every DAL hardcoded the provider error codes that trigger a retry (`DalSqlServer.s_transientCodes` and its
+siblings). The 4021/596 incident of 2026-09-28 (a migration ran `ALTER LOGIN` on the migration login, SQL Server killed
+every pooled session, and the repository update failed although `DbCommandMaxRetries` was set) showed that operators may
+have to adjust that list without waiting for a release. An `appsettings` section (`RayMigrator:TransientErrorCodes`,
+versioned, with per-environment overrides and Config Wizard support) was considered.
+
+**Decision.** Each DAL folder `DataAccessLayers/{DatabaseType}/` ships a `TransientErrorCodes.txt` next to the DLL and the
+SQL templates: one code per line, `#` comments, compared case-insensitively (PostgreSQL SQLSTATEs such as `57P01`). The
+file is the complete list and replaces the built-in list; it does not merge with it. An existing but empty file means
+"retry nothing" and is logged as a Warning. `DalFactory` loads the file when it creates the DAL instance; a missing file
+keeps the built-in list (`DalBase.DefaultTransientErrorCodes`, overridden per plugin), a malformed file aborts the start
+with a `ConfigurationValidationException` naming the file and the line. `DirectModePipeline` logs the effective source
+once per DatabaseType. The pool-clearing list of the SQL Server DAL (4021, 596) stays hardcoded: it is a mechanism, not a
+policy. The configuration section was rejected because the list belongs to the engine plugin rather than to a product or
+an environment, and because the Config Wizard would have to know provider error codes. Accepted and implemented on
+2026-10-10 for 0.16.0 (#24); `P1_TransientErrorCodesFileTests`, `P1_DalTransientErrorCodesTests` and
+`P1_DalShippedTransientErrorCodesTests` pin the semantics, the last one guards the shipped files against drift from the
+built-in lists.
+
+**Consequences.** Positive: a retry policy change is a text edit next to the binary with the same lifecycle as an edited
+SQL template; external DAL authors get the mechanism by overriding `DefaultTransientErrorCodes` and classifying through
+`IsTransientCode`. Negative: every publish or upgrade overwrites the folder, so edits must be re-applied after an update
+(the trade-off customised templates already have); the file is outside the configuration hierarchy and has no
+per-environment variant; a malformed file for the DatabaseLogging DAL surfaces as `ApplicationStartupException` (exit
+code 1) instead of 100, because that DAL is created before the pipeline logger exists.
+
+**Alternatives considered.** The `RayMigrator:TransientErrorCodes` configuration section (rejected, see Decision); merging
+the file with the built-in list (rejected, because a built-in code could then never be removed).
+
+**References.** [Transient error codes](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/03-database-layer/transient-error-codes.md), [Resilience](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/02-core-concepts/resilience.md), [issue #24](https://github.com/RAYCOON/RayMigrator/issues/24).
 
 ## Related documentation
 
