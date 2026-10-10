@@ -50,13 +50,13 @@ The export is computed by `HierarchyFactoring` (Core) from the effective configu
 
 When importing existing files, `ConfigurationFileParser.ClassifyFileName` parses each filename to classify its role.
 
-**Classification logic**: A filename like `appsettings.json` is `Base` (no segments). A single-segment file like `appsettings.Docker.json` defaults to `Environment` (most common case). A two-segment file like `appsettings.BookStore.Docker.json` is `ProductEnvironment` with `Product = BookStore` and `Environment = Docker`. Files with three or more segments join all but the last segment as the product name and use the last segment as the environment.
+**Classification logic**: A filename like `appsettings.json` is `Base` (no segments). A single-segment file is `Product` when the segment matches a product alias defined in the base file (`appsettings.BookStore.json`), otherwise `Environment` (`appsettings.Docker.json`); the base file is therefore parsed first. A two-segment file like `appsettings.BookStore.Docker.json` is `ProductEnvironment` with `Product = BookStore` and `Environment = Docker`. Files with three or more segments join all but the last segment as the product name and use the last segment as the environment.
 
 ## Working with Files in the Wizard
 
 ### Import
 
-On the Welcome page the user can upload existing `appsettings*.json` files. `ConfigurationFileParser.Parse` classifies each file by name and populates the in-memory `WizardState` (base model, environment models, product models, and product-environment models). Unknown filenames are skipped; parse errors on individual files are silently ignored.
+On the Welcome page the user can upload existing `appsettings*.json` files. `ConfigurationFileParser.Parse` classifies each file by name and populates the in-memory `WizardState` (base model, environment models, product models, and product-environment models). A file name that does not follow the `appsettings[.X[.Y]].json` pattern is treated as a base file; parse errors on individual files are silently ignored.
 
 ### Overview File Tabs
 
@@ -98,7 +98,7 @@ config/
 
 In this layout:
 - `appsettings.json` + `appsettings.Docker.json` + `appsettings.BookStore.json` + `appsettings.BookStore.Docker.json` form the merge chain for scope `(BookStore, Docker)` at runtime
-- When imported via the wizard, `appsettings.BookStore.Docker.json` is classified as `ProductEnvironment` (Product=BookStore, Environment=Docker); `appsettings.Docker.json` and `appsettings.BookStore.json` are each classified as `Environment` (single-segment files default to Environment role)
+- When imported via the wizard, `appsettings.BookStore.Docker.json` is classified as `ProductEnvironment` (Product=BookStore, Environment=Docker); `appsettings.Docker.json` is classified as `Environment` and `appsettings.BookStore.json` as `Product`, because the base file defines the product `BookStore` (a single-segment name that matches no product alias defaults to `Environment`)
 
 ### Single-file setup
 

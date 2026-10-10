@@ -11,8 +11,8 @@ Product (BookStore)
 ├── TargetGroup (Backend) — DatabaseType: SqlServer
 │   ├── Target (MainDB)      — Connection: server1
 │   └── Target (ReplicaDB)   — Connection: server2
-└── TargetGroup (Analytics) — DatabaseType: PostgreSQL
-    └── Target (WarehouseDB) — Connection: server3
+└── TargetGroup (Reporting) — DatabaseType: PostgreSQL
+    └── Target (ReportingDB) — Connection: server3
 ```
 
 ### Product
@@ -30,8 +30,8 @@ Migrations/
 └── Release 1.0/
     ├── Backend/          ← matches TargetGroup alias "Backend"
     │   └── 001_CreateBooks.sql
-    └── Analytics/        ← matches TargetGroup alias "Analytics"
-        └── 001_CreateEvents.sql
+    └── Reporting/        ← matches TargetGroup alias "Reporting"
+        └── 001_CreateReportViews.sql
 ```
 
 ### Target
@@ -153,7 +153,7 @@ The TOML header controls how RayMigrator processes the file:
 |-------|------|---------|---------|
 | `Description` | string | `""` | Human-readable description, stored in repository and shown in logs |
 | `Environments` | string array | all environments (omit parameter) | Which environments this file applies to. Omit to run everywhere, or specify `["Production"]` to restrict. |
-| `Targets` | string array | all targets (omit parameter) | Which targets of the target group this file runs on. Omit to run on every target, or specify `["ReportingDB"]` to restrict. |
+| `Targets` | string array | all targets (omit parameter) | Which targets of the target group this file runs on. Omit to run on every target, or specify `["ReplicaDB"]` to restrict. |
 | `UseTransaction` | boolean | `true` | Wrap execution in a database transaction |
 | `RunAlways` | boolean | `false` | Execute on every run, even if previously migrated |
 
@@ -189,11 +189,9 @@ When you run `migrate-up`, RayMigrator follows this sequence:
 5. Execute SQL on target databases
    └── For each release, for each TargetGroup:
        └── For each pending file and each target (order depends on TargetMigrationOrder):
-           └── Open connection to target database
-           └── Begin transaction (if UseTransaction = true)
-           └── Split SQL into statement blocks (GO for SqlServer, ; for others)
-           └── Execute each block
-           └── Commit or rollback transaction
+           └── Split SQL into blocks (a line containing only GO for SqlServer, only ; for the other engines)
+           └── For each block: open a connection, begin a transaction (if UseTransaction = true), execute, commit or roll back
+           └── Repository and target in the same database: all blocks and the repository update in one transaction
 
 6. Record results in repository
    └── Write MigrationRecord row (status, hash, timestamps)
@@ -220,7 +218,7 @@ In the Quick Start (Chapter 2), you created:
 As we continue building the BookStore example in later chapters, we will add:
 
 - A second target (ReplicaDB) to see multi-target execution
-- A second target group (Analytics, PostgreSQL) to see multi-engine support
+- A second target group (Reporting, PostgreSQL) to see multi-engine support
 - Rollback files and error handling strategies
 - Environment-specific migrations for Development vs Production
 

@@ -200,7 +200,7 @@ tests skip, not fail, when a container is unavailable.
   for a verified backup before every run for exactly this reason.
 - The gaps are input for the
   [Risks and Technical Debt](11-Risks-and-Technical-Debt.md) chapter, which
-  decides which of them are accepted for 0.14.x and which block a 1.0.
+  decides which of them are accepted for 0.15.x and which block a 1.0.
 
 ## Related documentation
 

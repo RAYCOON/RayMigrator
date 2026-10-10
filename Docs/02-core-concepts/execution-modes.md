@@ -164,9 +164,9 @@ Key observations:
 - **Backend** (FileByFile): The inner loop is file → target. Each file is applied to all targets before the next file. Backend1 and Backend2 always have the same schema state.
 - **Frontend** has only 1 target, so `FileByFile` vs `TargetByTarget` makes no difference here (see [Single Target Note](#single-target-note) below).
 
-### TargetByTarget (Default)
+### TargetByTarget
 
-Complete all migrations on one target before moving to the next target.
+Complete all migrations on one target before moving to the next target. There is no built-in default for `TargetMigrationOrder`: validation rule RULE_8_2 requires an effective value on the target group or in `TargetGroupDefaults`.
 
 ```mermaid
 sequenceDiagram
@@ -281,7 +281,7 @@ The behavior of each mode is determined by extension methods on `MigrationRunMod
 | `info` | Migrate | no | no | no |
 | `validate-hash` | Migrate | no | no | no |
 
-A command that does not connect to the targets starts even when a target database is unreachable. A command that does not write the repository looks the product and environment up read-only (`Repository_Product_Select` / `Repository_Environment_Select`) instead of registering them, so a read-only command on a fresh repository leaves no rows behind. `RepositoryCheckCreate` still runs for every command because the read paths need the tables. The `MigrationRunModeId` stamped into `MigrationRun` / `MigrationRecord` / `MigrationLog` rows is still the context run mode, i.e. `100` for everything that writes records.
+A command that does not connect to the targets starts even when a target database is unreachable. A command that does not write the repository looks the product and environment up read-only (`Repository_Product_Select` / `Repository_Environment_Select`) instead of registering them, so a read-only command on a fresh repository leaves no rows behind. `RepositoryCheckCreate` still runs for `baseline`, `update-hash`, `fix` (in both run modes), `info` and `validate-hash` because their read paths need the tables, so those commands create the repository on first contact (logged at Information level); `migrate-up` and `migrate-down` run it in `Migrate` mode only and never create the repository in `Simulate` or `Validate`. The DatabaseLogging schema and tables (`DatabaseLogging_CheckCreate`) are created in every run mode as soon as a `DatabaseLogging` section is configured; only the writing of log rows is gated. The `MigrationRunModeId` stamped into `MigrationRun` / `MigrationRecord` / `MigrationLog` rows is still the context run mode, i.e. `100` for everything that writes records.
 
 ### Migrate (Default)
 
@@ -419,8 +419,8 @@ Migration order is configured per **TargetGroup**, not globally:
 ```
 
 In this example:
-- Main databases migrate simultaneously (stay in sync)
-- Analytics databases migrate successively (independent)
+- Main databases migrate file by file (`FileByFile`): every file reaches both targets before the next file, so they stay in sync
+- Analytics databases migrate target by target (`TargetByTarget`): one target receives every file before the next target starts
 
 ## Best Practices
 
@@ -446,9 +446,9 @@ In this example:
 
 ### Overview
 
-By default, RayMigrator executes migration files strictly in order — based on release directory sorting and filename sorting within each release. Any migration file that was added after a later migration has already been executed will be skipped or flagged as a conflict.
+By default, RayMigrator executes migration files strictly in order — based on release directory sorting and filename sorting within each release. A pending file from a release older than the highest release already migrated on a target aborts the run; the file order within one release is not checked.
 
-**Out-of-Order Migration** relaxes this constraint: it allows executing migration files that were added between already-executed migrations, without treating this as an error.
+**Out-of-Order Migration** relaxes this constraint: it allows executing such files from older releases, with a warning instead of an abort.
 
 ### Use Case
 
@@ -456,18 +456,18 @@ In teams with multiple developers working on different features in parallel, mig
 
 ```
 Timeline:
-  Dev A creates: Release 2.0/Backend/003_AddIndex.sql
-  Dev B creates: Release 2.0/Backend/002_AddColumn.sql  (merged later)
+  Release 1.5 and Release 2.0 are migrated on every target.
+  Dev B, working from an older branch, adds Release 1.5/Backend/004_AddColumn.sql and merges it later.
 
-Repository state after Dev A's migration:
-  001_CreateTable.sql  → Migrated
-  003_AddIndex.sql     → Migrated
-  002_AddColumn.sql    → Not yet migrated (added later, out of order)
+Repository state:
+  Release 1.5/Backend/001..003      → Migrated
+  Release 2.0/Backend/001_AddIndex  → Migrated
+  Release 1.5/Backend/004_AddColumn → pending, in a release older than the highest migrated release (2.0)
 ```
 
-Without out-of-order support, `002_AddColumn.sql` would be skipped or cause a validation error because it precedes an already-executed migration (`003_AddIndex.sql`).
+Without out-of-order support, the run aborts with `Out-of-order migrations detected: 1 file(s) [Release 1.5/004_AddColumn.sql] belong to releases older than what the target(s) they are pending on have already migrated`. A new file in Release 2.0 would not be affected: the file order within a release is not checked.
 
-With out-of-order support enabled, RayMigrator would detect `002_AddColumn.sql` as a pending migration and execute it normally.
+With out-of-order support enabled, RayMigrator executes `004_AddColumn.sql` as a pending migration and logs a warning.
 
 ### Configuration
 
@@ -486,7 +486,7 @@ This is a deliberate, per-run decision — not a permanent setting.
 
 **Typical workflow:**
 
-1. Normal run detects gap: "Migration 002 precedes already-executed 003"
+1. Normal run aborts: "Out-of-order migrations detected: ... belong to releases older than what the target(s) they are pending on have already migrated"
 2. Developer/DBA reviews the situation
 3. Re-run with `--allow-out-of-order` — explicit, one-time approval
 
@@ -494,9 +494,9 @@ This is a deliberate, per-run decision — not a permanent setting.
 
 | Scenario | Out-of-Order disabled | Out-of-Order enabled |
 |----------|------------------------|----------------------|
-| New file after all executed | Execute normally | Execute normally |
-| New file before executed files | Skip or error | Execute as pending |
-| New file between executed files | Skip or error | Execute as pending |
+| New file in the current or a newer release | Execute normally | Execute normally |
+| New file in a release older than the highest migrated release of a target | Abort the run (exit code 1) | Execute as pending, with a warning |
+| `RunAlways` file a target has already received | Execute normally | Execute normally |
 
 ### Considerations
 

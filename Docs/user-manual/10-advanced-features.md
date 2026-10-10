@@ -256,9 +256,9 @@ This is useful for incremental onboarding — for example, when the backend data
 
 ## Out-of-Order Execution
 
-By default, RayMigrator requires migrations to be executed in strict sequential order. If an older migration file is discovered that was skipped, it is flagged as an error.
+By default, RayMigrator refuses to execute a pending file that belongs to a release older than the highest release already migrated on the same target: such a file was added to an old release after newer releases had run. Within one release the file order is not checked, so a new file in the current release simply runs. The check is per target (a target that lags behind the others is not out of order when it catches up), and a `RunAlways` file a target has already received is never out of order.
 
-Use `--allow-out-of-order` / `-ooo` to allow executing older migrations that were previously skipped:
+Use `--allow-out-of-order` / `-ooo` to execute such files anyway; they run with a warning:
 
 ```bash
 raymigrator migrate-up -p BookStore -env Development -rm migrate --allow-out-of-order
@@ -272,7 +272,7 @@ raymigrator migrate-up -p BookStore -env Development -rm migrate --allow-out-of-
 
 ### Example Scenario
 
-Team A creates `003_CreateReviews.sql` and merges it. Team B, working from an older branch, creates `002_CreatePublishers.sql` and merges later. Without `--allow-out-of-order`, RayMigrator would reject `002_CreatePublishers.sql` because `003` has already been applied.
+Release 1.2 has been migrated. Team B, working from an older branch, adds `Release 1.1/Backend/004_CreatePublishers.sql` and merges it later. Without `--allow-out-of-order`, RayMigrator aborts the run: the file belongs to Release 1.1, which is older than the highest migrated release 1.2. Had the file been added to Release 1.2 instead, it would simply run as a pending file.
 
 ```bash
 # Allow the out-of-order migration
@@ -295,8 +295,8 @@ A single TargetGroup can have multiple targets. All targets in a group receive t
     "TargetMigrationOrder": "FileByFile",
     "Targets": [
       { "Alias": "Primary", "ConnectionString": "{ENV:PRIMARY_DB}" },
-      { "Alias": "Reporting", "ConnectionString": "{ENV:REPORTING_DB}" },
-      { "Alias": "Analytics", "ConnectionString": "{ENV:ANALYTICS_DB}" }
+      { "Alias": "Replica1", "ConnectionString": "{ENV:REPLICA1_DB}" },
+      { "Alias": "Replica2", "ConnectionString": "{ENV:REPLICA2_DB}" }
     ]
   }]
 }
@@ -304,7 +304,7 @@ A single TargetGroup can have multiple targets. All targets in a group receive t
 
 ### Tutorial: Add a Second Target to BookStore
 
-Add a reporting database to the BookStore configuration:
+Add a read replica to the BookStore configuration:
 
 ```json
 {
@@ -314,13 +314,13 @@ Add a reporting database to the BookStore configuration:
     "TargetMigrationOrder": "FileByFile",
     "Targets": [
       { "Alias": "MainDB", "ConnectionString": "{ENV:BOOKSTORE_CONNECTION}" },
-      { "Alias": "ReportingDB", "ConnectionString": "{ENV:BOOKSTORE_REPORTING_CONNECTION}" }
+      { "Alias": "ReplicaDB", "ConnectionString": "{ENV:BOOKSTORE_REPLICA_CONNECTION}" }
     ]
   }]
 }
 ```
 
-Now every migration runs on both MainDB and ReportingDB. With `TargetMigrationOrder` set to `FileByFile`, both databases stay at the same migration level after each file.
+Now every migration runs on both MainDB and ReplicaDB. With `TargetMigrationOrder` set to `FileByFile`, both databases stay at the same migration level after each file.
 
 ### When to Use Multiple Targets
 
@@ -397,7 +397,7 @@ The TOML `Targets` parameter restricts a migration to specific targets of its ta
 /*
 [RayMigrator]
 Description = "Create reporting-only materialized view"
-Targets = ["ReportingDB"]
+Targets = ["ReplicaDB"]
 */
 
 CREATE VIEW [dbo].[vw_BookSales] AS
@@ -407,7 +407,7 @@ JOIN [dbo].[Books] b ON s.BookId = b.Id
 GROUP BY b.Title;
 ```
 
-Only the target with Alias `ReportingDB` executes this migration; the other targets of the group get no migration record for it. Omit the key or use `["*"]` to run a file on every target. The alias must match a configured target of the file's target group exactly (including case), otherwise the run aborts with a configuration error before anything is executed.
+Only the target with Alias `ReplicaDB` executes this migration; the other targets of the group get no migration record for it. Omit the key or use `["*"]` to run a file on every target. The alias must match a configured target of the file's target group exactly (including case), otherwise the run aborts with a configuration error before anything is executed.
 
 The same key in a `migsettings.txt` restricts every file of that directory (see [Settings Inheritance](../06-configuration-reference/settings-inheritance-overview.md)).
 
@@ -825,7 +825,7 @@ By default, RayMigrator executes migration SQL using its built-in Data Access La
     },
     "Products": [{
       "Alias": "BookStore",
-      "MigrationFilesRootDirectory": "./Migrations",
+      "MigrationFilesRootDirectory": "{ENV:BOOKSTORE_MIGRATIONS}",
       "TargetGroups": [{
         "Alias": "Backend",
         "DatabaseType": "SqlServer",

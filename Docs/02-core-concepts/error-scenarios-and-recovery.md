@@ -203,7 +203,7 @@ All scenarios use a standard 3-release, 9-file migration set unless otherwise no
 
 ### Category 3: Rollback (Entire Run)
 
-> **Run result of a recovered run:** when the configured error recovery (`Rollback`, `RollbackRelease`, `RollbackErrorOnly`) completes without a failure or warning, the run is persisted as `Recovered` (80) instead of `Error` (90): every record the recovery touched is `NotMigrated` again and repository and database are consistent. Files the error action leaves in place on purpose (earlier releases, other targets) stay `Migrated`. A failed rollback block, a missing rollback file, a stopped chain, `Terminate` and `Ignore` keep `Error`. The CLI exit code is 1 in both cases (#18).
+> **Run result of a recovered run:** when the configured error recovery (`Rollback`, `RollbackRelease`, `RollbackErrorOnly`) completes without a failure or warning, the run is persisted as `Recovered` (80) instead of `Error` (90): every record the recovery touched is `NotMigrated` again and repository and database are consistent. Files the error action leaves in place on purpose (earlier releases, other targets) stay `Migrated`. A failed rollback block, a missing rollback file, a stopped chain and `Terminate` keep `Error`; `Ignore` skips the failed file, continues and ends the run as `PartialSuccess` (50). The CLI exit code is 1 in both cases (#18).
 
 #### S06 — Error in R3F3, All Rollbacks Succeed
 
@@ -662,7 +662,7 @@ In `FileByFile` mode (file → target loop), each file is executed on all target
 | TargetMigrationOrder | FileByFile |
 | MigrationErrorAction | Ignore |
 | Error Position | R2F2 fails on Target1 |
-| MigrationRunResult | Error (90) |
+| MigrationRunResult | PartialSuccess (50) |
 
 | File | Target1 | Target2 |
 |------|---------|---------|
@@ -685,7 +685,7 @@ In `FileByFile` mode (file → target loop), each file is executed on all target
 | TargetMigrationOrder | FileByFile |
 | MigrationErrorAction | Rollback |
 | Error Position | R2F2 fails on Target1 |
-| MigrationRunResult | Error (90) |
+| MigrationRunResult | Recovered (80) |
 
 | File | Target1 | Target2 |
 |------|---------|---------|
@@ -734,7 +734,7 @@ In `TargetByTarget` mode (target → file loop), all files are executed on Targe
 | TargetMigrationOrder | TargetByTarget |
 | MigrationErrorAction | Ignore |
 | Error Position | R2F2 (same broken SQL, fails on both targets) |
-| MigrationRunResult | Error (90) |
+| MigrationRunResult | PartialSuccess (50) |
 
 | File | Target1 | Target2 |
 |------|---------|---------|
@@ -756,7 +756,7 @@ In `TargetByTarget` mode (target → file loop), all files are executed on Targe
 | TargetMigrationOrder | TargetByTarget |
 | MigrationErrorAction | Rollback |
 | Error Position | R2F2 fails on Target1 |
-| MigrationRunResult | Error (90) |
+| MigrationRunResult | Recovered (80) |
 
 | File | Target1 | Target2 |
 |------|---------|---------|
@@ -795,7 +795,7 @@ In `TargetByTarget` mode (target → file loop), all files are executed on Targe
 |---------|-------|
 | MigrationErrorAction | Rollback |
 | Error Position | Only file (R1F1) |
-| MigrationRunResult | Error (90) |
+| MigrationRunResult | Recovered (80) |
 
 | File | Status |
 |------|--------|
@@ -813,7 +813,7 @@ In `TargetByTarget` mode (target → file loop), all files are executed on Targe
 |---------|-------|
 | MigrationErrorAction | RollbackRelease |
 | Error Position | R2F1 (first file of Release 2.0) |
-| MigrationRunResult | Error (90) |
+| MigrationRunResult | Recovered (80) |
 
 | File | Status |
 |------|--------|

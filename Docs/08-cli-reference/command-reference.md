@@ -190,12 +190,12 @@ raymigrator validate-hash --product <alias> --environment <env> [--scope <scope>
 |--------|-------|------|----------|---------|-------------|
 | `--product` | `-p` | `string` | Yes | — | Any product alias from configuration |
 | `--environment` | `-env` | `string` | Yes | — | Any environment name |
-| `--scope` | `-s` | `string` | No | (per-TargetGroup config) | `File`, `SqlBlock`, `SqlBlocks`, `Disabled` |
+| `--scope` | `-s` | `string` | No | (per-TargetGroup config) | `File`, `SqlBlocks`, `Disabled` |
 | `--target-group` | `-tg` | `string[]` | No | `null` (all) | Target group aliases (can be specified multiple times) |
 
 ### Option Details
 
-**--scope**: Validated case-insensitively. Accepts `"File"`, `"SqlBlock"`, `"SqlBlocks"`, and `"Disabled"`. Both `"SqlBlock"` and `"SqlBlocks"` map to `HashValidationScope.SqlBlocks`. Any other value produces a validation error. If omitted, each TargetGroup uses its configured `HashValidationScope` setting.
+**--scope**: Validated case-insensitively. Accepts `"File"`, `"SqlBlocks"` and `"Disabled"`; the former spelling `"SqlBlock"` is rejected (#21). Any other value produces a validation error. If omitted, each TargetGroup uses its configured `HashValidationScope` setting.
 
 ### Property Mapping
 
@@ -471,7 +471,7 @@ Controls the execution behavior.
 
 Source: `Raycoon.RayMigrator.Core/Configuration/Enums/MigrationRunMode.cs`
 
-`--run-mode` exists on `migrate-up` and `migrate-down` only. Every other command runs in `Migrate` mode and decides its side effects through its `CommandProfile` (`MigrationCommandExtensions.GetProfile()`, see [Execution Modes](../02-core-concepts/execution-modes.md#run-mode)). A `MigrationContext` rejects `Undefined` (and `MigrationCommand.None`) with a `ConfigurationValidationException`.
+`--run-mode` exists on `migrate-up`, `migrate-down` and `fix` (`fix` accepts `migrate` and `simulate`). Every other command runs in `Migrate` mode and decides its side effects through its `CommandProfile` (`MigrationCommandExtensions.GetProfile()`, see [Execution Modes](../02-core-concepts/execution-modes.md#run-mode)). A `MigrationContext` rejects `Undefined` (and `MigrationCommand.None`) with a `ConfigurationValidationException`.
 
 ### HashValidationScope
 
@@ -484,7 +484,7 @@ Controls the granularity of hash validation. See [Hash Validation](../02-core-co
 | `SqlBlocks` | 2 | Compare hash of SQL content only (excluding TOML metadata) |
 | `Disabled` | 3 | Skip hash validation |
 
-CLI accepts `"SqlBlock"` (singular) as an alias for `SqlBlocks`.
+The CLI accepts only these three names, case-insensitively; the former spelling `SqlBlock` is rejected (#21).
 
 Source: `Raycoon.RayMigrator.Core/Configuration/Enums/HashValidationScope.cs`
 

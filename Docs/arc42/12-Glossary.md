@@ -11,7 +11,7 @@ the mechanism. The
 [appendix glossary](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/appendix/glossary.md)
 in the repository remains the reference for class level entries (exception
 types, model classes, event ids); this page is the architecture level subset
-and every value on it was verified against the source tree of the 0.14.x
+and every value on it was verified against the source tree of the 0.15.x
 line. Spellings follow the terminology table of the arc42 authoring guide, so
 a term is written here exactly as it appears in chapters 01 to 11.
 
@@ -101,8 +101,8 @@ asserted by the tests; the CLI accepts the names case insensitively.
 | `Targets` | node (array, inside a target group) | One `TargetOptions` per connection: `Alias`, `ConnectionString`, timeouts, retries, `UseCliToolAlias`, `CliToolParameters` | [Target options](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/06-configuration-reference/target-options.md) |
 | `CliTools` | node (array) | External tool profiles: `Alias`, `ExecutablePath`, `ArgumentTemplate`, `InputMode`, `SuccessExitCodes`, `CliToolTimeoutInSeconds` | [CLI tools options](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/06-configuration-reference/cli-tools-options.md) |
 | `UseCliToolAlias` | key (product, target group, target, `migsettings`, TOML) | Routes migration files to the `CliTools` entry with that alias instead of the DAL; empty means DAL | [CLI tools options](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/06-configuration-reference/cli-tools-options.md) |
-| `MigrationFilesRootDirectory` | key (product) | Root of the release directories, absolute or relative to the working directory; must exist at startup | [Directory structure](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/07-migration-files/directory-structure.md) |
-| `appsettings.json`, `appsettings.{Environment}.json`, `appsettings.{Product}.json`, `appsettings.{Product}.{Environment}.json` | files | The four layer hierarchy merged by `JsonOptionsSource` from the working directory or `--config-dir`; later files override earlier ones, arrays are replaced | [Configuration hierarchy](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/06-configuration-reference/appsettings-hierarchy.md) |
+| `MigrationFilesRootDirectory` | key (product) | Root of the release directories, absolute or relative to the folder of the executable (not the working directory); must exist at startup | [Directory structure](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/07-migration-files/directory-structure.md) |
+| `appsettings.json`, `appsettings.{Environment}.json`, `appsettings.{Product}.json`, `appsettings.{Product}.{Environment}.json` | files | The four layer hierarchy merged by `JsonOptionsSource` from the working directory or `--config-dir`; later files override earlier ones, alias-bearing arrays merge by alias (ADR-021), other arrays are replaced | [Configuration hierarchy](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/06-configuration-reference/appsettings-hierarchy.md) |
 | `migsettings.txt`, `migsettings.{Environment}.txt` | files | Directory defaults at product, release and target group level, applied after the JSON layers and before the TOML header | [migsettings files](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/07-migration-files/migsettings-files.md) |
 | `DataAccessLayers/{Type}/` | directory (next to the binary) | Holds the SQL templates of every engine and the assemblies of external DAL plugins; scanned by `DalFactory` and `TemplateCache` | [Deployment View 7.2.1](07-Deployment-View.md#721-cli-installation-on-an-operator-machine-or-ci-runner) |
 | `DOTNET_ENVIRONMENT` | env var | Cross checked against the required `--environment`; a conflicting value exits `2`, a blank `--environment` without it exits `3` | [Environment variables](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/06-configuration-reference/environment-variables.md) |

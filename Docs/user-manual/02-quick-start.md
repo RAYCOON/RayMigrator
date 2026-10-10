@@ -83,7 +83,7 @@ Create `BookStore/appsettings.json` with the following content:
     "Products": [
       {
         "Alias": "BookStore",
-        "MigrationFilesRootDirectory": "./Migrations",
+        "MigrationFilesRootDirectory": "{ENV:BOOKSTORE_MIGRATIONS}",
         "TargetGroups": [
           {
             "Alias": "Backend",
@@ -116,7 +116,7 @@ Key points about this configuration:
 |---------|-------|---------|
 | `Repository.SchemaName` | `ray` | All tracking tables are created in this schema |
 | `MigrationErrorAction` | `Terminate` | Stop immediately if any migration fails |
-| `RequireRollbackFile` | `false` | Rollback files are optional for now (we add them in Chapter 9) |
+| `RequireRollbackFile` | `false` | Rollback files are optional for now (we add them in Chapter 5) |
 | `TargetMigrationOrder` | `TargetByTarget` | Apply all files to one target before moving to the next |
 | `{ENV:BOOKSTORE_CONNECTION}` | — | Replaced at runtime with the environment variable value |
 | `Serilog` | Console sink | Controls log output; without it, no migration progress is displayed |
@@ -151,24 +151,26 @@ The file has two parts:
 1. **TOML metadata** inside a block comment (`/* ... */`) — controls how RayMigrator handles this file
 2. **SQL body** — the actual database commands to execute
 
-The `Description` appears in logs and in the repository for easy identification. `UseTransaction = true` wraps the execution in a transaction so the change is atomic.
+The `Description` appears in logs and in the repository for easy identification. `UseTransaction = true` wraps each SQL block of the file in its own transaction: a failing block is rolled back, blocks that already committed stay committed. Only when repository and target share one database does RayMigrator run the whole file and its repository update in a single transaction (Chapter 8).
 
 > **Note:** The TOML header is optional. Without it, RayMigrator uses sensible defaults. Chapter 5 covers all available TOML fields.
 
-## Step 4 — Set the Environment Variable
+## Step 4 — Set the Environment Variables
 
-RayMigrator replaces `{ENV:VARIABLE_NAME}` placeholders in configuration with environment variable values at runtime. Set the connection string:
+RayMigrator replaces `{ENV:VARIABLE_NAME}` placeholders in configuration with environment variable values at runtime. Set the connection string and the absolute path of the `Migrations/` folder (a relative `MigrationFilesRootDirectory` would resolve against the folder of the `raymigrator` executable, not against your working directory):
 
 **Linux / macOS:**
 
 ```bash
 export BOOKSTORE_CONNECTION="Server=localhost;Database=BookStore;User Id=sa;Password=YourStr0ngP@ssword;TrustServerCertificate=True"
+export BOOKSTORE_MIGRATIONS="/path/to/BookStore/Migrations"
 ```
 
 **Windows (PowerShell):**
 
 ```powershell
 $env:BOOKSTORE_CONNECTION = "Server=localhost;Database=BookStore;User Id=sa;Password=YourStr0ngP@ssword;TrustServerCertificate=True"
+$env:BOOKSTORE_MIGRATIONS = "C:\path\to\BookStore\Migrations"
 ```
 
 > **Warning:** Make sure the database `BookStore` exists on the server before running migrations. RayMigrator creates tables inside the database but does not create the database itself.
@@ -187,7 +189,7 @@ docker exec bookstore-db /opt/mssql-tools18/bin/sqlcmd \
 
 ## Step 5 — Run the Migration
 
-Navigate to the `BookStore/` directory and execute:
+Navigate to the `BookStore/` directory (RayMigrator reads `appsettings.json` from the working directory) and execute:
 
 ```bash
 raymigrator migrate-up --product BookStore --environment Development --run-mode migrate
@@ -274,7 +276,7 @@ Here is the lifecycle of the migration you just ran:
 1. **Configuration loaded** — RayMigrator read `appsettings.json`, replaced `{ENV:BOOKSTORE_CONNECTION}` with the actual connection string, and built the product/target graph.
 2. **Files discovered** — The `Migrations/` directory was scanned. `Release 1.0/Backend/001_CreateBooks.sql` was found and matched to the `Backend` target group.
 3. **Repository checked** — RayMigrator queried the `ray.MigrationRecord` table. Since the repository was empty (first run), the file was marked as pending.
-4. **SQL executed** — The SQL body was extracted (excluding the TOML comment), wrapped in a transaction, and executed against the `MainDB` target.
+4. **SQL executed** — The SQL body was extracted (excluding the TOML comment), split into blocks, and each block was executed in its own transaction against the `MainDB` target.
 5. **Result recorded** — The migration status (`Migrated`), the file hash, and timestamps were written to the repository.
 
 This same lifecycle applies to every migration run, whether it contains one file or hundreds.

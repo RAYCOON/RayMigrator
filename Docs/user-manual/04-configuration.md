@@ -86,7 +86,7 @@ This file defines the overall structure, product layout, and sensible defaults:
     "Products": [
       {
         "Alias": "BookStore",
-        "MigrationFilesRootDirectory": "./Migrations/BookStore",
+        "MigrationFilesRootDirectory": "{ENV:BOOKSTORE_MIGRATIONS}",
         "TargetGroups": [
           {
             "Alias": "Backend",
@@ -238,11 +238,13 @@ ProductDefaults
 6. A specific `Target` can override any of those values.
 
 **MigrationErrorAction** controls what happens when a migration fails:
-- **Terminate** (default) — Stop immediately, no rollback.
+- **Terminate** — Stop immediately, no rollback.
 - **Rollback** — Roll back all migrations performed by the current run.
 - **RollbackErrorOnly** — Roll back only the file that caused the error.
 - **RollbackRelease** — Roll back the current run's migrations of the release that caused the error. Earlier releases remain intact.
 - **Ignore** — Skip the error and continue with the next file.
+
+There is no built-in default for `MigrationErrorAction`: set it in `ProductDefaults` or on the product, otherwise validation rule RULE_8_1 rejects the configuration.
 
 **RollbackErrorAction** controls what happens when a rollback operation itself fails:
 - **Terminate** (default) — Stop the rollback chain immediately.
@@ -424,7 +426,7 @@ Below is a complete `appsettings.json` for the BookStore tutorial with annotatio
     "Products": [
       {
         "Alias": "BookStore",
-        "MigrationFilesRootDirectory": "./Migrations/BookStore",
+        "MigrationFilesRootDirectory": "{ENV:BOOKSTORE_MIGRATIONS}",
         "TargetGroups": [
           {
             // TargetGroup Alias must match directory name under each release
@@ -443,7 +445,7 @@ Below is a complete `appsettings.json` for the BookStore tutorial with annotatio
             "TargetMigrationOrder": "FileByFile",
             "Targets": [
               {
-                "Alias": "ReportDB",
+                "Alias": "ReportingDB",
                 "ConnectionString": "{ENV:BOOKSTORE_REPORT_CONNECTION}",
                 "DbCommandTimeoutInSeconds": 120
               }

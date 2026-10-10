@@ -20,7 +20,7 @@ public enum TargetMigrationOrder : byte
 
     /// <summary>
     /// Target-major: all migration files are applied to one target before the next target starts
-    /// (Target1 -> File1, File2; Target2 -> File1, File2). The default.
+    /// (Target1 -> File1, File2; Target2 -> File1, File2).
     /// </summary>
     TargetByTarget = 2,
 }

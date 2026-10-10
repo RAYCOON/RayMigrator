@@ -1,6 +1,6 @@
 # Open Features
 
-Central registry of open features in RayMigrator (state as of 0.15.0-dev; the current version is `RayMigratorVersion` in `Directory.Build.props`, released versions are listed in `CHANGELOG.md`).
+Central registry of open features in RayMigrator (state as of 0.16.0-dev; the current version is `RayMigratorVersion` in `Directory.Build.props`, released versions are listed in `CHANGELOG.md`).
 
 ---
 

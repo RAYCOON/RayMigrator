@@ -55,7 +55,7 @@ raymigrator migrate-up -p BookStore -env Staging -rm simulate
 - **Connects to target databases** -- Opens a real connection to each configured target to validate connectivity. This confirms that connection strings are correct and the databases are reachable.
 - **Connects to the repository** -- Reads existing migration records, enabling hash comparison and out-of-order detection that Validate alone cannot perform. The product and environment ids are looked up read-only (nothing is inserted); if the repository has no record for the product or environment yet, Simulate reports that and treats all migrations as pending.
 - **Exercises the full pipeline** -- File discovery, ordering, filtering, and repository read logic all run as they would in Migrate mode.
-- **Gracefully handles non-existent repository** -- If the repository does not exist yet, Simulate treats all migrations as pending and continues without error.
+- **Gracefully handles non-existent repository** -- If the repository does not exist yet, Simulate does not create it; it treats all migrations as pending and continues without error.
 
 ### What Simulate Does NOT Do
 
@@ -72,7 +72,7 @@ raymigrator migrate-up -p BookStore -env Staging -rm simulate
 - To test the end-to-end flow without risk
 - When onboarding a new target group and want to verify configuration
 
-> **Note:** Simulate reads existing repository records to determine what is already migrated, but does not write any new records. Subsequent migrate-up calls will still see all pending migrations as pending, making Simulate fully side-effect-free with respect to the repository.
+> **Note:** Simulate reads existing repository records to determine what is already migrated, but does not write any new records. Subsequent migrate-up calls will still see all pending migrations as pending, making `migrate-up` and `migrate-down` in Simulate mode free of side effects on the repository: it is neither created nor written. Note that `info`, `validate-hash`, `update-hash`, `baseline` and `fix` (also `fix --run-mode simulate`) create the repository schema and tables on first contact because their read paths need the tables; that creation is logged at Information level.
 
 ---
 

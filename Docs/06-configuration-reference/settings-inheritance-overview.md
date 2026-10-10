@@ -87,7 +87,7 @@ These settings exist only as command-line arguments and control execution behavi
 | `--stop-rollback-on-missing-rollback-file` | `-sromrf` | bool? | `null` (uses config) | migrate-up | Override `StopRollbackOnMissingRollbackFile` for this run. Only applies to error-recovery rollback when `RequireRollbackFile=false`. |
 | `--target-group` | `-tg` | string[] | `null` | migrate-up, migrate-down, validate-hash, update-hash, baseline | Filter execution to specific target groups |
 | `--target-group-migration-order` | `-tgmo` | string | `null` | migrate-up, baseline | Comma-separated TargetGroup aliases defining execution order (e.g. `"Frontend,Backend"`). Overrides product config and migsettings. |
-| `--scope` | `-s` | string | *(none)* | validate-hash | Hash scope override: `File`, `SqlBlocks` (also accepts `SqlBlock`), or `Disabled`. If omitted, uses per-TargetGroup config. |
+| `--scope` | `-s` | string | *(none)* | validate-hash | Hash scope override: `File`, `SqlBlocks` or `Disabled`. If omitted, uses per-TargetGroup config. |
 | `--scope` | `-s` | string | `OrphanedRuns` | Fix | Fix scope: `OrphanedRuns` or `All` |
 | `--older-than` | `-ot` | int | `60` | Fix | Only fix runs older than N minutes (0 = immediate) |
 | `--last-migration-status` | `-lms` | string | `not-migrated` | Fix | Status for orphaned migrations: `migrated` or `not-migrated` |

@@ -95,7 +95,7 @@ switches; it overrides configured values only through `--stop-rollback-on-missin
 
 | Layer | Source and precedence (later wins) | Implemented by |
 |-------|-------------------------------------|----------------|
-| JSON files | `appsettings.json`, `appsettings.{Environment}.json`, `appsettings.{Product}.json`, `appsettings.{Product}.{Environment}.json`; objects merge, arrays replace | `JsonOptionsSource` |
+| JSON files | `appsettings.json`, `appsettings.{Environment}.json`, `appsettings.{Product}.json`, `appsettings.{Product}.{Environment}.json`; objects merge, arrays whose elements carry an `Alias` merge by alias (ADR-021), every other array is replaced | `JsonOptionsSource` |
 | Placeholders | `{ENV:NAME}` (`\{ENV:(\w+)\}`) replaced after the merge and before binding; an unresolved placeholder aborts with `ApplicationStartupException` | `EnvironmentVariableReplacer` |
 | Defaults cascade | `ProductDefaults` to `ProductOptions`; `TargetGroupDefaults` to `TargetGroupOptions`; `TargetDefaults` to `TargetOptions`; `UseCliToolAlias` additionally product to target group to target; only null or blank values are filled | `ProductDefaultsPostConfigureOptions.MergeDefaults` |
 | Directory and file | six `migsettings` levels, then the TOML header; arrays replace | `LoadMigSettingsDefaults`, `ResolveMigSettingsForFile`, `ParseTomlConfig` |
@@ -339,7 +339,7 @@ RayMigrator. Migration SQL runs exactly as written and `{ENV:*}` values are subs
 templates bind values as parameters. Least privilege: the repository account must create the schema and the 11 tables on first
 contact (`Repository_CheckCreate`) and needs only DML afterwards. `SECURITY.md` asks operators to restrict database accounts to
 what the migrations need and to keep a verified backup; vulnerabilities are reported privately (GitHub private reporting or
-`raymigrator@raycoon.com`), acknowledged within five business days and fixed in the latest 0.14.x only.
+`raymigrator@raycoon.com`), acknowledged within five business days and fixed in the latest 0.15.x only.
 Authoritative pages: [Security policy](https://github.com/RAYCOON/RayMigrator/blob/main/SECURITY.md), [Environment variables](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/06-configuration-reference/environment-variables.md), [CLI tools options](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/06-configuration-reference/cli-tools-options.md).
 
 ## 8.7 Development Concepts
@@ -390,8 +390,8 @@ exceptions into a failed `OperationResult` whose `ErrorCode` (`ExtractErrorCode`
 | `1` | `Program`, `DirectModePipeline`, `RayMigratorService` | `ApplicationStartupException`; any command failure including `MigrationAlreadyRunningException`, `validate-hash` mismatches and recovered runs |
 | `2`, `3` | `EnvironmentResolver` | conflicting `--environment` and `DOTNET_ENVIRONMENT`; no environment |
 | `4` | `DirectModePipeline` | no `Serilog` node in the merged configuration |
-| `5` | `Program` | command line parse error |
-| `100` | `Program`, `DirectModePipeline` | any other exception before the command runs, which includes `ConfigurationValidationException` from option validation, `TemplateCache` and `DalFactory` |
+| `5` | `Program` | `System.CommandLine` threw while parsing or invoking; ordinary parse errors return the parser's own code |
+| `100` | `Program`, `DirectModePipeline` | any other exception before the command runs, which includes `ConfigurationValidationException` from option validation, `TemplateCache` and `DalFactory` (TD-C-01) |
 
 Authoritative pages: [Error handling](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/02-core-concepts/error-handling.md#error-categories), [Global options and exit codes](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/08-cli-reference/global-options.md#exit-codes), [Context and Scope](03-Context-and-Scope.md#exit-codes-as-the-automation-contract).
 

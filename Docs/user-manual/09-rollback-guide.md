@@ -62,7 +62,7 @@ When a rollback file is not found, the behavior depends on two settings: `Requir
 
 ### Block-Level Rollback Tracking
 
-RayMigrator tracks rollback progress at the SQL block level. Each rollback file is split into blocks (separated by the database engine's statement separator, e.g., `GO` for SQL Server, `;` for PostgreSQL). As each block executes successfully, the repository records `FileDownBlocksMigrated` and `FileDownBlocksTotal`.
+RayMigrator tracks rollback progress at the SQL block level. Each rollback file is split into blocks (separated by the engine's block separator on a line of its own: `GO` for SQL Server, `;` for the other engines; a `;` at the end of a statement does not split). As each block executes successfully, the repository records `FileDownBlocksMigrated` and `FileDownBlocksTotal`.
 
 If a rollback is interrupted (e.g., by a block error with `RollbackErrorAction=Terminate`), the partially-rolled-back record retains its block progress. A subsequent `migrate-down` command will detect this record and **resume from the last successful block**, rather than re-executing blocks that already completed.
 

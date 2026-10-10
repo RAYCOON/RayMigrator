@@ -455,7 +455,7 @@ The `Repository_Product_CheckInsert` template rejects a `NULL`/empty `Name` para
 
 2. **Check `MigrationErrorAction` for rollback scope**
    The `MigrationErrorAction` determines which migrations are rolled back when an error occurs:
-   - `Terminate` (default) -- Stop immediately, no rollback.
+   - `Terminate` -- Stop immediately, no rollback (no built-in default: RULE_8_1 requires an effective value).
    - `Rollback` -- Roll back all migrations from the current MigrationRun.
    - `RollbackErrorOnly` -- Roll back only the file that caused the error.
    - `RollbackRelease` -- Roll back the current run's migrations of the release that caused the error. Earlier releases remain intact.

@@ -159,7 +159,7 @@ Context-dependent scope option, used by two commands:
 
 String-valued command parameters support environment variable resolution using the `{ENV:VariableName}` placeholder syntax. This applies to options such as `--product`, `--environment`, `--run-mode`, `--to-release`, `--target-group` (per individual alias value), `--scope`, `--last-migration-status`, and `--config-dir`. Options that do NOT support this syntax: non-string options (`--older-than`, `--allow-out-of-order`, `--startup-info`, `--reveal-sensitive-data`, `--stop-rollback-on-missing-rollback-file`) are parsed directly by System.CommandLine, and `--target-group-migration-order` is not resolved (use literal alias names).
 
-If the referenced environment variable is not set or is empty, RayMigrator exits with exit code 5 (command-line parsing error).
+If the referenced environment variable is not set or is empty, RayMigrator reports the option as invalid and exits with a non-zero code: the parser's own code for an ordinary validation error, `5` only when `System.CommandLine` itself throws.
 
 ```bash
 raymigrator migrate-up --product {ENV:PRODUCT_NAME} --environment {ENV:TARGET_ENV}
@@ -219,8 +219,8 @@ Standard exit codes across all commands:
 | 2 | Environment conflict (`--environment` and `DOTNET_ENVIRONMENT` differ) |
 | 3 | Missing required environment (no `--environment` or `DOTNET_ENVIRONMENT`) |
 | 4 | Missing or invalid configuration (no Serilog section found, config files not found) |
-| 5 | Command-line parsing error (invalid arguments, missing required options) |
-| 100 | Unhandled exception |
+| 5 | `System.CommandLine` threw while parsing or invoking the command; ordinary parse errors (invalid arguments, missing required options) return the parser's own code |
+| 100 | Unhandled exception before or while the command runs, including `ConfigurationValidationException` from option validation, `TemplateCache` and `DalFactory` (see TD-C-01 in [Risks and Technical Debt](../arc42/11-Risks-and-Technical-Debt.md)) |
 
 ### Using Exit Codes
 

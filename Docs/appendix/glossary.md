@@ -8,7 +8,7 @@ Definitions of terms and concepts used in RayMigrator.
 A unique identifier string used to reference entities in configuration. Products, Target Groups, and Targets all have aliases that must match `^(?=.{1,50}$)[\p{L}\p{N}_]+$`: Unicode letters (`\p{L}`), Unicode numeric characters (`\p{N}`), and underscores only, 1–50 characters maximum. CLI Tools use a slightly broader alias pattern that additionally allows hyphens: `^(?=.{1,50}$)[\p{L}\p{N}_\-]+$`.
 
 ### AllowOutOfOrder
-A CLI option (`--allow-out-of-order` / `-ooo`) for the `migrate-up` command that permits execution of migration files that were added after previously executed files. When enabled, RayMigrator will not skip files that sort before the latest executed migration. Available as `RayMigratorConsoleOptions.AllowOutOfOrder`.
+A CLI option (`--allow-out-of-order` / `-ooo`) for the `migrate-up` command that permits execution of migration files that were added after previously executed files. Out of order means a pending file from a release older than the highest release already migrated on that target; without the option such files abort the run, with it they are executed with a warning. A `RunAlways` file a target has already received is never out of order. Available as `RayMigratorConsoleOptions.AllowOutOfOrder`.
 
 ### ApplicationStartupException
 An exception thrown when RayMigrator encounters a fatal error during startup, before migration execution begins. Common causes include failure to create the host application, inability to initialize the DatabaseLogWriter, or DAL instance creation failures. Defined in `CustomExceptions.cs` in the Shared project.
@@ -108,7 +108,7 @@ A predicate-based class in `Raycoon.RayMigrator.Core.Configuration.Options` that
 A static utility class (`EnvironmentResolver`) that resolves the target environment from the `--environment` / `-env` CLI argument and the `DOTNET_ENVIRONMENT` environment variable. If both are set to different values, it reports a conflict and terminates. If neither is set, it reports an error and terminates. Shared between CLI modes. Defined in `EnvironmentResolver.cs` in the Core project.
 
 ### Exclusive Run
-A migration run that holds exclusive access to migrate a product. Only one migration process can run for a given product at any time, enforced at the database level via status checks.
+A migration run that holds exclusive access to migrate a product in an environment. Only one migration process can run for a given product and environment at any time, enforced at the database level by `Repository_MigrationRun_Insert` (an unfinished run blocks a new one); runs of the same product in different environments may overlap.
 
 ### Execution Mode
 See **Target Migration Order**.
@@ -438,7 +438,7 @@ The component that processes templates, resolves placeholders, and executes the 
 "Tom's Obvious, Minimal Language" - A configuration format used for migration file metadata. Similar to INI format but with more features.
 
 ### Transaction
-A database operation that executes atomically - either completely succeeds or completely fails. Controlled by `UseTransaction` setting.
+A database operation that executes atomically - either completely succeeds or completely fails. With `UseTransaction = true` RayMigrator opens one transaction per SQL block, not per file; the whole file is one transaction only on the atomic shared-connection path (repository and target in the same database).
 
 ### Transient Error
 A temporary database error that may succeed on retry, such as connection timeouts, network issues, or server throttling. Identified by specific error codes and handled automatically by the retry mechanism.

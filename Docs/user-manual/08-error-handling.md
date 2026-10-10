@@ -10,7 +10,9 @@ For the complete technical reference of all error action modes, enum values, and
 
 RayMigrator provides five error handling strategies, configured via the `MigrationErrorAction` property at the product level (or overridden per file via migsettings/TOML). For all enum values and codes, see [Error Handling — Error Action Modes](../02-core-concepts/error-handling.md#error-action-modes).
 
-### Terminate (Default)
+### Terminate
+
+RayMigrator has no built-in default for `MigrationErrorAction`; set it in `ProductDefaults` or on the product (validation rule RULE_8_1).
 
 **When to use:** When you want manual control over recovery. Best for production environments where you want to assess the situation before acting.
 
@@ -193,24 +195,24 @@ UseTransaction = true
 DROP TABLE IF EXISTS [dbo].[Categories];
 ```
 
-**File:** `Migrations/Release 1.1/Backend/002_BadMigration.sql`
+**File:** `Migrations/Release 1.1/Backend/002_AddCategoryToBooks.sql`
 
 ```sql
 /*
 [RayMigrator]
-Description = "This will fail - references non-existent table"
+Description = "Add CategoryId to Books - fails on purpose: the table is called Books, not Book"
 UseTransaction = true
 */
 
-ALTER TABLE [dbo].[NonExistentTable] ADD [Column1] INT;
+ALTER TABLE [dbo].[Book] ADD [CategoryId] INT NULL;
 ```
 
-**File:** `Migrations/Release 1.1/Backend/002_BadMigration.rollback.sql`
+**File:** `Migrations/Release 1.1/Backend/002_AddCategoryToBooks.rollback.sql`
 
 ```sql
 /*
 [RayMigrator]
-Description = "Rollback for bad migration"
+Description = "Rollback for 002_AddCategoryToBooks"
 UseTransaction = true
 */
 
@@ -228,12 +230,12 @@ In your `appsettings.json`, set the error handling strategy to `Rollback`:
     "Products": [{
       "Alias": "BookStore",
       "MigrationErrorAction": "Rollback",
-      "MigrationFilesRootDirectory": "./Migrations",
+      "MigrationFilesRootDirectory": "{ENV:BOOKSTORE_MIGRATIONS}",
       "TargetGroups": [{
         "Alias": "Backend",
         "DatabaseType": "SqlServer",
         "Targets": [{
-          "Alias": "BookStoreDB",
+          "Alias": "MainDB",
           "ConnectionString": "{ENV:BOOKSTORE_CONNECTION}"
         }]
       }]

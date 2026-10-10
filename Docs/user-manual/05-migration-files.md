@@ -98,7 +98,7 @@ Every alias must be a target of the file's target group, spelled exactly like it
 
 ### UseTransaction
 
-When `true`, RayMigrator wraps the SQL body in a database transaction. If any statement fails, the entire migration is rolled back.
+When `true`, RayMigrator wraps each SQL block of the file in its own database transaction. If a statement fails, that block is rolled back; blocks that already committed stay committed, and the next run resumes at the failed block. The whole file plus its repository update run in a single transaction only on the atomic shared-connection path (repository and target with the same `DatabaseType` and `ConnectionString`), see [Atomic Shared Connection](../02-core-concepts/error-handling.md#atomic-shared-connection).
 
 ```toml
 UseTransaction = true
@@ -315,8 +315,10 @@ MigrationFilesRootDirectory/
 │       └── 001_CreateReportViews.rollback.sql
 ├── Release 1.1/
 │   └── Backend/
-│       ├── 001_AddISBNIndex.sql
-│       └── 001_AddISBNIndex.rollback.sql
+│       ├── 001_AddCategories.sql
+│       ├── 001_AddCategories.rollback.sql
+│       ├── 002_AddCategoryToBooks.sql
+│       └── 002_AddCategoryToBooks.rollback.sql
 └── Release 2.0/
     └── Backend/
         └── 001_RefactorAuthors.sql
@@ -529,7 +531,7 @@ GO
 
 ### PostgreSQL
 
-PostgreSQL uses `;` as the statement separator and supports full DDL transactions.
+PostgreSQL uses `;` as the block separator (a `;` alone on a line splits the file into blocks; a `;` at the end of a statement does not) and supports full DDL transactions.
 
 ```sql
 CREATE TABLE "Authors"
@@ -546,7 +548,7 @@ CREATE INDEX "IX_Authors_Name" ON "Authors"("Name");
 
 ### MariaDB and MySQL
 
-Both use `;` as the statement separator. DDL statements cause an implicit transaction commit.
+Both use `;` as the block separator (alone on a line). DDL statements cause an implicit transaction commit.
 
 ```sql
 CREATE TABLE Authors
@@ -563,7 +565,7 @@ CREATE INDEX IX_Authors_Name ON Authors(Name);
 
 ### SQLite
 
-SQLite uses `;` as the statement separator and supports full DDL transactions.
+SQLite uses `;` as the block separator (alone on a line) and supports full DDL transactions.
 
 ```sql
 CREATE TABLE Authors

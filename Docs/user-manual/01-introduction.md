@@ -22,7 +22,7 @@ You organize your SQL scripts into numbered files inside release directories. Ra
 
 ### Multi-Target Execution
 
-A single migration file can be applied to multiple database instances simultaneously. Deploy the same schema change to your primary database and all read replicas in one command.
+A single migration file can be applied to multiple database instances in one run. Deploy the same schema change to your primary database and all read replicas in one command; the targets are migrated one after another, never in parallel.
 
 ### Multi-Engine Support
 
@@ -50,7 +50,7 @@ A dedicated repository schema records every migration run, every file executed, 
 
 ## Supported Databases
 
-| Database   | Statement Separator | DDL Transaction Support | Role                         |
+| Database   | Block Separator     | DDL Transaction Support | Role                         |
 |------------|---------------------|-------------------------|------------------------------|
 | SQL Server | `GO`                | Full                    | Migration target, Repository |
 | PostgreSQL | `;`                 | Full                    | Migration target, Repository |
@@ -59,6 +59,8 @@ A dedicated repository schema records every migration run, every file executed, 
 | SQLite     | `;`                 | Full                    | Migration target, Repository |
 
 > **Note:** "Limited" DDL transaction support means that DDL statements (CREATE TABLE, ALTER TABLE, etc.) cause an implicit commit in MariaDB and MySQL. DML statements (INSERT, UPDATE, DELETE) are fully transactional on all engines.
+
+> **Note:** The block separator splits a file only when it stands alone on a line. A `;` at the end of a statement does not start a new block.
 
 For detailed dialect information, see [SQL Dialects](../03-database-layer/sql-dialects.md).
 

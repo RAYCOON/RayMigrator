@@ -254,7 +254,7 @@ These options are defined on specific commands (not global).
 - `--target-group` (`-tg`): string[], repeatable — Filter to specific target groups
 
 **validate-hash**:
-- `--scope` (`-s`): string, optional (no default) — Maps to `HashValidationScope` enum (values: `File`, `SqlBlock`/`SqlBlocks`, `Disabled`). If omitted, uses per-TargetGroup config.
+- `--scope` (`-s`): string, optional (no default) — Maps to `HashValidationScope` enum (values: `File`, `SqlBlocks`, `Disabled`). If omitted, uses per-TargetGroup config.
 - `--target-group` (`-tg`): string[], repeatable — Filter to specific target groups
 
 **update-hash**:

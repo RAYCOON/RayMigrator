@@ -74,7 +74,7 @@ Supported `DatabaseType` values: `SqlServer`, `PostgreSQL`, `MariaDb`, `MySql`, 
 | `MySql` | `;` | Limited (implicit commit on DDL) | MySqlConnector |
 | `Sqlite` | `;` | Full | Microsoft.Data.Sqlite |
 
-Database-specific details (statement separators, DDL transaction support, schema conventions, drivers) are documented in [SQL Dialects](../03-database-layer/sql-dialects.md).
+Database-specific details (block separators, which split only when alone on a line, DDL transaction support, schema conventions, drivers) are documented in [SQL Dialects](../03-database-layer/sql-dialects.md).
 
 ---
 

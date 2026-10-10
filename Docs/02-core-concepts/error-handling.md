@@ -65,9 +65,9 @@ MigrationErrorAction = Terminate
 INSERT INTO LookupData VALUES (...);
 ```
 
-### Terminate (Default)
+### Terminate
 
-Stop immediately on error. No rollback is performed.
+Stop immediately on error. No rollback is performed. There is no built-in default for `MigrationErrorAction`: validation rule RULE_8_1 requires an effective value on the product or in `ProductDefaults`.
 
 ```mermaid
 flowchart TD

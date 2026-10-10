@@ -41,7 +41,6 @@ This command is useful for:
 |-------|-------------|
 | `File` | Validate entire file content including TOML config |
 | `SqlBlocks` | Validate only SQL blocks (ignoring TOML config changes) |
-| `SqlBlock` | Alias for `SqlBlocks` (both forms are accepted) |
 | `Disabled` | Skip hash validation entirely (all files counted as valid) |
 
 ## Examples

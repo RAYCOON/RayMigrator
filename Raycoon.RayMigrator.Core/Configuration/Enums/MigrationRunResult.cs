@@ -27,8 +27,8 @@ public enum MigrationRunResult : byte
     /// completed without a failure or warning: every record the recovery touched is
     /// <see cref="MigrationStatus.NotMigrated"/> again, so repository and database are consistent. Files the error
     /// action leaves in place on purpose (earlier releases, other targets) stay <see cref="MigrationStatus.Migrated"/>.
-    /// Terminate, Ignore, a rollback failure, a skipped or missing rollback file and a stopped chain are persisted as
-    /// <see cref="Error"/>. The CLI exit code stays 1 (#18).
+    /// Terminate, a rollback failure, a skipped or missing rollback file and a stopped chain are persisted as
+    /// <see cref="Error"/>; Ignore ends the run as <see cref="PartialSuccess"/>. The CLI exit code stays 1 (#18).
     /// </summary>
     Recovered = 80,
 

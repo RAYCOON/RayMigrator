@@ -136,12 +136,12 @@ raymigrator migrate-up -p MyProduct -env Development -rm migrate --reveal-sensit
 flowchart TD
     A[Start migrate-up] --> B[Load Configuration]
     B --> C[Validate Parameters]
-    C --> C2{Simulate or Migrate?}
+    C --> C2{Migrate?}
     C2 -->|Yes| D[Repository CheckCreate + Product CheckInsert]
     D --> E[Check Interrupted Migrations]
     E --> F[Create MigrationRun]
     F --> G[Discover Migration Files]
-    C2 -->|Validate| G
+    C2 -->|Simulate or Validate| G
     G --> H[Filter by Environment]
     H --> H2{Simulate or Migrate?}
     H2 -->|Yes| I[Query Existing Migration Records]
@@ -160,7 +160,7 @@ flowchart TD
     O -->|Yes| Q[Handle Error / Rollback]
     Q --> R[Update MigrationRun Error]
     L3 --> S[Complete]
-    M --> P
+    M --> S
     P --> S
     R --> S
 ```
@@ -207,7 +207,7 @@ For all actions except `Ignore`, an error aborts the entire migration run. The `
 
 ## Concurrent Execution Protection
 
-RayMigrator prevents concurrent migrations for the same Product, Environment, and RunMode combination. If a migration is already running for the given combination (identified by ProductId + Environment + MigrationRunModeId):
+RayMigrator prevents concurrent migrations for the same Product and Environment. If a migration is already running for that combination (identified by ProductId + EnvironmentId; the run mode is stored with the run but is not part of the check, and only `Migrate` runs create a `MigrationRun`):
 
 - New migration attempts are blocked with a `MigrationAlreadyRunningException`
 - Use the `fix` command to recover from stuck runs

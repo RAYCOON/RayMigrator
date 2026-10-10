@@ -255,7 +255,7 @@ Called immediately after Product registration by every `MigrationService` entry 
 ### Template 5: `Repository_MigrationRun_Insert`
 
 **File:** `DataAccessLayers/{DB}/Repository_MigrationRun_Insert.sql`
-**Purpose:** Creates a new MigrationRun record. Prevents parallel migrations for the same product/environment/run mode.
+**Purpose:** Creates a new MigrationRun record. Prevents parallel migrations for the same product/environment (the run mode is stored, not checked).
 
 **SQL parameters:**
 - `@ProductId` - From `MigrationState.ProductId`
@@ -268,7 +268,7 @@ Called immediately after Product registration by every `MigrationService` entry 
 - `@MigrationRunSettingsJson` - JSON snapshot of all RayMigrator settings at migration start
 
 **Logic:**
-1. Checks if an unfinished MigrationRun exists (`FinishedAt IS NULL`) for the same product/environment/run mode
+1. Checks if an unfinished MigrationRun exists (`FinishedAt IS NULL`) for the same product/environment
 2. If found -> returns error `-2` (parallel migration not allowed)
 3. If not found -> INSERT into `MigrationRun` with provided parameters and `SYSUTCDATETIME()` as `StartedAt`, then INSERT settings JSON into `MigrationRunMeta`
 

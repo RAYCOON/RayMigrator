@@ -205,8 +205,8 @@ WHERE migration_run_result_id = 10
 | 2 | Environment conflict (`--environment` and `DOTNET_ENVIRONMENT` have different values) |
 | 3 | Missing required environment (neither `--environment` nor `DOTNET_ENVIRONMENT` is set) |
 | 4 | Missing or invalid configuration (no Serilog section found, config files not found) |
-| 5 | Command-line parsing error (invalid arguments, missing required options) |
-| 100 | Unhandled exception |
+| 5 | `System.CommandLine` threw while parsing or invoking the command; ordinary parse errors (invalid arguments, missing required options) return the parser's own code |
+| 100 | Unhandled exception before or while the command runs, including `ConfigurationValidationException` from option validation, `TemplateCache` and `DalFactory` (see TD-C-01 in [Risks and Technical Debt](../arc42/11-Risks-and-Technical-Debt.md)) |
 
 ---
 
@@ -218,7 +218,7 @@ WHERE migration_run_result_id = 10
 | Exit code 2 | `--environment` differs from `DOTNET_ENVIRONMENT` | Ensure both values match, or use only one |
 | Exit code 3 | No environment specified | Add `--environment` or set `DOTNET_ENVIRONMENT` |
 | Exit code 4 | Missing or invalid configuration | Check appsettings.json exists with valid Serilog section |
-| Exit code 5 | Bad CLI arguments | Check command syntax with `--help` |
+| Exit code 5, or the parser's own code | Bad CLI arguments | Check command syntax with `--help` |
 | Hash mismatch | File modified after execution | Run `update-hash` if intentional, or restore original file |
 | "Orphaned run" warning | Previous run interrupted | Run `fix` command (use `--run-mode simulate` first to preview) |
 | Connection timeout | Network or DB issue | Check connection string, increase `DbCommandTimeoutInSeconds` |
@@ -243,7 +243,7 @@ Two decisions that change what a run leaves behind are visible at the default In
 
 ## Concurrency
 
-RayMigrator enforces **exclusive migration runs** per product, environment, and run mode combination. Only one migration process can execute for a given combination at any time. However, different products and different environments CAN run concurrently without conflict.
+RayMigrator enforces **exclusive migration runs** per product and environment. Only one migration process can execute for a given combination at any time; the run mode is not part of the check. However, different products and different environments CAN run concurrently without conflict.
 
 ### Database-Level Locking
 

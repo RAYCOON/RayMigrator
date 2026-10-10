@@ -213,7 +213,7 @@ places and match the table in
 | `3` | `--environment` is blank and `DOTNET_ENVIRONMENT` is not set (`--environment` is a required option, so leaving it out is a parse error) | `EnvironmentResolver` |
 | `4` | The loaded `RayMigrator` node has no `Serilog` section, typically because the product or environment file was not found (if no file carries a `RayMigrator` node at all, `JsonOptionsSource` throws and the run ends with `100`) | `DirectModePipeline` |
 | `5` | `System.CommandLine` threw while parsing or invoking; ordinary parse errors such as a missing required option return `System.CommandLine`'s own code | `Program.Main` |
-| `100` | Unhandled exception | `Program.Main`, `DirectModePipeline` |
+| `100` | Unhandled exception, including `ConfigurationValidationException` from option validation, `TemplateCache` and `DalFactory` (TD-C-01) | `Program.Main`, `DirectModePipeline` |
 
 A `migrate-up` that fails and is then rolled back by the configured
 `MigrationErrorAction` still returns `1`; the repository records the run with
