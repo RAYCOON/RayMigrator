@@ -263,4 +263,4 @@ raymigrator validate-hash -p RayMigratorTests -env Docker
 
 ## Version
 
-This documentation tracks the develop branch (currently 0.16.0; see `RayMigratorVersion` in `Directory.Build.props` and `CHANGELOG.md`). The version here is updated in the release commit and in the post-release bump, see [11-development/release-process.md](11-development/release-process.md).
+This documentation tracks the develop branch (currently 0.17.0-dev; see `RayMigratorVersion` in `Directory.Build.props` and `CHANGELOG.md`). The version here is updated in the release commit and in the post-release bump, see [11-development/release-process.md](11-development/release-process.md).
