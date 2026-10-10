@@ -164,7 +164,10 @@ public class DalOracle : DalBase, IDal
     public override string DatabaseType { get; }
     public override DalSpecificProperties DalSpecificProperties { get; }
 
-    private static readonly string[] s_transientCodes = ["12170", "12541", "12543", "3113", "3135"];
+    // Built-in list; an optional DataAccessLayers/Oracle/TransientErrorCodes.txt replaces it at runtime (ADR-022)
+    private static readonly string[] TransientCodes = ["12170", "12541", "12543", "3113", "3135"];
+
+    protected override IReadOnlyCollection<string> DefaultTransientErrorCodes => TransientCodes;
 
     public DalOracle(string connectionString)
     {
@@ -196,8 +199,7 @@ public class DalOracle : DalBase, IDal
             var numberProp = exceptionType.GetProperty("Number");
             if (numberProp?.GetValue(ex) is int number)
             {
-                var code = number.ToString();
-                return (s_transientCodes.Contains(code), code);
+                return IsTransientCode(number.ToString(CultureInfo.InvariantCulture));
             }
         }
         return base.IsTransient(ex);
@@ -316,11 +318,13 @@ See `Database.SqlServer/Templates/` or `Database.PostgreSQL/Templates/` for refe
 
 ## Step 4: RetryHelper Integration
 
-`DalBase` provides protected retry helpers (`ExecuteWithRetryAsync`, `ExecuteWithRetry`) that automatically route through the virtual `IsTransient` method you override. Override `IsTransient` in your DAL class to detect transient errors specific to your database driver. The base implementation handles `TimeoutException` and recursively checks `InnerException`.
+`DalBase` provides protected retry helpers (`ExecuteWithRetryAsync`, `ExecuteWithRetry`) that automatically route through the virtual `IsTransient` method you override. Override `IsTransient` in your DAL class to detect transient errors specific to your database driver. The base implementation handles `TimeoutException` and recursively checks `InnerException`. Override `DefaultTransientErrorCodes` with your built-in list and classify through `IsTransientCode`, so that an optional `DataAccessLayers/{YourType}/TransientErrorCodes.txt` can replace the list at runtime (ADR-022, see [Transient Error Codes](../03-database-layer/transient-error-codes.md)).
 
 ```csharp
-// In your DAL class: override IsTransient for database-specific error codes
-private static readonly string[] s_transientCodes = ["12170", "12541", "12543", "3113", "3135"];
+// In your DAL class: the built-in list plus IsTransient for database-specific error codes
+private static readonly string[] TransientCodes = ["12170", "12541", "12543", "3113", "3135"];
+
+protected override IReadOnlyCollection<string> DefaultTransientErrorCodes => TransientCodes;
 
 public override (bool isTransient, string? errorCode) IsTransient(Exception ex)
 {
@@ -330,8 +334,7 @@ public override (bool isTransient, string? errorCode) IsTransient(Exception ex)
         var numberProp = exceptionType.GetProperty("Number");
         if (numberProp?.GetValue(ex) is int number)
         {
-            var code = number.ToString();
-            return (s_transientCodes.Contains(code), code);
+            return IsTransientCode(number.ToString(CultureInfo.InvariantCulture));
         }
     }
     return base.IsTransient(ex);  // handles TimeoutException, InnerException recursion
@@ -435,7 +438,7 @@ Create a Docker container for testing and add tests to the integration test proj
   - [ ] `CreateConnection`
   - [ ] `ExecuteNonQueryAsync(string, DbConnection, DbTransaction, int, DalParameterList?)`
   - [ ] `ExecuteScalarAsync(string, DbConnection, DbTransaction, int, DalParameterList?)`
-- [ ] Override `IsTransient(Exception)` to detect your database's transient error codes
+- [ ] Override `DefaultTransientErrorCodes` and `IsTransient(Exception)` to detect your database's transient error codes; optionally ship a `TransientErrorCodes.txt`
 - [ ] Create all 21 SQL templates in `Templates/` directory
 - [ ] Configure `.csproj` template copying and DLL output targets
 - [ ] For monorepo: add `ProjectReference` and copy target to `Console.csproj`

@@ -1,0 +1,13 @@
+# RayMigrator transient error codes for MariaDb.
+# One code per line. A line starting with # is a comment; a trailing # comment is allowed. This file is the
+# complete list: a code not listed here is not retried. Delete the file to fall back to the built-in list.
+# Every publish or upgrade overwrites this file; re-apply your changes afterwards.
+1040     # ER_CON_COUNT_ERROR - Too many connections
+1205     # ER_LOCK_WAIT_TIMEOUT - Lock wait timeout exceeded
+1213     # ER_LOCK_DEADLOCK - Deadlock found when trying to get lock
+1614     # ER_TRANSACTION_RESOLUTION_UNKNOWN - Transaction rolled back (semi-sync replication uncertainty)
+2002     # CR_CONNECTION_ERROR - Can't connect through socket
+2003     # CR_CONN_HOST_ERROR - Can't connect to server
+2006     # CR_SERVER_GONE_ERROR - Server has gone away
+2013     # CR_SERVER_LOST - Lost connection during query
+2055     # CR_SERVER_LOST_EXTENDED - Lost connection at reading authorization packet

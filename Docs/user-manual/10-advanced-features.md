@@ -749,6 +749,8 @@ RayMigrator automatically detects transient errors for all supported database en
 
 `TimeoutException` is recognized as transient regardless of the database provider.
 
+The exact code lists ship as `DataAccessLayers/{DatabaseType}/TransientErrorCodes.txt` next to the `raymigrator` executable. Edit the file to change what is retried without waiting for a release; it replaces the built-in list completely and is overwritten by every upgrade. See [Transient Error Codes](../03-database-layer/transient-error-codes.md).
+
 ### Block-Level Recovery
 
 If a migration file with multiple SQL blocks fails partway through, RayMigrator records which blocks were completed. On re-run, it automatically resumes from the last failed block rather than re-executing the entire file.

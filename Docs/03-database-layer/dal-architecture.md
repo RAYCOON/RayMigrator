@@ -276,9 +276,15 @@ public abstract class DalBase : IDal
     public abstract Task ExecuteNonQueryAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList = null);
     public abstract Task<object?> ExecuteScalarAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList = null);
 
-    // Transient error detection: override in each DAL with database-specific exception types
-    // and error codes. The base implementation handles TimeoutException
-    // and recursively checks InnerException.
+    // Transient error detection: each DAL overrides DefaultTransientErrorCodes with its built-in list and
+    // classifies the provider's error code through IsTransientCode in its IsTransient override. The effective
+    // list (TransientErrorCodes) is replaced by DataAccessLayers/{Type}/TransientErrorCodes.txt when DalFactory
+    // finds that file (ADR-022). The base IsTransient handles TimeoutException and recursively checks InnerException.
+    protected virtual IReadOnlyCollection<string> DefaultTransientErrorCodes => [];
+    public IReadOnlySet<string> TransientErrorCodes { get; }
+    public string? TransientErrorCodesSource { get; }
+    public void SetTransientErrorCodes(IEnumerable<string> codes, string? source) { ... }
+    protected (bool isTransient, string? errorCode) IsTransientCode(string? code) { ... }
     public virtual (bool isTransient, string? errorCode) IsTransient(Exception ex) { ... }
 
     // Retry helpers: delegate to RetryHelper using this DAL's IsTransient method
@@ -330,18 +336,18 @@ public class DalSqlServer : DalBase, IDal
         };
     }
 
-    private static readonly string[] s_transientCodes =
+    // Built-in list; DataAccessLayers/SqlServer/TransientErrorCodes.txt replaces it at runtime (ADR-022)
+    private static readonly string[] TransientCodes =
         ["-2", "20", "64", "233", "10053", "10054", "10060",
          "40197", "40501", "40613", "49918", "49919", "49920",
          "4021", "596"]; // pooled session killed after ALTER LOGIN: retried, and the pool is cleared
 
+    protected override IReadOnlyCollection<string> DefaultTransientErrorCodes => TransientCodes;
+
     public override (bool isTransient, string? errorCode) IsTransient(Exception ex)
     {
         if (ex is SqlException sqlEx)
-        {
-            var code = sqlEx.Number.ToString();
-            return (s_transientCodes.Contains(code), code);
-        }
+            return IsTransientCode(sqlEx.Number.ToString(CultureInfo.InvariantCulture));
         return base.IsTransient(ex);
     }
 
@@ -494,20 +500,19 @@ See [Resilience and Retry](../02-core-concepts/resilience.md) for the configurat
 2. **Async void**: `ExecuteWithRetryAsync(Func<Task>, ...)`
 3. **Sync with return value**: `ExecuteWithRetry<T>(Func<T>, ...)`
 
-Transient error detection is delegated entirely to each DAL. `DalBase` provides the `IsTransient(Exception)` virtual method that each concrete DAL overrides with its database-specific exception types and error codes. The base implementation handles `TimeoutException` and recursively checks `InnerException`. The protected `ExecuteWithRetryAsync` and `ExecuteWithRetry` methods in `DalBase` call `RetryHelper`, passing the DAL's own `IsTransient` method as the predicate.
+Transient error detection is delegated to each DAL. `DalBase` keeps the effective code list: `DefaultTransientErrorCodes` is the plugin's built-in list, and `DalFactory` replaces it through `SetTransientErrorCodes` with the content of `DataAccessLayers/{DatabaseType}/TransientErrorCodes.txt` when that file exists (see [Transient Error Codes](transient-error-codes.md), ADR-022). Each concrete DAL overrides the `IsTransient(Exception)` virtual method with its database-specific exception type and classifies the provider's code through the protected `IsTransientCode`. The base implementation handles `TimeoutException` and recursively checks `InnerException`. The protected `ExecuteWithRetryAsync` and `ExecuteWithRetry` methods in `DalBase` call `RetryHelper`, passing the DAL's own `IsTransient` method as the predicate.
 
-To add transient error detection to a custom DAL, override `IsTransient` in the DAL class (see the commented-out example in `DalExample.cs`):
+To add transient error detection to a custom DAL, override `DefaultTransientErrorCodes` and `IsTransient` in the DAL class (see the commented-out example in `DalExample.cs`):
 
 ```csharp
-private static readonly string[] s_transientCodes = ["1205", "2006", "40001"];
+private static readonly string[] TransientCodes = ["1205", "2006", "40001"]; // built-in list
+
+protected override IReadOnlyCollection<string> DefaultTransientErrorCodes => TransientCodes;
 
 public override (bool isTransient, string? errorCode) IsTransient(Exception ex)
 {
     if (ex is YourDbException dbEx)
-    {
-        var code = dbEx.ErrorNumber.ToString();
-        return (s_transientCodes.Contains(code), code);
-    }
+        return IsTransientCode(dbEx.ErrorNumber.ToString(CultureInfo.InvariantCulture));
     return base.IsTransient(ex); // handles TimeoutException, InnerException recursion
 }
 ```

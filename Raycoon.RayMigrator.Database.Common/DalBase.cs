@@ -42,6 +42,50 @@ public abstract class DalBase : IDal
         return ex.InnerException != null ? IsTransient(ex.InnerException) : (false, null);
     }
 
+    private IReadOnlySet<string>? _transientErrorCodes;
+
+    /// <summary>
+    /// The built-in transient error codes of this DAL, effective until a <c>TransientErrorCodes.txt</c> replaces them
+    /// through <see cref="SetTransientErrorCodes"/>. Override in each DAL; the base has none. Compared case-insensitively.
+    /// </summary>
+    protected virtual IReadOnlyCollection<string> DefaultTransientErrorCodes => [];
+
+    /// <summary>
+    /// The effective transient error codes: the list set through <see cref="SetTransientErrorCodes"/>, otherwise
+    /// <see cref="DefaultTransientErrorCodes"/>. A code not contained is not retried. Case-insensitive.
+    /// </summary>
+    public IReadOnlySet<string> TransientErrorCodes =>
+        _transientErrorCodes ??= new HashSet<string>(DefaultTransientErrorCodes, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Where the effective codes come from: the path of the loaded <c>TransientErrorCodes.txt</c>, or null for the
+    /// built-in list.
+    /// </summary>
+    public string? TransientErrorCodesSource { get; private set; }
+
+    /// <summary>
+    /// Replaces the effective transient error codes, for example with the content of a shipped
+    /// <c>TransientErrorCodes.txt</c> (ADR-022). The list is complete: it does not merge with the built-in codes, and an
+    /// empty list means that no database error is retried.
+    /// </summary>
+    /// <param name="codes">The complete list of codes to retry.</param>
+    /// <param name="source">Where the codes come from, typically the file path; null when unknown.</param>
+    public void SetTransientErrorCodes(IEnumerable<string> codes, string? source)
+    {
+        ArgumentNullException.ThrowIfNull(codes);
+        _transientErrorCodes = new HashSet<string>(codes, StringComparer.OrdinalIgnoreCase);
+        TransientErrorCodesSource = source;
+    }
+
+    /// <summary>
+    /// Classifies a provider error code against <see cref="TransientErrorCodes"/>: the tuple an
+    /// <see cref="IsTransient"/> override returns for a provider exception that carries <paramref name="code"/>.
+    /// </summary>
+    protected (bool isTransient, string? errorCode) IsTransientCode(string? code)
+    {
+        return (code != null && TransientErrorCodes.Contains(code), code);
+    }
+
     /// <summary>
     /// Executes an async operation with retry logic for transient errors.
     /// Uses this DAL's IsTransient method for transient error detection.

@@ -726,6 +726,10 @@ If the orphaned run is younger than 10 minutes, RayMigrator aborts with a `Migra
    - `5` (SQLITE_BUSY): Database file is locked by another process
    - `6` (SQLITE_LOCKED): Table in the database is locked
 
+5. **Adjust the list without a new release**
+
+   The codes above are the built-in lists. Edit `DataAccessLayers/{DatabaseType}/TransientErrorCodes.txt` next to the `raymigrator` executable (one code per line, `#` comments; the file replaces the built-in list completely) and restart. A malformed line aborts the start with the file and the line named; deleting the file restores the built-in list. See [Transient Error Codes](../03-database-layer/transient-error-codes.md).
+
 ### Login Altered by a Migration (SQL Server Error 4021)
 
 **Symptoms:**
@@ -913,7 +917,7 @@ ADO.NET pools physical connections. Every pooled session was authenticated befor
    Built-in DALs are discovered via `DependencyContext.Default`, which reads from the `deps.json` file. If this file is missing or incomplete (e.g., after a custom publish step), built-in DALs will not be found. Ensure the publish configuration generates the `deps.json` file.
 
 4. **Check the subdirectory name matches the `DatabaseType` attribute**
-   The subdirectory name does not need to match the configured `DatabaseType` value. DAL discovery works by scanning all DLLs for classes implementing `IDal` with a `[DatabaseType("X")]` attribute. However, each DAL subdirectory must contain the required SQL template files (flat layout, directly in `DataAccessLayers/{Type}/`, not in a `Templates/` subfolder).
+   DAL discovery scans every DLL for classes implementing `IDal` with a `[DatabaseType("X")]` attribute, but the SQL templates and the optional `TransientErrorCodes.txt` are looked up in `DataAccessLayers/{DatabaseType}/`, so name the subdirectory exactly like the `DatabaseType` value. Each DAL subdirectory must contain the required SQL template files (flat layout, directly in `DataAccessLayers/{Type}/`, not in a `Templates/` subfolder).
 
 ### TemplateCache Initialization Error
 

@@ -13,7 +13,8 @@ namespace Raycoon.RayMigrator.Database.Example;
 /// 1. Copy this project and rename it (e.g., Raycoon.RayMigrator.Database.Oracle)
 /// 2. Update the [DatabaseType] attribute value
 /// 3. Add your ADO.NET driver NuGet package
-/// 4. Override IsTransient() with your database's transient error codes
+/// 4. Override DefaultTransientErrorCodes and IsTransient() for your database's transient error codes; users can
+///    replace the list without a rebuild through DataAccessLayers/{YourDatabaseType}/TransientErrorCodes.txt
 /// 5. Implement all methods using your database's connection/command classes
 /// 6. Implement all 19 SQL templates in the Templates/ directory
 /// 7. Build and copy the output to DataAccessLayers/{YourDatabaseType}/
@@ -52,24 +53,23 @@ public class DalExample : DalBase, IDal
         };
     }
 
-    // TODO: Define transient error codes for your database engine.
-    // These are error codes that indicate temporary conditions safe to retry.
-    // Example: timeouts, deadlocks, connection drops, too many connections.
-    // private static readonly string[] s_transientCodes = ["1205", "1213", "2006"];
+    // TODO: Define the built-in transient error codes for your database engine.
+    // These are error codes that indicate temporary conditions safe to retry:
+    // timeouts, deadlocks, connection drops, too many connections.
+    // Users can replace the list without a rebuild by placing a TransientErrorCodes.txt (one code per line,
+    // # comments) next to your DAL in DataAccessLayers/{YourDatabaseType}/; RayMigrator loads it when the DAL is created.
+    // private static readonly string[] TransientCodes = ["1205", "1213", "2006"];
+    // protected override IReadOnlyCollection<string> DefaultTransientErrorCodes => TransientCodes;
 
     // TODO: Override IsTransient to detect transient errors from your database driver.
-    // Check your ADO.NET driver's exception type and compare the error code
-    // against known transient error codes for your database engine.
-    // The base implementation already handles TimeoutException
-    // and recursively checks InnerException.
+    // Check your ADO.NET driver's exception type and classify its error code with IsTransientCode(),
+    // which compares against the effective list (TransientErrorCodes.txt or DefaultTransientErrorCodes).
+    // The base implementation already handles TimeoutException and recursively checks InnerException.
     //
     // public override (bool isTransient, string? errorCode) IsTransient(Exception ex)
     // {
     //     if (ex is YourDbException dbEx)
-    //     {
-    //         var code = dbEx.ErrorNumber.ToString();
-    //         return (s_transientCodes.Contains(code), code);
-    //     }
+    //         return IsTransientCode(dbEx.ErrorNumber.ToString(CultureInfo.InvariantCulture));
     //     return base.IsTransient(ex);
     // }
 

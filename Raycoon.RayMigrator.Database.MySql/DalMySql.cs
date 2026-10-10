@@ -1,5 +1,6 @@
 using System.Data;
 using System.Data.Common;
+using System.Globalization;
 using System.Reflection;
 using MySqlConnector;
 using Raycoon.RayMigrator.Database.Common;
@@ -30,8 +31,8 @@ public class DalMySql : DalBase, IDal
         };
     }
 
-    // Transient MySQL error codes that trigger automatic retry.
-    private static readonly string[] s_transientCodes =
+    // Built-in transient MySQL error codes; a TransientErrorCodes.txt in DataAccessLayers/MySql/ replaces them (ADR-022).
+    private static readonly string[] TransientCodes =
     [
         "1040", // ER_CON_COUNT_ERROR - Too many connections
         "1205", // ER_LOCK_WAIT_TIMEOUT - Lock wait timeout exceeded
@@ -44,13 +45,13 @@ public class DalMySql : DalBase, IDal
         "2055", // CR_SERVER_LOST_EXTENDED - Lost connection at reading authorization packet
     ];
 
+    /// <inheritdoc />
+    protected override IReadOnlyCollection<string> DefaultTransientErrorCodes => TransientCodes;
+
     public override (bool isTransient, string? errorCode) IsTransient(Exception ex)
     {
         if (ex is MySqlException mysqlEx)
-        {
-            var code = mysqlEx.Number.ToString();
-            return (s_transientCodes.Contains(code), code);
-        }
+            return IsTransientCode(mysqlEx.Number.ToString(CultureInfo.InvariantCulture));
         return base.IsTransient(ex);
     }
 

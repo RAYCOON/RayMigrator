@@ -116,7 +116,7 @@
               Condition="Exists('$(OutputPath)Raycoon.RayMigrator.Database.Sqlite.dll')" />
     </Target>
 
-    <!-- Copy DAL SQL templates into DataAccessLayers/{Type}/ in publish output for user customization -->
+    <!-- Copy DAL SQL templates and TransientErrorCodes.txt into DataAccessLayers/{Type}/ in publish output for user customization -->
     <Target Name="CopyDalTemplatesToDataAccessLayersPublish" AfterTargets="Publish">
         <ItemGroup>
             <_SqlServerTemplates Include="$(MSBuildThisFileDirectory)..\Raycoon.RayMigrator.Database.SqlServer\Templates\**\*.sql" />
@@ -124,6 +124,12 @@
             <_MariaDbTemplates Include="$(MSBuildThisFileDirectory)..\Raycoon.RayMigrator.Database.MariaDb\Templates\**\*.sql" />
             <_MySqlTemplates Include="$(MSBuildThisFileDirectory)..\Raycoon.RayMigrator.Database.MySql\Templates\**\*.sql" />
             <_SqliteTemplates Include="$(MSBuildThisFileDirectory)..\Raycoon.RayMigrator.Database.Sqlite\Templates\**\*.sql" />
+            <!-- The editable transient error code list ships next to the templates (ADR-022) -->
+            <_SqlServerTemplates Include="$(MSBuildThisFileDirectory)..\Raycoon.RayMigrator.Database.SqlServer\TransientErrorCodes.txt" />
+            <_PostgreSQLTemplates Include="$(MSBuildThisFileDirectory)..\Raycoon.RayMigrator.Database.PostgreSQL\TransientErrorCodes.txt" />
+            <_MariaDbTemplates Include="$(MSBuildThisFileDirectory)..\Raycoon.RayMigrator.Database.MariaDb\TransientErrorCodes.txt" />
+            <_MySqlTemplates Include="$(MSBuildThisFileDirectory)..\Raycoon.RayMigrator.Database.MySql\TransientErrorCodes.txt" />
+            <_SqliteTemplates Include="$(MSBuildThisFileDirectory)..\Raycoon.RayMigrator.Database.Sqlite\TransientErrorCodes.txt" />
         </ItemGroup>
         <Copy SourceFiles="@(_SqlServerTemplates)"
               DestinationFolder="$(PublishDir)DataAccessLayers/SqlServer/%(RecursiveDir)"

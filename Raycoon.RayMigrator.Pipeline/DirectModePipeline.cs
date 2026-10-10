@@ -562,6 +562,44 @@ public static class DirectModePipeline
                 string.IsNullOrWhiteSpace(dalInstance.DalSpecificProperties.SqlBlockDelimiter) ? "{Empty}" : dalInstance.DalSpecificProperties.SqlBlockDelimiter,
                 dalInstance.DalSpecificProperties.SupportsSchema,
                 dalInstance.DalSpecificProperties.SupportsTransactionalDdl);
+
+            if (dalInstance is DalBase dalBase)
+            {
+                LogTransientErrorCodes(dalBase, databaseType, migrationContext.RayMigratorConsoleOptions.RevealSensitiveData, logger);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Reports where a DAL's transient error codes come from (ADR-022): Information when a TransientErrorCodes.txt
+    /// replaced the built-in list (the path only with RevealSensitiveData), Debug for the built-in list, and a Warning
+    /// when the effective list is empty, because then no database error is retried.
+    /// </summary>
+    private static void LogTransientErrorCodes(DalBase dal, string databaseType, bool revealSensitiveData, Microsoft.Extensions.Logging.ILogger logger)
+    {
+        string codes = string.Join(", ", dal.TransientErrorCodes);
+        // The file path reveals the installation folder; show it only when sensitive data may be revealed.
+        string source = revealSensitiveData && dal.TransientErrorCodesSource != null
+            ? dal.TransientErrorCodesSource
+            : TransientErrorCodesFile.FileName;
+        if (dal.TransientErrorCodesSource != null)
+        {
+            logger.LogInformation(MigrationEvent.InitializeDalSpecificProperties,
+                "Transient error codes for DatabaseType [{DatabaseType}] loaded from [{Source}]: [{Codes}]",
+                databaseType, source, codes);
+        }
+        else
+        {
+            logger.LogDebug(MigrationEvent.InitializeDalSpecificProperties,
+                "Transient error codes for DatabaseType [{DatabaseType}] are the built-in list: [{Codes}]",
+                databaseType, codes);
+        }
+
+        if (dal.TransientErrorCodes.Count == 0)
+        {
+            logger.LogWarning(MigrationEvent.InitializeDalSpecificProperties,
+                "No transient error codes for DatabaseType [{DatabaseType}]: no database error is retried. Add codes to [{Source}] or delete the file to restore the built-in list",
+                databaseType, source);
         }
     }
 }

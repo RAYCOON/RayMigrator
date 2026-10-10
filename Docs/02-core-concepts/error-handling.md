@@ -579,7 +579,7 @@ RayMigrator includes a `RetryHelper` (in `Raycoon.RayMigrator.Database.Common`) 
 
 ### Transient Error Codes Per Database
 
-Each DAL plugin overrides the `IsTransient(Exception)` virtual method from `DalBase` to detect database-specific transient errors. The base class handles `TimeoutException` for all providers, and recursively inspects `InnerException`.
+Each DAL plugin overrides the `IsTransient(Exception)` virtual method from `DalBase` to detect database-specific transient errors. The base class handles `TimeoutException` for all providers, and recursively inspects `InnerException`. The codes below are the built-in lists (`DefaultTransientErrorCodes`); a `TransientErrorCodes.txt` in `DataAccessLayers/{DatabaseType}/` replaces them completely, see [Transient Error Codes](../03-database-layer/transient-error-codes.md).
 
 | Database | Exception Type | Transient Error Codes |
 |----------|---------------|----------------------|
@@ -593,7 +593,7 @@ Additionally, `TimeoutException` is always considered transient. Inner exception
 
 ### Custom Transient Predicates
 
-External DAL developers override the `IsTransient(Exception)` virtual method in their DAL class. The method returns a `(bool isTransient, string? errorCode)` tuple. `RetryHelper` accepts a `Func<Exception, (bool isTransient, string? errorCode)>` predicate as a required parameter, which each DAL passes from its `IsTransient` implementation. The error code is a string to support both numeric codes (e.g., SQL Server "233") and SQLSTATE codes (e.g., PostgreSQL "08000").
+External DAL developers override `DefaultTransientErrorCodes` with their built-in list and the `IsTransient(Exception)` virtual method in their DAL class, classifying the provider's code through `IsTransientCode`. The method returns a `(bool isTransient, string? errorCode)` tuple. `RetryHelper` accepts a `Func<Exception, (bool isTransient, string? errorCode)>` predicate as a required parameter, which each DAL passes from its `IsTransient` implementation. The error code is a string to support both numeric codes (e.g., SQL Server "233") and SQLSTATE codes (e.g., PostgreSQL "08000").
 
 ### Retry Exhaustion
 

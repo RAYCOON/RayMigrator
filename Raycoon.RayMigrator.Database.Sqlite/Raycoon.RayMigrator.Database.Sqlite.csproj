@@ -41,6 +41,17 @@
         </Content>
     </ItemGroup>
 
+    <!-- Transient error codes as an editable text file next to the templates (ADR-022) -->
+    <ItemGroup>
+        <Content Include="TransientErrorCodes.txt">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <Link>DataAccessLayers\$(RayMigratorDatabaseType)\TransientErrorCodes.txt</Link>
+            <Pack>true</Pack>
+            <PackagePath>contentFiles\any\any\DataAccessLayers\$(RayMigratorDatabaseType)\</PackagePath>
+            <PackageCopyToOutput>true</PackageCopyToOutput>
+        </Content>
+    </ItemGroup>
+
     <!-- Copy DAL DLL to DataAccessLayers/{Type}/ -->
     <Target Name="CopyDalToDataAccessLayers" AfterTargets="Build">
         <MakeDir Directories="$(OutputPath)DataAccessLayers\$(RayMigratorDatabaseType)" />

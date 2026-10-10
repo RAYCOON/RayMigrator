@@ -251,7 +251,8 @@ Scenarios: [Runtime View 6.4](06-Runtime-View.md#64-error-handling-and-rollback-
 returns true and attempts remain, sleeping `retryDelayMs * attempt` (linear backoff), then throw `RetryExhaustedException` (declared in `RetryHelper.cs` of `Database.Common`) with
 `AttemptsMade` and `LastErrorCode`. `DalBase.IsTransient` treats `TimeoutException` as transient and walks inner exceptions; each
 plugin adds its provider codes (for example SQL Server `-2` and `10060`, PostgreSQL SQLSTATE `08xxx` and `40001`, MariaDB and
-MySQL `1205` and `2013`, SQLite `5` and `6`). Retries wrap every block on the standard path; the atomic path re-executes the whole
+MySQL `1205` and `2013`, SQLite `5` and `6`); the built-in list of a plugin is replaced by `DataAccessLayers/{Type}/TransientErrorCodes.txt`
+when that file exists, loaded once per DAL instance by `DalFactory` (ADR-022). Retries wrap every block on the standard path; the atomic path re-executes the whole
 file after a rollback.
 
 | Scope | `DbCommandMaxRetries` | `DbCommandWaitTimeInMsBeforeRetry` | `DbCommandTimeoutInSeconds` | Source of the default |

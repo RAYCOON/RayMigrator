@@ -1,5 +1,6 @@
 using System.Data;
 using System.Data.Common;
+using System.Globalization;
 using System.Reflection;
 using Microsoft.Data.SqlClient;
 using Raycoon.RayMigrator.Database.Common;
@@ -31,8 +32,8 @@ public class DalSqlServer : DalBase, IDal
         };
     }
 
-    // Transient SQL Server error codes that trigger automatic retry.
-    private static readonly string[] s_transientCodes =
+    // Built-in transient SQL Server error codes; a TransientErrorCodes.txt in DataAccessLayers/SqlServer/ replaces them (ADR-022).
+    private static readonly string[] TransientCodes =
     [
         "-2",    // Timeout expired (SQL Server specific timeout)
         "20",    // Instance connection error (broken TDS connection / encryption negotiation failure)
@@ -56,18 +57,22 @@ public class DalSqlServer : DalBase, IDal
     // SQL Server kills a pooled session whose login state no longer matches the state at its initial login (4021,
     // followed by 596). SqlClient discards only that one physical connection, so every other pooled connection opened
     // before the change fails the same way, one per attempt. Clearing the pool lets the very next attempt log in afresh.
-    private static readonly int[] s_poolInvalidatingCodes = [4021, 596];
+    private static readonly int[] PoolInvalidatingCodes = [4021, 596];
+
+    /// <inheritdoc />
+    protected override IReadOnlyCollection<string> DefaultTransientErrorCodes => TransientCodes;
 
     /// <summary>
-    /// True when <paramref name="errorNumber"/> is one of the SQL Server error numbers this DAL retries.
+    /// True when <paramref name="errorNumber"/> is one of the SQL Server error numbers this DAL instance retries
+    /// (the loaded TransientErrorCodes.txt or the built-in list).
     /// </summary>
-    internal static bool IsTransientErrorNumber(int errorNumber) => s_transientCodes.Contains(errorNumber.ToString());
+    internal bool IsTransientErrorNumber(int errorNumber) => TransientErrorCodes.Contains(errorNumber.ToString(CultureInfo.InvariantCulture));
 
     /// <summary>
     /// True when one of the error numbers in an exception's error chain marks the pooled session as killed by the
     /// server (4021 login state changed, 596 session in kill state), so the connection pool must be cleared.
     /// </summary>
-    internal static bool RequiresPoolClear(IEnumerable<int> errorNumbers) => errorNumbers.Any(s_poolInvalidatingCodes.Contains);
+    internal static bool RequiresPoolClear(IEnumerable<int> errorNumbers) => errorNumbers.Any(PoolInvalidatingCodes.Contains);
 
     private static bool RequiresPoolClear(SqlException ex) => RequiresPoolClear(ex.Errors.Cast<SqlError>().Select(e => e.Number));
 
@@ -119,10 +124,7 @@ public class DalSqlServer : DalBase, IDal
     public override (bool isTransient, string? errorCode) IsTransient(Exception ex)
     {
         if (ex is SqlException sqlEx)
-        {
-            var code = sqlEx.Number.ToString();
-            return (s_transientCodes.Contains(code), code);
-        }
+            return IsTransientCode(sqlEx.Number.ToString(CultureInfo.InvariantCulture));
         return base.IsTransient(ex);
     }
 

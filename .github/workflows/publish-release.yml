@@ -80,7 +80,8 @@ jobs:
               echo "ERROR: No SQL templates in DataAccessLayers/$dal!"
               exit 1
             fi
-            echo "OK: DataAccessLayers/$dal — $sql_count templates"
+            test -f "publish/${{ matrix.rid }}/DataAccessLayers/$dal/TransientErrorCodes.txt" || { echo "ERROR: TransientErrorCodes.txt missing in DataAccessLayers/$dal!"; exit 1; }
+            echo "OK: DataAccessLayers/$dal — $sql_count templates + TransientErrorCodes.txt"
           done
 
       - name: Create archive (tar.gz)

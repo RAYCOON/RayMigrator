@@ -1,5 +1,6 @@
 using System.Data;
 using System.Data.Common;
+using System.Globalization;
 using System.Reflection;
 using Microsoft.Data.Sqlite;
 using Raycoon.RayMigrator.Database.Common;
@@ -29,20 +30,20 @@ public class DalSqlite : DalBase, IDal
         };
     }
 
-    // Transient SQLite error codes that trigger automatic retry.
-    private static readonly string[] s_transientCodes =
+    // Built-in transient SQLite error codes; a TransientErrorCodes.txt in DataAccessLayers/Sqlite/ replaces them (ADR-022).
+    private static readonly string[] TransientCodes =
     [
         "5", // SQLITE_BUSY - Database file is locked by another process
         "6", // SQLITE_LOCKED - Table in the database is locked
     ];
 
+    /// <inheritdoc />
+    protected override IReadOnlyCollection<string> DefaultTransientErrorCodes => TransientCodes;
+
     public override (bool isTransient, string? errorCode) IsTransient(Exception ex)
     {
         if (ex is SqliteException sqliteEx)
-        {
-            var code = sqliteEx.SqliteErrorCode.ToString();
-            return (s_transientCodes.Contains(code), code);
-        }
+            return IsTransientCode(sqliteEx.SqliteErrorCode.ToString(CultureInfo.InvariantCulture));
         return base.IsTransient(ex);
     }
 

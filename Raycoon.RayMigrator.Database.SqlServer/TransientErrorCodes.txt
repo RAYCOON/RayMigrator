@@ -1,0 +1,19 @@
+# RayMigrator transient error codes for SqlServer.
+# One code per line. A line starting with # is a comment; a trailing # comment is allowed. This file is the
+# complete list: a code not listed here is not retried. Delete the file to fall back to the built-in list.
+# Every publish or upgrade overwrites this file; re-apply your changes afterwards.
+-2       # Timeout expired (SQL Server specific timeout)
+20       # Instance connection error (broken TDS connection / encryption negotiation failure)
+64       # Connection established but lost (ERROR_NETNAME_DELETED)
+233      # Connection closed during initialization (connection pool exhaustion / server busy)
+10053    # WSAECONNABORTED - Software caused connection abort
+10054    # WSAECONNRESET - Connection forcibly closed by remote host
+10060    # WSAETIMEDOUT - Connection attempt timed out
+40197    # Azure SQL: Service error processing request
+40501    # Azure SQL: Service is currently busy
+40613    # Azure SQL: Database is not currently available (failover / scaling)
+49918    # Azure SQL: Not enough resources to process request
+49919    # Azure SQL: Too many create or update operations in progress
+49920    # Azure SQL: Too many operations in progress
+4021     # Pooled session reset failed: the login's state changed since the session logged in (ALTER LOGIN)
+596      # Session is in the kill state (follows 4021, or a KILL / failover mid-batch)

@@ -131,4 +131,16 @@ public class DalFactoryTests
         act.Should().NotThrow();
         DalFactory.RegisteredDalTypes.Should().ContainKey("SqlServer");
     }
+    [Fact]
+    public void TryGetDal_BuiltInDal_LoadsTheShippedTransientErrorCodesFile()
+    {
+        // Act
+        DalFactory.TryGetDal("SqlServer", "Server=test_transient_codes;TrustServerCertificate=True", out var dal);
+
+        // Assert
+        var dalBase = dal.Should().BeAssignableTo<DalBase>().Which;
+        dalBase.TransientErrorCodesSource.Should().EndWith(Path.Combine("DataAccessLayers", "SqlServer", "TransientErrorCodes.txt"),
+            because: "DalFactory replaces the built-in list with the shipped file (ADR-022)");
+        dalBase.TransientErrorCodes.Should().Contain("4021");
+    }
 }

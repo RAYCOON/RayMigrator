@@ -1,0 +1,6 @@
+# RayMigrator transient error codes for Sqlite.
+# One code per line. A line starting with # is a comment; a trailing # comment is allowed. This file is the
+# complete list: a code not listed here is not retried. Delete the file to fall back to the built-in list.
+# Every publish or upgrade overwrites this file; re-apply your changes afterwards.
+5        # SQLITE_BUSY - Database file is locked by another process
+6        # SQLITE_LOCKED - Table in the database is locked

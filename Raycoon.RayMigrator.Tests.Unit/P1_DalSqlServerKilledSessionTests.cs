@@ -9,6 +9,9 @@ namespace Raycoon.RayMigrator.Tests.Unit;
 /// </summary>
 public class DalSqlServerKilledSessionTests
 {
+    // Constructed directly, so the instance carries the built-in list, not a loaded TransientErrorCodes.txt.
+    private readonly DalSqlServer _dal = new("Server=test;");
+
     [Theory]
     [InlineData(4021)] // Resetting the connection results in a different state than the initial login
     [InlineData(596)]  // Cannot continue the execution because the session is in the kill state
@@ -16,7 +19,7 @@ public class DalSqlServerKilledSessionTests
     [InlineData(233)]  // Connection closed during initialization, present before
     public void IsTransientErrorNumber_KilledSessionAndExistingCodes_ReturnsTrue(int errorNumber)
     {
-        DalSqlServer.IsTransientErrorNumber(errorNumber).Should().BeTrue();
+        _dal.IsTransientErrorNumber(errorNumber).Should().BeTrue();
     }
 
     [Theory]
@@ -26,7 +29,7 @@ public class DalSqlServerKilledSessionTests
     [InlineData(102)]   // Syntax error
     public void IsTransientErrorNumber_PermanentLoginAndSqlErrors_ReturnsFalse(int errorNumber)
     {
-        DalSqlServer.IsTransientErrorNumber(errorNumber).Should().BeFalse();
+        _dal.IsTransientErrorNumber(errorNumber).Should().BeFalse();
     }
 
     [Fact]

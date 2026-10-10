@@ -127,8 +127,14 @@ public static class DalFactory
             dalInstance = DalInstances.GetOrAdd(instanceKey, _ =>
             {
                 var instance = (IDal?)Activator.CreateInstance(dalType, connectionString);
-                return instance ?? throw new ApplicationStartupException(
-                    $"Internal Error: Cannot create DataAccessLayer for DatabaseType [{databaseType}] via [{nameof(DalFactory)}].");
+                if (instance == null)
+                {
+                    throw new ApplicationStartupException(
+                        $"Internal Error: Cannot create DataAccessLayer for DatabaseType [{databaseType}] via [{nameof(DalFactory)}].");
+                }
+
+                LoadTransientErrorCodes(instance, databaseType);
+                return instance;
             });
 
             return true;
@@ -136,5 +142,32 @@ public static class DalFactory
 
         // Unknown DatabaseType
         throw new ConfigurationValidationException($"Cannot create specific DataAccessLayer. Unknown DataAccessLayer for DatabaseType [{databaseType}].");
+    }
+
+    /// <summary>
+    /// Replaces the DAL's built-in transient error codes with the content of
+    /// <c>DataAccessLayers/{DatabaseType}/TransientErrorCodes.txt</c> below the application base directory when that
+    /// file exists (ADR-022). A missing file keeps the built-in list; a malformed or unreadable file aborts the start
+    /// with the file and the line named.
+    /// </summary>
+    private static void LoadTransientErrorCodes(IDal instance, string databaseType)
+    {
+        if (instance is not DalBase dal)
+            return;
+
+        string baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
+        try
+        {
+            if (TransientErrorCodesFile.TryLoad(baseDirectory, databaseType, out string path, out IReadOnlyList<string> codes))
+            {
+                dal.SetTransientErrorCodes(codes, path);
+            }
+        }
+        catch (Exception ex) when (ex is FormatException or IOException or UnauthorizedAccessException)
+        {
+            throw new ConfigurationValidationException(
+                $"Cannot load the transient error codes for DatabaseType [{databaseType}] from " +
+                $"[{TransientErrorCodesFile.GetPath(baseDirectory, databaseType)}]: {ex.Message}", ex);
+        }
     }
 }

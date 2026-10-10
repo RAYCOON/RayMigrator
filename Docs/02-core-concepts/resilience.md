@@ -100,6 +100,8 @@ public delegate void RetryLogCallback(
 
 ### Recognized Transient Errors
 
+The lists below are the built-in defaults of each DAL. A `TransientErrorCodes.txt` in `DataAccessLayers/{DatabaseType}/` next to the executable replaces the list without a new release; see [Transient Error Codes](../03-database-layer/transient-error-codes.md).
+
 **SQL Server:**
 - `-2`: Timeout expired
 - `20`: Instance connection error (broken TDS / encryption negotiation failure)

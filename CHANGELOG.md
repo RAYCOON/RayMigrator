@@ -7,6 +7,19 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ## [Unreleased]
 
+### Added
+
+- The transient error codes a DAL retries ship as an editable
+  `DataAccessLayers/{DatabaseType}/TransientErrorCodes.txt` next to the SQL
+  templates (one code per line, `#` comments). The file is the complete list
+  and replaces the built-in list; a missing file keeps the built-in list, an
+  empty file retries nothing and logs a Warning, a malformed file aborts the
+  start naming the file and the line. The effective source is logged once per
+  DatabaseType. External DAL plugins join in by overriding
+  `DefaultTransientErrorCodes` and classifying through `IsTransientCode`.
+  Like edited templates, the file is overwritten by every upgrade. (#24,
+  ADR-022)
+
 ### Changed
 
 - Two decisions an operator should see at the default Information level were

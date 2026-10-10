@@ -32,8 +32,8 @@ public class DalPostgreSql : DalBase, IDal
         };
     }
 
-    // Transient PostgreSQL SQLSTATE codes that trigger automatic retry.
-    private static readonly string[] s_transientSqlStates =
+    // Built-in transient PostgreSQL SQLSTATE codes; a TransientErrorCodes.txt in DataAccessLayers/PostgreSQL/ replaces them (ADR-022).
+    private static readonly string[] TransientSqlStates =
     [
         "08000", // connection_exception - General connection error
         "08003", // connection_does_not_exist - Connection dropped
@@ -47,10 +47,13 @@ public class DalPostgreSql : DalBase, IDal
         "40P01", // deadlock_detected - Transaction deadlock
     ];
 
+    /// <inheritdoc />
+    protected override IReadOnlyCollection<string> DefaultTransientErrorCodes => TransientSqlStates;
+
     public override (bool isTransient, string? errorCode) IsTransient(Exception ex)
     {
         if (ex is PostgresException pgEx && pgEx.SqlState != null)
-            return (s_transientSqlStates.Contains(pgEx.SqlState), pgEx.SqlState);
+            return IsTransientCode(pgEx.SqlState);
         return base.IsTransient(ex);
     }
 

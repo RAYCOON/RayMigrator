@@ -273,13 +273,15 @@ Templates returning results must use `{code},{message}` format:
 
 ## RetryHelper Integration
 
-`DalBase` provides protected retry helpers (`ExecuteWithRetryAsync`, `ExecuteWithRetry`) that automatically route through the virtual `IsTransient` method. Override `IsTransient` in your DAL class to detect transient errors specific to your database driver. The base implementation already handles `TimeoutException` and recursively checks `InnerException`.
+`DalBase` provides protected retry helpers (`ExecuteWithRetryAsync`, `ExecuteWithRetry`) that automatically route through the virtual `IsTransient` method. Override `IsTransient` in your DAL class to detect transient errors specific to your database driver. The base implementation already handles `TimeoutException` and recursively checks `InnerException`. Override `DefaultTransientErrorCodes` with your built-in list and classify the driver's code through `IsTransientCode`; `DalFactory` then loads an optional `DataAccessLayers/YourDb/TransientErrorCodes.txt` that replaces the list at runtime (ADR-022, see [Transient Error Codes](../03-database-layer/transient-error-codes.md)).
 
 ### Overriding IsTransient
 
 ```csharp
 // In your DAL class
-private static readonly string[] s_transientCodes = ["1205", "1213", "2006"]; // your DB's transient codes
+private static readonly string[] TransientCodes = ["1205", "1213", "2006"]; // your DB's built-in transient codes
+
+protected override IReadOnlyCollection<string> DefaultTransientErrorCodes => TransientCodes;
 
 public override (bool isTransient, string? errorCode) IsTransient(Exception ex)
 {
@@ -290,8 +292,7 @@ public override (bool isTransient, string? errorCode) IsTransient(Exception ex)
         var numberProp = exceptionType.GetProperty("Number");
         if (numberProp?.GetValue(ex) is int number)
         {
-            var code = number.ToString();
-            return (s_transientCodes.Contains(code), code);
+            return IsTransientCode(number.ToString(CultureInfo.InvariantCulture));
         }
     }
     return base.IsTransient(ex); // handles TimeoutException, InnerException recursion
@@ -372,6 +373,7 @@ DataAccessLayers/YourDb/
 ├── DatabaseLogging_Insert.sql
 ├── Repository_CheckCreate.sql
 ├── ... (21 .sql files total)
+├── TransientErrorCodes.txt   (optional: replaces the built-in transient error codes, ADR-022)
 ```
 
 For built-in DALs, the Console project's `CopyDalAssembliesToDataAccessLayers` post-build target handles this automatically. External DALs must be deployed manually.
@@ -390,7 +392,8 @@ After deployment, verify your DAL is discovered:
 2. `TemplateCache` logs each discovered DAL: `DataAccessLayer [YourDb] found`
 3. `TemplateCache` validates that all 21 templates are present for each discovered DAL
 4. `ValidateConfigurationAgainstTemplateCache` verifies that configured `DatabaseType` values (in Repository and TargetGroups) match available DALs
-5. Use your database type in configuration:
+5. `DirectModePipeline` logs the source of the transient error codes per DatabaseType: Debug for the built-in list, Information when a `TransientErrorCodes.txt` was loaded
+6. Use your database type in configuration:
 
 ```json
 {

@@ -172,9 +172,12 @@ Raycoon.RayMigrator.Tests.Unit/
 ├── P1_DalFactoryTests.cs
 ├── P1_DalIsTransientTests.cs
 ├── P1_DalParameterEscapingTests.cs
+├── P1_DalShippedTransientErrorCodesTests.cs
+├── P1_DalSqlServerKilledSessionTests.cs
 ├── P1_DalSqliteForeignKeysTests.cs
 ├── P1_DalSqliteParameterTests.cs
 ├── P1_DalSqlServerOverrideTests.cs
+├── P1_DalTransientErrorCodesTests.cs
 ├── P1_EnvironmentCheckInsertTests.cs
 ├── P1_RepositorySelectTemplateTests.cs
 ├── P1_EnvironmentIdFkTests.cs
@@ -214,6 +217,7 @@ Raycoon.RayMigrator.Tests.Unit/
 ├── P1_TemplateCacheCfgValidationTests.cs
 ├── P1_TemplateExecutorEnvironmentIdTests.cs
 ├── P1_TemplateExecutorRepositoryCreatedLoggingTests.cs
+├── P1_TransientErrorCodesFileTests.cs
 ├── P1_TryFinalizeCompletedMigrationTests.cs
 ├── P1_UseCliToolAliasInheritanceTests.cs
 ├── P2_EnsureConnectionStringOptionsTests.cs
@@ -272,9 +276,12 @@ Raycoon.RayMigrator.Tests.Unit/
 | `P1_DalFactoryTests` | `DalFactoryTests` | `DalFactory` discovery, caching by connection string, error handling for unknown types, and `RegisteredDalTypes`/`ScanAssemblyForDals` |
 | `P1_DalIsTransientTests` | `DalIsTransientTests` | `DalBase.IsTransient` base implementation: `TimeoutException`, non-transient exceptions (including `OperationCanceledException`), and recursive inner-exception traversal |
 | `P1_DalParameterEscapingTests` | `DalParameterEscapingTests` | DAL parameter escaping for SQL injection prevention |
+| `P1_DalShippedTransientErrorCodesTests` | `DalShippedTransientErrorCodesTests` | Drift guard: the `TransientErrorCodes.txt` each DAL ships in `DataAccessLayers/{Type}/` equals the built-in list of its `DalBase` subclass (ADR-022) |
+| `P1_DalSqlServerKilledSessionTests` | `DalSqlServerKilledSessionTests` | SQL Server classification of a killed pooled session: 4021 and 596 are transient and clear the connection pool (`RequiresPoolClear`), permanent login errors are not |
 | `P1_DalSqliteForeignKeysTests` | `DalSqliteForeignKeysTests` | `DalSqlite.EnsureForeignKeysEnabled` connection-string transformation (DAL-001): appends `Foreign Keys=True` when missing, preserves explicit values |
 | `P1_DalSqliteParameterTests` | `DalSqliteParameterTests` | SQLite-specific `FormatParameterValue` and `SubstituteParameters` (null/bool/string escaping) |
 | `P1_DalSqlServerOverrideTests` | `DalSqlServerOverrideTests` | SQL Server `ConvertToDbValue` DateTime clamping (pre-1753 dates) and `CreateParameter` string size logic |
+| `P1_DalTransientErrorCodesTests` | `DalTransientErrorCodesTests` | `DalBase` transient error code list: built-in defaults until `SetTransientErrorCodes` replaces them completely, case-insensitive comparison, `IsTransientCode` classification, `TransientErrorCodesSource` (ADR-022) |
 | `P1_EnvironmentCheckInsertTests` | `EnvironmentCheckInsertTests` | `Repository_Environment_CheckInsert` feature: TemplateType enum membership, MigrationEvent EventId, `MigrationState.EnvironmentId`, `TemplateResultCode.EnvironmentNameEmpty`, and SQL template structural patterns across all 5 engines (NameLower lookup, TOML header DatabaseType/TemplateType) |
 | `P1_RepositorySelectTemplateTests` | `RepositorySelectTemplateTests` | `Repository_Product_Select` / `Repository_Environment_Select` (#7): TemplateType membership, MigrationEvent ids 122/123, and per-engine structural checks that the templates exist, are read-only (no INSERT/UPDATE/DELETE/CREATE), look up by `NameLower` and return `0,... not found` for a missing row |
 | `P1_EnvironmentIdFkTests` | `EnvironmentIdFkTests` | Structural SQL-template tests for the EnvironmentId FK feature: confirms Environment text column is replaced with EnvironmentId INT FK across all 5 engines and that all INSERT/SELECT templates bind `@EnvironmentId` (not `@Environment`) |
@@ -316,6 +323,7 @@ Raycoon.RayMigrator.Tests.Unit/
 | `P1_TemplateCacheCfgValidationTests` | `TemplateCacheCfgValidationTests` | `TemplateCache` configuration validation against available templates |
 | `P1_TemplateExecutorEnvironmentIdTests` | `TemplateExecutorEnvironmentIdTests` | `TemplateExecutor` parameter binding for the EnvironmentId FK feature: verifies the five flipped methods bind `@EnvironmentId` (int) and not a text `@Environment` parameter to `IDal` |
 | `P1_TemplateExecutorRepositoryCreatedLoggingTests` | `TemplateExecutorRepositoryCreatedLoggingTests` | `TemplateExecutor.RepositoryCheckCreate` logs "Repository created" at Information level only when the template's second result code is 1; schema name masked unless `--reveal-sensitive-data` (#27) |
+| `P1_TransientErrorCodesFileTests` | `TransientErrorCodesFileTests` | `TransientErrorCodesFile` parser and loader for `TransientErrorCodes.txt`: comments, blank lines, trimming, whitespace inside a code throws with the line number, missing file falls back (ADR-022) |
 | `P1_TryFinalizeCompletedMigrationTests` | `TryFinalizeCompletedMigrationTests` | Migration finalization (status updates after execution) |
 | `P1_UseCliToolAliasInheritanceTests` | `UseCliToolAliasInheritanceTests` | `UseCliToolAlias` inheritance cascade via `ProductDefaultsPostConfigureOptions.MergeDefaults` (ProductDefaults -> Product -> TargetGroup -> Target, explicit values not overridden) |
 | `P1_JsonOptionsSourceAliasMergeTests` | `JsonOptionsSourceAliasMergeTests` | `JsonOptionsSource.LoadAsync` with real files: overrides by alias, reversed order, non-alias arrays replaced, `{ENV:}` after the merge, diagnostics from the shared chain, comments accepted, error paths; golden cases under `Testing/ConfigMergeCases/` shared with the wizard suite (#23) |

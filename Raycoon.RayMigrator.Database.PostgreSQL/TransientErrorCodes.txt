@@ -1,0 +1,14 @@
+# RayMigrator transient error codes for PostgreSQL.
+# One code per line. A line starting with # is a comment; a trailing # comment is allowed. This file is the
+# complete list: a code not listed here is not retried. Delete the file to fall back to the built-in list.
+# Every publish or upgrade overwrites this file; re-apply your changes afterwards.
+08000    # connection_exception - General connection error
+08003    # connection_does_not_exist - Connection dropped
+08006    # connection_failure - Connection lost during communication
+08001    # sqlclient_unable_to_establish_sqlconnection - Cannot establish connection
+08004    # sqlserver_rejected_establishment_of_sqlconnection - Connection rejected (e.g. max_connections exceeded)
+57P01    # admin_shutdown - Server shutting down
+57P02    # crash_shutdown - Server crashed
+57P03    # cannot_connect_now - Server is starting up or recovering
+40001    # serialization_failure - Concurrent transaction conflict
+40P01    # deadlock_detected - Transaction deadlock

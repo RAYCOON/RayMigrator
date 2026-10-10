@@ -56,6 +56,7 @@ Database implementation details with ERD diagrams.
 - [repository-schema.md](03-database-layer/repository-schema.md) - 11 repository tables
 - [logging-schema.md](03-database-layer/logging-schema.md) - Logging tables
 - [sql-dialects.md](03-database-layer/sql-dialects.md) - Database-specific differences
+- [transient-error-codes.md](03-database-layer/transient-error-codes.md) - Editable `TransientErrorCodes.txt` per DAL folder
 - [adding-new-database.md](03-database-layer/adding-new-database.md) - Redirect → [09-extending/new-database-type.md](09-extending/new-database-type.md)
 
 ### [04-service-layer/](04-service-layer/)

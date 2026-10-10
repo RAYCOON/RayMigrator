@@ -37,7 +37,7 @@ MySQL and MariaDB share a common ancestor and most SQL syntax, but they are two 
 **Existing intentional divergence points**
 
 - **Default collation.** MySQL templates use `utf8mb4_0900_ai_ci` (available only in MySQL 8.0+). MariaDB templates use `utf8mb4_unicode_ci` (stable from MariaDB 10.5+ LTS). MariaDB does not ship `utf8mb4_0900_*` collations — copying MySQL's collation name into a MariaDB template produces `ERROR 1273 (HY000): Unknown collation: 'utf8mb4_0900_ai_ci'`. See DAL-015 for the original design decision.
-- **Transient-error codes.** `RetryHelper.TransientMySqlErrorCodes` and `RetryHelper.TransientMariaDbErrorCodes` are separate arrays even though today they hold the same values. Keeping them separate lets each engine's list diverge as the two driver dialects emit different codes for the same condition.
+- **Transient-error codes.** `DalMySql` and `DalMariaDb` keep separate built-in lists (`TransientCodes`) and ship separate `DataAccessLayers/{Type}/TransientErrorCodes.txt` files even though today they hold the same values. Keeping them separate lets each engine's list diverge as the two driver dialects emit different codes for the same condition. See [Transient Error Codes](transient-error-codes.md).
 - **Minimum-version comments.** MySQL templates target 8.0+ (for expression defaults, `utf8mb4_0900_ai_ci`, and related features); MariaDB templates target 10.5+ LTS. Notes in the TOML header of each template should call out the engine-specific floor.
 
 **Out of scope for this section**
