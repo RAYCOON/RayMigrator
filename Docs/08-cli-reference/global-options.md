@@ -216,10 +216,10 @@ Standard exit codes across all commands:
 |------|---------|
 | 0 | Success |
 | 1 | Execution error (migration failed, validation found issues, service exception) |
-| 2 | Environment conflict (`--environment` and `DOTNET_ENVIRONMENT` differ) |
-| 3 | Missing required environment (no `--environment` or `DOTNET_ENVIRONMENT`) |
-| 4 | Missing or invalid configuration (no Serilog section found, config files not found) |
-| 5 | `System.CommandLine` threw while parsing or invoking the command; ordinary parse errors (invalid arguments, missing required options) return the parser's own code |
+| 2 | Environment conflict: `--environment` and `DOTNET_ENVIRONMENT` are both set and differ |
+| 3 | `--environment` is given but empty (or whitespace) and `DOTNET_ENVIRONMENT` is not set. Omitting `--environment` altogether is a parse error, because the option is required, and returns the parser's code `1` |
+| 4 | No `Serilog` section in the loaded configuration. A directory without any `RayMigrator` configuration does not reach this check: it throws `ConfigurationValidationException` and exits with `100` |
+| 5 | `System.CommandLine` threw while parsing or invoking the command; ordinary parse errors (invalid arguments, missing required options such as `--environment`) return the parser's own code, `1` |
 | 100 | Unhandled exception before or while the command runs, including `ConfigurationValidationException` from option validation, `TemplateCache` and `DalFactory` (see TD-C-01 in [Risks and Technical Debt](../arc42/11-Risks-and-Technical-Debt.md)) |
 
 ### Using Exit Codes

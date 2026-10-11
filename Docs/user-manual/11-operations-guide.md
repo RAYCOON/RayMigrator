@@ -202,10 +202,10 @@ WHERE migration_run_result_id = 10
 |------|---------|
 | 0 | Success |
 | 1 | Execution error (migration failed, validation found issues, service exception) |
-| 2 | Environment conflict (`--environment` and `DOTNET_ENVIRONMENT` have different values) |
-| 3 | Missing required environment (neither `--environment` nor `DOTNET_ENVIRONMENT` is set) |
-| 4 | Missing or invalid configuration (no Serilog section found, config files not found) |
-| 5 | `System.CommandLine` threw while parsing or invoking the command; ordinary parse errors (invalid arguments, missing required options) return the parser's own code |
+| 2 | Environment conflict: `--environment` and `DOTNET_ENVIRONMENT` are both set and differ |
+| 3 | `--environment` is given but empty (or whitespace) and `DOTNET_ENVIRONMENT` is not set. Omitting `--environment` altogether is a parse error, because the option is required, and returns the parser's code `1` |
+| 4 | No `Serilog` section in the loaded configuration. A directory without any `RayMigrator` configuration does not reach this check: it throws `ConfigurationValidationException` and exits with `100` |
+| 5 | `System.CommandLine` threw while parsing or invoking the command; ordinary parse errors (invalid arguments, missing required options such as `--environment`) return the parser's own code, `1` |
 | 100 | Unhandled exception before or while the command runs, including `ConfigurationValidationException` from option validation, `TemplateCache` and `DalFactory` (see TD-C-01 in [Risks and Technical Debt](../arc42/11-Risks-and-Technical-Debt.md)) |
 
 ---
@@ -215,8 +215,8 @@ WHERE migration_run_result_id = 10
 | Problem | Likely Cause | Solution |
 |---------|-------------|----------|
 | Exit code 1 | Migration SQL error or validation issue | Check logs, fix SQL, re-run |
-| Exit code 2 | `--environment` differs from `DOTNET_ENVIRONMENT` | Ensure both values match, or use only one |
-| Exit code 3 | No environment specified | Add `--environment` or set `DOTNET_ENVIRONMENT` |
+| Exit code 2 | `--environment` differs from `DOTNET_ENVIRONMENT` | Ensure both values match, or unset `DOTNET_ENVIRONMENT` |
+| Exit code 3 | `--environment` was passed empty and `DOTNET_ENVIRONMENT` is not set | Pass a non-empty `--environment` value |
 | Exit code 4 | Missing or invalid configuration | Check appsettings.json exists with valid Serilog section |
 | Exit code 5, or the parser's own code | Bad CLI arguments | Check command syntax with `--help` |
 | Hash mismatch | File modified after execution | Run `update-hash` if intentional, or restore original file |

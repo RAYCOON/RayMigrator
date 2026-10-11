@@ -625,22 +625,22 @@ Source: `Raycoon.RayMigrator.Core/Configuration/Enums/MigrationRunResult.cs`
 
 ### Environment Resolution
 
-The `--environment` option is **required** for all migration commands (migrate-up, migrate-down, validate-hash, update-hash, info, baseline, fix). If neither `--environment` nor `DOTNET_ENVIRONMENT` is provided for a command that requires it, RayMigrator exits with code 3.
+The `--environment` option is **required** for all commands (migrate-up, migrate-down, validate-hash, update-hash, info, baseline, fix); omitting it is a parse error and returns the parser's exit code `1`. `DOTNET_ENVIRONMENT` is cross-checked against the option value: when both are set, they must match.
 
 ### Environment Sources
 
-The environment can come from two sources:
+`EnvironmentResolver` looks at two sources:
 
 1. **CLI argument**: `--environment` / `-env`
 2. **Environment variable**: `DOTNET_ENVIRONMENT`
 
 **Resolution rules:**
 
-- If only `--environment` is provided → use that value.
-- If only `DOTNET_ENVIRONMENT` is set → use that value.
-- If both are set with **the same value** → use that value.
-- If both are set with **different values** → **exit code 2** with error message.
-- If neither is set → **exit code 3** with error message.
+- `--environment` has a value and `DOTNET_ENVIRONMENT` is not set → use the option value.
+- Both are set with **the same value** → use that value.
+- Both are set with **different values** → **exit code 2** with an error message.
+- `--environment` is empty (or whitespace) and `DOTNET_ENVIRONMENT` is set → the resolver takes the variable. Do not rely on this path: the run itself still sees the empty option value, so environment-specific files are skipped.
+- `--environment` is empty (or whitespace) and `DOTNET_ENVIRONMENT` is not set → **exit code 3** with an error message.
 
 ---
 

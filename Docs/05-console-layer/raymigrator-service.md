@@ -29,7 +29,7 @@ Before `RayMigratorService.DoWorkAsync` is called, `Program.Main()` performs a m
 
 ### Stage 2: Environment Resolution
 
-Resolves the environment from either the `--environment` CLI argument or the `DOTNET_ENVIRONMENT` variable. If both are set but differ, exits with code 2. If neither is set, exits with code 3.
+Resolves the environment from the `--environment` CLI argument, cross-checked against the `DOTNET_ENVIRONMENT` variable: if both are set but differ, the process exits with code 2. The parser requires the option, so code 3 (no environment at all) is reached only when `--environment` is passed empty and the variable is not set.
 
 ### Stage 3: Configuration Loading and Pipeline Execution
 
