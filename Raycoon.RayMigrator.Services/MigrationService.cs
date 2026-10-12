@@ -171,11 +171,7 @@ public class MigrationService : IMigrationService
             {
                 if (!request.AllowOutOfOrder)
                 {
-                    string highestMigratedRelease = existingRecords
-                        .Where(r => r.MigrationStatusId == MigrationStatus.Migrated)
-                        .OrderByDescending(r => r.ReleaseVersion, StringComparer.OrdinalIgnoreCase)
-                        .Select(r => r.ReleaseVersion)
-                        .First();
+                    string highestMigratedRelease = GetHighestMigratedRelease(existingRecords)!;
 
                     _logger.LogError(
                         "Out-of-order migrations detected but --allow-out-of-order not specified. {Count} file(s) from releases before '{HighestRelease}' not applied. Aborting.",
@@ -3524,6 +3520,18 @@ public class MigrationService : IMigrationService
     }
 
     /// <summary>
+    /// The highest release (ordinal, case-insensitive) among the Migrated records, or null when none is migrated.
+    /// This is the "current release" of a product and environment: the Info command reports it, the out-of-order
+    /// check quotes it, and every run stamps it into <c>MigrationRun.FromReleaseVersion</c>.
+    /// </summary>
+    internal static string? GetHighestMigratedRelease(IEnumerable<MigrationRecord> records)
+        => records
+            .Where(r => r.MigrationStatusId == MigrationStatus.Migrated)
+            .OrderByDescending(r => r.ReleaseVersion, StringComparer.OrdinalIgnoreCase)
+            .Select(r => r.ReleaseVersion)
+            .FirstOrDefault();
+
+    /// <summary>
     /// Attempts to insert a MigrationRun, auto-fixing orphaned runs if a parallel-run lock is detected.
     /// When RepositoryMigrationRunInsert fails with MigrationAlreadyRunningException, this method
     /// checks for orphaned runs older than AutoFixOrphanedRunsThresholdMinutes and fixes them
@@ -3531,6 +3539,11 @@ public class MigrationService : IMigrationService
     /// </summary>
     internal async Task RepositoryMigrationRunInsertWithAutoFix(string settingsJson)
     {
+        // The release the run starts from: a dedicated read, because the run row is also the run lock and the
+        // reads that drive the run itself must happen after it.
+        var recordsBeforeRun = await Task.Run(() => _templateExecutor.RepositoryMigrationSelect());
+        _ctxAccessor.Current.MigrationState.FromReleaseVersion = GetHighestMigratedRelease(recordsBeforeRun);
+
         try
         {
             await Task.Run(() => _templateExecutor.RepositoryMigrationRunInsert(settingsJson));
@@ -4889,10 +4902,7 @@ public class MigrationService : IMigrationService
                 .ToList();
 
             // Determine current release (highest release version among migrated records)
-            string currentRelease = migratedRecords
-                .OrderByDescending(r => r.ReleaseVersion, StringComparer.OrdinalIgnoreCase)
-                .Select(r => r.ReleaseVersion)
-                .FirstOrDefault() ?? "None";
+            string currentRelease = GetHighestMigratedRelease(existingRecords) ?? "None";
 
             // Count pending migrations: (file, target) pairs that are not yet successfully migrated.
             // Evaluated per target like migrate-up does, so a target that failed while another

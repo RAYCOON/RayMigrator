@@ -60,6 +60,7 @@ public class MigrationContext
                 FileOrderId = migrationState.FileOrderId,
                 FileBlockId = migrationState.FileBlockId,
                 FileBlocksCommitted = migrationState.FileBlocksCommitted,
+                FromReleaseVersion = migrationState.FromReleaseVersion,
                 MigrationRunResult = migrationState.MigrationRunResult,
                 MigrationOperation = migrationState.MigrationOperation,
                 TargetGroupAlias = migrationState.TargetGroupAlias,

@@ -493,6 +493,11 @@ public class ScenarioContext : IAsyncDisposable
     public string? GetMigrationRunSettingsJson() => _queryHelper.GetLatestMigrationRunSettingsJson();
 
     /// <summary>
+    /// Returns the MigrationRun row by index (1-based, oldest first), or null when there is no such run.
+    /// </summary>
+    public MigrationRunRecordDto? GetMigrationRun(int runIndex) => _queryHelper.GetMigrationRunByIndex(runIndex);
+
+    /// <summary>
     /// Gets the FileUpConfigJson for a Migration record matching the given filename.
     /// </summary>
     public string? GetMigrationConfigJson(string filename) => _queryHelper.GetMigrationConfigJson(filename);

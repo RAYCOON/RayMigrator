@@ -263,7 +263,7 @@ Called immediately after Product registration by every `MigrationService` entry 
 - `@MigrationRunModeId` - From console options `RunMode` (cast to byte)
 - `@MigratorMetaId` - From `MigrationState.MigratorMetaId`
 - `@MigrationRunResultId` - Set to `Running` (10) from `MigrationState.MigrationRunResult`
-- `@FromReleaseVersion` - Currently hardcoded as `"FromReleaseVersion"`
+- `@FromReleaseVersion` - From `MigrationState.FromReleaseVersion`: the highest Migrated release of the product and environment when the run started, read right before the insert; `NULL` when nothing was migrated yet
 - `@ToReleaseVersion` - From console options `TargetReleaseVersion`
 - `@MigrationRunSettingsJson` - JSON snapshot of all RayMigrator settings at migration start
 

@@ -44,6 +44,11 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ### Fixed
 
+- `MigrationRun.FromReleaseVersion` holds the release the run started from:
+  the highest Migrated release of the product and environment, read right
+  before the run row is inserted, or `NULL` for a first run. Every run row
+  stored the literal text `FromReleaseVersion` before, because the parameter
+  was bound to its own name instead of a value.
 - `RULE_7_3` (hardcoded credential) no longer fires for a connection string
   that supplies its credential through an `{ENV:VARIABLE}` placeholder. The
   CLI ran the rule catalog on the resolved values, so a placeholder resolving

@@ -217,7 +217,7 @@ public class TemplateExecutor
         dalParameterList.AddParameter(new DalParameter("MigrationRunModeId", (byte) _ctxAccessor.Current.RayMigratorConsoleOptions.RunMode, typeof(byte)));
         dalParameterList.AddParameter(new DalParameter("MigratorMetaId", _ctxAccessor.Current.MigrationState.MigratorMetaId, typeof(int)));
         dalParameterList.AddParameter(new DalParameter("MigrationRunResultId", (byte) _ctxAccessor.Current.MigrationState.MigrationRunResult, typeof(byte)));
-        dalParameterList.AddParameter(new DalParameter("FromReleaseVersion", "FromReleaseVersion", typeof(string)));
+        dalParameterList.AddParameter(new DalParameter("FromReleaseVersion", _ctxAccessor.Current.MigrationState.FromReleaseVersion, typeof(string)));
         dalParameterList.AddParameter(new DalParameter("ToReleaseVersion", _ctxAccessor.Current.RayMigratorConsoleOptions.TargetReleaseVersion, typeof(string)));
         dalParameterList.AddParameter(new DalParameter("MigrationRunSettingsJson", migrationRunSettingsJson, typeof(string)));
 
