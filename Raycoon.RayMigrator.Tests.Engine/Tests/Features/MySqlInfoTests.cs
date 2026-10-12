@@ -326,4 +326,38 @@ public class MySqlInfoTests : MySqlTestBase
         history.Runs[0].SuccessfulMigrations.Should().Be(0, "every record was rolled back again");
         history.Runs[0].FailedMigrations.Should().Be(0, "the failed file was rolled back too");
     }
+
+    /// <summary>
+    /// History and status are per environment: a run of another environment of the same product is not listed.
+    /// </summary>
+    [Fact]
+    public async Task GetHistory_ListsOnlyTheRunsOfTheRequestedEnvironment()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+
+        await using var ctx = await CreateScenario().BuildAsync();
+
+        await ctx.MigrateUpAsync();
+        ctx.AssertSuccess(true);
+
+        // A second environment on the same repository: baseline writes a run row without touching the targets.
+        await ctx.RebuildForAsync(MigrationCommand.Baseline, MigrationRunMode.Migrate, environment: "Staging");
+        await ctx.BaselineAsync();
+        ctx.AssertSuccess(true);
+        ctx.AssertRunCount(2);
+
+        await ctx.RebuildForAsync(MigrationCommand.Info, MigrationRunMode.Migrate, environment: "Staging");
+        var staging = await ctx.GetHistoryAsync();
+        staging.Environment.Should().Be("Staging");
+        staging.Runs.Should().ContainSingle("the up run belongs to the Docker environment")
+            .Which.Operation.Should().Be(MigrationOperation.Baseline);
+
+        await ctx.RebuildForAsync(MigrationCommand.Info, MigrationRunMode.Migrate);
+        var docker = await ctx.GetHistoryAsync();
+        docker.Environment.Should().Be("Docker");
+        docker.Runs.Should().ContainSingle("the baseline run belongs to the Staging environment")
+            .Which.Operation.Should().Be(MigrationOperation.MigrateUp);
+        docker.Runs[0].FromRelease.Should().BeNull("nothing was migrated before the first run");
+        docker.Runs[0].MigrationRunId.Should().BePositive();
+    }
 }

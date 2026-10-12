@@ -27,4 +27,23 @@ public class MySqlMigrationRunMetaTests : MySqlTestBase
 
     [Fact] public async Task Baseline_SettingsJson_ShouldContainMaskedConnectionStrings() { Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available"); await using var ctx = await CreateScenario().BuildAsync(MigrationCommand.Baseline); await ctx.BaselineAsync(); ctx.AssertSuccess(true); var json = ctx.GetMigrationRunSettingsJson(); json.Should().NotBeNullOrEmpty("MigrationRunMeta should contain settings JSON after Baseline"); var doc = JsonDocument.Parse(json!); var repoConnStr = doc.RootElement.GetProperty("Repository").GetProperty("ConnectionString").GetString(); repoConnStr.Should().Contain(SensitiveDataMasker.MaskString, "Repository connection string should be masked in Baseline settings JSON"); var targetGroups = doc.RootElement.GetProperty("Product").GetProperty("TargetGroups"); foreach (var tg in targetGroups.EnumerateArray()) { foreach (var target in tg.GetProperty("Targets").EnumerateArray()) { var connStr = target.GetProperty("ConnectionString").GetString(); connStr.Should().Contain(SensitiveDataMasker.MaskString, $"Target [{target.GetProperty("Alias").GetString()}] connection string should be masked in Baseline settings JSON"); } } }
 
+    [Fact]
+    public async Task FromReleaseVersion_IsTheHighestMigratedReleaseWhenTheRunStarted()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        await using var ctx = await CreateScenario().BuildAsync();
+
+        // The run row stamps ToReleaseVersion from the context, so the host is rebuilt for each target release.
+        await ctx.RebuildForAsync(MigrationCommand.MigrateUp, MigrationRunMode.Migrate, "Release_2.0");
+        await ctx.MigrateUpAsync("Release_2.0");
+        ctx.AssertSuccess(true);
+        await ctx.RebuildForAsync(MigrationCommand.MigrateUp, MigrationRunMode.Migrate);
+        await ctx.MigrateUpAsync();
+        ctx.AssertSuccess(true);
+
+        ctx.AssertRunCount(2);
+        ctx.GetMigrationRun(1)!.FromReleaseVersion.Should().BeNull("nothing was migrated before the first run");
+        ctx.AssertMigrationRun(1, new MigrationRunExpectation { ToReleaseVersion = "Release_2.0" });
+        ctx.AssertMigrationRun(2, new MigrationRunExpectation { FromReleaseVersion = "Release_2.0" });
+    }
 }
