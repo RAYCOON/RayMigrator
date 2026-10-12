@@ -118,7 +118,11 @@ public class BaselineResult : OperationResult
     /// <summary>The repository id of the run row (<c>MigrationRun.Id</c>), or 0 when the run failed before it was inserted.</summary>
     public int MigrationRunId { get; set; }
     public string? TargetReleaseVersion { get; set; }
+    /// <summary>Files recorded per release and target group, whether or not every target still needed them.</summary>
     public int BaselinedFiles { get; set; }
+
+    /// <summary>Records written: one per file and target that was pending. Also set when the baseline failed midway.</summary>
+    public int BaselinedRecords { get; set; }
 }
 
 /// <summary>

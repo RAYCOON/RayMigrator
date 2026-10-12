@@ -15,9 +15,15 @@ RayMigrator follows Semantic Versioning where applicable.
   `FileStartedEvent` and `FileCompletedEvent` for every file on every target
   (migration, rollback and baseline, with the record id and a `FileOutcome`),
   `BlockCompletedEvent` for every executed SQL block, and `RunCompletedEvent`
-  with the result. A host shows progress without parsing log text. An
-  observer that throws is logged and the run continues. The default observer
-  ignores every event; the CLI does not use them.
+  with the result. Every completion follows a start for the same file and
+  target; a rollback without a rollback file reports `Skipped`; the block
+  events of the atomic path follow the commit; and `FromRelease` is reported
+  in Simulate and Validate as well. A host shows progress without parsing
+  log text. An observer that throws is logged and the run continues. The
+  default observer ignores every event; the CLI does not use them.
+- `BaselineResult.BaselinedRecords` counts the records a baseline wrote, one
+  per file and target that was pending, also when the baseline failed midway.
+  `BaselinedFiles` keeps counting files per release and target group.
 
 ### Changed
 

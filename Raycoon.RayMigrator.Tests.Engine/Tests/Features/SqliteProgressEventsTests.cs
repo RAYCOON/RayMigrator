@@ -84,6 +84,52 @@ public class SqliteProgressEventsTests : SqliteTestBase
     }
 
     [Fact]
+    public async Task Simulate_ReportsTheReleaseTheRunStartsFrom()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        await using var ctx = await CreateScenario().BuildAsync();
+        await ctx.MigrateUpAsync("Release_1.0");
+        ctx.AssertSuccess(true);
+
+        var recorder = new RecordingProgressObserver();
+        ctx.UseProgressObserver(recorder);
+        await ctx.MigrateUpAsync(runMode: MigrationRunMode.Simulate);
+        ctx.AssertSuccess(true);
+
+        var started = recorder.Of<RunStartedEvent>().Should().ContainSingle().Which;
+        started.MigrationRunId.Should().Be(0, "Simulate writes no run row");
+        started.FromRelease.Should().Be("Release_1.0", "a run without a run row still reports where the product stands");
+    }
+
+    [Fact]
+    public async Task MigrateDown_WithoutRollbackFile_ReportsTheRecordAsSkipped()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        await using var ctx = await CreateScenario()
+            .RemoveRollback("Release_4.0", "02_CreateTableH.sql")
+            .WithRequireRollbackFile(false)
+            .BuildAsync();
+        await ctx.MigrateUpAsync();
+        ctx.AssertSuccess(true);
+
+        await ctx.RebuildForAsync(MigrationCommand.MigrateDown, MigrationRunMode.Migrate, "Release_3.0");
+        var recorder = new RecordingProgressObserver();
+        ctx.UseProgressObserver(recorder);
+
+        await ctx.MigrateDownAsync("Release_3.0");
+        ctx.AssertSuccess(true);
+
+        var ends = recorder.Of<FileCompletedEvent>();
+        var skipped = ends.Where(e => e.Outcome == FileOutcome.Skipped).Should().ContainSingle("the record without a rollback file is skipped, not rolled back").Which;
+        skipped.FileName.Should().Be("02_CreateTableH.sql");
+        skipped.MigrationRecordId.Should().BePositive();
+        skipped.ErrorMessage.Should().Contain("not found");
+        ends.Where(e => e.Outcome == FileOutcome.RolledBack).Select(e => e.FileName).Should().BeEquivalentTo(["01_CreateTableG.sql", "03_SeedDataD.sql"]);
+        recorder.Of<FileStartedEvent>().Select(s => (s.FileName, s.TargetAlias, s.MigrationRecordId))
+            .Should().BeEquivalentTo(ends.Select(e => (e.FileName, e.TargetAlias, e.MigrationRecordId)), "every completion has a start, the skipped record included");
+    }
+
+    [Fact]
     public async Task MigrateDown_ReportsRollbacksOfTheRecordsAboveTheTargetRelease()
     {
         Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
@@ -103,7 +149,13 @@ public class SqliteProgressEventsTests : SqliteTestBase
         ends.Should().HaveCount(result.TotalMigrations);
         ends.Should().OnlyContain(e => e.Operation == MigrationOperation.MigrateDown && e.Outcome == FileOutcome.RolledBack && e.MigrationRecordId > 0);
         ends.Select(e => e.ReleaseVersion).Distinct().Should().BeEquivalentTo(["Release_3.0", "Release_4.0"]);
-        recorder.Of<FileStartedEvent>().Should().HaveCount(ends.Count);
+        var starts = recorder.Of<FileStartedEvent>();
+        starts.Select(s => (s.FileName, s.TargetAlias, s.MigrationRecordId))
+            .Should().BeEquivalentTo(ends.Select(e => (e.FileName, e.TargetAlias, e.MigrationRecordId)), "every rollback completion has a start");
+        starts.Should().OnlyContain(s => s.Operation == MigrationOperation.MigrateDown && s.BlocksTotal >= 1 && s.ResumeFromBlock == 0);
+        var blocks = recorder.Of<BlockCompletedEvent>();
+        blocks.Should().NotBeEmpty("the rollback files have SQL blocks");
+        blocks.Select(b => b.FileName).Distinct().Should().BeEquivalentTo(starts.Select(s => s.FileName).Distinct());
         recorder.Of<RunCompletedEvent>().Should().ContainSingle().Which.Success.Should().BeTrue();
     }
 
@@ -119,10 +171,13 @@ public class SqliteProgressEventsTests : SqliteTestBase
         ctx.AssertSuccess(true);
 
         recorder.Of<RunStartedEvent>().Should().ContainSingle().Which.Command.Should().Be(MigrationCommand.Baseline);
-        recorder.Of<FileCompletedEvent>().Should().HaveCount(result.BaselinedFiles)
+        var ends = recorder.Of<FileCompletedEvent>();
+        ends.Should().HaveCount(result.BaselinedRecords, "one completion per record written")
             .And.OnlyContain(e => e.Operation == MigrationOperation.Baseline && e.Outcome == FileOutcome.Baselined && e.MigrationRecordId > 0);
+        recorder.Of<FileStartedEvent>().Select(e => (e.FileName, e.TargetAlias, e.MigrationRecordId))
+            .Should().BeEquivalentTo(ends.Select(e => (e.FileName, e.TargetAlias, e.MigrationRecordId)), "a start carries the record id as well");
         recorder.Of<BlockCompletedEvent>().Should().BeEmpty("baseline executes no SQL");
-        recorder.Of<RunCompletedEvent>().Should().ContainSingle().Which.TotalFiles.Should().Be(result.BaselinedFiles);
+        recorder.Of<RunCompletedEvent>().Should().ContainSingle().Which.TotalFiles.Should().Be(result.BaselinedRecords);
     }
 
     [Fact]

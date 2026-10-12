@@ -30,4 +30,7 @@ public enum FileOutcome
 
     /// <summary>Baseline recorded the file as Migrated without executing it.</summary>
     Baselined = 80,
+
+    /// <summary>Nothing ran on the target: a rollback without a rollback file, or a rollback chain that stopped at one.</summary>
+    Skipped = 90,
 }
