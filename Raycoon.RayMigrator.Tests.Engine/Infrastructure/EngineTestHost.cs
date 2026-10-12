@@ -153,16 +153,11 @@ public sealed class EngineTestHost : IDisposable
 
                 services.AddSingleton<TemplateExecutor>();
 
-                // Create MigrationContext and set it on the singleton accessor
+                // Create the MigrationContext through the factory (DAL properties, schema names, accessor, logging context)
                 services.AddSingleton<MigrationContext>(serviceProvider =>
                 {
-                    string rayMigratorVersion = AssemblyInfoHelper.GetRayMigratorVersion();
-                    var ctx = new MigrationContext(rayMigratorOptions, consoleOptions, rayMigratorVersion);
-
-                    var accessor = serviceProvider.GetRequiredService<IMigrationContextAccessor>();
-                    accessor.Current = ctx;
-
-                    return ctx;
+                    var factory = serviceProvider.GetRequiredService<IMigrationContextFactory>();
+                    return factory.CreateFromValidatedOptions(rayMigratorOptions, consoleOptions);
                 });
             })
             .Build();
@@ -174,7 +169,6 @@ public sealed class EngineTestHost : IDisposable
         var dbLogWriter = _dbLogWriter;
 
         var ctx = _host.Services.GetRequiredService<MigrationContext>();
-        MigrationLoggingContext.Current = ctx;
 
         // Note: SensitiveDataMasker is initialized per-command in ScenarioContext methods
         // (BeginScope + RegisterSensitiveData), not here, to ensure AsyncLocal scope
@@ -194,52 +188,9 @@ public sealed class EngineTestHost : IDisposable
             }
         }
 
-        // Initialize DalSpecificPropertiesDictionary
-        SetDalSpecificPropertiesDictionary(ctx, rayMigratorOptions.Repository!.DatabaseType!, rayMigratorOptions.Repository!.ConnectionString!);
-
-        foreach (TargetGroupOptions targetGroupOptions in ctx.ProductTargetGroupOptionsEnumerable!)
-        {
-            foreach (var targetOptions in targetGroupOptions.Targets!)
-            {
-                SetDalSpecificPropertiesDictionary(ctx, targetGroupOptions.DatabaseType!, targetOptions.ConnectionString!);
-            }
-        }
-
-        // Add DatabaseLogging's DatabaseType to DalSpecificPropertiesDictionary (if configured)
-        if (rayMigratorOptions.DatabaseLogging?.DatabaseType != null)
-        {
-            SetDalSpecificPropertiesDictionary(ctx, rayMigratorOptions.DatabaseLogging.DatabaseType,
-                rayMigratorOptions.DatabaseLogging.ConnectionString!);
-        }
-
-        // Validate SchemaName based on DAL's SupportsSchema flag
-        var logger = _host.Services.GetRequiredService<ILogger<EngineTestHost>>();
-
-        SchemaNameValidator.ValidateSchemaName(
-            ctx.DalSpecificPropertiesDictionary,
-            rayMigratorOptions.Repository!.DatabaseType!,
-            rayMigratorOptions.Repository.SchemaName,
-            "Repository", logger);
-
-        if (rayMigratorOptions.DatabaseLogging?.DatabaseType != null)
-        {
-            SchemaNameValidator.ValidateSchemaName(
-                ctx.DalSpecificPropertiesDictionary,
-                rayMigratorOptions.DatabaseLogging.DatabaseType,
-                rayMigratorOptions.DatabaseLogging.SchemaName,
-                "DatabaseLogging", logger);
-        }
-
         // Validate connections
+        var logger = _host.Services.GetRequiredService<ILogger<EngineTestHost>>();
         ConnectionValidator.ValidateTargetConnections(ctx, logger);
-    }
-
-    private static void SetDalSpecificPropertiesDictionary(MigrationContext ctx, string databaseType, string connectionString)
-    {
-        if (!DalFactory.TryGetDal(databaseType, connectionString, out IDal? dalInstance))
-            return;
-
-        ctx.DalSpecificPropertiesDictionary.TryAdd(databaseType, dalInstance!.DalSpecificProperties);
     }
 
     private static void ReplaceMigrationFilesRoot(IConfigurationSection section, string migrationFilesRoot)

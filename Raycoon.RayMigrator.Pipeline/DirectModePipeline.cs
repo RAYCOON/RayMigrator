@@ -189,17 +189,13 @@ public static class DirectModePipeline
                         services.AddSingleton<TemplateExecutor>();
                         services.AddScoped<RayMigratorService>();
 
-                        // Create MigrationContext and set it on the singleton accessor
+                        // Create the MigrationContext through the factory: it fills the DAL properties, checks the
+                        // schema names and makes the context current (accessor and logging context)
                         services.AddSingleton<MigrationContext>(serviceProvider =>
                         {
                             var opts = serviceProvider.GetRequiredService<IOptions<RayMigratorOptions>>().Value;
-                            string rayMigratorVersion = Raycoon.RayMigrator.Shared.AssemblyInfoHelper.GetRayMigratorVersion();
-                            var migCtx = new MigrationContext(opts, consoleOptions, rayMigratorVersion);
-
-                            var accessor = serviceProvider.GetRequiredService<IMigrationContextAccessor>();
-                            accessor.Current = migCtx;
-
-                            return migCtx;
+                            var factory = serviceProvider.GetRequiredService<IMigrationContextFactory>();
+                            return factory.CreateFromValidatedOptions(opts, consoleOptions);
                         });
                     })
                     .Build();
@@ -224,48 +220,8 @@ public static class DirectModePipeline
             RegisterSensitiveData(rayMigratorOptions);
 
 
-            #region Validate product alias
-
-            var configuredProducts = rayMigratorOptions.Products ?? Enumerable.Empty<ProductOptions>();
-            var matchingProduct = configuredProducts.FirstOrDefault(p => p.Alias == consoleOptions.Product);
-
-            if (matchingProduct == null)
-            {
-                var availableAliases = configuredProducts
-                    .Where(p => !string.IsNullOrWhiteSpace(p.Alias))
-                    .Select(p => p.Alias!)
-                    .ToList();
-
-                string message = $"Product alias [{consoleOptions.Product}] not found in the loaded configuration.";
-
-                var caseInsensitiveMatch = availableAliases
-                    .FirstOrDefault(a => string.Equals(a, consoleOptions.Product, StringComparison.OrdinalIgnoreCase));
-
-                if (caseInsensitiveMatch != null)
-                {
-                    message += $"\nDid you mean [{caseInsensitiveMatch}]? The --product parameter is case-sensitive.";
-                }
-                else if (availableAliases.Count > 0)
-                {
-                    message += $"\nAvailable product aliases: {string.Join(", ", availableAliases)}";
-                    message += "\nNote: The --product and --environment parameters are case-sensitive.";
-                }
-                else
-                {
-                    message += "\nNo products are configured in the loaded configuration files.";
-                    message += "\nNote: The --product and --environment parameters are case-sensitive.";
-                }
-
-                throw new ConfigurationValidationException(message);
-            }
-
-            #endregion Validate product alias
-
-
+            // Resolving the context runs the factory: product lookup, DAL properties, schema names, accessor and logging context
             ctx = host.Services.GetRequiredService<MigrationContext>();
-
-            // Set the ambient MigrationLoggingContext so the enricher can add migration properties to all log events
-            MigrationLoggingContext.Current = ctx;
 
             // Resolve standard ILogger from DI (now backed purely by Serilog)
             logger = host.Services.GetRequiredService<ILoggerFactory>().CreateLogger(typeof(DirectModePipeline));
@@ -305,46 +261,6 @@ public static class DirectModePipeline
             }
 
             #endregion Initialize DatabaseLogWriter
-
-
-            #region Initialize DalSpecificPropertiesDictionary
-
-            logger.LogDebug(MigrationEvent.InitializeDalSpecificProperties, "Initializing DalSpecificPropertiesDictionary...");
-
-            SetDalSpecificPropertiesDictionary(ctx, rayMigratorOptions.Repository!.DatabaseType!, rayMigratorOptions.Repository!.ConnectionString!, logger);
-
-            foreach (TargetGroupOptions targetGroupOptions in ctx.ProductTargetGroupOptionsEnumerable!)
-            {
-                foreach (var targetOptions in targetGroupOptions.Targets!)
-                {
-                    SetDalSpecificPropertiesDictionary(ctx, targetGroupOptions.DatabaseType!, targetOptions.ConnectionString!, logger);
-                }
-            }
-
-            // Add DatabaseLogging's DatabaseType to DalSpecificPropertiesDictionary (if configured)
-            if (rayMigratorOptions.DatabaseLogging?.DatabaseType != null)
-            {
-                SetDalSpecificPropertiesDictionary(ctx, rayMigratorOptions.DatabaseLogging.DatabaseType,
-                    rayMigratorOptions.DatabaseLogging.ConnectionString!, logger);
-            }
-
-            // Validate SchemaName based on DAL's SupportsSchema flag
-            SchemaNameValidator.ValidateSchemaName(
-                ctx.DalSpecificPropertiesDictionary,
-                rayMigratorOptions.Repository!.DatabaseType!,
-                rayMigratorOptions.Repository.SchemaName,
-                "Repository", logger);
-
-            if (rayMigratorOptions.DatabaseLogging?.DatabaseType != null)
-            {
-                SchemaNameValidator.ValidateSchemaName(
-                    ctx.DalSpecificPropertiesDictionary,
-                    rayMigratorOptions.DatabaseLogging.DatabaseType,
-                    rayMigratorOptions.DatabaseLogging.SchemaName,
-                    "DatabaseLogging", logger);
-            }
-
-            #endregion Initialize DalSpecificPropertiesDictionary
 
 
             #region Validate ConnectionStrings and DB-Connections
@@ -571,39 +487,6 @@ public static class DirectModePipeline
         catch (Exception ex) when (ex is not ApplicationStartupException)
         {
             throw new ApplicationStartupException("Could not add DatabaseLogWriter as a service to DI.", ex);
-        }
-    }
-
-    /// <summary>
-    /// Sets the DalSpecificPropertiesDictionary from a configured DatabaseType.
-    /// </summary>
-    private static void SetDalSpecificPropertiesDictionary(
-        MigrationContext migrationContext,
-        string databaseType,
-        string connectionString,
-        Microsoft.Extensions.Logging.ILogger logger)
-    {
-        if (!DalFactory.TryGetDal(databaseType, connectionString, out IDal? dalInstance))
-        {
-            throw new ConfigurationValidationException($"Could not retrieve data access layer for DatabaseType [{databaseType}]");
-        }
-
-        bool successfullyAdded = migrationContext.DalSpecificPropertiesDictionary.TryAdd(databaseType, dalInstance!.DalSpecificProperties);
-        if (successfullyAdded)
-        {
-            logger.LogDebug(MigrationEvent.InitializeDalSpecificProperties,
-                "DalSpecificProperties added for DatabaseType [{DatabaseType}] with MultiLineCommentStart: [{CommentStart}], MultiLineCommentEnd: [{CommentEnd}], SqlScriptDelimiter: [{Delimiter}], SupportsSchema: [{SupportsSchema}], SupportsTransactionalDdl: [{SupportsTransactionalDdl}]",
-                databaseType,
-                dalInstance.DalSpecificProperties.SqlMultiLineCommentStart,
-                dalInstance.DalSpecificProperties.SqlMultiLineCommentEnd,
-                string.IsNullOrWhiteSpace(dalInstance.DalSpecificProperties.SqlBlockDelimiter) ? "{Empty}" : dalInstance.DalSpecificProperties.SqlBlockDelimiter,
-                dalInstance.DalSpecificProperties.SupportsSchema,
-                dalInstance.DalSpecificProperties.SupportsTransactionalDdl);
-
-            if (dalInstance is DalBase dalBase)
-            {
-                LogTransientErrorCodes(dalBase, databaseType, migrationContext.RayMigratorConsoleOptions.RevealSensitiveData, logger);
-            }
         }
     }
 

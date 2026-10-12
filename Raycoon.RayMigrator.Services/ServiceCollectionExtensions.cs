@@ -23,17 +23,19 @@ public static class ServiceCollectionExtensions
         // Register CLI tool executor for external SQL tool execution
         services.AddScoped<ICliToolExecutor, CliToolExecutor>();
 
-        // Register context accessor based on host mode
+        // Register context accessor based on host mode. Both are singletons: the CLI holds one context for the
+        // whole process, and the API accessor isolates per async flow through a static AsyncLocal, so a scoped
+        // registration would isolate nothing and would only make the singleton factory a captive dependency.
         if (hostMode == RayMigratorHostMode.Cli)
         {
             services.AddSingleton<IMigrationContextAccessor, SingletonMigrationContextAccessor>();
         }
         else
         {
-            services.AddScoped<IMigrationContextAccessor, AsyncLocalMigrationContextAccessor>();
+            services.AddSingleton<IMigrationContextAccessor, AsyncLocalMigrationContextAccessor>();
         }
 
-        // Register context factory (always singleton, stateless)
+        // Register the context factory, the entry point of every host for one run
         services.AddSingleton<IMigrationContextFactory, MigrationContextFactory>();
 
         return services;

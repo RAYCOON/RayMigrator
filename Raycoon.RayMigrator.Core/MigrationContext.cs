@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Raycoon.RayMigrator.Core.Configuration.Enums;
 using Raycoon.RayMigrator.Core.Configuration.Options;
+using Raycoon.RayMigrator.Core.Configuration.Validation;
 using Raycoon.RayMigrator.Database.Common;
 using Raycoon.RayMigrator.Shared.Exceptions;
 
@@ -38,7 +39,7 @@ public class MigrationContext
         RayMigratorConsoleOptions = rayMigratorConsoleOptions;
         RayMigratorVersion = rayMigratorVersion;
 
-        ProductTargetGroupOptionsEnumerable = RayMigratorOptions.Products!.First(p => p.Alias == RayMigratorConsoleOptions.Product).TargetGroups;
+        ProductTargetGroupOptionsEnumerable = ProductAliasGuard.GetProduct(RayMigratorOptions, RayMigratorConsoleOptions.Product).TargetGroups;
 
         // Create or set MigrationState
         if (migrationState == null)

@@ -9,6 +9,28 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ### Changed
 
+- `IMigrationContextFactory` is the entry point of a host for one run, the CLI
+  pipeline included. `Create` prepares options a host built in memory with the
+  new `RayMigratorOptionsPreparer`, which gives them what options bound from
+  the `appsettings*.json` files always got: `{ENV:VARIABLE}` placeholders are
+  resolved in every string of the options graph (a missing variable is an
+  error that names the variable and the path), the product defaults are
+  merged down, every enum-typed value is checked, the data annotations run
+  and write their documented defaults into null properties, and the rule
+  catalog is applied. `CreateFromValidatedOptions` skips the preparation for
+  options the options framework already validated. Both fill the
+  `DalSpecificPropertiesDictionary` for the repository, the product's targets
+  and the database logging, check the schema names, and make the context
+  current (`IMigrationContextAccessor` and `MigrationLoggingContext`). A host
+  that built the context itself got none of this: pre-built options kept null
+  timeouts that later failed with an `InvalidOperationException`, every
+  engine used the SQL Server block delimiter `GO`, and the Serilog enricher
+  saw no run properties. The factory now lives in `Raycoon.RayMigrator.Services`,
+  takes the accessor and a logger, and no longer takes a version argument (the
+  engine knows its own). The accessor is a singleton in both host modes; the
+  API accessor isolates per async flow through its `AsyncLocal` anyway.
+  `ProductAliasGuard` explains an unknown product alias with the same message
+  the CLI showed, now also for hosts.
 - `MigrationService` reads the configuration of the current run from its
   `MigrationContext` instead of from `IOptions<RayMigratorOptions>`, and
   `TemplateCache` no longer takes the options: a host builds the cache once
