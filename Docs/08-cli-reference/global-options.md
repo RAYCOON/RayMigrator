@@ -218,7 +218,7 @@ Standard exit codes across all commands:
 | 1 | Execution error (migration failed, validation found issues, service exception) |
 | 2 | Environment conflict: `--environment` and `DOTNET_ENVIRONMENT` are both set and differ |
 | 3 | `--environment` is given but empty (or whitespace), whether or not `DOTNET_ENVIRONMENT` is set; the variable is only cross-checked and never replaces the option. Omitting `--environment` altogether is a parse error, because the option is required, and returns the parser's code `1` |
-| 4 | No `Serilog` section in the loaded configuration. A directory without any `RayMigrator` configuration does not reach this check: it throws `ConfigurationValidationException` and exits with `100` |
+| 4 | No `Serilog` section inside the `RayMigrator` section of the loaded configuration, or no `RayMigrator` section in any loaded file. The message names the missing section and lists the files that were loaded; the files of the hierarchy that were not found are listed only when no loaded file carries a `RayMigrator` section (#31). A directory without any `appsettings*.json` file does not reach this check: it throws `ConfigurationValidationException` and exits with `100` |
 | 5 | `System.CommandLine` threw while parsing or invoking the command; ordinary parse errors (invalid arguments, missing required options such as `--environment`) return the parser's own code, `1` |
 | 100 | Unhandled exception before or while the command runs, including `ConfigurationValidationException` from option validation, `TemplateCache` and `DalFactory` (see TD-C-01 in [Risks and Technical Debt](../arc42/11-Risks-and-Technical-Debt.md)) |
 

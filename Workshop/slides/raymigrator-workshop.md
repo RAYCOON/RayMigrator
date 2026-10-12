@@ -388,7 +388,7 @@ Timing: 0:11. In the exercise, participants look at exactly these two queries in
 <div class="catchup">Behind? Copy exercises/solutions/01-first-migration/ over bookstore/, run 00-setup/reset-database.sql in SSMS, then migrate-up.</div>
 
 <!--
-Timing: 0:11 to 0:18. Walk around. Typical problems: wrong folder name casing (Backend), file saved with a different extension, running from the wrong directory (exit 4).
+Timing: 0:11 to 0:18. Walk around. Typical problems: wrong folder name casing (Backend), file saved with a different extension, running from the wrong directory (exit 100, no `appsettings*.json` there).
 The three warnings everyone sees are explained on the next slide; do not explain them twice.
 -->
 

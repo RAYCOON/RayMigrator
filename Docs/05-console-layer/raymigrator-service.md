@@ -49,7 +49,7 @@ Main()
 ```
 
 `RunDirectMode` delegates to `DirectModePipeline.ExecuteAsync()`, which handles the complete lifecycle:
-1. Validate Serilog configuration exists in the loaded config (returns exit code 4 if missing, with diagnostics for missing config files)
+1. Validate Serilog configuration exists in the loaded config (returns exit code 4 if missing; the message names the missing section and lists the loaded files, and names the files of the hierarchy that were not found only when no loaded file carries a `RayMigrator` section, #31)
 2. Create Serilog logger (with optional database sink) and log environment variable replacements
 3. Build the DI host and register all services (including `RayMigratorOptions`, `RayMigratorConsoleOptions`, `DatabaseLogWriter`, the Service Layer via `AddRayMigratorServices`, `TemplateCache`, `TemplateExecutor`, `RayMigratorService`, and `MigrationContext`)
 4. Resolve `DatabaseLogWriter` (triggers options validation in Standalone mode)

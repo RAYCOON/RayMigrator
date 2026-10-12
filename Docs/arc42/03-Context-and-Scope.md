@@ -211,7 +211,7 @@ places and match the table in
 | `1` | Execution error: migration failed, `validate-hash` found invalid or missing files, `ApplicationStartupException`, service exception | `RayMigratorService`, `DirectModePipeline`, `Program.Main` |
 | `2` | `--environment` and `DOTNET_ENVIRONMENT` are both set with different values | `EnvironmentResolver` |
 | `3` | `--environment` is blank, whether or not `DOTNET_ENVIRONMENT` is set; the variable never replaces it (`--environment` is a required option, so leaving it out is a parse error) | `EnvironmentResolver` |
-| `4` | The loaded `RayMigrator` node has no `Serilog` section, typically because the product or environment file was not found (if no file carries a `RayMigrator` node at all, `JsonOptionsSource` throws and the run ends with `100`) | `DirectModePipeline` |
+| `4` | The merged configuration has no `RayMigrator:Serilog` node. The message names the missing node (`Serilog`, or `RayMigrator` when no loaded file carries one) and lists the loaded files; the files of the hierarchy that were not found are named only when no loaded file carries a `RayMigrator` node (#31). A directory without any `appsettings*.json` file does not reach the check: `JsonOptionsSource` throws and the run ends with `100` | `DirectModePipeline` |
 | `5` | `System.CommandLine` threw while parsing or invoking; ordinary parse errors such as a missing required option return `System.CommandLine`'s own code | `Program.Main` |
 | `100` | Unhandled exception, including `ConfigurationValidationException` from option validation, `TemplateCache` and `DalFactory` (TD-C-01) | `Program.Main`, `DirectModePipeline` |
 

@@ -193,6 +193,7 @@ Raycoon.RayMigrator.Tests.Unit/
 ├── P1_MigrationErrorActionInheritanceTests.cs
 ├── P1_MigrationSafetyWarningTests.cs
 ├── P1_MigSettingsInheritanceTests.cs
+├── P1_MissingSerilogSectionMessageTests.cs
 ├── P1_MySqlMariaDbTypeConventionsTests.cs
 ├── P1_OutOfOrderDetectionTests.cs
 ├── P1_PostgreSqlTypeConventionsTests.cs
@@ -300,6 +301,7 @@ Raycoon.RayMigrator.Tests.Unit/
 | `P1_MigrationErrorActionInheritanceTests` | `MigrationErrorActionOverrideResolutionTests`, `MigrationErrorActionTomlMigSettingsMergeTests`, `MigrationErrorActionMultiLevelMigSettingsTests`, `MigrationErrorActionFullHierarchyTests` | `MigrationErrorAction` inheritance chain (product -> release -> targetgroup -> file) |
 | `P1_MigrationSafetyWarningTests` | `MigrationSafetyWarningTests` | Safety warnings for dangerous migration configurations |
 | `P1_MigSettingsInheritanceTests` | `ParseMigSettingsFileTests`, `LoadMigSettingsDefaultsTests`, `ResolveMigSettingsForFileTests` | `migsettings.txt` inheritance merging (product -> release -> targetgroup) |
+| `P1_MissingSerilogSectionMessageTests` | `MissingSerilogSectionMessageTests` | Exit-code-4 message of `DirectModePipeline`: names the missing `Serilog` (or `RayMigrator`) section, lists the loaded files, names the files that were not found only when no loaded file carries a `RayMigrator` section, bootstrap message without file diagnostics, `ExecuteAsync` returns 4 (#31) |
 | `P1_MySqlMariaDbTypeConventionsTests` | `MySqlMariaDbTypeConventionsTests` | DAL-014 (`DATETIME` → `TIMESTAMP`, `UTC_TIMESTAMP()` → `CURRENT_TIMESTAMP`) and DAL-015 (explicit CHARSET/COLLATE per engine) for MySQL/MariaDB templates |
 | `P1_OutOfOrderDetectionTests` | `DetectOutOfOrderFilesTests` | Out-of-order migration detection and `AllowOutOfOrder` flag |
 | `P1_PostgreSqlTypeConventionsTests` | `PostgreSqlTypeConventionsTests` | DAL-012 (`TIMESTAMPTZ`, plain `NOW()`) and DAL-013 (`TEXT` replaces arbitrary `VARCHAR(n)`) for PostgreSQL templates |

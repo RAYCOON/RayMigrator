@@ -18,6 +18,14 @@ RayMigrator follows Semantic Versioning where applicable.
   whether or not the variable is set, and the message names the empty argument.
   `DOTNET_ENVIRONMENT` remains a cross-check only (exit code 2 when it differs
   from `--environment`). (#32)
+- A loaded configuration without a `Serilog` section still exits with code 4,
+  but the message now names the missing section and lists the files that were
+  loaded. Before, whenever one of the optional product or product+environment
+  files of the `appsettings*.json` hierarchy was absent, which is the case in
+  most setups, the message blamed those files and asked to verify the product
+  and environment names. The files that were not found are now listed only
+  when no loaded file carries a `RayMigrator` section at all, because then a
+  wrong product or environment name is the likely cause. (#31)
 
 ## [0.16.0] — 2026-10-10
 

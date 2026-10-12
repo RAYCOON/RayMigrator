@@ -51,37 +51,16 @@ public static class DirectModePipeline
         {
             #region Early configuration validation
 
-            // Check for Serilog configuration with helpful diagnostics
+            // Check for Serilog configuration with helpful diagnostics (#31)
             if (!sourceResult.RayMigratorConfigSection.GetSection("Serilog").Exists())
             {
                 Console.WriteLine(assemblyInfo);
                 Console.ForegroundColor = ConsoleColor.Red;
-
-                if (sourceResult.ConfigFileDiagnostics != null)
-                {
-                    var notFoundFiles = sourceResult.ConfigFileDiagnostics
-                        .Where(f => !f.Found).Select(f => f.Filename).ToList();
-
-                    if (notFoundFiles.Count > 0)
-                    {
-                        Console.WriteLine($"No valid RayMigrator configuration found for product [{consoleOptions.Product}], environment [{environment}].");
-                        Console.WriteLine("The following expected configuration files were not found:");
-                        foreach (var filename in notFoundFiles)
-                            Console.WriteLine($"  - {filename}");
-                        Console.WriteLine("Please verify the product and environment names and ensure the corresponding configuration files exist.");
-                    }
-                    else
-                    {
-                        Console.WriteLine("No 'Serilog' configuration found within the 'RayMigrator' section.");
-                        Console.WriteLine("Please add a valid Serilog logger configuration to the RayMigrator configuration.");
-                    }
-                }
-                else
-                {
-                    Console.WriteLine("No 'Serilog' configuration found within the 'RayMigrator' section of the bootstrap configuration.");
-                    Console.WriteLine("Please add a valid Serilog logger configuration to appsettings.json.");
-                }
-
+                Console.WriteLine(BuildMissingSerilogSectionMessage(
+                    sourceResult.RayMigratorConfigSection.Exists(),
+                    sourceResult.ConfigFileDiagnostics,
+                    consoleOptions.Product,
+                    environment));
                 Console.ResetColor();
                 return 4;
             }
@@ -415,6 +394,58 @@ public static class DirectModePipeline
         }
 
         return exitCode;
+    }
+
+    /// <summary>
+    /// Builds the message for a loaded configuration without a <c>Serilog</c> section inside <c>RayMigrator</c> (exit
+    /// code 4), without console output. The message names the section that is missing and lists the files that were
+    /// loaded. The files of the hierarchy that were not found are named only when no loaded file carries a
+    /// <c>RayMigrator</c> section at all, because then a wrong product or environment name is the likely cause; they
+    /// are optional layers that are absent in most setups, so naming them for a merely missing <c>Serilog</c> section
+    /// blamed the wrong thing (#31). A source without file diagnostics (Admin-DB mode) gets the bootstrap message.
+    /// </summary>
+    internal static string BuildMissingSerilogSectionMessage(
+        bool hasRayMigratorSection,
+        IReadOnlyList<(string Filename, bool Found)>? configFileDiagnostics,
+        string product,
+        string environment)
+    {
+        if (configFileDiagnostics == null)
+        {
+            return "No 'Serilog' configuration found within the 'RayMigrator' section of the bootstrap configuration." + Environment.NewLine +
+                   "Please add a valid Serilog logger configuration to appsettings.json.";
+        }
+
+        var loadedFiles = configFileDiagnostics.Where(f => f.Found).Select(f => $"  - {f.Filename}").ToList();
+        var missingFiles = configFileDiagnostics.Where(f => !f.Found).Select(f => $"  - {f.Filename}").ToList();
+        List<string> lines = [];
+
+        if (hasRayMigratorSection)
+        {
+            lines.Add("No 'Serilog' section found within the 'RayMigrator' section of the loaded configuration.");
+            lines.Add($"Configuration files loaded for product [{product}], environment [{environment}]:");
+            lines.AddRange(loadedFiles);
+            lines.Add("Please add a Serilog logger configuration to the 'RayMigrator' section of one of these files.");
+        }
+        else
+        {
+            lines.Add($"No 'RayMigrator' section found in the configuration loaded for product [{product}], environment [{environment}].");
+            lines.Add("Configuration files loaded:");
+            lines.AddRange(loadedFiles);
+
+            if (missingFiles.Count > 0)
+            {
+                lines.Add("Files of the hierarchy that were not found:");
+                lines.AddRange(missingFiles);
+                lines.Add("Please verify the product and environment names, or add a 'RayMigrator' section with a Serilog logger configuration to one of the loaded files.");
+            }
+            else
+            {
+                lines.Add("Please add a 'RayMigrator' section with a Serilog logger configuration to one of these files.");
+            }
+        }
+
+        return string.Join(Environment.NewLine, lines);
     }
 
     /// <summary>

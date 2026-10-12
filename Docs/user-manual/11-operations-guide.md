@@ -204,7 +204,7 @@ WHERE migration_run_result_id = 10
 | 1 | Execution error (migration failed, validation found issues, service exception) |
 | 2 | Environment conflict: `--environment` and `DOTNET_ENVIRONMENT` are both set and differ |
 | 3 | `--environment` is given but empty (or whitespace), whether or not `DOTNET_ENVIRONMENT` is set; the variable is only cross-checked and never replaces the option. Omitting `--environment` altogether is a parse error, because the option is required, and returns the parser's code `1` |
-| 4 | No `Serilog` section in the loaded configuration. A directory without any `RayMigrator` configuration does not reach this check: it throws `ConfigurationValidationException` and exits with `100` |
+| 4 | No `Serilog` section inside the `RayMigrator` section of the loaded configuration, or no `RayMigrator` section in any loaded file. The message names the missing section and lists the files that were loaded; the files of the hierarchy that were not found are listed only when no loaded file carries a `RayMigrator` section (#31). A directory without any `appsettings*.json` file does not reach this check: it throws `ConfigurationValidationException` and exits with `100` |
 | 5 | `System.CommandLine` threw while parsing or invoking the command; ordinary parse errors (invalid arguments, missing required options such as `--environment`) return the parser's own code, `1` |
 | 100 | Unhandled exception before or while the command runs, including `ConfigurationValidationException` from option validation, `TemplateCache` and `DalFactory` (see TD-C-01 in [Risks and Technical Debt](../arc42/11-Risks-and-Technical-Debt.md)) |
 
@@ -217,7 +217,7 @@ WHERE migration_run_result_id = 10
 | Exit code 1 | Migration SQL error or validation issue | Check logs, fix SQL, re-run |
 | Exit code 2 | `--environment` differs from `DOTNET_ENVIRONMENT` | Ensure both values match, or unset `DOTNET_ENVIRONMENT` |
 | Exit code 3 | `--environment` was passed empty; `DOTNET_ENVIRONMENT` does not replace it | Pass a non-empty `--environment` value (or `-env {ENV:DOTNET_ENVIRONMENT}` to take it from the variable) |
-| Exit code 4 | Missing or invalid configuration | Check appsettings.json exists with valid Serilog section |
+| Exit code 4 | No `Serilog` section inside `RayMigrator`, or no `RayMigrator` section in the loaded files | The message lists the loaded files: add the section to one of them. When it also lists files that were not found, check the product and environment names |
 | Exit code 5, or the parser's own code | Bad CLI arguments | Check command syntax with `--help` |
 | Hash mismatch | File modified after execution | Run `update-hash` if intentional, or restore original file |
 | "Orphaned run" warning | Previous run interrupted | Run `fix` command (use `--run-mode simulate` first to preview) |
