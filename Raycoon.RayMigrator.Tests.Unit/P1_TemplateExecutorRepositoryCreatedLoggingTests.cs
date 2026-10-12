@@ -2,7 +2,6 @@ using System.Reflection;
 using AwesomeAssertions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using NSubstitute;
 using Raycoon.RayMigrator.Core;
 using Raycoon.RayMigrator.Core.Configuration;
@@ -113,7 +112,7 @@ public class TemplateExecutorRepositoryCreatedLoggingTests
            .Returns(Task.FromResult<object?>(scalarResult));
 
         var context = BuildContext();
-        var templateCache = new TemplateCache(Options.Create(context.RayMigratorOptions), false, NullLogger<TemplateCache>.Instance, validateConfiguration: false);
+        var templateCache = new TemplateCache(false, NullLogger<TemplateCache>.Instance);
         var logger = new CapturingLogger<TemplateExecutor>();
         var executor = new TemplateExecutor(templateCache, logger, new SingletonMigrationContextAccessor { Current = context });
 

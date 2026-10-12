@@ -1,6 +1,5 @@
 using System.Reflection;
 using AwesomeAssertions;
-using Microsoft.Extensions.Options;
 using NSubstitute;
 using Raycoon.RayMigrator.Core;
 using Raycoon.RayMigrator.Core.Configuration.Enums;
@@ -35,10 +34,10 @@ public class CliToolStdinEncodingTests : IDisposable
                 new ProductOptions(null) { Alias = "P", MigrationFilesRootDirectory = "/tmp", MigrationFilesEncoding = productEncoding }
             }
         };
-        Set(service, "_options", Options.Create(options));
         Set(service, "_cliToolExecutor", executor);
 
         var accessor = (IMigrationContextAccessor)Get(service, "_ctxAccessor");
+        accessor.Current.RayMigratorOptions = options;
         accessor.Current.RayMigratorConsoleOptions = new RayMigratorConsoleOptions
         {
             Command = MigrationCommand.MigrateUp, Product = "P", Environment = "Dev", RunMode = MigrationRunMode.Migrate,

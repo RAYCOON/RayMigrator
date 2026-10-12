@@ -179,9 +179,11 @@ public static class DirectModePipeline
                         // Register TemplateCache
                         services.AddSingleton<TemplateCache>(serviceProvider =>
                         {
-                            var opts = serviceProvider.GetRequiredService<IOptions<RayMigratorOptions>>();
+                            var opts = serviceProvider.GetRequiredService<IOptions<RayMigratorOptions>>().Value;
                             var tcLogger = serviceProvider.GetRequiredService<ILogger<TemplateCache>>();
-                            return new TemplateCache(opts, consoleOptions.RevealSensitiveData, tcLogger);
+                            var templateCache = new TemplateCache(consoleOptions.RevealSensitiveData, tcLogger);
+                            templateCache.ValidateConfigurationAgainstTemplateCache(opts);
+                            return templateCache;
                         });
 
                         services.AddSingleton<TemplateExecutor>();

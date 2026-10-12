@@ -2,7 +2,6 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using AwesomeAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using NSubstitute;
 using Raycoon.RayMigrator.Core;
 using Raycoon.RayMigrator.Core.Configuration.Enums;
@@ -59,7 +58,7 @@ public class TemplateExecutorEnvironmentIdTests
            });
 
         var ctx = BuildContext(environmentId, productId, runMode);
-        var templateCache = BuildRealTemplateCache(ctx.RayMigratorOptions);
+        var templateCache = BuildRealTemplateCache();
 
         // TemplateExecutor has a public constructor
         var accessor = new SingletonMigrationContextAccessor { Current = ctx };
@@ -172,12 +171,11 @@ public class TemplateExecutorEnvironmentIdTests
 
     /// <summary>
     /// Builds a real TemplateCache from the DataAccessLayers in the test output directory.
-    /// validateConfiguration=false so we don't need all products/targets to have matching templates.
+    /// The cache is not validated against the options, so not every product needs matching templates.
     /// </summary>
-    private static TemplateCache BuildRealTemplateCache(RayMigratorOptions options)
+    private static TemplateCache BuildRealTemplateCache()
     {
-        var opts = Options.Create(options);
-        return new TemplateCache(opts, false, NullLogger<TemplateCache>.Instance, validateConfiguration: false);
+        return new TemplateCache(false, NullLogger<TemplateCache>.Instance);
     }
 
     /// <summary>

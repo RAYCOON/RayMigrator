@@ -3,7 +3,6 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Raycoon.RayMigrator.Core;
 using Raycoon.RayMigrator.Core.Configuration;
 using Raycoon.RayMigrator.Core.Configuration.Enums;
@@ -27,7 +26,6 @@ namespace Raycoon.RayMigrator.Services;
 public class MigrationService : IMigrationService
 {
     private readonly ILogger<MigrationService> _logger;
-    private readonly IOptions<RayMigratorOptions> _options;
     private readonly TemplateExecutor _templateExecutor;
     private readonly IMigrationContextAccessor _ctxAccessor;
     private readonly IServiceProvider _serviceProvider;
@@ -35,14 +33,12 @@ public class MigrationService : IMigrationService
 
     public MigrationService(
         ILogger<MigrationService> logger,
-        IOptions<RayMigratorOptions> options,
         TemplateExecutor templateExecutor,
         IMigrationContextAccessor ctxAccessor,
         IServiceProvider serviceProvider,
         ICliToolExecutor cliToolExecutor)
     {
         _logger = logger;
-        _options = options;
         _templateExecutor = templateExecutor;
         _ctxAccessor = ctxAccessor;
         _serviceProvider = serviceProvider;
@@ -101,7 +97,7 @@ public class MigrationService : IMigrationService
             }
 
             // --- Phase 2: File Discovery & Preparation ---
-            var productOptions = _options.Value.Products!.First(p => p.Alias == request.ProductAlias);
+            var productOptions = _ctxAccessor.Current.RayMigratorOptions.Products!.First(p => p.Alias == request.ProductAlias);
             var migrationFiles = DiscoverAndPrepareMigrationFiles(productOptions, request.Environment);
 
             if (migrationFiles.Count == 0)
@@ -1118,7 +1114,7 @@ public class MigrationService : IMigrationService
             // --- Validate mode: validate rollback file existence and parseability ---
             if (!request.RunMode.ShouldReadRepository())
             {
-                var productOpts = _options.Value.Products!.First(p => p.Alias == request.ProductAlias);
+                var productOpts = _ctxAccessor.Current.RayMigratorOptions.Products!.First(p => p.Alias == request.ProductAlias);
                 var allFiles = DiscoverAndPrepareMigrationFiles(productOpts, request.Environment);
 
                 // Filter files in releases AFTER target (same logic as normal rollback)
@@ -1172,7 +1168,7 @@ public class MigrationService : IMigrationService
 
             // Validate target group aliases early (before any repository operations)
             {
-                var productOptsForValidation = _options.Value.Products!.First(p => p.Alias == request.ProductAlias);
+                var productOptsForValidation = _ctxAccessor.Current.RayMigratorOptions.Products!.First(p => p.Alias == request.ProductAlias);
                 ValidateTargetGroupAliases(request.TargetGroupAliases, productOptsForValidation.TargetGroups!);
             }
 
@@ -1268,7 +1264,7 @@ public class MigrationService : IMigrationService
                 migrationsToRollback.Count, request.ProductAlias, request.TargetReleaseVersion);
 
             // --- Phase 3: Execute rollbacks ---
-            var productOptions = _options.Value.Products!.First(p => p.Alias == request.ProductAlias);
+            var productOptions = _ctxAccessor.Current.RayMigratorOptions.Products!.First(p => p.Alias == request.ProductAlias);
 
             // The atomic shared-connection path changes what a failed rollback leaves behind; name the targets it applies to (#27).
             if (request.RunMode.ShouldExecuteSql())
@@ -1386,7 +1382,7 @@ public class MigrationService : IMigrationService
             await RepositoryMigrationRunInsertWithAutoFix(settingsJson);
 
             // --- Phase 2: File Discovery ---
-            var productOptions = _options.Value.Products!.First(p => p.Alias == request.ProductAlias);
+            var productOptions = _ctxAccessor.Current.RayMigratorOptions.Products!.First(p => p.Alias == request.ProductAlias);
             var migrationFiles = DiscoverAndPrepareMigrationFiles(productOptions, request.Environment);
 
             if (migrationFiles.Count == 0)
@@ -2376,7 +2372,7 @@ public class MigrationService : IMigrationService
 
         // Extract release version and target group from path (moved up — needed for ShouldSkipBlockSplitting)
         relativePath.GetReleaseVersionAndTargetGroupAlias(
-            _options.Value, _ctxAccessor.Current.RayMigratorConsoleOptions.Product,
+            _ctxAccessor.Current.RayMigratorOptions, _ctxAccessor.Current.RayMigratorConsoleOptions.Product,
             out string releaseVersion, out string targetGroupAlias);
 
         // Skip block splitting when CLI tool execution is configured.
@@ -2763,7 +2759,7 @@ public class MigrationService : IMigrationService
         try
         {
             relativePath.GetReleaseVersionAndTargetGroupAlias(
-                _options.Value, _ctxAccessor.Current.RayMigratorConsoleOptions.Product,
+                _ctxAccessor.Current.RayMigratorOptions, _ctxAccessor.Current.RayMigratorConsoleOptions.Product,
                 out _, out string targetGroupAlias);
 
             var targetGroup = productOptions.TargetGroups!
@@ -2804,7 +2800,7 @@ public class MigrationService : IMigrationService
     /// </summary>
     private CliToolOptions GetCliToolByAlias(string alias)
     {
-        var cliTools = _options.Value.CliTools;
+        var cliTools = _ctxAccessor.Current.RayMigratorOptions.CliTools;
         if (cliTools == null || cliTools.Count == 0)
         {
             throw new ConfigurationValidationException(
@@ -2887,7 +2883,7 @@ public class MigrationService : IMigrationService
         string? fileContent = null;
         if (cliToolOptions.InputModeEnum == CliToolInputMode.Stdin)
         {
-            var productOptions = _options.Value.Products!.First(p => p.Alias == _ctxAccessor.Current.RayMigratorConsoleOptions.Product);
+            var productOptions = _ctxAccessor.Current.RayMigratorOptions.Products!.First(p => p.Alias == _ctxAccessor.Current.RayMigratorConsoleOptions.Product);
             fileContent = ReadMigrationText(file.FullPath, GetFileEncoding(productOptions.MigrationFilesEncoding),
                 productOptions.MigrationFilesEncoding ?? "UTF-8", file.FilenameWithRelativePath,
                 $"Check MigrationFilesEncoding for product [{productOptions.Alias}] or re-save the file in the configured encoding.");
@@ -4579,7 +4575,7 @@ public class MigrationService : IMigrationService
             bool repositoryHasProduct = await InitializeRepositoryAsync();
 
             // --- Phase 2: File Discovery ---
-            var productOptions = _options.Value.Products!.First(p => p.Alias == request.ProductAlias);
+            var productOptions = _ctxAccessor.Current.RayMigratorOptions.Products!.First(p => p.Alias == request.ProductAlias);
             var migrationFiles = DiscoverAndPrepareMigrationFiles(
                 productOptions, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment);
 
@@ -4758,7 +4754,7 @@ public class MigrationService : IMigrationService
             await InitializeRepositoryAsync();
 
             // --- Phase 2: File Discovery ---
-            var productOptions = _options.Value.Products!.First(p => p.Alias == request.ProductAlias);
+            var productOptions = _ctxAccessor.Current.RayMigratorOptions.Products!.First(p => p.Alias == request.ProductAlias);
             var migrationFiles = DiscoverAndPrepareMigrationFiles(
                 productOptions, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment);
 
@@ -4883,7 +4879,7 @@ public class MigrationService : IMigrationService
                 : new List<MigrationRecord>();
 
             // --- Phase 3: File discovery ---
-            var productOptions = _options.Value.Products!.First(p => p.Alias == productAlias);
+            var productOptions = _ctxAccessor.Current.RayMigratorOptions.Products!.First(p => p.Alias == productAlias);
             var migrationFiles = DiscoverAndPrepareMigrationFiles(
                 productOptions, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment);
 

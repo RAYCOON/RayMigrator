@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Raycoon.RayMigrator.Core.Extensions;
 using Raycoon.RayMigrator.Core.Configuration;
 using Raycoon.RayMigrator.Core.Configuration.Options;
@@ -10,33 +9,25 @@ namespace Raycoon.RayMigrator.Core.Templates;
 
 public class TemplateCache
 {
-    private readonly RayMigratorOptions? _options;
     private readonly bool _revealSensitiveData;
     private readonly ILogger _logger;
 
     private Dictionary<string, Dictionary<TemplateType, Template>> _templateDictionary = null!;
 
     /// <summary>
-    /// Constructor. Decoupled from MigrationContext for API compatibility.
-    /// When validateConfiguration is true (default), validates that configured DatabaseTypes have matching templates.
-    /// Set to false when Products/Repository config is not yet known (Admin-DB mode).
+    /// Loads the SQL templates of every DataAccessLayer found below the application base directory.
+    /// The cache does not depend on a configuration: a host that runs several configurations in one
+    /// process shares one cache and calls <see cref="ValidateConfigurationAgainstTemplateCache"/> with
+    /// the options of each run.
     /// </summary>
-    /// <param name="options">RayMigrator configuration options. Can be null when validation is deferred.</param>
     /// <param name="revealSensitiveData">Whether to include sensitive data in log output.</param>
     /// <param name="logger"></param>
-    /// <param name="validateConfiguration">Whether to validate Products/Repository against loaded templates at construction time.</param>
-    public TemplateCache(IOptions<RayMigratorOptions>? options, bool revealSensitiveData, ILogger<TemplateCache> logger, bool validateConfiguration = true)
+    public TemplateCache(bool revealSensitiveData, ILogger<TemplateCache> logger)
     {
-        _options = options?.Value;
         _revealSensitiveData = revealSensitiveData;
         _logger = logger;
 
         Initialize();
-
-        if (validateConfiguration && _options != null)
-        {
-            ValidateConfigurationAgainstTemplateCache(_options);
-        }
     }
 
     #region PrivateMethods
@@ -225,8 +216,8 @@ public class TemplateCache
     }
 
     /// <summary>
-    /// Validates the TemplateCache against the configured usage. Can be called on-demand
-    /// when Products/Repository configuration becomes available (e.g. from Admin-DB).
+    /// Validates that the Repository and every TargetGroup of <paramref name="options"/> name a DatabaseType
+    /// for which templates were loaded. Hosts call it once per configuration before the first run.
     /// </summary>
     /// <param name="options">The RayMigratorOptions to validate against loaded templates.</param>
     public void ValidateConfigurationAgainstTemplateCache(RayMigratorOptions options)

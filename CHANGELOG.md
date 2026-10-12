@@ -7,6 +7,19 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ## [Unreleased]
 
+### Changed
+
+- `MigrationService` reads the configuration of the current run from its
+  `MigrationContext` instead of from `IOptions<RayMigratorOptions>`, and
+  `TemplateCache` no longer takes the options: a host builds the cache once
+  per process and calls `ValidateConfigurationAgainstTemplateCache` for each
+  configuration it runs. A host that creates one context per run from
+  pre-built options (RayMigrator Studio) can now execute migrations; before,
+  the service read the products and the CLI tools from the options registered
+  in the container, so a context built from other options failed with
+  "Sequence contains no matching element". The CLI behaves as before. Breaking
+  for hosts that construct `MigrationService` or `TemplateCache` themselves.
+
 ### Fixed
 
 - `RULE_7_3` (hardcoded credential) no longer fires for a connection string
