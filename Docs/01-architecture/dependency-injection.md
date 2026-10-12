@@ -127,7 +127,7 @@ Services created per operation:
 
 ### Options Pattern
 
-Configuration sections are bound to strongly-typed options classes with DataAnnotations validation:
+Configuration sections are bound to strongly-typed options classes with DataAnnotations validation. The binding is the CLI pipeline's way of loading and validating the files; the services never consume `IOptions<RayMigratorOptions>`. They read the configuration of the current run from `MigrationContext.RayMigratorOptions`, which the context factory receives from the pipeline (`CreateFromValidatedOptions`) or prepares itself for a host that built the options in memory (`Create`, see [MigrationContext](../02-core-concepts/migration-context.md#hosting-the-engine-in-process)).
 
 ```csharp
 // Registration with validation (JSON mode)

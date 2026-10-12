@@ -266,16 +266,12 @@ Additionally, `RepositoryMigrationRunInsert` catches `TemplateResultException` w
 
 > **Note**: The file lives in the Infrastructure project but uses the `Raycoon.RayMigrator.Core.Templates` namespace.
 
-The `TemplateCache` is eagerly initialized at construction time (not lazy-loaded). It loads all SQL templates from the `DataAccessLayers/{Type}/` filesystem directories, replaces `{ENV:*}` placeholders, and validates that all required templates exist for each configured database type.
+The `TemplateCache` is eagerly initialized at construction time (not lazy-loaded). It loads all SQL templates from the `DataAccessLayers/{Type}/` filesystem directories, replaces `{ENV:*}` placeholders, and checks that every template type exists for each loaded database type. It does not depend on a configuration: a host builds one cache per process and calls `ValidateConfigurationAgainstTemplateCache(options)` for each configuration it runs, which checks that the repository and every target group name a database type with templates. The CLI pipeline does that right after building the cache.
 
 **Constructor**:
 
 ```csharp
-public TemplateCache(
-    IOptions<RayMigratorOptions>? options,
-    bool revealSensitiveData,
-    ILogger<TemplateCache> logger,
-    bool validateConfiguration = true)
+public TemplateCache(bool revealSensitiveData, ILogger<TemplateCache> logger)
 ```
 
 - `options` is nullable. When null (or when `validateConfiguration` is false), configuration validation is deferred. This supports ManagedLocal mode where Products/Repository config is not yet known at startup.

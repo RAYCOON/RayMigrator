@@ -274,7 +274,7 @@ sequenceDiagram
 
 ### ManagedLocal Mode (Admin-DB)
 
-> **Implementation Status**: The `OperatingMode.ManagedLocal` enum value and `AdminDbOptions` configuration class exist in Engine's Core layer (part of the NuGet contract), but the Admin-DB operating mode is implemented in **RayMigrator Studio**, not in Engine. When Studio uses ManagedLocal mode, it supplies a pre-built `RayMigratorOptions` via the `PreBuiltOptions` field of `OptionsSourceResult`, and the `DirectModePipeline` handles the rest of the lifecycle identically to Standalone mode.
+> **Implementation Status**: The `OperatingMode.ManagedLocal` enum value and `AdminDbOptions` configuration class exist in Engine's Core layer (part of the NuGet contract), but the Admin-DB operating mode is implemented in **RayMigrator Studio**, not in Engine. When Studio uses ManagedLocal mode, it supplies a pre-built `RayMigratorOptions` via the `PreBuiltOptions` field of `OptionsSourceResult`, and the `DirectModePipeline` handles the rest of the lifecycle identically to Standalone mode. A host that runs the engine in-process creates its context through `IMigrationContextFactory.Create`, which prepares in-memory options with `RayMigratorOptionsPreparer` (see [Validation](#validation)).
 
 ## Options Source Abstraction
 
@@ -302,11 +302,12 @@ Options are validated at startup via three layered mechanisms, wired up in `Dire
 
 Warnings (non-blocking issues from the shared catalog) are emitted to the static `Serilog.Log` channel at `Warning` level before validation decides pass/fail; only errors cause `host.Build()` to throw.
 
-**Admin-DB / Studio mode**: the `PreBuiltOptions` branch in `DirectModePipeline` (used by RayMigrator-Studio's API layer) registers `RayMigratorOptions` via `Options.Create(...)` and therefore does **not** invoke `IValidateOptions<T>`. This is intentional — pre-built options from Studio's `AdminDbOptionsSource` are trusted. If future Studio code needs validation, it should call `RayMigratorOptionsValidator.Validate(null, preBuilt)` explicitly.
+**Options built in memory** (a host such as RayMigrator Studio, or a test): `RayMigratorOptionsPreparer.Prepare(options)` (namespace `Raycoon.RayMigrator.Core.Configuration.Validation`) gives an options object the same treatment, in the same order, without the options framework: `{ENV:VARIABLE}` placeholders are resolved in every string of the graph (`EnvironmentVariableReplacer.ReplaceWithEnvironmentVariables(RayMigratorOptions)`; a missing variable throws and names the variable and the path), `ProductDefaultsPostConfigureOptions` merges the defaults and probes the enum values, `DataAnnotationValidateOptions` runs the attributes and writes the `RayRangeInt` defaults back, and `RayMigratorOptionsValidator` applies the rule catalog. Every finding of the failing step is reported in one `ConfigurationValidationException`. The resolved values and the configuration's secrets are registered with `SensitiveDataMasker`. `IMigrationContextFactory.Create` calls the preparer; `CreateFromValidatedOptions` skips it for options the options framework already validated. The `PreBuiltOptions` branch of `DirectModePipeline` still runs only the enum probe before it registers the options with `Options.Create(...)`; it exists for the CLI's ManagedLocal mode and is not the path a host should take.
 
 Namespaces:
 - Custom attributes: `Raycoon.RayMigrator.Core.Configuration.Validation.RayAttributes`
 - Engine-side adapter: `Raycoon.RayMigrator.Core.Configuration.Validation.OptionsValidationInputAdapter`
+- In-memory preparation: `Raycoon.RayMigrator.Core.Configuration.Validation.RayMigratorOptionsPreparer`
 - Shared catalog: `Raycoon.RayMigrator.Validation` (zero dependencies, WASM-safe)
 
 For the authoritative list of all rule codes, their severities, and example messages, see [Appendix: Validation Rules](../appendix/validation-rules.md). For a broader overview of where validation attributes sit in the configuration hierarchy, see [Configuration Hierarchy — Validation](../06-configuration-reference/appsettings-hierarchy.md).

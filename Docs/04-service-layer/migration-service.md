@@ -253,7 +253,7 @@ Returned by `MigrateUpAsync` and `MigrateDownAsync`:
 ```csharp
 public class MigrationOperationResult : OperationResult
 {
-    public Guid RunId { get; set; }
+    public int MigrationRunId { get; set; }   // MigrationRun.Id; 0 when the run mode writes no run row
     public string ProductAlias { get; set; } = string.Empty;
     public string Environment { get; set; } = string.Empty;
     public MigrationOperation Operation { get; set; }
@@ -306,6 +306,8 @@ Returned by `BaselineAsync`. `TargetReleaseVersion` is nullable — `null` when 
 public class BaselineResult : OperationResult
 {
     public string ProductAlias { get; set; } = string.Empty;
+    public string Environment { get; set; } = string.Empty;
+    public int MigrationRunId { get; set; }   // MigrationRun.Id; 0 when the run failed before the row was inserted
     public string? TargetReleaseVersion { get; set; }
     public int BaselinedFiles { get; set; }
 }
@@ -319,6 +321,7 @@ Returned by `GetStatusAsync`:
 public class MigrationStatusInfo
 {
     public string ProductAlias { get; set; } = string.Empty;
+    public string Environment { get; set; } = string.Empty;
     public string CurrentRelease { get; set; } = string.Empty;
     public DateTime? LastMigrationDate { get; set; }
     public int TotalMigrationsExecuted { get; set; }
@@ -352,6 +355,7 @@ Returned by `GetHistoryAsync`:
 public class MigrationHistory
 {
     public string ProductAlias { get; set; } = string.Empty;
+    public string Environment { get; set; } = string.Empty;   // the runs of this environment only
     public List<MigrationRunInfo> Runs { get; set; } = new List<MigrationRunInfo>();
 }
 ```
@@ -364,16 +368,16 @@ Individual run entry within `MigrationHistory`:
 public class MigrationRunInfo
 {
     public int MigrationRunId { get; set; }
-    public Guid RunId { get; set; }
+    public string Environment { get; set; } = string.Empty;
     public DateTime StartedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
     public MigrationOperation Operation { get; set; }
     public MigrationRunResult Result { get; set; }
     public MigrationRunMode RunMode { get; set; }
-    public string? InitiatedBy { get; set; }
     public int TotalMigrations { get; set; }
     public int SuccessfulMigrations { get; set; }
     public int FailedMigrations { get; set; }
+    public string? FromRelease { get; set; }   // the highest Migrated release when the run started; null for a first run
     public string? ToRelease { get; set; }
 }
 ```
@@ -421,6 +425,8 @@ public class MigrationFileResult
     public string FileName { get; set; } = string.Empty;
     public string ReleaseVersion { get; set; } = string.Empty;
     public string TargetGroup { get; set; } = string.Empty;
+    public string? TargetAlias { get; set; }    // null when the entry summarizes all targets (a file that succeeded in FileByFile order)
+    public int MigrationRecordId { get; set; }  // 0 when no record exists or applies
     public bool Success { get; set; }
     public string? ErrorMessage { get; set; }
     public DateTime ExecutedAt { get; set; }
@@ -453,7 +459,6 @@ public class HashValidationIssue
 public class MigrationService : IMigrationService
 {
     private readonly ILogger<MigrationService> _logger;
-    private readonly IOptions<RayMigratorOptions> _options;
     private readonly TemplateExecutor _templateExecutor;
     private readonly IMigrationContextAccessor _ctxAccessor;
     private readonly IServiceProvider _serviceProvider;
@@ -461,14 +466,12 @@ public class MigrationService : IMigrationService
 
     public MigrationService(
         ILogger<MigrationService> logger,
-        IOptions<RayMigratorOptions> options,
         TemplateExecutor templateExecutor,
         IMigrationContextAccessor ctxAccessor,
         IServiceProvider serviceProvider,
         ICliToolExecutor cliToolExecutor)
     {
         _logger = logger;
-        _options = options;
         _templateExecutor = templateExecutor;
         _ctxAccessor = ctxAccessor;
         _serviceProvider = serviceProvider;
@@ -476,6 +479,8 @@ public class MigrationService : IMigrationService
     }
 }
 ```
+
+The service reads the configuration of the current run (products, CLI tools, repository) from `_ctxAccessor.Current.RayMigratorOptions`, never from `IOptions<RayMigratorOptions>`. A host that runs one context per operation therefore needs no options registration in its container; the CLI pipeline binds `IOptions` only to validate the files and hands the value to the context factory.
 
 ### Constants
 
@@ -1378,6 +1383,20 @@ public async Task MigrateUp_ShouldSucceed_WhenValidRequest()
 }
 ```
 
+## Progress events
+
+The three run operations report their progress through `MigrationContext.ProgressObserver` (`IMigrationProgressObserver`, namespace `Raycoon.RayMigrator.Core.Progress`). The public methods are thin wrappers around the execution bodies: they reset the run-started flag and raise the completion from the result, so an operation that ends before its run row exists still reports a matching start.
+
+| Event | Raised | Carries |
+|-------|--------|---------|
+| `RunStartedEvent` | once, after the run row exists (migrate-up, migrate-down, baseline); before the completion when the operation ended earlier | product, environment, command, run mode, `MigrationRunId` (0 without a run row), `FromRelease`, `TargetRelease` |
+| `FileStartedEvent` | per file and target, after the record exists and the resume offset is known; for rollbacks after the record is set to Executing; for baseline before the record is written | operation (`MigrateUp`, `MigrateDown`, `Rollback` for error recovery, `Baseline`), release, target group, target, file, `FileOrderId`, `MigrationRecordId`, `BlocksTotal`, `ResumeFromBlock` |
+| `BlockCompletedEvent` | per executed SQL block on the block-by-block, atomic and simulate paths, migrations and rollbacks; not for files that run through a CLI tool | block number and total, `Success` (false only under the Ignore error action), error message |
+| `FileCompletedEvent` | per file and target | `FileOutcome`: `Migrated`, `Recovered`, `Simulated`, `Failed`, `FailedIgnored`, `RolledBack`, `RollbackFailed`, `Baselined`; duration; error message |
+| `RunCompletedEvent` | once per operation, as the last event | success, persisted `MigrationRunResult` (null for baseline), the counts of the result, duration, error message |
+
+On the atomic shared-connection path the blocks of a file commit together with the repository update at the end of the file, so a block reported there is durable only once its `FileCompletedEvent` follows. Validate-hash, update-hash, fix, info and history raise no events. The engine calls the observer synchronously on the thread of the run; an observer that throws is logged at Warning and the run continues. `NullMigrationProgressObserver.Instance` is the default; the CLI sets no observer.
+
 ## DI Registration
 
 **Location**: `Raycoon.RayMigrator.Services/ServiceCollectionExtensions.cs`
@@ -1395,7 +1414,7 @@ public static IServiceCollection AddRayMigratorServices(
     if (hostMode == RayMigratorHostMode.Cli)
         services.AddSingleton<IMigrationContextAccessor, SingletonMigrationContextAccessor>();
     else
-        services.AddScoped<IMigrationContextAccessor, AsyncLocalMigrationContextAccessor>();
+        services.AddSingleton<IMigrationContextAccessor, AsyncLocalMigrationContextAccessor>();
 
     services.AddSingleton<IMigrationContextFactory, MigrationContextFactory>();
 
@@ -1403,10 +1422,11 @@ public static IServiceCollection AddRayMigratorServices(
 }
 ```
 
-- **CLI mode** (`RayMigratorHostMode.Cli`): Uses `SingletonMigrationContextAccessor` (single shared context).
-- **API mode** (`RayMigratorHostMode.Api`): Uses `AsyncLocalMigrationContextAccessor` (per-request context isolation via `AsyncLocal<T>`).
-- `IMigrationContextFactory` is always a singleton (stateless factory).
+- **CLI mode** (`RayMigratorHostMode.Cli`): `SingletonMigrationContextAccessor`, one context for the whole process.
+- **API mode** (`RayMigratorHostMode.Api`): `AsyncLocalMigrationContextAccessor`, one context per async flow through a static `AsyncLocal<T>`. It is a singleton too; a scoped registration would isolate nothing and would make the singleton factory a captive dependency.
+- `IMigrationContextFactory` is a singleton that takes the accessor and a logger; it is the entry point of a host for one run (see [MigrationContext](../02-core-concepts/migration-context.md#hosting-the-engine-in-process)).
 - `ICliToolExecutor` / `CliToolExecutor` is registered as scoped for external SQL tool execution.
+- Not registered here and supplied by the host: `TemplateCache` (one per process), `TemplateExecutor` (scoped per run), `DatabaseLogWriter`, logging.
 
 ## Related Documentation
 
