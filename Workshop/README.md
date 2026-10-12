@@ -82,6 +82,8 @@ Every command and every expected output in the exercise READMEs was captured fro
 
 Changes that came with 0.16.0 and are part of the material: three Information lines in every run (`Transient error codes ... loaded from [TransientErrorCodes.txt]`, `Repository created` on first contact, `Target [MainDB] ... shares the repository connection`), the `RULE_7_3` hint printing `{ENV:VARIABLE}` with single braces, and `RunAlways` files that keep re-running from an older release (bonus exercise D).
 
+Changes on the way to 0.17.0 that the material already describes: an empty `-env` exits with code `3` whether or not `DOTNET_ENVIRONMENT` is set (cheat sheet), and the `RULE_7_3` hint no longer appears for a connection string that comes from an `{ENV:VARIABLE}` placeholder (bonus exercise A, issue #30). With 0.16.0 the two hints still show in exercise A.
+
 ## Licence
 
 The workshop material is part of the RayMigrator repository and is licensed under the same terms, see [LICENSE.md](../LICENSE.md).

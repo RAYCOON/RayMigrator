@@ -1070,13 +1070,13 @@ raymigrator migrate-up -p BookStore -env Production -cd /run/secrets/raymigrator
 - Resolved after the files are merged, before validation. Names are case-sensitive.
 - Logs and the `MigrationRunMeta` snapshot mask connection strings, schema names, paths and resolved values as `*** HIDDEN ***`.
 - `--reveal-sensitive-data true` (`-rsd`) lifts the mask for one run. Never in production.
-- RULE_7_3 flags a literal `Password=` / `Pwd=`.
+- RULE_7_3 flags a literal `Password=` / `Pwd=` in the file, never a placeholder.
 
 </div>
 </div>
 
 <!--
-Timing: 1:00. Bonus exercise A does this with the workshop configuration. The CLI runs the rule catalog after placeholder resolution, so RULE_7_3 still fires when the value came from a variable; the Config Wizard checks the unresolved file and shows no hint for a placeholder.
+Timing: 1:00. Bonus exercise A does this with the workshop configuration. RULE_7_3 checks the connection strings as written in the files, so the hint disappears once the value comes from a variable, in the CLI as in the Config Wizard. 0.16.0 still printed the hint after placeholder resolution (issue #30, fixed in 0.17.0).
 -->
 
 ---
