@@ -2,6 +2,7 @@ using AwesomeAssertions;
 using Raycoon.RayMigrator.Core;
 using Raycoon.RayMigrator.Core.Configuration;
 using Raycoon.RayMigrator.Core.Configuration.Enums;
+using Raycoon.RayMigrator.Core.Progress;
 using Raycoon.RayMigrator.Services.Abstractions;
 using Raycoon.RayMigrator.Testing;
 
@@ -15,6 +16,7 @@ namespace Raycoon.RayMigrator.Tests.Engine.Infrastructure;
 public class ScenarioContext : IAsyncDisposable
 {
     private EngineTestHost _host;
+    private IMigrationProgressObserver? _progressObserver;
     private readonly RepositoryQueryHelper _queryHelper;
     private readonly EngineConfig _engineConfig;
     private readonly string _workDir;
@@ -245,6 +247,15 @@ public class ScenarioContext : IAsyncDisposable
     public Core.Configuration.Options.RayMigratorConsoleOptions HostConsoleOptions => _host.MigrationContext.RayMigratorConsoleOptions;
 
     /// <summary>
+    /// Sets the progress observer of the host's context, and of every context a later rebuild creates.
+    /// </summary>
+    public void UseProgressObserver(IMigrationProgressObserver observer)
+    {
+        _progressObserver = observer;
+        _host.MigrationContext.ProgressObserver = observer;
+    }
+
+    /// <summary>
     /// Rebuilds the DI container for a different command/mode without cleaning databases.
     /// Used for multi-step test scenarios (e.g., Migrate-Up then Migrate-Down).
     /// </summary>
@@ -254,6 +265,11 @@ public class ScenarioContext : IAsyncDisposable
         _host.Dispose();
         _host = new EngineTestHost();
         _host.Build(_configPath, _productAlias, command, mode, toRelease, _environment);
+        if (_progressObserver != null)
+        {
+            _host.MigrationContext.ProgressObserver = _progressObserver;
+        }
+
         return Task.CompletedTask;
     }
 

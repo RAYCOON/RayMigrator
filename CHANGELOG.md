@@ -7,6 +7,18 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ## [Unreleased]
 
+### Added
+
+- Typed progress events for hosts. `MigrationContext.ProgressObserver` takes an
+  `IMigrationProgressObserver` (namespace `Raycoon.RayMigrator.Core.Progress`)
+  that receives `RunStartedEvent` (after the run row exists, with its id),
+  `FileStartedEvent` and `FileCompletedEvent` for every file on every target
+  (migration, rollback and baseline, with the record id and a `FileOutcome`),
+  `BlockCompletedEvent` for every executed SQL block, and `RunCompletedEvent`
+  with the result. A host shows progress without parsing log text. An
+  observer that throws is logged and the run continues. The default observer
+  ignores every event; the CLI does not use them.
+
 ### Changed
 
 - `IMigrationContextFactory` is the entry point of a host for one run, the CLI
