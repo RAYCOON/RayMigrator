@@ -364,30 +364,22 @@ public class TemplateExecutor
 }
 ```
 
-### TemplateCache (Decoupled from MigrationContext)
+### TemplateCache (Decoupled from MigrationContext and from the options)
 
 ```csharp
 public class TemplateCache
 {
-    private readonly RayMigratorOptions? _options;
     private readonly bool _revealSensitiveData;
     private readonly ILogger _logger;
 
-    public TemplateCache(
-        IOptions<RayMigratorOptions>? options,
-        bool revealSensitiveData,
-        ILogger<TemplateCache> logger,
-        bool validateConfiguration = true)
+    public TemplateCache(bool revealSensitiveData, ILogger<TemplateCache> logger)
     {
-        _options = options?.Value;
         _revealSensitiveData = revealSensitiveData;
         _logger = logger;
         Initialize();
-        if (validateConfiguration && _options != null)
-            ValidateConfigurationAgainstTemplateCache(_options);
     }
 
-    /// Can be called on-demand when Products/Repository config becomes available
+    /// Called by the host for every configuration it runs; the CLI pipeline calls it once after the options are bound
     public void ValidateConfigurationAgainstTemplateCache(RayMigratorOptions options) { ... }
 
     /// Gets all available DAL names (e.g. "SqlServer", "PostgreSQL", "MariaDb", "MySql")

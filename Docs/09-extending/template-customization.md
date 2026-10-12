@@ -520,8 +520,7 @@ public class TemplateCache
     // {ENV:*} placeholders are replaced during Initialize() (once at startup)
     // {CFG:*} placeholders are replaced per call in GetTemplate/GetRepositoryTemplate
 
-    public TemplateCache(IOptions<RayMigratorOptions>? options, bool revealSensitiveData,
-        ILogger<TemplateCache> logger, bool validateConfiguration = true) { ... }
+    public TemplateCache(bool revealSensitiveData, ILogger<TemplateCache> logger) { ... }
 
     // Template retrieval (all replace {CFG:*} placeholders via reflection)
     public Template GetTemplate<T>(string databaseType, TemplateType templateType, T propertyClass) { ... }
@@ -535,7 +534,7 @@ public class TemplateCache
 }
 ```
 
-The `validateConfiguration` constructor parameter (default `true`) controls whether Products/Repository configuration is validated against loaded templates at construction time. Set to `false` when Products/Repository config is not yet known at construction time.
+The constructor loads the templates only. `ValidateConfigurationAgainstTemplateCache(options)` checks that the Repository, the DatabaseLogging and every TargetGroup `DatabaseType` of a configuration has templates; the CLI pipeline calls it once after the options are bound, a host for every configuration it runs.
 
 ## Testing Custom Templates
 

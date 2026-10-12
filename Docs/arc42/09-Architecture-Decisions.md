@@ -125,7 +125,7 @@ a rebuild.
 `TemplateType` (21 besides `Undefined`), loaded by `TemplateCache` at startup and executed by `TemplateExecutor`. Every template
 returns one scalar `ResultCode,ResultMessage`; negative codes map to the `TemplateResultCode` catalog and raise
 `TemplateResultException`. Placeholders are `{ENV:*}` (once, at load), `{CFG:*}` (per call, `SchemaName` and `TableBaseName` only)
-and `@Parameter` bindings; `TemplateCache` checks completeness at startup; `validateConfiguration = false` only skips the check that every configured `DatabaseType` has a template folder.
+and `@Parameter` bindings; `TemplateCache` checks completeness at startup, and `ValidateConfigurationAgainstTemplateCache` checks per configuration that every configured `DatabaseType` has a template folder.
 
 **Consequences.** Positive: no ORM, engine specific locking primitives (`UPDLOCK, HOLDLOCK`, `pg_advisory_xact_lock`, `GET_LOCK`)
 live in SQL where they belong, and a DBA can customize a template. Negative: 21 templates times five engines to keep in sync, a
