@@ -54,7 +54,7 @@ sequenceDiagram
     P->>ER: Resolve(consoleOptions, assemblyInfo)
     ER-->>P: environment and origin (conflict: exit 2, blank: exit 3)
     P->>JOS: LoadAsync(product, environment)
-    JOS-->>P: OptionsSourceResult (merged RayMigrator section, ENV placeholders replaced, file diagnostics)
+    JOS-->>P: OptionsSourceResult (merged RayMigrator section, ENV placeholders replaced, the section as written, file diagnostics)
     P->>DMP: ExecuteAsync(args, sourceResult, consoleOptions, assemblyInfo, environment, origin)
     DMP->>DMP: Serilog node present? (no: exit 4), SerilogFactory.Create
     DMP->>DMP: LogEnvironmentVariableReplacements (unresolved placeholder: ApplicationStartupException)

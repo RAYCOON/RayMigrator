@@ -65,6 +65,8 @@ Implementation lives in the `Raycoon.RayMigrator.Validation` project:
 | RULE_7_2 | DUPLICATE_TARGET_CONNECTION | Warning | Two Targets in the same TargetGroup share a `ConnectionString` — migrations would run twice on the same database. |
 | RULE_7_3 | HARDCODED_CREDENTIALS | Warning | A `ConnectionString` contains `Password=...` or `Pwd=...` not wrapped in `{ENV:VAR}`. Consider moving the credential to an environment variable. |
 
+RULE_7_3 inspects the connection strings **as written** in the files, in the engine and in the wizard alike: a credential that enters through an `{ENV:VAR}` placeholder is not hardcoded, whatever the variable resolves to, while a literal `Password=` next to a placeholder is still reported (#30). RULE_7_1 and RULE_7_2 compare the **effective** values: the engine compares the resolved connection strings, so two different variables that name the same database are detected; the wizard has no environment and compares the values as written.
+
 ### Group 8 — Default-cascade completeness
 
 | Code | Name | Severity | What it checks |

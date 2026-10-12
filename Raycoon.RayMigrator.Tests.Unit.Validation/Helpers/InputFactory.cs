@@ -66,11 +66,13 @@ internal static class InputFactory
         string? useCliToolAlias = null,
         string? effectiveUseCliToolAlias = null,
         IReadOnlyDictionary<string, string>? cliToolParameters = null,
-        IReadOnlyDictionary<string, string>? effectiveCliToolParameters = null)
+        IReadOnlyDictionary<string, string>? effectiveCliToolParameters = null,
+        string? effectiveConnectionString = null)
         => new()
         {
             Alias = alias,
             ConnectionString = connectionString,
+            EffectiveConnectionString = effectiveConnectionString,
             UseCliToolAlias = useCliToolAlias,
             EffectiveUseCliToolAlias = effectiveUseCliToolAlias ?? useCliToolAlias,
             CliToolParameters = cliToolParameters,

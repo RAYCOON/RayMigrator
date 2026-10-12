@@ -1,7 +1,9 @@
 using AwesomeAssertions;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Raycoon.RayMigrator.Core.Configuration.Options;
 using Raycoon.RayMigrator.Core.Configuration.Validation;
+using Raycoon.RayMigrator.Validation;
 
 namespace Raycoon.RayMigrator.Tests.Unit;
 
@@ -645,5 +647,133 @@ public class RayMigratorOptionsValidatorTests
         var result = _validator.Validate(null, options);
 
         result.Succeeded.Should().BeTrue();
+    }
+
+    // === RULE_7_3 on the configuration as written (#30) ===
+
+    private const string ResolvedRepositoryConnection = "Server=localhost;Database=Repo;User Id=sa;Password=secret;";
+    private const string ResolvedTargetConnection = "Server=localhost;Database=Shop;User Id=sa;Password=secret;";
+
+    /// <summary>
+    /// Builds the RayMigrator section as it would be read from the files, before placeholder resolution.
+    /// Keys are relative to the section.
+    /// </summary>
+    private static IConfigurationSection SectionAsWritten(params (string Key, string Value)[] values)
+    {
+        var root = new ConfigurationBuilder()
+            .AddInMemoryCollection(values.ToDictionary(v => "RayMigrator:" + v.Key, v => (string?)v.Value))
+            .Build();
+
+        return root.GetSection("RayMigrator");
+    }
+
+    private static RayMigratorOptions CreateResolvedOptionsWithCredentials()
+    {
+        var options = CreateValidOptions();
+        options.Repository!.ConnectionString = ResolvedRepositoryConnection;
+        options.Products = [MakeProduct("Shop", MakeTG("Backend", targets: MakeTarget("Main", ResolvedTargetConnection)))];
+        return options;
+    }
+
+    [Fact]
+    public void GetReport_CredentialsSuppliedThroughPlaceholders_DoesNotReportHardcodedCredentials()
+    {
+        // Arrange
+        var options = CreateResolvedOptionsWithCredentials();
+        var written = SectionAsWritten(
+            ("Repository:ConnectionString", "{ENV:REPO_CONNECTION}"),
+            ("Products:0:TargetGroups:0:Targets:0:ConnectionString", "Server=localhost;Database=Shop;User Id=sa;Password={ENV:SA_PASSWORD};"));
+
+        // Act
+        var report = RayMigratorOptionsValidator.GetReport(options, written);
+
+        // Assert
+        report.Warnings.Should().NotContain(w => w.Code == RuleIds.RULE_7_3,
+            because: "the credentials entered through placeholders and the file contains none (#30)");
+        report.IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public void GetReport_CredentialsWrittenIntoTheFile_ReportsHardcodedCredentialsAtBothPaths()
+    {
+        // Arrange
+        var options = CreateResolvedOptionsWithCredentials();
+        var written = SectionAsWritten(
+            ("Repository:ConnectionString", ResolvedRepositoryConnection),
+            ("Products:0:TargetGroups:0:Targets:0:ConnectionString", ResolvedTargetConnection));
+
+        // Act
+        var report = RayMigratorOptionsValidator.GetReport(options, written);
+
+        // Assert
+        report.Warnings.Where(w => w.Code == RuleIds.RULE_7_3).Select(w => w.Path).Should().BeEquivalentTo(
+            "Repository > ConnectionString",
+            "Products > Shop > TargetGroups > Backend > Targets > Main > ConnectionString");
+    }
+
+    [Fact]
+    public void GetReport_WithoutSectionAsWritten_ChecksTheBoundConnectionStrings()
+    {
+        // Arrange
+        var options = CreateResolvedOptionsWithCredentials();
+
+        // Act
+        var report = RayMigratorOptionsValidator.GetReport(options);
+
+        // Assert
+        report.Warnings.Should().Contain(w => w.Code == RuleIds.RULE_7_3,
+            because: "without the section as written the bound values are all the validator has (engine tests, Admin-DB mode)");
+    }
+
+    [Fact]
+    public void GetReport_PlaceholderOnlyForOneConnectionString_ReportsTheOtherOne()
+    {
+        // Arrange
+        var options = CreateResolvedOptionsWithCredentials();
+        var written = SectionAsWritten(
+            ("Repository:ConnectionString", "{ENV:REPO_CONNECTION}"),
+            ("Products:0:TargetGroups:0:Targets:0:ConnectionString", ResolvedTargetConnection));
+
+        // Act
+        var report = RayMigratorOptionsValidator.GetReport(options, written);
+
+        // Assert
+        report.Warnings.Where(w => w.Code == RuleIds.RULE_7_3).Select(w => w.Path).Should().ContainSingle()
+            .Which.Should().Be("Products > Shop > TargetGroups > Backend > Targets > Main > ConnectionString");
+    }
+
+    [Fact]
+    public void GetReport_DifferentPlaceholdersResolvingToOneDatabase_StillReportsSharedConnection()
+    {
+        // Arrange
+        var options = CreateResolvedOptionsWithCredentials();
+        options.Products![0].TargetGroups![0].Targets![0].ConnectionString = ResolvedRepositoryConnection;
+        var written = SectionAsWritten(
+            ("Repository:ConnectionString", "{ENV:REPO_CONNECTION}"),
+            ("Products:0:TargetGroups:0:Targets:0:ConnectionString", "{ENV:SHOP_CONNECTION}"));
+
+        // Act
+        var report = RayMigratorOptionsValidator.GetReport(options, written);
+
+        // Assert
+        report.Warnings.Should().ContainSingle(w => w.Code == RuleIds.RULE_7_1,
+            because: "RULE_7_1 compares the resolved values, so two variables naming one database are still detected");
+        report.Warnings.Should().NotContain(w => w.Code == RuleIds.RULE_7_3);
+    }
+
+    [Fact]
+    public void Validate_CredentialsSuppliedThroughPlaceholders_Succeeds()
+    {
+        // Arrange
+        var options = CreateResolvedOptionsWithCredentials();
+        var validator = new RayMigratorOptionsValidator(SectionAsWritten(
+            ("Repository:ConnectionString", "{ENV:REPO_CONNECTION}"),
+            ("Products:0:TargetGroups:0:Targets:0:ConnectionString", "{ENV:SHOP_CONNECTION}")));
+
+        // Act
+        var result = validator.Validate(null, options);
+
+        // Assert
+        result.Succeeded.Should().BeTrue(because: "RULE_7_3 is a warning and the section as written only changes what it inspects");
     }
 }

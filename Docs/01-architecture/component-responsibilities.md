@@ -338,7 +338,7 @@ public string TargetAlias { get; set; }
 | Class | Purpose |
 |-------|---------|
 | `IOptionsSource` | Interface for loading `RayMigratorOptions` from different sources (JSON files or alternative stores). Defines `LoadAsync(product, environment)` returning `OptionsSourceResult`. |
-| `OptionsSourceResult` | Result of configuration loading. Contains `RayMigratorConfigSection`, `PreBuiltOptions` (pre-built mode), `ReplacedEnvironmentVariables`, `HostConfiguration` (JSON mode), `ModeName`, and `ConfigFileDiagnostics`. |
+| `OptionsSourceResult` | Result of configuration loading. Contains `RayMigratorConfigSection`, `RayMigratorConfigSectionAsWritten` (the section before placeholder resolution, JSON mode), `PreBuiltOptions` (pre-built mode), `ReplacedEnvironmentVariables`, `HostConfiguration` (JSON mode), `ModeName`, and `ConfigFileDiagnostics`. |
 
 ### `EnvironmentResolver`
 **Location**: `Raycoon.RayMigrator.Core/Configuration/EnvironmentResolver.cs`
@@ -369,7 +369,7 @@ Validation is split across two projects. The **shared rule catalog** lives in `R
 
 | Class | Purpose |
 |-------|---------|
-| `RayMigratorOptionsValidator` | `IValidateOptions<RayMigratorOptions>` — wires the engine into the shared catalog. Delegates to `OptionsValidationInputAdapter` to flatten `RayMigratorOptions` into `ValidationInput`, runs `RuleCatalog.RunAll`, emits warnings via static `Serilog.Log`, and fails `ValidateOptionsResult` on any error-severity issues. Registered in DI and triggered via `.ValidateOnStart()` in `DirectModePipeline`. |
+| `RayMigratorOptionsValidator` | `IValidateOptions<RayMigratorOptions>` — wires the engine into the shared catalog. Delegates to `OptionsValidationInputAdapter` to flatten `RayMigratorOptions` into `ValidationInput` (connection strings taken from the section as written, so `RULE_7_3` sees placeholders instead of resolved credentials, #30), runs `RuleCatalog.RunAll`, emits warnings via static `Serilog.Log`, and fails `ValidateOptionsResult` on any error-severity issues. Registered in DI and triggered via `.ValidateOnStart()` in `DirectModePipeline`. |
 | `OptionsValidationInputAdapter` | Static mapper `RayMigratorOptions` → `ValidationInput`. Assumes defaults have already been merged by `ProductDefaultsPostConfigureOptions`. |
 | `ProductDefaultsPostConfigureOptions` | `IPostConfigureOptions<RayMigratorOptions>` — merges `ProductDefaults` into each `Product`, `TargetGroup`, and `Target`. Runs before `RayMigratorOptionsValidator`. Delegates to the public static `MergeDefaults(RayMigratorOptions)` method. |
 | `SchemaNameValidator` | Static pipeline-level check that validates `SchemaName` against `DalSpecificProperties.SupportsSchema` after DAL discovery. Complements (does not overlap) the catalog's structural `RULE_4_1` / `RULE_4_2` by bringing in DAL-specific knowledge. |

@@ -143,7 +143,11 @@ public static class DirectModePipeline
                                 .ValidateOnStart();
 
                             services.AddTransient<IPostConfigureOptions<RayMigratorOptions>, ProductDefaultsPostConfigureOptions>();
-                            services.AddSingleton<IValidateOptions<RayMigratorOptions>, RayMigratorOptionsValidator>();
+
+                            // The validator reads the connection strings from the section as written, so that
+                            // RULE_7_3 sees the {ENV:...} placeholder and not the resolved credential (#30).
+                            services.AddSingleton<IValidateOptions<RayMigratorOptions>>(
+                                new RayMigratorOptionsValidator(sourceResult.RayMigratorConfigSectionAsWritten));
                         }
 
                         services.AddSingleton(consoleOptions);

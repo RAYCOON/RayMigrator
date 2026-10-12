@@ -9,6 +9,16 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ### Fixed
 
+- `RULE_7_3` (hardcoded credential) no longer fires for a connection string
+  that supplies its credential through an `{ENV:VARIABLE}` placeholder. The
+  CLI ran the rule catalog on the resolved values, so a placeholder resolving
+  to `...;Password=...;` was reported as a hardcoded credential and the hint
+  recommended exactly what the configuration already did, while the Config
+  Wizard showed no hint for the same files. The validator now checks the
+  connection strings as they are written in the files; a literal
+  `Password=` next to a placeholder is still reported. `RULE_7_1` and
+  `RULE_7_2` keep comparing the resolved values, so two variables that name
+  the same database are still detected. (#30)
 - An empty or whitespace `--environment` value no longer falls back to
   `DOTNET_ENVIRONMENT`. The resolver reported the variable's value in the
   startup line while the rest of the run used the empty option value: `info`

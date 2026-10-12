@@ -330,7 +330,7 @@ Authoritative pages: [Command reference](https://github.com/RAYCOON/RayMigrator/
 
 RayMigrator stores no secrets. Connection strings, `CliToolParameters` and any other string value are expected as `{ENV:NAME}`
 placeholders resolved by `EnvironmentVariableReplacer` at startup; `RULE_7_3` warns about a `Password=` or `Pwd=` literal outside
-a placeholder. Every resolved environment value and, through `SensitiveDataMasker.RegisterSensitiveData`, all connection strings,
+a placeholder and inspects the files as written, so a credential that arrives through a placeholder is not reported (#30). Every resolved environment value and, through `SensitiveDataMasker.RegisterSensitiveData`, all connection strings,
 `SchemaName`, `TableBaseName` and `MigrationFilesRootDirectory` are replaced with `*** HIDDEN ***` at the call sites that log SQL
 blocks, template content and the `MigrationRunSettingsJson` snapshot; `--reveal-sensitive-data` (`-rsd`) disables the masker for
 one run. `CliToolExecutor` never logs the rendered argument string and starts the process with `UseShellExecute = false`, passing

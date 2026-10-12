@@ -16,7 +16,8 @@ namespace Raycoon.RayMigrator.Pipeline;
 /// and product+environment-specific file, in that order (<see cref="ConfigurationFileChain"/>).
 /// The files are merged as JSON documents with <see cref="ConfigurationJsonMerger"/> before they enter the
 /// configuration builder, so arrays whose elements carry an <c>Alias</c> merge by alias and every other array
-/// is replaced by the later file (#23). Replaces {ENV:...} placeholders with environment variable values.
+/// is replaced by the later file (#23). Replaces {ENV:...} placeholders with environment variable values and keeps
+/// the section as written for the validator (#30).
 /// </summary>
 public class JsonOptionsSource : IOptionsSource
 {
@@ -58,6 +59,7 @@ public class JsonOptionsSource : IOptionsSource
             product, environment, _basePath);
 
         IConfigurationSection rayMigratorConfigurationSection;
+        IConfigurationSection rayMigratorConfigurationSectionAsWritten;
         List<EnvironmentVariableWithMetadata> replacedEnvironmentVariables;
         IConfigurationRoot hostConfiguration;
         var configFilesSearched = new List<(string Filename, bool Found)>();
@@ -84,8 +86,10 @@ public class JsonOptionsSource : IOptionsSource
             replacedEnvironmentVariables = EnvironmentVariableReplacer.ReplaceWithEnvironmentVariables(rayMigratorConfigurationSection);
             _logger?.LogDebug("Environment variable replacement completed: {Count} variable(s) replaced", replacedEnvironmentVariables.Count);
 
-            // The host configuration is a second, untouched build of the same merged document.
+            // The host configuration is a second, untouched build of the same merged document. Its RayMigrator
+            // section is therefore the configuration as written, which the validator needs for RULE_7_3 (#30).
             hostConfiguration = BuildConfiguration(mergedJson);
+            rayMigratorConfigurationSectionAsWritten = hostConfiguration.GetSection(InternalConstants.RayMigratorSectionName);
         }
         catch (Exception ex) when (ex is not ConfigurationValidationException)
         {
@@ -97,6 +101,7 @@ public class JsonOptionsSource : IOptionsSource
         var result = new OptionsSourceResult
         {
             RayMigratorConfigSection = rayMigratorConfigurationSection,
+            RayMigratorConfigSectionAsWritten = rayMigratorConfigurationSectionAsWritten,
             PreBuiltOptions = null, // JSON mode: resolved via DI
             ReplacedEnvironmentVariables = replacedEnvironmentVariables,
             HostConfiguration = hostConfiguration,

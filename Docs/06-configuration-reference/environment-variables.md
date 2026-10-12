@@ -27,6 +27,8 @@ Placeholders are resolved at runtime before configuration is bound to options cl
 4. Resolved environment variable values are registered with the `SensitiveDataMasker` for automatic masking in trace logs
 5. Configuration is bound to strongly-typed options classes
 
+Configuration validation runs on the resolved values. The one exception is `RULE_7_3` (hardcoded credential), which inspects the connection strings as they are written in the files: a credential supplied through a placeholder is not reported, a literal `Password=` next to a placeholder is (#30).
+
 ## Environment Variables in SQL Migration Files
 
 The same `{ENV:VARIABLE_NAME}` syntax can be used directly in SQL migration file content. This allows dynamic values like admin usernames, default passwords, or environment-specific settings to be injected into migration files at execution time.

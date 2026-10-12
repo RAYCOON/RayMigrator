@@ -44,8 +44,10 @@ services.AddTransient<IPostConfigureOptions<RayMigratorOptions>,
     ProductDefaultsPostConfigureOptions>();
 
 // IValidateOptions implementation that delegates to the shared rule catalog
-// (Raycoon.RayMigrator.Validation.RuleCatalog).
-services.AddSingleton<IValidateOptions<RayMigratorOptions>, RayMigratorOptionsValidator>();
+// (Raycoon.RayMigrator.Validation.RuleCatalog). The section as written lets RULE_7_3
+// inspect connection strings before {ENV:...} placeholders are resolved.
+services.AddSingleton<IValidateOptions<RayMigratorOptions>>(
+    new RayMigratorOptionsValidator(sourceResult.RayMigratorConfigSectionAsWritten));
 
 // PostConfigure delegates to a static method for reuse outside the DI pipeline
 public class ProductDefaultsPostConfigureOptions : IPostConfigureOptions<RayMigratorOptions>

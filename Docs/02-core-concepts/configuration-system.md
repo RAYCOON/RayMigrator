@@ -215,6 +215,8 @@ All string configuration values support `{ENV:VARIABLE_NAME}` syntax. Placeholde
 
 A single configuration value can contain multiple placeholders (e.g., `"Server={ENV:DB_HOST};Database={ENV:DB_NAME}"`). If an environment variable does not exist, its placeholder is replaced with `null` (no exception at replacement time), but the startup process logs an error and aborts.
 
+Validation runs on the resolved values, with one exception: `RULE_7_3` (hardcoded credential) inspects the connection strings as they are written in the files, so a credential that enters through a placeholder is never reported as hardcoded (#30). `JsonOptionsSource` keeps the unresolved section for that purpose in `OptionsSourceResult.RayMigratorConfigSectionAsWritten`, and `DirectModePipeline` hands it to `RayMigratorOptionsValidator`.
+
 ```json
 {
   "RayMigrator": {
@@ -283,6 +285,7 @@ Configuration loading is abstracted behind the `IOptionsSource` interface (names
 The `OptionsSourceResult` (namespace `Raycoon.RayMigrator.Core.Configuration.Sources`) carries all data needed by the `DirectModePipeline`:
 
 - `RayMigratorConfigSection` (`IConfigurationSection`, required) -- Used for Serilog configuration reading and verbose output
+- `RayMigratorConfigSectionAsWritten` (`IConfigurationSection?`) -- The same section before `{ENV:*}` placeholders were resolved (JSON mode); `RayMigratorOptionsValidator` reads the connection strings from it for `RULE_7_3` (#30)
 - `PreBuiltOptions` (`RayMigratorOptions?`) -- Pre-built options supplied by the caller; when null, options are resolved via DI binding from the `HostConfiguration`
 - `ReplacedEnvironmentVariables` (`List<EnvironmentVariableWithMetadata>`) -- Environment variables replaced during loading
 - `HostConfiguration` (`IConfigurationRoot?`) -- Configuration root to add to the DI host builder (JSON mode)
@@ -294,7 +297,7 @@ The `OptionsSourceResult` (namespace `Raycoon.RayMigrator.Core.Configuration.Sou
 Options are validated at startup via three layered mechanisms, wired up in `DirectModePipeline.cs`:
 
 1. **Data annotation validation** (`.ValidateDataAnnotations()`): property-level attributes on `RayMigratorOptions` and its subtypes — `[Required]`, `[RegularExpression]`, `[ValidateObjectMembers]`, `[ValidateEnumeratedItems]`, plus custom attributes (`[RayRangeInt]`, `[RayEnum]`, `[RayEncoding]`, `[RayConnectionString]`, `[RayDirectoryExists]`). These cover single-property shape checks, including WASM-unsafe ones like ADO.NET connection-string parsing and filesystem existence. `[RayEnum]` matches case-insensitively, and the `*Enum` getters on the options classes apply the same rule when they convert the validated string, so `"Rollback"` and `"rollback"` are equivalent everywhere. A non-empty value that is not an allowed member is reported before this step by `ProductDefaultsPostConfigureOptions`, which probes every enum getter once after merging the defaults and throws a single `ConfigurationValidationException` listing all invalid values with their location; the getters themselves throw the same exception for pre-built options that bypass validation (Admin-DB mode) instead of silently falling back to `Undefined`.
-2. **Shared rule catalog** (`RayMigratorOptionsValidator`, an `IValidateOptions<RayMigratorOptions>` implementation): delegates to the `RuleCatalog` in `Raycoon.RayMigrator.Validation` via `OptionsValidationInputAdapter`. Covers all cross-field and cross-section rules (duplicate aliases, CLI-tool parameter completeness, schema requirements, default-cascade completeness, connection-string hygiene). The same catalog runs inside the ConfigWizard's Overview panel, so engine startup and wizard preview agree on what is valid.
+2. **Shared rule catalog** (`RayMigratorOptionsValidator`, an `IValidateOptions<RayMigratorOptions>` implementation): delegates to the `RuleCatalog` in `Raycoon.RayMigrator.Validation` via `OptionsValidationInputAdapter`. Covers all cross-field and cross-section rules (duplicate aliases, CLI-tool parameter completeness, schema requirements, default-cascade completeness, connection-string hygiene). The validator receives the section as written in addition to the bound options, so `RULE_7_3` checks the connection strings before placeholder resolution. The same catalog runs inside the ConfigWizard's Overview panel, so engine startup and wizard preview agree on what is valid.
 3. **`.ValidateOnStart()`**: forces both mechanisms above to run during `host.Build()` rather than lazily on first `IOptions<T>.Value`. A misconfigured production deployment fails fast with `OptionsValidationException` carrying rule-code-prefixed messages (`[RULE_3_8] Products > MyApp > ... : ...`) instead of surfacing the error on the first DB call.
 
 Warnings (non-blocking issues from the shared catalog) are emitted to the static `Serilog.Log` channel at `Warning` level before validation decides pass/fail; only errors cause `host.Build()` to throw.

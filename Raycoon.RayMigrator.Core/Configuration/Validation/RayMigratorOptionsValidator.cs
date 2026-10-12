@@ -1,5 +1,7 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Raycoon.RayMigrator.Core.Configuration.Options;
+using Raycoon.RayMigrator.Core.Configuration.Sources;
 using Raycoon.RayMigrator.Validation;
 using Raycoon.RayMigrator.Validation.Models;
 using Serilog;
@@ -14,6 +16,27 @@ namespace Raycoon.RayMigrator.Core.Configuration.Validation;
 /// </summary>
 public class RayMigratorOptionsValidator : IValidateOptions<RayMigratorOptions>
 {
+    private readonly IConfigurationSection? _sectionAsWritten;
+
+    /// <summary>Validates the bound values only; connection strings are checked as bound.</summary>
+    public RayMigratorOptionsValidator() : this(sectionAsWritten: null)
+    {
+    }
+
+    /// <summary>
+    /// Creates a validator that checks connection strings as they are written in the configuration.
+    /// </summary>
+    /// <param name="sectionAsWritten">
+    /// The RayMigrator section before <c>{ENV:...}</c> placeholders were resolved
+    /// (<see cref="OptionsSourceResult.RayMigratorConfigSectionAsWritten"/>). RULE_7_3 inspects the connection
+    /// strings as written there, so a credential supplied through a placeholder is not reported as hardcoded
+    /// (#30). Null checks the bound values as they are.
+    /// </param>
+    public RayMigratorOptionsValidator(IConfigurationSection? sectionAsWritten)
+    {
+        _sectionAsWritten = sectionAsWritten;
+    }
+
     public ValidateOptionsResult Validate(string? name, RayMigratorOptions options)
     {
         if (options is null)
@@ -21,7 +44,7 @@ public class RayMigratorOptionsValidator : IValidateOptions<RayMigratorOptions>
             return ValidateOptionsResult.Fail("RayMigratorOptions instance is null.");
         }
 
-        var input = OptionsValidationInputAdapter.ToInput(options);
+        var input = OptionsValidationInputAdapter.ToInput(options, _sectionAsWritten);
         var report = RuleCatalog.RunAll(input);
 
         foreach (var warning in report.Warnings)
@@ -54,12 +77,13 @@ public class RayMigratorOptionsValidator : IValidateOptions<RayMigratorOptions>
 
     /// <summary>
     /// Kept for diagnostic tooling: returns the full rule-catalog report (warnings + errors)
-    /// without mapping to <see cref="ValidateOptionsResult"/>.
+    /// without mapping to <see cref="ValidateOptionsResult"/>. <paramref name="sectionAsWritten"/> has the
+    /// meaning of the constructor parameter.
     /// </summary>
-    internal static ValidationReport GetReport(RayMigratorOptions options)
+    internal static ValidationReport GetReport(RayMigratorOptions options, IConfigurationSection? sectionAsWritten = null)
     {
-        if (options is null) throw new ArgumentNullException(nameof(options));
-        var input = OptionsValidationInputAdapter.ToInput(options);
+        ArgumentNullException.ThrowIfNull(options);
+        var input = OptionsValidationInputAdapter.ToInput(options, sectionAsWritten);
         return RuleCatalog.RunAll(input);
     }
 }

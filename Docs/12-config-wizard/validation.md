@@ -125,6 +125,8 @@ The Overview page renders `WizardValidationResult.Errors` and `Warnings` as sepa
 
 Connection strings containing `{ENV:VARIABLE_NAME}` skip both regex and ADO.NET syntax validation — the wizard trusts them as valid placeholders resolved at runtime by the engine.
 
+The shared `RULE_7_3` (hardcoded credential) reads connection strings as written in both places, so the engine shows the same hint as the wizard for the same files: none for a placeholder, one for a literal `Password=` (#30).
+
 Connection strings without `{ENV:}` are validated with a regex heuristic (at least one `key=value` pair) when `AdoNetParsing` is not in the capability set. This is intentionally lenient to accommodate third-party drivers.
 
 ## Related Documentation

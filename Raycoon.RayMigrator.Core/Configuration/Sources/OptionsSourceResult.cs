@@ -17,6 +17,15 @@ public class OptionsSourceResult
     public required IConfigurationSection RayMigratorConfigSection { get; init; }
 
     /// <summary>
+    /// The RayMigrator configuration section as written, before <c>{ENV:...}</c> placeholders were resolved
+    /// (JSON mode). <see cref="Validation.RayMigratorOptionsValidator"/> reads the connection strings from it, so
+    /// that RULE_7_3 reports a hardcoded credential only when the file contains one and not when the credential
+    /// enters through a placeholder (#30). Null when the source has no unresolved form (Admin-DB mode); the bound
+    /// values are checked as they are then.
+    /// </summary>
+    public IConfigurationSection? RayMigratorConfigSectionAsWritten { get; init; }
+
+    /// <summary>
     /// Pre-built RayMigratorOptions (Admin-DB mode). When null, options are resolved
     /// from DI via IOptions binding and DataAnnotations validation (JSON mode).
     /// </summary>

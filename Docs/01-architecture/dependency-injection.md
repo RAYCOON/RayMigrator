@@ -45,7 +45,9 @@ host = Host.CreateDefaultBuilder(args)
                 .ValidateOnStart();
             services.AddTransient<IPostConfigureOptions<RayMigratorOptions>,
                 ProductDefaultsPostConfigureOptions>();
-            services.AddSingleton<IValidateOptions<RayMigratorOptions>, RayMigratorOptionsValidator>();
+            // The validator checks connection strings as written, so RULE_7_3 sees {ENV:...} placeholders (#30)
+            services.AddSingleton<IValidateOptions<RayMigratorOptions>>(
+                new RayMigratorOptionsValidator(sourceResult.RayMigratorConfigSectionAsWritten));
         }
 
         // Console parameters
@@ -139,8 +141,10 @@ services.AddOptions<RayMigratorOptions>()
 services.AddTransient<IPostConfigureOptions<RayMigratorOptions>,
     ProductDefaultsPostConfigureOptions>();
 
-// IValidateOptions implementation that delegates to the shared rule catalog.
-services.AddSingleton<IValidateOptions<RayMigratorOptions>, RayMigratorOptionsValidator>();
+// IValidateOptions implementation that delegates to the shared rule catalog. It receives the
+// RayMigrator section as written, so RULE_7_3 inspects connection strings before placeholder resolution.
+services.AddSingleton<IValidateOptions<RayMigratorOptions>>(
+    new RayMigratorOptionsValidator(sourceResult.RayMigratorConfigSectionAsWritten));
 
 // Pre-built mode: pre-built options, no PostConfigure needed
 // (MergeDefaults was already called by the options provider)

@@ -167,6 +167,7 @@ Raycoon.RayMigrator.Tests.Unit/
 ├── P1_CliToolExecutionHelpersTests.cs
 ├── P1_CliToolExecutorTests.cs
 ├── P1_CliToolValidationTests.cs
+├── P1_ConnectionStringPlaceholderValidationTests.cs
 ├── P1_DalBaseTypeAndParameterTests.cs
 ├── P1_DalCreateConnectionTests.cs
 ├── P1_DalFactoryTests.cs
@@ -273,6 +274,7 @@ Raycoon.RayMigrator.Tests.Unit/
 | `P1_CliToolExecutionHelpersTests` | `ResolveUseCliToolAliasTests`, `ResolveCliToolArgumentsTests` | `MigrationService.ResolveUseCliToolAlias` (file vs target alias precedence) and `MigrationService.ResolveCliToolArguments` (placeholder substitution in CLI argument templates) |
 | `P1_CliToolExecutorTests` | `CliToolExecutorTests` | `CliToolExecutor.ExecuteAsync` with real OS processes: File mode, Stdin mode, exit code evaluation (custom success/error codes, unexpected codes), stderr capture, timeout (`CliToolTimeoutException`), nonexistent executable (`CliToolExecutionException`), cancellation, and duration measurement. Platform: macOS and Linux only (skipped on Windows). |
 | `P1_CliToolValidationTests` | `CliToolValidationTests` | `RayMigratorOptionsValidator` CLI tool validation (duplicate aliases, UseCliToolAlias referencing non-existent tools, case-insensitive alias matching) |
+| `P1_ConnectionStringPlaceholderValidationTests` | `ConnectionStringPlaceholderValidationTests` | `RULE_7_3` on the configuration as written (#30): real files through `JsonOptionsSource`, the bound options and `RayMigratorOptionsValidator.GetReport` with `RayMigratorConfigSectionAsWritten`; placeholders are not reported as hardcoded credentials, literal passwords are |
 | `P1_DalBaseTypeAndParameterTests` | `DalBaseTypeAndParameterTests` | `DalBase` type mapping (`TryGetDbTypeForType`), `TryGetDbSpecificSqlParameter`, `DalParameterList`, and `DalParameter` construction and formatting |
 | `P1_DalCreateConnectionTests` | `DalCreateConnectionTests` | `DAL.CreateConnection` — each DAL returns the correct concrete ADO.NET connection type in a closed/unopened state; `DalExample` stubs throw `NotImplementedException` |
 | `P1_DalFactoryTests` | `DalFactoryTests` | `DalFactory` discovery, caching by connection string, error handling for unknown types, and `RegisteredDalTypes`/`ScanAssemblyForDals` |
