@@ -31,6 +31,20 @@ RayMigrator follows Semantic Versioning where applicable.
   API accessor isolates per async flow through its `AsyncLocal` anyway.
   `ProductAliasGuard` explains an unknown product alias with the same message
   the CLI showed, now also for hosts.
+- The result contracts of `IMigrationService` name the repository run and the
+  target. `MigrationOperationResult`, `BaselineResult` and `MigrationRunInfo`
+  carry `MigrationRunId`, the id of the run row (0 when the run mode writes no
+  row); the random `RunId` Guid that was never stored is gone, as is the
+  `InitiatedBy` placeholder that nothing ever filled. `MigrationFileResult`
+  carries `TargetAlias` and `MigrationRecordId` wherever the entry belongs to
+  one target (TargetByTarget order, failures, rollbacks). `MigrationRunInfo`
+  carries `Environment` and `FromRelease`; `MigrationHistory`,
+  `MigrationStatusInfo` and `BaselineResult` carry `Environment`.
+- `MigrateUpAsync`, `MigrateDownAsync` and `BaselineAsync` refuse a request
+  whose `TargetReleaseVersion` differs from the `MigrationContext`, like the
+  run-mode check does: the run row stamps the target release from the
+  context, so a host that let them diverge recorded a release the run never
+  aimed at.
 - `MigrationService` reads the configuration of the current run from its
   `MigrationContext` instead of from `IOptions<RayMigratorOptions>`, and
   `TemplateCache` no longer takes the options: a host builds the cache once
@@ -44,6 +58,12 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ### Fixed
 
+- `GetHistoryAsync` and `GetStatusAsync` read the runs of the requested
+  environment only. `Repository_MigrationRun_Select` filtered by product
+  alone, so the history listed the runs of every environment of the product
+  (with zero counts, because the record history is per environment) and the
+  status reported the last run of whichever environment ran last. The
+  template takes `@EnvironmentId` in all five engines.
 - `MigrationRun.FromReleaseVersion` holds the release the run started from:
   the highest Migrated release of the product and environment, read right
   before the run row is inserted, or `NULL` for a first run. Every run row

@@ -6,7 +6,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_MigrationRun_Select"
 DatabaseType   = "Sqlite"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-04-18.1"
+Version        = "2026-10-12.1"
 
 [Description]
 Function = """
@@ -28,6 +28,7 @@ TableBaseName = "Table name prefix from Repository configuration"
 
 [Parameters]
 ProductId = "INTEGER | REQUIRED | The product ID to query MigrationRuns for"
+EnvironmentId = "INTEGER | REQUIRED | The environment ID to query MigrationRuns for"
 Limit     = "INTEGER | REQUIRED | Maximum number of records to return"
 
 [ReturnValues]
@@ -58,6 +59,7 @@ FROM
     "{CFG:TableBaseName}MigrationRun"
 WHERE
     "ProductId" = @ProductId
+    AND "EnvironmentId" = @EnvironmentId
 ORDER BY
     "StartedAt" DESC, "Id" DESC
 LIMIT @Limit;

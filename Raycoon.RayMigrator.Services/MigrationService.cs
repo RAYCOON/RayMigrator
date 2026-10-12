@@ -50,7 +50,6 @@ public class MigrationService : IMigrationService
     public async Task<MigrationOperationResult> MigrateUpAsync(MigrateUpRequest request)
     {
         var startTime = DateTime.UtcNow;
-        var runId = Guid.NewGuid();
         var migrationResults = new List<MigrationFileResult>();
         int successfulMigrations = 0;
         int failedMigrations = 0;
@@ -67,6 +66,7 @@ public class MigrationService : IMigrationService
                     $"Product mismatch: context has {_ctxAccessor.Current.RayMigratorConsoleOptions.Product} but request has {request.ProductAlias}");
             }
             EnsureRequestRunModeMatchesContext(request.RunMode);
+            EnsureRequestTargetReleaseMatchesContext(request.TargetReleaseVersion);
 
             // --- Phase 1: Initialization ---
             _ctxAccessor.Current.MigrationState.MigrationRunResult = MigrationRunResult.Running;
@@ -110,7 +110,7 @@ public class MigrationService : IMigrationService
                 return new MigrationOperationResult
                 {
                     Success = true,
-                    RunId = runId,
+                    MigrationRunId = _ctxAccessor.Current.MigrationState.MigrationRunId,
                     ProductAlias = request.ProductAlias,
                     Environment = request.Environment,
                     Operation = MigrationOperation.MigrateUp,
@@ -201,7 +201,7 @@ public class MigrationService : IMigrationService
                 return new MigrationOperationResult
                 {
                     Success = true,
-                    RunId = runId,
+                    MigrationRunId = _ctxAccessor.Current.MigrationState.MigrationRunId,
                     ProductAlias = request.ProductAlias,
                     Environment = request.Environment,
                     Operation = MigrationOperation.MigrateUp,
@@ -299,7 +299,7 @@ public class MigrationService : IMigrationService
                         return new MigrationOperationResult
                         {
                             Success = false,
-                            RunId = runId,
+                            MigrationRunId = _ctxAccessor.Current.MigrationState.MigrationRunId,
                             ProductAlias = request.ProductAlias,
                             Environment = request.Environment,
                             Operation = MigrationOperation.MigrateUp,
@@ -336,7 +336,7 @@ public class MigrationService : IMigrationService
                 return new MigrationOperationResult
                 {
                     Success = false,
-                    RunId = runId,
+                    MigrationRunId = _ctxAccessor.Current.MigrationState.MigrationRunId,
                     ProductAlias = request.ProductAlias,
                     Environment = request.Environment,
                     Operation = MigrationOperation.MigrateUp,
@@ -358,7 +358,7 @@ public class MigrationService : IMigrationService
             return new MigrationOperationResult
             {
                 Success = true,
-                RunId = runId,
+                MigrationRunId = _ctxAccessor.Current.MigrationState.MigrationRunId,
                 ProductAlias = request.ProductAlias,
                 Environment = request.Environment,
                 Operation = MigrationOperation.MigrateUp,
@@ -397,7 +397,7 @@ public class MigrationService : IMigrationService
             return new MigrationOperationResult
             {
                 Success = false,
-                RunId = runId,
+                MigrationRunId = _ctxAccessor.Current.MigrationState.MigrationRunId,
                 ProductAlias = request.ProductAlias,
                 Environment = request.Environment,
                 Operation = MigrationOperation.MigrateUp,
@@ -623,6 +623,8 @@ public class MigrationService : IMigrationService
                         FileName = file.Filename,
                         ReleaseVersion = file.ReleaseVersion,
                         TargetGroup = file.TargetGroupAlias,
+                        TargetAlias = _ctxAccessor.Current.MigrationState.TargetAlias,
+                        MigrationRecordId = _ctxAccessor.Current.MigrationState.MigrationRecordId,
                         Success = false,
                         ErrorMessage = ex.Message,
                         ExecutedAt = fileStartTime,
@@ -643,6 +645,8 @@ public class MigrationService : IMigrationService
                     FileName = file.Filename,
                     ReleaseVersion = file.ReleaseVersion,
                     TargetGroup = file.TargetGroupAlias,
+                    TargetAlias = _ctxAccessor.Current.MigrationState.TargetAlias,
+                    MigrationRecordId = _ctxAccessor.Current.MigrationState.MigrationRecordId,
                     Success = false,
                     ErrorMessage = ex.Message,
                     ExecutedAt = fileStartTime,
@@ -706,6 +710,8 @@ public class MigrationService : IMigrationService
                                 FileName = file.Filename,
                                 ReleaseVersion = file.ReleaseVersion,
                                 TargetGroup = file.TargetGroupAlias,
+                                TargetAlias = targetOptions.Alias,
+                                MigrationRecordId = finalizedId,
                                 Success = true,
                                 ExecutedAt = fileStartTime,
                                 Duration = DateTime.UtcNow - fileStartTime
@@ -796,6 +802,8 @@ public class MigrationService : IMigrationService
                             FileName = file.Filename,
                             ReleaseVersion = file.ReleaseVersion,
                             TargetGroup = file.TargetGroupAlias,
+                            TargetAlias = targetOptions.Alias,
+                            MigrationRecordId = migrationRecordId,
                             Success = false,
                             ErrorMessage = $"MigrationErrorAction=Ignore: One or more SQL blocks failed in {file.Filename}",
                             ExecutedAt = fileStartTime,
@@ -822,6 +830,8 @@ public class MigrationService : IMigrationService
                         FileName = file.Filename,
                         ReleaseVersion = file.ReleaseVersion,
                         TargetGroup = file.TargetGroupAlias,
+                        TargetAlias = targetOptions.Alias,
+                        MigrationRecordId = migrationRecordId,
                         Success = true,
                         ExecutedAt = fileStartTime,
                         Duration = DateTime.UtcNow - fileStartTime
@@ -862,6 +872,8 @@ public class MigrationService : IMigrationService
                             FileName = file.Filename,
                             ReleaseVersion = file.ReleaseVersion,
                             TargetGroup = file.TargetGroupAlias,
+                            TargetAlias = targetOptions.Alias,
+                            MigrationRecordId = _ctxAccessor.Current.MigrationState.MigrationRecordId,
                             Success = false,
                             ErrorMessage = ex.Message,
                             ExecutedAt = fileStartTime,
@@ -882,6 +894,8 @@ public class MigrationService : IMigrationService
                         FileName = file.Filename,
                         ReleaseVersion = file.ReleaseVersion,
                         TargetGroup = file.TargetGroupAlias,
+                        TargetAlias = targetOptions.Alias,
+                        MigrationRecordId = _ctxAccessor.Current.MigrationState.MigrationRecordId,
                         Success = false,
                         ErrorMessage = ex.Message,
                         ExecutedAt = fileStartTime,
@@ -917,6 +931,23 @@ public class MigrationService : IMigrationService
             throw new InvalidOperationException(
                 $"RunMode mismatch: context has {contextRunMode} but request has {requestRunMode}. " +
                 "Build the MigrationContext for the run mode the request is executed with.");
+        }
+    }
+
+    /// <summary>
+    /// The run row stamps <c>ToReleaseVersion</c> from the <see cref="MigrationContext"/>, while the execution path
+    /// reads the target release from the request. The CLI fills both from the same option; a programmatic caller
+    /// could let them diverge and stamp a release the run never aimed at.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The request target release differs from the context.</exception>
+    private void EnsureRequestTargetReleaseMatchesContext(string? requestTargetRelease)
+    {
+        var contextTargetRelease = _ctxAccessor.Current.RayMigratorConsoleOptions.TargetReleaseVersion;
+        if (!string.Equals(requestTargetRelease, contextTargetRelease, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"TargetReleaseVersion mismatch: context has [{contextTargetRelease ?? "null"}] but request has [{requestTargetRelease ?? "null"}]. " +
+                "Build the MigrationContext for the target release the request is executed with.");
         }
     }
 
@@ -1092,7 +1123,6 @@ public class MigrationService : IMigrationService
     public async Task<MigrationOperationResult> MigrateDownAsync(MigrateDownRequest request)
     {
         var startTime = DateTime.UtcNow;
-        var runId = Guid.NewGuid();
 
         try
         {
@@ -1106,6 +1136,7 @@ public class MigrationService : IMigrationService
                     $"Product mismatch: context has {_ctxAccessor.Current.RayMigratorConsoleOptions.Product} but request has {request.ProductAlias}");
             }
             EnsureRequestRunModeMatchesContext(request.RunMode);
+            EnsureRequestTargetReleaseMatchesContext(request.TargetReleaseVersion);
 
             // --- Validate mode: validate rollback file existence and parseability ---
             if (!request.RunMode.ShouldReadRepository())
@@ -1149,7 +1180,7 @@ public class MigrationService : IMigrationService
                 return new MigrationOperationResult
                 {
                     Success = warnings.Count == 0,
-                    RunId = runId,
+                    MigrationRunId = _ctxAccessor.Current.MigrationState.MigrationRunId,
                     ProductAlias = request.ProductAlias,
                     Environment = request.Environment,
                     Operation = MigrationOperation.MigrateDown,
@@ -1210,7 +1241,7 @@ public class MigrationService : IMigrationService
                 return new MigrationOperationResult
                 {
                     Success = true,
-                    RunId = runId,
+                    MigrationRunId = _ctxAccessor.Current.MigrationState.MigrationRunId,
                     ProductAlias = request.ProductAlias,
                     Environment = request.Environment,
                     Operation = MigrationOperation.MigrateDown,
@@ -1246,7 +1277,7 @@ public class MigrationService : IMigrationService
                 return new MigrationOperationResult
                 {
                     Success = true,
-                    RunId = runId,
+                    MigrationRunId = _ctxAccessor.Current.MigrationState.MigrationRunId,
                     ProductAlias = request.ProductAlias,
                     Environment = request.Environment,
                     Operation = MigrationOperation.MigrateDown,
@@ -1289,7 +1320,7 @@ public class MigrationService : IMigrationService
             return new MigrationOperationResult
             {
                 Success = rollbackResult.AllSuccessful,
-                RunId = runId,
+                MigrationRunId = _ctxAccessor.Current.MigrationState.MigrationRunId,
                 ProductAlias = request.ProductAlias,
                 Environment = request.Environment,
                 Operation = MigrationOperation.MigrateDown,
@@ -1327,7 +1358,7 @@ public class MigrationService : IMigrationService
             return new MigrationOperationResult
             {
                 Success = false,
-                RunId = runId,
+                MigrationRunId = _ctxAccessor.Current.MigrationState.MigrationRunId,
                 ProductAlias = request.ProductAlias,
                 Environment = request.Environment,
                 Operation = MigrationOperation.MigrateDown,
@@ -1363,6 +1394,8 @@ public class MigrationService : IMigrationService
                     $"Product mismatch: context has {_ctxAccessor.Current.RayMigratorConsoleOptions.Product} but request has {request.ProductAlias}");
             }
 
+            EnsureRequestTargetReleaseMatchesContext(request.TargetReleaseVersion);
+
             // --- Phase 1: Initialization ---
             await InitializeRepositoryAsync();
 
@@ -1389,6 +1422,8 @@ public class MigrationService : IMigrationService
                 {
                     Success = true,
                     ProductAlias = request.ProductAlias,
+                    Environment = request.Environment,
+                    MigrationRunId = _ctxAccessor.Current.MigrationState.MigrationRunId,
                     TargetReleaseVersion = request.TargetReleaseVersion,
                     BaselinedFiles = 0,
                     Duration = DateTime.UtcNow - startTime,
@@ -1410,6 +1445,8 @@ public class MigrationService : IMigrationService
                 {
                     Success = true,
                     ProductAlias = request.ProductAlias,
+                    Environment = request.Environment,
+                    MigrationRunId = _ctxAccessor.Current.MigrationState.MigrationRunId,
                     TargetReleaseVersion = request.TargetReleaseVersion,
                     BaselinedFiles = 0,
                     Duration = DateTime.UtcNow - startTime,
@@ -1429,6 +1466,8 @@ public class MigrationService : IMigrationService
                 {
                     Success = true,
                     ProductAlias = request.ProductAlias,
+                    Environment = request.Environment,
+                    MigrationRunId = _ctxAccessor.Current.MigrationState.MigrationRunId,
                     TargetReleaseVersion = request.TargetReleaseVersion,
                     BaselinedFiles = 0,
                     Duration = DateTime.UtcNow - startTime,
@@ -1553,6 +1592,8 @@ public class MigrationService : IMigrationService
             {
                 Success = true,
                 ProductAlias = request.ProductAlias,
+                Environment = request.Environment,
+                MigrationRunId = _ctxAccessor.Current.MigrationState.MigrationRunId,
                 TargetReleaseVersion = request.TargetReleaseVersion,
                 BaselinedFiles = baselinedCount,
                 Duration = DateTime.UtcNow - startTime,
@@ -1581,6 +1622,8 @@ public class MigrationService : IMigrationService
             {
                 Success = false,
                 ProductAlias = request.ProductAlias,
+                Environment = request.Environment,
+                MigrationRunId = _ctxAccessor.Current.MigrationState.MigrationRunId,
                 TargetReleaseVersion = request.TargetReleaseVersion,
                 Duration = DateTime.UtcNow - startTime,
                 ErrorMessage = ex.Message,
@@ -1657,7 +1700,7 @@ public class MigrationService : IMigrationService
                                 record.Id, MigrationStatus.Failed, record.FileUpBlocksMigrated));
                         }
 
-                        result.AddFailure(record.Filename, $"Required rollback file not found: {rollbackFilename}");
+                        result.AddFailure(record.Filename, $"Required rollback file not found: {rollbackFilename}", record.TargetAlias, record.Id);
                         result.ErrorMessage = $"Rollback chain aborted: required rollback file missing for {record.Filename}";
                         return result;
                     }
@@ -1827,7 +1870,7 @@ public class MigrationService : IMigrationService
                                         rollbackFileInfo.FileUpConfigJson));
                                 }
 
-                                result.AddFailure(record.Filename, $"Atomic rollback failed: {blockEx.Message}");
+                                result.AddFailure(record.Filename, $"Atomic rollback failed: {blockEx.Message}", record.TargetAlias, record.Id);
                                 result.ErrorMessage = $"Rollback chain aborted: atomic rollback of {record.Filename} failed";
 
                                 return result;
@@ -1882,7 +1925,7 @@ public class MigrationService : IMigrationService
                                             rollbackFileInfo.FileUpBlocksTotal,
                                             rollbackFileInfo.FileUpConfigJson));
 
-                                        result.AddFailure(record.Filename, $"Rollback block {blockIndex + 1} failed: {blockEx.Message}");
+                                        result.AddFailure(record.Filename, $"Rollback block {blockIndex + 1} failed: {blockEx.Message}", record.TargetAlias, record.Id);
                                         result.ErrorMessage = $"Rollback chain aborted: block {blockIndex + 1} of {record.Filename} failed";
 
                                         // Abort the entire rollback chain
@@ -1949,6 +1992,8 @@ public class MigrationService : IMigrationService
                     FileName = record.Filename,
                     ReleaseVersion = record.ReleaseVersion,
                     TargetGroup = record.TargetGroupAlias,
+                    TargetAlias = record.TargetAlias,
+                    MigrationRecordId = record.Id,
                     Success = !fileHadBlockError,
                     ExecutedAt = fileStartTime,
                     Duration = DateTime.UtcNow - fileStartTime
@@ -1965,7 +2010,7 @@ public class MigrationService : IMigrationService
                     "CRITICAL: Rollback failed for migration {MigrationRecordId} ({Filename}). Rollback chain ABORTED.",
                     record.Id, record.Filename);
 
-                result.AddFailure(record.Filename, ex.Message);
+                result.AddFailure(record.Filename, ex.Message, record.TargetAlias, record.Id);
                 result.ErrorMessage = $"Rollback chain aborted at {record.Filename}: {ex.Message}";
 
                 // Abort the entire rollback chain
@@ -4974,6 +5019,7 @@ public class MigrationService : IMigrationService
             return new MigrationStatusInfo
             {
                 ProductAlias = productAlias,
+                Environment = _ctxAccessor.Current.RayMigratorConsoleOptions.Environment,
                 CurrentRelease = currentRelease,
                 LastMigrationDate = lastMigrationDate,
                 TotalMigrationsExecuted = migratedRecords.Count,
@@ -5025,7 +5071,8 @@ public class MigrationService : IMigrationService
                 DateTime? finishedAt = row["FinishedAt"] != null && row["FinishedAt"] != DBNull.Value
                     ? Convert.ToDateTime(row["FinishedAt"])
                     : null;
-                string? toRelease = row["ToReleaseVersion"]?.ToString();
+                string? fromRelease = row["FromReleaseVersion"] as string;
+                string? toRelease = row["ToReleaseVersion"] as string;
 
                 var runHistory = historyByRun.TryGetValue(runId, out var h) ? h : Array.Empty<MigrationRecord>();
                 var (totalMigrations, successfulMigrations, failedMigrations, operation) = SummarizeRun(runHistory);
@@ -5033,7 +5080,8 @@ public class MigrationService : IMigrationService
                 runs.Add(new MigrationRunInfo
                 {
                     MigrationRunId = runId,
-                    RunId = Guid.Empty, // MigrationRun uses INT Id, not Guid
+                    Environment = _ctxAccessor.Current.RayMigratorConsoleOptions.Environment,
+                    FromRelease = fromRelease,
                     StartedAt = startedAt,
                     CompletedAt = finishedAt,
                     Operation = operation,
@@ -5052,6 +5100,7 @@ public class MigrationService : IMigrationService
             return new MigrationHistory
             {
                 ProductAlias = productAlias,
+                Environment = _ctxAccessor.Current.RayMigratorConsoleOptions.Environment,
                 Runs = runs
             };
         }
@@ -5283,13 +5332,15 @@ public class MigrationService : IMigrationService
             Messages.Add($"WARNING [{filename}]: {message}");
         }
 
-        public void AddFailure(string filename, string message)
+        public void AddFailure(string filename, string message, string? targetAlias = null, int migrationRecordId = 0)
         {
             FailCount++;
             Messages.Add($"ERROR [{filename}]: {message}");
             FileResults.Add(new MigrationFileResult
             {
                 FileName = filename,
+                TargetAlias = targetAlias,
+                MigrationRecordId = migrationRecordId,
                 Success = false,
                 ErrorMessage = message,
                 ExecutedAt = DateTime.UtcNow

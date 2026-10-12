@@ -123,6 +123,8 @@ public class ScenarioContext : IAsyncDisposable
     public async Task<BaselineResult> BaselineAsync(string? toRelease = null, string[]? targetGroupAliases = null,
         string[]? targetGroupMigrationOrder = null, bool revealSensitiveData = false)
     {
+        await AlignHostRunModeAsync(MigrationCommand.Baseline, null, toRelease);
+
         using var maskScope = SensitiveDataMasker.BeginScope(revealSensitiveData);
         SensitiveDataMasker.RegisterSensitiveData(_host.RayMigratorOptions);
 
@@ -266,9 +268,12 @@ public class ScenarioContext : IAsyncDisposable
         var hostOptions = HostConsoleOptions;
         var effective = runMode ?? hostOptions.RunMode;
 
-        if (effective != hostOptions.RunMode || hostOptions.Command != command)
+        // The context also stamps the target release into the run row and the engine refuses a request whose
+        // target release differs from it, so a different release rebuilds the host too.
+        if (effective != hostOptions.RunMode || hostOptions.Command != command
+            || !string.Equals(toRelease, hostOptions.TargetReleaseVersion, StringComparison.Ordinal))
         {
-            await RebuildForAsync(command, effective, toRelease ?? hostOptions.TargetReleaseVersion, _environment);
+            await RebuildForAsync(command, effective, toRelease, _environment);
         }
 
         return effective;

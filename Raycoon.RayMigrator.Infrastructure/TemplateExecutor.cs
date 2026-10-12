@@ -774,11 +774,12 @@ public class TemplateExecutor
         var templateType = TemplateType.Repository_MigrationRun_Select;
         var eventId = MigrationEvent.TemplateExecutionRepositoryMigrationRunSelect;
 
-        _logger.LogDebug(eventId, "Selecting MigrationRun records for product {ProductId} with limit {Limit}{MigrationContext}",
-            _ctxAccessor.Current.MigrationState.ProductId, limit, _ctxAccessor.Current.Clone);
+        _logger.LogDebug(eventId, "Selecting MigrationRun records for product {ProductId} and environment {EnvironmentId} with limit {Limit}{MigrationContext}",
+            _ctxAccessor.Current.MigrationState.ProductId, _ctxAccessor.Current.MigrationState.EnvironmentId, limit, _ctxAccessor.Current.Clone);
 
         DalParameterList dalParameterList = new DalParameterList();
         dalParameterList.AddParameter(new DalParameter("ProductId", _ctxAccessor.Current.MigrationState.ProductId, typeof(int)));
+        dalParameterList.AddParameter(new DalParameter("EnvironmentId", _ctxAccessor.Current.MigrationState.EnvironmentId, typeof(int)));
         dalParameterList.AddParameter(new DalParameter("Limit", limit, typeof(int)));
 
         var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
