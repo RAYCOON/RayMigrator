@@ -27,7 +27,8 @@ public interface IMigrationContextFactory
     /// </summary>
     /// <exception cref="ConfigurationValidationException">
     /// The options do not pass preparation, the product alias is unknown, a configured DatabaseType has no
-    /// data access layer, or a schema name is set for a database that does not support schemas.
+    /// data access layer, or a schema name is missing where the database requires one. A schema name on a database
+    /// without schemas is only logged as a warning.
     /// </exception>
     MigrationContext Create(RayMigratorOptions options, RayMigratorConsoleOptions consoleOptions);
 
@@ -36,8 +37,8 @@ public interface IMigrationContextFactory
     /// (the CLI pipeline). Everything else is as in <see cref="Create"/>.
     /// </summary>
     /// <exception cref="ConfigurationValidationException">
-    /// The product alias is unknown, a configured DatabaseType has no data access layer, or a schema name is set
-    /// for a database that does not support schemas.
+    /// The product alias is unknown, a configured DatabaseType has no data access layer, or a schema name is
+    /// missing where the database requires one.
     /// </exception>
     MigrationContext CreateFromValidatedOptions(RayMigratorOptions options, RayMigratorConsoleOptions consoleOptions);
 }

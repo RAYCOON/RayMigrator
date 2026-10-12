@@ -19,6 +19,7 @@ public sealed class MigrationContextFactory : IMigrationContextFactory
     private readonly IMigrationContextAccessor _ctxAccessor;
     private readonly ILogger<MigrationContextFactory> _logger;
 
+    /// <summary>Creates the factory. Every context it creates becomes current through <paramref name="ctxAccessor"/>.</summary>
     public MigrationContextFactory(IMigrationContextAccessor ctxAccessor, ILogger<MigrationContextFactory> logger)
     {
         _ctxAccessor = ctxAccessor;
@@ -50,6 +51,10 @@ public sealed class MigrationContextFactory : IMigrationContextFactory
     private MigrationContext Activate(MigrationContext ctx)
     {
         var options = ctx.RayMigratorOptions;
+
+        // Current first: the enricher then stamps the log lines below with the run properties of this context
+        _ctxAccessor.Current = ctx;
+        MigrationLoggingContext.Current = ctx;
 
         _logger.LogDebug(MigrationEvent.InitializeDalSpecificProperties, "Initializing DalSpecificPropertiesDictionary...");
 
@@ -83,9 +88,6 @@ public sealed class MigrationContextFactory : IMigrationContextFactory
                 "DatabaseLogging", _logger);
         }
 
-        _ctxAccessor.Current = ctx;
-        MigrationLoggingContext.Current = ctx;
-
         return ctx;
     }
 
@@ -107,6 +109,44 @@ public sealed class MigrationContextFactory : IMigrationContextFactory
                 string.IsNullOrWhiteSpace(dalInstance.DalSpecificProperties.SqlBlockDelimiter) ? "{Empty}" : dalInstance.DalSpecificProperties.SqlBlockDelimiter,
                 dalInstance.DalSpecificProperties.SupportsSchema,
                 dalInstance.DalSpecificProperties.SupportsTransactionalDdl);
+
+            if (dalInstance is DalBase dalBase)
+            {
+                LogTransientErrorCodes(dalBase, databaseType, ctx.RayMigratorConsoleOptions.RevealSensitiveData);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Reports where a DAL's transient error codes come from (ADR-022): Information when a TransientErrorCodes.txt
+    /// replaced the built-in list (the path only with RevealSensitiveData), Debug for the built-in list, and a Warning
+    /// when the effective list is empty, because then no database error is retried.
+    /// </summary>
+    private void LogTransientErrorCodes(DalBase dal, string databaseType, bool revealSensitiveData)
+    {
+        string codes = string.Join(", ", dal.TransientErrorCodes);
+        // The file path reveals the installation folder; show it only when sensitive data may be revealed.
+        string source = revealSensitiveData && dal.TransientErrorCodesSource != null
+            ? dal.TransientErrorCodesSource
+            : TransientErrorCodesFile.FileName;
+        if (dal.TransientErrorCodesSource != null)
+        {
+            _logger.LogInformation(MigrationEvent.InitializeDalSpecificProperties,
+                "Transient error codes for DatabaseType [{DatabaseType}] loaded from [{Source}]: [{Codes}]",
+                databaseType, source, codes);
+        }
+        else
+        {
+            _logger.LogDebug(MigrationEvent.InitializeDalSpecificProperties,
+                "Transient error codes for DatabaseType [{DatabaseType}] are the built-in list: [{Codes}]",
+                databaseType, codes);
+        }
+
+        if (dal.TransientErrorCodes.Count == 0)
+        {
+            _logger.LogWarning(MigrationEvent.InitializeDalSpecificProperties,
+                "No transient error codes for DatabaseType [{DatabaseType}]: no database error is retried. Add codes to [{Source}] or delete the file to restore the built-in list",
+                databaseType, source);
         }
     }
 }
