@@ -59,10 +59,13 @@ RayMigrator follows Semantic Versioning where applicable.
   carries `Environment` and `FromRelease`; `MigrationHistory`,
   `MigrationStatusInfo` and `BaselineResult` carry `Environment`.
 - `MigrateUpAsync`, `MigrateDownAsync` and `BaselineAsync` refuse a request
-  whose `TargetReleaseVersion` differs from the `MigrationContext`, like the
-  run-mode check does: the run row stamps the target release from the
-  context, so a host that let them diverge recorded a release the run never
-  aimed at.
+  whose `TargetReleaseVersion` or `Environment` differs from the
+  `MigrationContext`, like the run-mode check does: the run row stamps the
+  target release and the environment from the context, so a host that let
+  them diverge recorded a release the run never aimed at, or ran one
+  environment's files against another environment's rows. The settings
+  snapshot of a migrate-up run records the `AllowOutOfOrder` value of the
+  request, which is the value the run used.
 - `MigrationService` reads the configuration of the current run from its
   `MigrationContext` instead of from `IOptions<RayMigratorOptions>`, and
   `TemplateCache` no longer takes the options: a host builds the cache once

@@ -93,6 +93,7 @@ public class MigrationService : IMigrationService
             }
             EnsureRequestRunModeMatchesContext(request.RunMode);
             EnsureRequestTargetReleaseMatchesContext(request.TargetReleaseVersion);
+            EnsureRequestEnvironmentMatchesContext(request.Environment);
 
             // --- Phase 1: Initialization ---
             _ctxAccessor.Current.MigrationState.MigrationRunResult = MigrationRunResult.Running;
@@ -117,7 +118,8 @@ public class MigrationService : IMigrationService
                 }
 
                 // Create migration run with settings snapshot (auto-fixes orphaned runs if needed)
-                var settingsJson = BuildMigrationRunSettingsJson(_ctxAccessor.Current);
+                // The request decides AllowOutOfOrder, so the snapshot records its value
+                var settingsJson = BuildMigrationRunSettingsJson(_ctxAccessor.Current, request.AllowOutOfOrder);
                 _logger.LogTrace("MigrationRun settings snapshot:\n{SettingsJson}", settingsJson);
                 await RepositoryMigrationRunInsertWithAutoFix(settingsJson);
             }
@@ -1089,6 +1091,23 @@ public class MigrationService : IMigrationService
     }
 
     /// <summary>
+    /// The repository ids, the run row and the settings snapshot take the environment from the
+    /// <see cref="MigrationContext"/>, while file discovery and the environment-specific migsettings take it from the
+    /// request. A host that let them diverge would run one environment's files against another environment's rows.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The request environment differs from the context.</exception>
+    private void EnsureRequestEnvironmentMatchesContext(string requestEnvironment)
+    {
+        string? contextEnvironment = _ctxAccessor.Current.RayMigratorConsoleOptions.Environment;
+        if (!string.Equals(requestEnvironment, contextEnvironment, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Environment mismatch: the MigrationContext was built for [{contextEnvironment}] but the request names [{requestEnvironment}]. " +
+                "Build the context for the environment the request is executed with.");
+        }
+    }
+
+    /// <summary>
     /// The run row stamps <c>ToReleaseVersion</c> from the <see cref="MigrationContext"/>, while the execution path
     /// reads the target release from the request. The CLI fills both from the same option; a programmatic caller
     /// could let them diverge and stamp a release the run never aimed at.
@@ -1313,6 +1332,7 @@ public class MigrationService : IMigrationService
             }
             EnsureRequestRunModeMatchesContext(request.RunMode);
             EnsureRequestTargetReleaseMatchesContext(request.TargetReleaseVersion);
+            EnsureRequestEnvironmentMatchesContext(request.Environment);
 
             // --- Validate mode: validate rollback file existence and parseability ---
             if (!request.RunMode.ShouldReadRepository())
@@ -1603,6 +1623,7 @@ public class MigrationService : IMigrationService
             }
 
             EnsureRequestTargetReleaseMatchesContext(request.TargetReleaseVersion);
+            EnsureRequestEnvironmentMatchesContext(request.Environment);
 
             // --- Phase 1: Initialization ---
             await InitializeRepositoryAsync();
@@ -2926,7 +2947,7 @@ public class MigrationService : IMigrationService
     /// Builds a JSON snapshot of all RayMigrator settings at migration start.
     /// Connection strings are masked via SensitiveDataMasker.Mask() (respects RevealSensitiveData).
     /// </summary>
-    internal static string BuildMigrationRunSettingsJson(MigrationContext ctx)
+    internal static string BuildMigrationRunSettingsJson(MigrationContext ctx, bool? allowOutOfOrder = null)
     {
         var consoleOpts = ctx.RayMigratorConsoleOptions;
         var rayOpts = ctx.RayMigratorOptions;
@@ -2945,7 +2966,7 @@ public class MigrationService : IMigrationService
                 ["HashValidationScope"] = consoleOpts.HashValidationScope?.ToString(),
                 ["ShowStartupInfo"] = consoleOpts.ShowStartupInfo,
                 ["RevealSensitiveData"] = consoleOpts.RevealSensitiveData,
-                ["AllowOutOfOrder"] = consoleOpts.AllowOutOfOrder,
+                ["AllowOutOfOrder"] = allowOutOfOrder ?? consoleOpts.AllowOutOfOrder,
                 ["FixScope"] = consoleOpts.FixScope?.ToString()
             },
             ["Repository"] = new Dictionary<string, object?>
