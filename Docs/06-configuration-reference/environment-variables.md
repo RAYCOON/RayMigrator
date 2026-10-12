@@ -83,7 +83,7 @@ The behavior matches configuration replacement: missing or empty environment var
 
 | Variable | Purpose | Example Value |
 |----------|---------|---------------|
-| `DOTNET_ENVIRONMENT` | Environment name | Docker, Development, Production |
+| `DOTNET_ENVIRONMENT` | Environment name, cross-checked against `--environment`; the launch profiles pass it through `-env {ENV:DOTNET_ENVIRONMENT}` | Docker, Development, Production |
 | `MigrationFilesRootDirectory` | Migration files path | /app/migrations |
 | `REPO_CONNECTION` | Repository database | Server=localhost;... |
 | `LOG_CONNECTION` | Logging database | Server=localhost;... |

@@ -10,7 +10,7 @@ Detailed breakdown of each component's responsibilities and key classes.
 **Responsibilities**:
 - Parse and validate command-line arguments via `CommandLineConfiguration` (System.CommandLine)
 - Initialize `SensitiveDataMasker` with the `RevealSensitiveData` flag from the parsed options
-- Resolve environment from CLI arguments or `DOTNET_ENVIRONMENT` variable via `EnvironmentResolver`
+- Resolve the environment from the `--environment` argument, cross-checked against `DOTNET_ENVIRONMENT`, via `EnvironmentResolver`
 - Dispatch to `RunDirectMode()` with `JsonOptionsSource` (constructed from `rayMigratorConsoleOptions.ConfigDir`)
 - `RunDirectMode()` loads the configuration via `IOptionsSource.LoadAsync()` and then delegates to `DirectModePipeline.ExecuteAsync()` for unified host build and service execution
 - Converts exceptions into exit codes (parser failure = 5, `ApplicationStartupException` = 1, other exceptions = 100)
@@ -26,7 +26,7 @@ Detailed breakdown of each component's responsibilities and key classes.
 **Purpose**: IDE integration for development/debugging. Defines profiles per engine (SQL Server, PostgreSQL, MariaDB, MySQL, SQLite) and platform (Mac/Win) with the CLI arguments and `ConnectionString_*` environment variables required by the referenced appsettings files.
 
 **Required Environment Variables**:
-- `DOTNET_ENVIRONMENT` - Target environment (default `Docker`)
+- `DOTNET_ENVIRONMENT` - Target environment of the profile, passed to the CLI through `-env {ENV:DOTNET_ENVIRONMENT}` (`Docker` in the Docker profiles)
 - `ConnectionString_*` - Database connection strings consumed via `{ENV:ConnectionString_*}` placeholders in appsettings
 
 ## Pipeline Layer Components
@@ -343,7 +343,7 @@ public string TargetAlias { get; set; }
 ### `EnvironmentResolver`
 **Location**: `Raycoon.RayMigrator.Core/Configuration/EnvironmentResolver.cs`
 
-**Purpose**: Static class that resolves the target environment from `RayMigratorConsoleOptions.Environment` and the `DOTNET_ENVIRONMENT` variable. Returns a tuple of `(environment, environmentOrigin, errorCode)`. Detects conflicts between CLI argument and environment variable (returns error code 2), and missing environment (returns error code 3).
+**Purpose**: Static class that takes the target environment from `RayMigratorConsoleOptions.Environment` and cross-checks it against the `DOTNET_ENVIRONMENT` variable, which never replaces it. Returns a tuple of `(environment, environmentOrigin, errorCode)`. Detects conflicts between CLI argument and environment variable (returns error code 2) and a blank CLI argument (returns error code 3).
 
 ### `SensitiveDataMasker`
 **Location**: `Raycoon.RayMigrator.Core/Configuration/SensitiveDataMasker.cs`

@@ -52,7 +52,7 @@ sequenceDiagram
     P->>CLC: RootCommand.Parse(args).InvokeAsync()
     CLC-->>P: RayMigratorConsoleOptions (help or version: exit 0, parse exception: exit 5)
     P->>ER: Resolve(consoleOptions, assemblyInfo)
-    ER-->>P: environment and origin (conflict: exit 2, missing: exit 3)
+    ER-->>P: environment and origin (conflict: exit 2, blank: exit 3)
     P->>JOS: LoadAsync(product, environment)
     JOS-->>P: OptionsSourceResult (merged RayMigrator section, ENV placeholders replaced, file diagnostics)
     P->>DMP: ExecuteAsync(args, sourceResult, consoleOptions, assemblyInfo, environment, origin)
@@ -75,7 +75,7 @@ sequenceDiagram
 ```
 
 1. `Program.Main` registers code page encodings, builds `CommandLineConfiguration` with the banner from `AssemblyInfoHelper` and parses `args` with System.CommandLine. A parse exception returns `5`; a help or version request leaves `ParsedOptions` empty and returns `0`. `SensitiveDataMasker.Initialize` receives `--reveal-sensitive-data`.
-2. `EnvironmentResolver.Resolve` combines `--environment` and `DOTNET_ENVIRONMENT`: both set and different returns `2`, neither set returns `3`; otherwise the name and its origin are passed on.
+2. `EnvironmentResolver.Resolve` checks `--environment` against `DOTNET_ENVIRONMENT`: a blank option value returns `3` (the variable never replaces it), both set and different returns `2`; otherwise the option value and its origin are passed on.
 3. `Program.RunDirectMode` calls `JsonOptionsSource.LoadAsync(product, environment)`, which layers `appsettings.json`, `appsettings.{Environment}.json`, `appsettings.{Product}.json` and `appsettings.{Product}.{Environment}.json` from the working directory or `--config-dir`, extracts the `RayMigrator` section and replaces `{ENV:NAME}` placeholders through `EnvironmentVariableReplacer`. Missing files are reported as diagnostics; a `ConfigurationValidationException` is thrown only when `--config-dir` does not exist, the product is empty, no file carries a `RayMigrator` node at all, or loading fails.
 4. `DirectModePipeline.ExecuteAsync` first checks for a `Serilog` node. If it is missing, it prints the files that were not found and returns `4`. Then `SerilogFactory.Create` builds the logger (with `RayMigratorDatabaseSink` when `DatabaseLogging` exists), and every environment variable replacement is logged; an unresolved placeholder throws `ApplicationStartupException`.
 5. The host is built: `RayMigratorOptions` bound from the section with `ValidateDataAnnotations` and `ValidateOnStart`, `ProductDefaultsPostConfigureOptions`, `RayMigratorOptionsValidator`, `DatabaseLogWriter`, `AddRayMigratorServices(RayMigratorHostMode.Cli)`, `TemplateCache`, `TemplateExecutor`, `RayMigratorService` and the singleton `MigrationContext`. A failure inside `Build()` becomes `ApplicationStartupException`.

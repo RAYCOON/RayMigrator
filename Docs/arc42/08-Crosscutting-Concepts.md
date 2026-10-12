@@ -13,7 +13,7 @@ the [Solution Strategy](04-Solution-Strategy.md#43-approaches-to-achieve-the-qua
 
 The configuration model is the option class tree bound from the `RayMigrator` section: a product owns target groups (one
 `DatabaseType` each), a target group owns targets (one `ConnectionString` each), and three nested defaults nodes supply inherited
-values. Environments are not configuration nodes: the environment name comes from `--environment` or `DOTNET_ENVIRONMENT`, selects
+values. Environments are not configuration nodes: the environment name comes from the required `--environment`, selects
 the `appsettings.{Environment}.json` files and is registered in the repository table `Environment` next to `Product`.
 
 ```mermaid
@@ -112,8 +112,8 @@ Authoritative pages: [Settings inheritance](https://github.com/RAYCOON/RayMigrat
 
 ### Environments and profiles
 
-`EnvironmentResolver.Resolve` combines `--environment` (`-env`) with `DOTNET_ENVIRONMENT`: a conflict exits with `2`, no value
-with `3`, there is no default. The name selects the environment JSON files, the `migsettings.{Environment}.txt` levels, the
+`EnvironmentResolver.Resolve` checks `--environment` (`-env`) against `DOTNET_ENVIRONMENT`: a conflict exits with `2`, a blank
+value with `3`; the variable never replaces the option and there is no default. The name selects the environment JSON files, the `migsettings.{Environment}.txt` levels, the
 `.{Environment}.sql` variants and the TOML `Environments` filter. `--product` (`-p`) names a `ProductOptions.Alias`, compared case
 sensitively by `DirectModePipeline`; `--product`, `--environment` and `--to-release` accept a `{ENV:NAME}` value. `--config-dir`
 (`-cd`) moves the JSON search directory away from the working directory; the other global options are `--startup-info` (`-si`) and
@@ -388,7 +388,7 @@ exceptions into a failed `OperationResult` whose `ErrorCode` (`ExtractErrorCode`
 |-----------|-------------|-----------|
 | `0` | `Program`, `RayMigratorService` | help or version; command succeeded |
 | `1` | `Program`, `DirectModePipeline`, `RayMigratorService` | `ApplicationStartupException`; any command failure including `MigrationAlreadyRunningException`, `validate-hash` mismatches and recovered runs |
-| `2`, `3` | `EnvironmentResolver` | conflicting `--environment` and `DOTNET_ENVIRONMENT`; no environment |
+| `2`, `3` | `EnvironmentResolver` | conflicting `--environment` and `DOTNET_ENVIRONMENT`; blank `--environment` |
 | `4` | `DirectModePipeline` | no `Serilog` node in the merged configuration |
 | `5` | `Program` | `System.CommandLine` threw while parsing or invoking; ordinary parse errors return the parser's own code |
 | `100` | `Program`, `DirectModePipeline` | any other exception before the command runs, which includes `ConfigurationValidationException` from option validation, `TemplateCache` and `DalFactory` (TD-C-01) |

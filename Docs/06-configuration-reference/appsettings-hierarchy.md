@@ -122,35 +122,29 @@ Arrays whose elements carry an `Alias` are **merged by alias**, never by positio
 
 ## Environment Detection
 
-The environment is determined by (in order of priority):
-
-1. **Command-line argument** `--environment` / `-env` (highest priority)
-2. **Environment variable** `DOTNET_ENVIRONMENT`
+The environment comes from the required command-line argument `--environment` / `-env`. The environment variable `DOTNET_ENVIRONMENT` is only cross-checked against it and never replaces it.
 
 If both are set to **different** values, RayMigrator exits with an error (exit code 2) and asks the user to resolve the conflict.
 
-If **neither** is set, RayMigrator exits with an error (exit code 3). There is no default environment.
+If `--environment` is passed **empty** (or whitespace), RayMigrator exits with an error (exit code 3), whether or not `DOTNET_ENVIRONMENT` is set. Omitting the option is a parse error. There is no default environment.
 
 ### Setting the Environment
 
-**Command line** (recommended):
+**Command line**:
 ```bash
 raymigrator migrate-up --product MyProduct --environment Docker --run-mode migrate
 ```
 
-**Windows**:
-```batch
-set DOTNET_ENVIRONMENT=Docker
-```
-
-**Linux/macOS**:
+**From a variable** (the launch profiles do this): pass it through the placeholder, which the parser resolves before the environment is checked.
 ```bash
 export DOTNET_ENVIRONMENT=Docker
+raymigrator migrate-up --product MyProduct --environment "{ENV:DOTNET_ENVIRONMENT}" --run-mode migrate
 ```
 
 **launchSettings.json**:
 ```json
 {
+  "commandLineArgs": "migrate-up --product MyProduct -env {ENV:DOTNET_ENVIRONMENT} --run-mode migrate",
   "environmentVariables": {
     "DOTNET_ENVIRONMENT": "Docker"
   }

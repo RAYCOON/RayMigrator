@@ -625,22 +625,23 @@ Source: `Raycoon.RayMigrator.Core/Configuration/Enums/MigrationRunResult.cs`
 
 ### Environment Resolution
 
-The `--environment` option is **required** for all commands (migrate-up, migrate-down, validate-hash, update-hash, info, baseline, fix); omitting it is a parse error and returns the parser's exit code `1`. `DOTNET_ENVIRONMENT` is cross-checked against the option value: when both are set, they must match.
+The `--environment` option is **required** for all commands (migrate-up, migrate-down, validate-hash, update-hash, info, baseline, fix); omitting it is a parse error and returns the parser's exit code `1`. `DOTNET_ENVIRONMENT` is cross-checked against the option value: when both are set, they must match. The variable never replaces the option.
 
 ### Environment Sources
 
-`EnvironmentResolver` looks at two sources:
+`EnvironmentResolver` takes the environment from one source and checks it against the other:
 
-1. **CLI argument**: `--environment` / `-env`
-2. **Environment variable**: `DOTNET_ENVIRONMENT`
+1. **CLI argument**: `--environment` / `-env` (the environment of the run)
+2. **Environment variable**: `DOTNET_ENVIRONMENT` (cross-check only)
 
 **Resolution rules:**
 
 - `--environment` has a value and `DOTNET_ENVIRONMENT` is not set → use the option value.
 - Both are set with **the same value** → use that value.
 - Both are set with **different values** → **exit code 2** with an error message.
-- `--environment` is empty (or whitespace) and `DOTNET_ENVIRONMENT` is set → the resolver takes the variable. Do not rely on this path: the run itself still sees the empty option value, so environment-specific files are skipped.
-- `--environment` is empty (or whitespace) and `DOTNET_ENVIRONMENT` is not set → **exit code 3** with an error message.
+- `--environment` is empty (or whitespace) → **exit code 3** with an error message, whether or not `DOTNET_ENVIRONMENT` is set. The message names the empty argument and, when the variable is set, states that it does not replace the argument.
+
+To take the environment from a variable, pass it through the placeholder: `-env {ENV:DOTNET_ENVIRONMENT}` (the launch profiles do this). The parser resolves the placeholder, so the value counts as given on the command line.
 
 ---
 

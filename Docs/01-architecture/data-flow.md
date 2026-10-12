@@ -83,7 +83,7 @@ sequenceDiagram
 ```mermaid
 flowchart TD
     A[CLI Entry: Main] --> B[Parse command-line arguments]
-    B --> E[Resolve environment<br/>CLI arg or DOTNET_ENVIRONMENT]
+    B --> E[Resolve environment<br/>CLI arg, cross-checked against DOTNET_ENVIRONMENT]
 
     E --> F["RunDirectMode(JsonOptionsSource)"]
     F --> G["JsonOptionsSource.LoadAsync()<br/>Load appsettings.json hierarchy"]

@@ -181,6 +181,7 @@ Raycoon.RayMigrator.Tests.Unit/
 ├── P1_EnvironmentCheckInsertTests.cs
 ├── P1_RepositorySelectTemplateTests.cs
 ├── P1_EnvironmentIdFkTests.cs
+├── P1_EnvironmentResolverTests.cs
 ├── P1_ExitCodeMatcherTests.cs
 ├── P1_FilterAlreadyMigratedFilesTests.cs
 ├── P1_FilterByTargetGroupTests.cs
@@ -285,6 +286,7 @@ Raycoon.RayMigrator.Tests.Unit/
 | `P1_EnvironmentCheckInsertTests` | `EnvironmentCheckInsertTests` | `Repository_Environment_CheckInsert` feature: TemplateType enum membership, MigrationEvent EventId, `MigrationState.EnvironmentId`, `TemplateResultCode.EnvironmentNameEmpty`, and SQL template structural patterns across all 5 engines (NameLower lookup, TOML header DatabaseType/TemplateType) |
 | `P1_RepositorySelectTemplateTests` | `RepositorySelectTemplateTests` | `Repository_Product_Select` / `Repository_Environment_Select` (#7): TemplateType membership, MigrationEvent ids 122/123, and per-engine structural checks that the templates exist, are read-only (no INSERT/UPDATE/DELETE/CREATE), look up by `NameLower` and return `0,... not found` for a missing row |
 | `P1_EnvironmentIdFkTests` | `EnvironmentIdFkTests` | Structural SQL-template tests for the EnvironmentId FK feature: confirms Environment text column is replaced with EnvironmentId INT FK across all 5 engines and that all INSERT/SELECT templates bind `@EnvironmentId` (not `@Environment`) |
+| `P1_EnvironmentResolverTests` | `EnvironmentResolverTests` | `EnvironmentResolver` decision table: the `--environment` argument is the environment, `DOTNET_ENVIRONMENT` is only cross-checked (a different value exits with 2), a blank argument exits with 3 whether or not the variable is set (#32) |
 | `P1_ExitCodeMatcherTests` | `ExitCodeMatcherTests` | `ExitCodeMatcher` parsing and evaluation for CLI tool success/error code lists and range notation (`"0"`, `"0,1"`, `"0..5"`) |
 | `P1_FilterAlreadyMigratedFilesTests` | `FilterAlreadyMigratedFilesTests` | Filtering out already-migrated files from the migration plan |
 | `P1_FilterByTargetGroupTests` | `FilterByTargetGroupTests` | `--target-group` CLI option filtering logic |

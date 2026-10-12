@@ -4,52 +4,78 @@ using Raycoon.RayMigrator.Core.Configuration.Options;
 namespace Raycoon.RayMigrator.Core.Configuration;
 
 /// <summary>
-/// Resolves the target environment from console arguments and environment variables.
+/// Takes the target environment from the console argument [-Environment] and cross-checks it against the
+/// DOTNET_ENVIRONMENT variable. The variable never replaces the argument: the rest of the run reads the raw console
+/// option, so a value that only the resolver knew would leave the run with an empty environment (#32).
 /// Shared between Engine CLI and Management CLI.
 /// </summary>
 public static class EnvironmentResolver
 {
     /// <summary>
     /// Resolves the target environment from console options and the DOTNET_ENVIRONMENT variable.
+    /// Prints the banner and an error message to the console on failure.
     /// </summary>
     /// <returns>
     /// On success: environment and environmentOrigin are set, errorCode is null.
-    /// On failure: errorCode is set (2 = conflict, 3 = missing).
+    /// On failure: errorCode is set (2 = argument and variable differ, 3 = empty argument).
     /// </returns>
     public static (string? environment, string? environmentOrigin, int? errorCode) Resolve(
         RayMigratorConsoleOptions consoleOptions, string assemblyInfo)
     {
-        string? consoleEnvironment = consoleOptions.Environment;
         string? dotNetEnvironmentVariable = Environment.GetEnvironmentVariable(ConfigurationConstants.DotNetEnvironmentVariableName);
 
-        if (!string.IsNullOrWhiteSpace(consoleEnvironment))
-        {
-            if (!string.IsNullOrWhiteSpace(dotNetEnvironmentVariable) && consoleEnvironment != dotNetEnvironmentVariable)
-            {
-                Console.WriteLine(assemblyInfo);
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"Environment variable from console argument [-Environment] is set to value [{consoleEnvironment}]. " +
-                                  $"Environment variable [{ConfigurationConstants.DotNetEnvironmentVariableName}] is set to value [{dotNetEnvironmentVariable}].\n" +
-                                  $"Please use only one way to specify the current environment or set an identical value for both.");
-                Console.ResetColor();
+        var (environment, environmentOrigin, errorCode, errorMessage) =
+            Evaluate(consoleOptions.Environment, dotNetEnvironmentVariable, consoleOptions.Command);
 
-                return (null, null, 2);
+        if (errorMessage != null)
+        {
+            Console.WriteLine(assemblyInfo);
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine(errorMessage);
+            Console.ResetColor();
+        }
+
+        return (environment, environmentOrigin, errorCode);
+    }
+
+    /// <summary>
+    /// Decision behind <see cref="Resolve"/> without console output: an empty or whitespace console argument is refused
+    /// with code 3 whether or not the variable is set, a variable that differs from the argument is a conflict with
+    /// code 2, otherwise the argument is the environment.
+    /// </summary>
+    /// <returns>
+    /// On success: environment and environmentOrigin are set, errorCode and errorMessage are null.
+    /// On failure: errorCode and errorMessage are set, environment and environmentOrigin are null.
+    /// </returns>
+    internal static (string? environment, string? environmentOrigin, int? errorCode, string? errorMessage) Evaluate(
+        string? consoleEnvironment, string? dotNetEnvironmentVariable, MigrationCommand command)
+    {
+        bool variableIsSet = !string.IsNullOrWhiteSpace(dotNetEnvironmentVariable);
+
+        if (string.IsNullOrWhiteSpace(consoleEnvironment))
+        {
+            string message = $"No environment was provided for {command} command: the console argument [-Environment] is empty. " +
+                             "Please provide a non-empty environment name.";
+
+            if (variableIsSet)
+            {
+                message += Environment.NewLine +
+                           $"The environment variable [{ConfigurationConstants.DotNetEnvironmentVariableName}] is set to value [{dotNetEnvironmentVariable}], " +
+                           "but it is only cross-checked against the console argument and does not replace it.";
             }
 
-            return (consoleEnvironment, "console parameter [-Environment]", null);
+            return (null, null, 3, message);
         }
 
-        if (!string.IsNullOrWhiteSpace(dotNetEnvironmentVariable))
+        if (variableIsSet && !string.Equals(consoleEnvironment, dotNetEnvironmentVariable, StringComparison.Ordinal))
         {
-            return (dotNetEnvironmentVariable, $"environment variable [{ConfigurationConstants.DotNetEnvironmentVariableName}]", null);
+            string message = $"Environment variable from console argument [-Environment] is set to value [{consoleEnvironment}]. " +
+                             $"Environment variable [{ConfigurationConstants.DotNetEnvironmentVariableName}] is set to value [{dotNetEnvironmentVariable}]." + Environment.NewLine +
+                             "Please set an identical value for both or unset the environment variable.";
+
+            return (null, null, 2, message);
         }
 
-        Console.WriteLine(assemblyInfo);
-        Console.ForegroundColor = ConsoleColor.Red;
-        Console.WriteLine($"No environment was provided for {consoleOptions.Command} command. " +
-                          $"Please provide either a command line argument [-Environment] or set the environment variable [{ConfigurationConstants.DotNetEnvironmentVariableName}].");
-        Console.ResetColor();
-
-        return (null, null, 3);
+        return (consoleEnvironment, "console parameter [-Environment]", null, null);
     }
 }

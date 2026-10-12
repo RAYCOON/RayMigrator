@@ -71,7 +71,7 @@ The CLI entry point that handles user interaction.
 
 **Responsibilities:**
 - Parse command-line arguments via `CommandLineConfiguration` (System.CommandLine)
-- Resolve environment from CLI arguments or `DOTNET_ENVIRONMENT` variable via `EnvironmentResolver`
+- Resolve the environment from the `--environment` argument, cross-checked against `DOTNET_ENVIRONMENT`, via `EnvironmentResolver`
 - Dispatch to `RunDirectMode()` using `JsonOptionsSource` (constructed with the `--config-dir` value, defaulting to the current working directory)
 - `RunDirectMode()` delegates to `DirectModePipeline.ExecuteAsync()`
 - Convert service results to exit codes
@@ -141,7 +141,7 @@ The domain model layer containing configuration, state, and core abstractions.
 - `TemplateType` enum (in `Core/Templates/`, defining all 21 SQL template types + Undefined); companion `Template` and `TemplateResponse` classes
 - Domain models: `MigrationFileInfo`, `MigrationRecord`, `InterruptedMigrationInfo`, `MigrationStateSnapshot`
 - `CultureDependentSorting` - Culture-aware file sorting helper
-- `EnvironmentResolver` - Resolves target environment from CLI arguments or `DOTNET_ENVIRONMENT` variable
+- `EnvironmentResolver` - Resolves the target environment from the `--environment` argument and cross-checks it against `DOTNET_ENVIRONMENT`
 - Environment variable replacer, `SensitiveDataMasker`, custom validation attributes (`RayAttributes/`)
 - Extension methods: `EnumTypeExtensions`, `ExceptionExtensions`, `StringExtensions`, `MigrationRunModeExtensions`, `RayMigratorOptionsExtensions`
 

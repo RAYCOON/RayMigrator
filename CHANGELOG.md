@@ -7,6 +7,18 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ## [Unreleased]
 
+### Fixed
+
+- An empty or whitespace `--environment` value no longer falls back to
+  `DOTNET_ENVIRONMENT`. The resolver reported the variable's value in the
+  startup line while the rest of the run used the empty option value: `info`
+  and simulate runs showed an empty environment and skipped environment-specific
+  files, and `migrate-up` created the repository and then failed on
+  `Repository_Environment_CheckInsert`. An empty value now exits with code 3,
+  whether or not the variable is set, and the message names the empty argument.
+  `DOTNET_ENVIRONMENT` remains a cross-check only (exit code 2 when it differs
+  from `--environment`). (#32)
+
 ## [0.16.0] — 2026-10-10
 
 ### Added

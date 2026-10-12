@@ -271,7 +271,7 @@ CREATE TABLE Orders (
 
 ### 3. Use Consistent Naming
 
-The environment suffix in the filename is compared **case-insensitively** against the `--environment` CLI argument (or `DOTNET_ENVIRONMENT`). Use consistent naming across all files:
+The environment suffix in the filename is compared **case-insensitively** against the `--environment` CLI argument. Use consistent naming across all files:
 
 ```
 001_CreateTable.Docker.sql        # Matches --environment Docker

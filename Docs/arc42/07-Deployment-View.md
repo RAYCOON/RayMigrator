@@ -142,7 +142,7 @@ Environment variables that influence startup:
 
 | Variable | Effect |
 |----------|--------|
-| `DOTNET_ENVIRONMENT` | Fallback for `--environment`. Both set with different values: exit code `2`; neither set: exit code `3`. There is no default environment. |
+| `DOTNET_ENVIRONMENT` | Cross-check for the required `--environment`, never a replacement. Both set with different values: exit code `2`; a blank `--environment`: exit code `3`. There is no default environment; the launch profiles pass the variable through `-env {ENV:DOTNET_ENVIRONMENT}`. |
 | Any name used in `{ENV:NAME}` (regex `\{ENV:(\w+)\}`) | Substituted in every string value of the configuration, in `--config-dir` and in the DAL SQL templates at startup; an unset, empty or whitespace value terminates the run with `ApplicationStartupException` or `ConfigurationValidationException`. In migration and rollback file content the placeholder is replaced at execution time and an unset variable becomes an empty string with a warning. Resolved values are masked in logs. |
 | `PATH` | Must contain the installation directory (the CI example invokes `raymigrator` by name) and the vendor clients referenced by `CliTools` unless `ExecutablePath` is absolute. |
 
