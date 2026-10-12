@@ -1,6 +1,7 @@
 using AwesomeAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using Raycoon.RayMigrator.Core;
+using Raycoon.RayMigrator.Core.Configuration;
 using Raycoon.RayMigrator.Core.Configuration.Enums;
 using Raycoon.RayMigrator.Core.Configuration.Options;
 using Raycoon.RayMigrator.Services;
@@ -61,6 +62,7 @@ public class MigrationContextGuardTests
     [InlineData(MigrationCommand.MigrateUp, MigrationRunMode.Simulate)]
     public void Factory_StampsTheRequestedCommand(MigrationCommand command, MigrationRunMode runMode)
     {
+        using var maskerScope = SensitiveDataMasker.BeginScope(revealSensitiveData: false);
         var options = ProfileTestContext.CreateOptions("Data Source=:memory:");
 
         var consoleOptions = new RayMigratorConsoleOptions
@@ -80,6 +82,7 @@ public class MigrationContextGuardTests
     [Fact]
     public void Factory_WithCommandNone_Throws()
     {
+        using var maskerScope = SensitiveDataMasker.BeginScope(revealSensitiveData: false);
         var options = ProfileTestContext.CreateOptions("Data Source=:memory:");
 
         var consoleOptions = new RayMigratorConsoleOptions

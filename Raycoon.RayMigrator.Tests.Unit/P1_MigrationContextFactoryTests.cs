@@ -2,6 +2,7 @@ using AwesomeAssertions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Raycoon.RayMigrator.Core;
+using Raycoon.RayMigrator.Core.Configuration;
 using Raycoon.RayMigrator.Core.Configuration.Enums;
 using Raycoon.RayMigrator.Core.Configuration.Options;
 using Raycoon.RayMigrator.Services;
@@ -53,6 +54,7 @@ public class MigrationContextFactoryTests : IDisposable
     [Fact]
     public void CreateFromValidatedOptions_FillsDalPropertiesForRepositoryTargetsAndLogging()
     {
+        using var maskerScope = SensitiveDataMasker.BeginScope(revealSensitiveData: false);
         var options = CreateOptions(databaseLoggingConnectionString: "Data Source=:memory:");
         options.Products![0].TargetGroups!.Add(new TargetGroupOptions
         {
@@ -72,6 +74,7 @@ public class MigrationContextFactoryTests : IDisposable
     [Fact]
     public void Create_MakesTheContextCurrentForTheCallingFlow()
     {
+        using var maskerScope = SensitiveDataMasker.BeginScope(revealSensitiveData: false);
         var accessor = new AsyncLocalMigrationContextAccessor();
         var factory = CreateFactory(accessor);
 
@@ -87,6 +90,7 @@ public class MigrationContextFactoryTests : IDisposable
     [Fact]
     public void Create_PreparesTheOptions()
     {
+        using var maskerScope = SensitiveDataMasker.BeginScope(revealSensitiveData: false);
         string dirVar = "RM_CTXF_" + Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
         Environment.SetEnvironmentVariable(dirVar, _dir);
         _variables.Add(dirVar);
@@ -102,6 +106,7 @@ public class MigrationContextFactoryTests : IDisposable
     [Fact]
     public void Create_UnknownProduct_ThrowsNamingTheAvailableAliases()
     {
+        using var maskerScope = SensitiveDataMasker.BeginScope(revealSensitiveData: false);
         var act = () => CreateFactory().Create(CreateOptions(), ConsoleOptions(product: "Nope"));
 
         act.Should().Throw<ConfigurationValidationException>()
@@ -112,6 +117,7 @@ public class MigrationContextFactoryTests : IDisposable
     [Fact]
     public void Create_ProductAliasWithWrongCase_HintsAtTheConfiguredAlias()
     {
+        using var maskerScope = SensitiveDataMasker.BeginScope(revealSensitiveData: false);
         var act = () => CreateFactory().Create(CreateOptions(), ConsoleOptions(product: ProfileTestContext.ProductAlias.ToUpperInvariant()));
 
         act.Should().Throw<ConfigurationValidationException>().WithMessage("*Did you mean*");
@@ -120,6 +126,7 @@ public class MigrationContextFactoryTests : IDisposable
     [Fact]
     public void AddRayMigratorServices_ApiMode_ResolvesTheFactoryFromAScope()
     {
+        using var maskerScope = SensitiveDataMasker.BeginScope(revealSensitiveData: false);
         var services = new ServiceCollection();
         services.AddSingleton(typeof(ILogger<>), typeof(NullLogger<>));
         services.AddRayMigratorServices(RayMigratorHostMode.Api);
