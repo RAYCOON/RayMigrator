@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Raycoon.RayMigrator.Core.Configuration.Options;
 using Raycoon.RayMigrator.Core.Configuration.Replacer;
+using Raycoon.RayMigrator.Shared.Constants;
 using Raycoon.RayMigrator.Shared.Exceptions;
 
 namespace Raycoon.RayMigrator.Core.Configuration.Validation;
@@ -22,7 +23,8 @@ public static class RayMigratorOptionsPreparer
     /// <param name="sectionAsWritten">
     /// The configuration as written, before placeholders were resolved, when the host has one. RULE_7_3 then
     /// inspects the connection strings as written, so a credential that enters through a placeholder is not
-    /// reported as hardcoded (#30). Null checks the values as they are.
+    /// reported as hardcoded (#30). Without one, the values that contained placeholders are checked as they were
+    /// written and everything else as bound.
     /// </param>
     /// <exception cref="ConfigurationValidationException">
     /// A placeholder names an environment variable that is not set or empty, an enum-typed value is not an
@@ -53,11 +55,31 @@ public static class RayMigratorOptionsPreparer
         new ProductDefaultsPostConfigureOptions().PostConfigure(null, options);
 
         ThrowIfFailed(new DataAnnotationValidateOptions<RayMigratorOptions>(null).Validate(null, options), "Configuration validation failed");
-        ThrowIfFailed(new RayMigratorOptionsValidator(sectionAsWritten).Validate(null, options), "Configuration validation failed");
+        ThrowIfFailed(new RayMigratorOptionsValidator(sectionAsWritten ?? AsWrittenSection(replaced)).Validate(null, options), "Configuration validation failed");
 
         SensitiveDataMasker.RegisterSensitiveData(options);
 
         return new OptionsPreparationResult(replaced);
+    }
+
+    /// <summary>
+    /// The values that contained placeholders, as they were written, so that RULE_7_3 sees <c>{ENV:...}</c> and not
+    /// the resolved credential (#30). Every other key falls back to the bound value. Null when nothing was replaced.
+    /// </summary>
+    internal static IConfigurationSection? AsWrittenSection(IEnumerable<EnvironmentVariableWithMetadata> replaced)
+    {
+        var values = replaced
+            .GroupBy(r => r.Path)
+            .ToDictionary(g => g.Key, g => g.First().ConfigurationValue);
+        if (values.Count == 0)
+        {
+            return null;
+        }
+
+        return new ConfigurationBuilder()
+            .AddInMemoryCollection(values)
+            .Build()
+            .GetSection(InternalConstants.RayMigratorSectionName);
     }
 
     private static void ThrowIfFailed(ValidateOptionsResult result, string prefix)

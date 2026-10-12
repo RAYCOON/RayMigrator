@@ -6,6 +6,7 @@ using Raycoon.RayMigrator.Core.Configuration.Replacer;
 using Raycoon.RayMigrator.Core.Configuration.Validation;
 using Raycoon.RayMigrator.Shared.Exceptions;
 using Raycoon.RayMigrator.Tests.Unit.Helpers;
+using Raycoon.RayMigrator.Validation;
 
 namespace Raycoon.RayMigrator.Tests.Unit;
 
@@ -111,8 +112,32 @@ public class RayMigratorOptionsPreparerTests : IDisposable
     }
 
     [Fact]
+    public void Prepare_CredentialFromPlaceholder_IsNotReportedAsHardcoded()
+    {
+        using var maskerScope = SensitiveDataMasker.BeginScope(revealSensitiveData: false);
+        string pwdVar = SetVariable("s3cr3t");
+        var options = CreateOptions($"Data Source={_dir}/target.db;Password={{ENV:{pwdVar}}}");
+        string asWritten = options.Products![0].TargetGroups![0].Targets![0].ConnectionString!;
+
+        var replaced = EnvironmentVariableReplacer.ReplaceWithEnvironmentVariables(options);
+        var section = RayMigratorOptionsPreparer.AsWrittenSection(replaced);
+
+        section.Should().NotBeNull();
+        section!["Products:0:TargetGroups:0:Targets:0:ConnectionString"].Should().Be(asWritten,
+            "the rule catalog sees the value as written, with the placeholder");
+        RayMigratorOptionsValidator.GetReport(options, section).Warnings.Should().NotContain(w => w.Code == RuleIds.RULE_7_3,
+            "the credential enters through a placeholder (#30)");
+        RayMigratorOptionsValidator.GetReport(options).Warnings.Should().Contain(w => w.Code == RuleIds.RULE_7_3,
+            "the resolved value alone looks hardcoded, which is what a host without an as-written section got before");
+
+        var act = () => RayMigratorOptionsPreparer.Prepare(options);
+        act.Should().NotThrow();
+    }
+
+    [Fact]
     public void Prepare_MissingVariable_ThrowsNamingVariableAndPath()
     {
+        using var maskerScope = SensitiveDataMasker.BeginScope(revealSensitiveData: false);
         var options = CreateOptions("Data Source={ENV:RM_PREP_DOES_NOT_EXIST}/target.db");
 
         var act = () => RayMigratorOptionsPreparer.Prepare(options);
@@ -125,6 +150,7 @@ public class RayMigratorOptionsPreparerTests : IDisposable
     [Fact]
     public void Prepare_WritesTheDocumentedDefaultsIntoNullProperties()
     {
+        using var maskerScope = SensitiveDataMasker.BeginScope(revealSensitiveData: false);
         var options = CreateOptions("Data Source=:memory:");
         options.Repository!.DbCommandTimeoutInSeconds = null;
         options.Repository.DbCommandMaxRetries = null;
@@ -147,6 +173,7 @@ public class RayMigratorOptionsPreparerTests : IDisposable
     [Fact]
     public void Prepare_InvalidEnumValue_Throws()
     {
+        using var maskerScope = SensitiveDataMasker.BeginScope(revealSensitiveData: false);
         var options = CreateOptions("Data Source=:memory:");
         options.Products![0].MigrationErrorAction = "Explode";
 
@@ -158,6 +185,7 @@ public class RayMigratorOptionsPreparerTests : IDisposable
     [Fact]
     public void Prepare_RuleCatalogError_Throws()
     {
+        using var maskerScope = SensitiveDataMasker.BeginScope(revealSensitiveData: false);
         var options = CreateOptions("Data Source=:memory:");
         var targets = options.Products![0].TargetGroups![0].Targets!;
         targets.Add(new TargetOptions { Alias = targets[0].Alias, ConnectionString = "Data Source=:memory:" });
@@ -170,6 +198,7 @@ public class RayMigratorOptionsPreparerTests : IDisposable
     [Fact]
     public void Prepare_Twice_LeavesTheOptionsUnchanged()
     {
+        using var maskerScope = SensitiveDataMasker.BeginScope(revealSensitiveData: false);
         string dirVar = SetVariable(_dir);
         var options = CreateOptions($"Data Source={{ENV:{dirVar}}}/target.db");
         options.Repository!.DbCommandTimeoutInSeconds = null;

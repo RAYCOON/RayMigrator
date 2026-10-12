@@ -48,7 +48,9 @@ RayMigrator follows Semantic Versioning where applicable.
   engine knows its own). The accessor is a singleton in both host modes; the
   API accessor isolates per async flow through its `AsyncLocal` anyway.
   `ProductAliasGuard` explains an unknown product alias with the same message
-  the CLI showed, now also for hosts.
+  the CLI showed, now also for hosts. The preparer checks connection strings
+  that contain placeholders as they were written, so a credential a
+  placeholder supplies is not reported as hardcoded (#30).
 - The result contracts of `IMigrationService` name the repository run and the
   target. `MigrationOperationResult`, `BaselineResult` and `MigrationRunInfo`
   carry `MigrationRunId`, the id of the run row (0 when the run mode writes no
