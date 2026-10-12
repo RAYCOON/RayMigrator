@@ -248,7 +248,7 @@ The `Database.Example` project includes all 22 files as placeholders with TODO c
 | `Repository_MigrationRecord_UpdateRollback.sql` | Update after rollback (includes inline MigrationRecordHistory insert) |
 | `Repository_MigrationRun_FixOrphaned.sql` | Fix orphaned run records |
 | `Repository_MigrationRun_Insert.sql` | Insert migration run record |
-| `Repository_MigrationRun_Select.sql` | Select current run for product |
+| `Repository_MigrationRun_Select.sql` | Select the newest runs of a product and environment (`@ProductId`, `@EnvironmentId`, `@Limit`) |
 | `Repository_MigrationRun_SelectOrphaned.sql` | Select orphaned runs |
 | `Repository_MigrationRun_Update.sql` | Update run result |
 | `Repository_Product_CheckInsert.sql` | Lookup product by `NameLower`, insert if not exists; returns `ProductId` |

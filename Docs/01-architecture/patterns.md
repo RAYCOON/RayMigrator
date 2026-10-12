@@ -515,7 +515,7 @@ public abstract class OperationResult
 
 public class MigrationOperationResult : OperationResult
 {
-    public Guid RunId { get; set; }
+    public int MigrationRunId { get; set; }   // MigrationRun.Id; 0 when the run mode writes no run row
     public string ProductAlias { get; set; } = string.Empty;
     public string Environment { get; set; } = string.Empty;
     public MigrationOperation Operation { get; set; }
