@@ -26,7 +26,7 @@ Global options: `--config-dir`/`-cd <folder>`, `--startup-info`/`-si false`, `--
 
 ## Exit codes
 
-`0` success · `1` run failed (Error, Recovered or PartialSuccess), hash mismatch, refused parallel run, startup error (unresolved `{ENV:}` placeholder, login failed), bad command line · `2` `-env` and `DOTNET_ENVIRONMENT` differ · `3` empty `-env` and no `DOTNET_ENVIRONMENT` · `4` no `Serilog` section · `5` command-line parser crash (rare) · `100` unexpected exception, including no configuration files in the current directory and an invalid configuration
+`0` success · `1` run failed (Error, Recovered or PartialSuccess), hash mismatch, refused parallel run, startup error (unresolved `{ENV:}` placeholder, login failed), bad command line · `2` `-env` and `DOTNET_ENVIRONMENT` differ · `3` empty `-env` (`DOTNET_ENVIRONMENT` never fills in) · `4` no `Serilog` section · `5` command-line parser crash (rare) · `100` unexpected exception, including no configuration files in the current directory and an invalid configuration
 
 ## Files
 

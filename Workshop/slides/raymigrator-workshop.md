@@ -319,7 +319,7 @@ raymigrator <command> -p <Product> -env <Environment> [-rm migrate|simulate|vali
 Exit codes: **0** success · **1** run failed, hash mismatch, startup error or bad arguments · **2** `-env` and `DOTNET_ENVIRONMENT` differ · **4** no `Serilog` section · **100** unexpected exception, including a missing or invalid configuration
 
 <!--
-Timing: 0:10. Product and environment are matched case-sensitively. -rm defaults to migrate. -env is required on the command line; DOTNET_ENVIRONMENT is only cross-checked against it (exit 2 when they differ, exit 3 for an empty -env without the variable). Ordinary parse errors return 1, a parser crash 5; the cheat sheet has the full list.
+Timing: 0:10. Product and environment are matched case-sensitively. -rm defaults to migrate. -env is required on the command line; DOTNET_ENVIRONMENT is only cross-checked against it (exit 2 when they differ, exit 3 for an empty -env whether or not the variable is set; the variable never fills in, launch profiles pass it as -env {ENV:DOTNET_ENVIRONMENT}). Ordinary parse errors return 1, a parser crash 5; the cheat sheet has the full list.
 The exit code is the only machine-readable result; there is no JSON report. Pipelines call info afterwards.
 -->
 
