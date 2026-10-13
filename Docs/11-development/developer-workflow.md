@@ -131,7 +131,7 @@ After publish, the Console project copies the DAL SQL templates into `DataAccess
 
 ## NuGet packages
 
-Fifteen projects are packable, each with `PackageId` equal to the project name: `Core`, `Shared`, `Infrastructure`, `Services`, `Services.Abstractions`, `Pipeline`, `Database`, `Database.Common`, the five `Database.<Db>` plugins, `Validation` and `Testing`. `GeneratePackageOnBuild` is `false`; pack explicitly:
+Sixteen projects are packable, each with `PackageId` equal to the project name: `Core`, `Shared`, `Infrastructure`, `Services`, `Services.Abstractions`, `Pipeline`, `Database`, `Database.Common`, the five `Database.<Db>` plugins, `Repository.ReadModel`, `Validation` and `Testing`. `GeneratePackageOnBuild` is `false`; pack explicitly:
 
 ```bash
 dotnet pack -c Release -p:Version=<X.Y.Z>
