@@ -24,6 +24,7 @@ public class ScenarioContext : IAsyncDisposable
     private readonly string _productAlias;
     private OperationResult? _lastResult;
     private string _environment = "Docker";
+    private readonly RunInitiatorValues? _initiator;
 
     /// <summary>
     /// The temporary working directory containing the copied migration files.
@@ -48,7 +49,8 @@ public class ScenarioContext : IAsyncDisposable
         EngineConfig engineConfig,
         string workDir,
         string configPath,
-        string productAlias)
+        string productAlias,
+        RunInitiatorValues? initiator = null)
     {
         _host = host;
         _queryHelper = queryHelper;
@@ -56,6 +58,17 @@ public class ScenarioContext : IAsyncDisposable
         _workDir = workDir;
         _configPath = configPath;
         _productAlias = productAlias;
+        _initiator = initiator;
+    }
+
+    /// <summary>
+    /// Pins the repository schema version the host's next command creates or upgrades to, so a test can create a
+    /// repository of an older version and then exercise the upgrade path of the next one (ADR-024). The pin lasts
+    /// until the host is rebuilt.
+    /// </summary>
+    public void PinRepositorySchemaVersion(int version)
+    {
+        _host.MigrationContext.RepositorySchemaTargetVersion = version;
     }
 
     /// <summary>
@@ -264,7 +277,7 @@ public class ScenarioContext : IAsyncDisposable
         _environment = environment ?? "Docker";
         _host.Dispose();
         _host = new EngineTestHost();
-        _host.Build(_configPath, _productAlias, command, mode, toRelease, _environment);
+        _host.Build(_configPath, _productAlias, command, mode, toRelease, _environment, _initiator);
         if (_progressObserver != null)
         {
             _host.MigrationContext.ProgressObserver = _progressObserver;
@@ -442,6 +455,14 @@ public class ScenarioContext : IAsyncDisposable
         if (expected.ToReleaseVersion != null)
             run!.ToReleaseVersion.Should().Be(expected.ToReleaseVersion,
                 $"ToReleaseVersion mismatch at run index {runIndex}");
+
+        if (expected.MigrationOperationId.HasValue)
+            run!.MigrationOperationId.Should().Be(expected.MigrationOperationId.Value,
+                $"MigrationOperationId mismatch at run index {runIndex}");
+
+        if (expected.MigrationRunSourceId.HasValue)
+            run!.MigrationRunSourceId.Should().Be(expected.MigrationRunSourceId.Value,
+                $"MigrationRunSourceId mismatch at run index {runIndex}");
     }
 
     /// <summary>

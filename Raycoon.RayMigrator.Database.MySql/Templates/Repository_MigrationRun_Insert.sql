@@ -6,7 +6,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_MigrationRun_Insert"
 DatabaseType   = "MySql"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-04-18.1"
+Version        = "2026-10-13.1"
 
 [Description]
 Function = """
@@ -37,6 +37,11 @@ MigrationRunResultId = "TINYINT UNSIGNED | REQUIRED | Initial result status (sho
 FromReleaseVersion = "VARCHAR(100) | OPTIONAL | Starting release version for the migration range"
 ToReleaseVersion   = "VARCHAR(100) | OPTIONAL | Target release version for the migration range"
 MigrationRunSettingsJson = "TEXT | REQUIRED | JSON snapshot of all RayMigrator settings at migration start"
+MigrationOperationId = "TINYINT | REQUIRED | What the run does: 50=MigrateDown, 100=MigrateUp, 110=Baseline (schema version 2)"
+MigrationRunSourceId = "TINYINT | OPTIONAL | Where the run was started: 10=Cli, 20=Ci, 30=Studio; NULL when the host did not say"
+InitiatedBy        = "VARCHAR(200) | OPTIONAL | Display name of the person or service account that started the run"
+InitiatedBySubject = "VARCHAR(200) | OPTIONAL | Stable identifier of the initiator (e.g. the subject claim of an identity provider)"
+Host               = "VARCHAR(200) | OPTIONAL | The machine the run executes on"
 
 [ReturnValues]
 # Format: SELECT 'code,message'
@@ -69,9 +74,11 @@ SET @v_running = CASE WHEN @v_lock_acquired = 1 THEN (
 
 INSERT INTO {CFG:TableBaseName}migration_run
     (migrator_meta_id, product_id, environment_id, migration_run_mode_id, migration_run_result_id,
-     from_release_version, to_release_version, started_at)
+     from_release_version, to_release_version, started_at,
+     migration_operation_id, migration_run_source_id, initiated_by, initiated_by_subject, host, last_heartbeat_at)
 SELECT @MigratorMetaId, @ProductId, @EnvironmentId, @MigrationRunModeId, @MigrationRunResultId,
-       @FromReleaseVersion, @ToReleaseVersion, CURRENT_TIMESTAMP
+       @FromReleaseVersion, @ToReleaseVersion, CURRENT_TIMESTAMP,
+       @MigrationOperationId, @MigrationRunSourceId, @InitiatedBy, @InitiatedBySubject, @Host, CURRENT_TIMESTAMP
 FROM DUAL
 WHERE @v_lock_acquired = 1 AND @v_running = 0;
 

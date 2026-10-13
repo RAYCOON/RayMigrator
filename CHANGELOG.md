@@ -25,6 +25,20 @@ RayMigrator follows Semantic Versioning where applicable.
   before anything is written. New log events
   `TemplateExecutionRepositoryUpgrade` (101) and
   `TemplateExecutionRepositoryMigratorMetaCheckInsert` (102).
+- Schema version 2: a run row records what it does and who started it
+  where. `MigrationRun` gains `MigrationOperationId`, `MigrationRunSourceId`
+  (new lookup table `MigrationRunSource`: Cli = 10, Ci = 20, Studio = 30),
+  `InitiatedBy`, `InitiatedBySubject`, `Host`, `ErrorCode`, `ErrorMessage`
+  and `LastHeartbeatAt`, all nullable. `RayMigratorConsoleOptions` takes
+  `Source`, `InitiatedBy`, `InitiatedBySubject` and `Host` from a host; the
+  CLI fills the OS user, the machine name and `Cli`, or `Ci` when one of
+  `CI`, `GITHUB_ACTIONS`, `GITLAB_CI`, `TF_BUILD`, `JENKINS_URL` or
+  `TEAMCITY_VERSION` is set (`RunInitiator`). A run that does not end Ok
+  stores the message of the failure that decided its result, cut to 4000
+  characters, and the engine error code when there is one. `MigrationRunInfo`
+  reports `Source`, `InitiatedBy`, `InitiatedBySubject`, `Host`, `ErrorCode`,
+  `ErrorMessage` and `LastHeartbeatAt`, and its `Operation` comes from the
+  run row instead of being derived from the records.
 - Typed progress events for hosts. `MigrationContext.ProgressObserver` takes an
   `IMigrationProgressObserver` (namespace `Raycoon.RayMigrator.Core.Progress`)
   that receives `RunStartedEvent` (after the run row exists, with its id),

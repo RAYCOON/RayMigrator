@@ -174,6 +174,8 @@ This template is **not executed immediately**. It is first used when the Serilog
 
 8. **RepositorySchemaVersion row 1** with `AppliedAt` and the `RayMigratorVersion` that applied the step
 
+**What schema step 2 (`Repository_Upgrade_2`) adds:** the lookup table `MigrationRunSource` (Cli = 10, Ci = 20, Studio = 30) and the nullable run detail columns `MigrationOperationId`, `MigrationRunSourceId`, `InitiatedBy`, `InitiatedBySubject`, `Host`, `ErrorCode`, `ErrorMessage` and `LastHeartbeatAt` on `MigrationRun` with foreign keys to `MigrationOperation` and `MigrationRunSource`, plus version row 2.
+
 **Return values:** `Repository_CheckCreate` returns `'schemaVersion,unversionedTables,message'`; `Repository_Upgrade_{n}` returns `'n,message'`; `Repository_MigratorMeta_CheckInsert` returns the `MigratorMetaId` (positive integer, `-12` when several `MigratorMeta` rows match), stored in `MigrationContext.MigrationState.MigratorMetaId`
 
 ---
@@ -316,7 +318,7 @@ These templates exist in the template cache but are only used during specific op
 | Template | When Used |
 |----------|-----------|
 | `Repository_Drop` | Explicit repository deletion |
-| `Repository_MigrationRun_Update` | After completion or error of a MigrationRun |
+| `Repository_MigrationRun_Update` | After completion or error of a MigrationRun: stores the result, `FinishedAt`, `DurationInMs` and, since schema version 2, `@ErrorCode` and `@ErrorMessage` of the failure that decided a result other than Ok |
 | `Repository_MigrationRecord_Insert` | Per migration file during actual migration execution |
 | `Repository_MigrationRecord_Update` | Block progress or completion per file |
 | `Repository_MigrationRecord_UpdateRollback` | Update migration record with rollback (FileDown) metadata and progress |
@@ -337,3 +339,6 @@ These templates exist in the template cache but are only used during specific op
 - [Logging Schema](logging-schema.md) - Logging table structures
 - [DAL Architecture](dal-architecture.md) - Database access layer
 - [Data Flow](../01-architecture/data-flow.md) - Overall data flow
+- `@MigrationOperationId` - What the run does: 50=MigrateDown, 100=MigrateUp, 110=Baseline (schema version 2)
+- `@MigrationRunSourceId` - Where the run was started: 10=Cli, 20=Ci, 30=Studio; NULL when the host did not say
+- `@InitiatedBy`, `@InitiatedBySubject`, `@Host` - Who started the run where (the CLI binds the OS user and the machine name; Studio the signed-in user)

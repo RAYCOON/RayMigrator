@@ -17,6 +17,7 @@ public enum TemplateType
     // tables of a fresh repository. One member per version up to RepositorySchema.CurrentVersion; applied in order by
     // TemplateExecutor.RepositoryCheckCreate, which then registers the engine version through MigratorMeta_CheckInsert
     Repository_Upgrade_1,
+    Repository_Upgrade_2,
     Repository_MigratorMeta_CheckInsert,
 
     Repository_MigrationRun_Insert,

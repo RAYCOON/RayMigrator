@@ -25,21 +25,26 @@ public class TemplateExecutorRepositoryCreatedLoggingTests
 {
     private const string NoRepository = "0,0,RayMigrator repository does not exist yet";
     private const string LegacyRepository = "0,1,RayMigrator repository tables exist without a schema version";
-    private const string CurrentRepository = "1,1,RayMigrator repository has schema version [1]";
-    private const string StepOneApplied = "1,RayMigrator repository schema version [1] applied: 11 tables with master data";
     private const string MetaRegistered = "7,RayMigrator version [3.0.0] registered with new MigratorMetaId [7]";
+    private static readonly string CurrentRepository = $"{RepositorySchema.CurrentVersion},1,RayMigrator repository has schema version [{RepositorySchema.CurrentVersion}]";
+
+    /// <summary>The results of the steps <paramref name="from"/> to <see cref="RepositorySchema.CurrentVersion"/>, each returning its own version.</summary>
+    private static string[] StepsFrom(int from) =>
+        Enumerable.Range(from, RepositorySchema.CurrentVersion - from + 1).Select(v => $"{v},RayMigrator repository schema version [{v}] applied").ToArray();
+
+    private static string[] Results(string first, params string[] rest) => [first, .. rest];
 
     [Fact]
     public void RepositoryCheckCreate_FreshRepository_AppliesEveryStepAndLogsCreated()
     {
         // Arrange
-        var (executor, logger, context, calls) = CreateExecutor(NoRepository, StepOneApplied, MetaRegistered);
+        var (executor, logger, context, calls) = CreateExecutor(Results(NoRepository, [.. StepsFrom(1), MetaRegistered]));
 
         // Act
         executor.RepositoryCheckCreate();
 
         // Assert
-        calls.Count.Should().Be(3, because: "check, step 1 and the MigratorMeta registration each execute one template");
+        calls.Count.Should().Be(2 + RepositorySchema.CurrentVersion, because: "the check, every step and the MigratorMeta registration each execute one template");
         logger.Entries.Should().ContainSingle(e => e.LogLevel == LogLevel.Information && e.Message.Contains("Repository created"))
             .Which.Message.Should().Contain("DatabaseType [SqlServer]").And.Contain($"schema version [{RepositorySchema.CurrentVersion}]");
         context.MigrationState.MigratorMetaId.Should().Be(7);
@@ -62,10 +67,26 @@ public class TemplateExecutorRepositoryCreatedLoggingTests
     }
 
     [Fact]
+    public void RepositoryCheckCreate_OlderRepository_AppliesTheMissingStepsAndLogsUpgraded()
+    {
+        // Arrange: a repository at version 1 while the engine expects CurrentVersion
+        var (executor, logger, context, calls) = CreateExecutor(Results("1,1,RayMigrator repository has schema version [1]", [.. StepsFrom(2), MetaRegistered]));
+
+        // Act
+        executor.RepositoryCheckCreate();
+
+        // Assert
+        calls.Count.Should().Be(1 + (RepositorySchema.CurrentVersion - 1) + 1, because: "only the steps above version 1 run");
+        logger.Entries.Should().ContainSingle(e => e.LogLevel == LogLevel.Information && e.Message.Contains("Repository schema upgraded"))
+            .Which.Message.Should().Contain("version [1]").And.Contain($"to [{RepositorySchema.CurrentVersion}]");
+        context.MigrationState.MigratorMetaId.Should().Be(7);
+    }
+
+    [Fact]
     public void RepositoryCheckCreate_TablesWithoutSchemaVersion_ThrowsBeforeAnyStep()
     {
         // Arrange
-        var (executor, _, context, calls) = CreateExecutor(LegacyRepository, StepOneApplied, MetaRegistered);
+        var (executor, _, context, calls) = CreateExecutor(Results(LegacyRepository, [.. StepsFrom(1), MetaRegistered]));
 
         // Act
         var act = () => executor.RepositoryCheckCreate();
@@ -83,15 +104,15 @@ public class TemplateExecutorRepositoryCreatedLoggingTests
     public void RepositoryCheckCreate_RepositoryNewerThanEngine_ThrowsBeforeAnyStep()
     {
         // Arrange
-        var (executor, _, _, calls) = CreateExecutor("5,1,RayMigrator repository has schema version [5]", MetaRegistered);
+        var (executor, _, _, calls) = CreateExecutor($"{RepositorySchema.CurrentVersion + 3},1,RayMigrator repository has schema version [{RepositorySchema.CurrentVersion + 3}]", MetaRegistered);
 
         // Act
         var act = () => executor.RepositoryCheckCreate();
 
         // Assert
         var ex = act.Should().Throw<RepositorySchemaException>().Which;
-        ex.Message.Should().Contain("schema version [5]").And.Contain($"version [{RepositorySchema.CurrentVersion}] at most").And.Contain("RayMigrator [3.0.0]");
-        ex.RepositoryVersion.Should().Be(5);
+        ex.Message.Should().Contain($"schema version [{RepositorySchema.CurrentVersion + 3}]").And.Contain($"version [{RepositorySchema.CurrentVersion}] at most").And.Contain("RayMigrator [3.0.0]");
+        ex.RepositoryVersion.Should().Be(RepositorySchema.CurrentVersion + 3);
         calls.Count.Should().Be(1);
     }
 
@@ -99,31 +120,35 @@ public class TemplateExecutorRepositoryCreatedLoggingTests
     public void RepositoryCheckCreate_StepReturnsAnotherCode_Throws()
     {
         // Arrange
-        var (executor, _, _, _) = CreateExecutor(NoRepository, "2,wrong step", MetaRegistered);
+        var (executor, _, _, _) = CreateExecutor(NoRepository, "99,wrong step", MetaRegistered);
 
         // Act
         var act = () => executor.RepositoryCheckCreate();
 
         // Assert
-        act.Should().Throw<TemplateResultException>().Which.Message.Should().Contain("step [1]").And.Contain("[2]");
+        act.Should().Throw<TemplateResultException>().Which.Message.Should().Contain("step [1]").And.Contain("[99]");
     }
 
     [Fact]
     public void RepositoryCheckCreate_BindsTheVersionAndDatabaseTypeParameters()
     {
         // Arrange
-        var (executor, _, _, calls) = CreateExecutor(NoRepository, StepOneApplied, MetaRegistered);
+        var (executor, _, _, calls) = CreateExecutor(Results(NoRepository, [.. StepsFrom(1), MetaRegistered]));
 
         // Act
         executor.RepositoryCheckCreate();
 
         // Assert
         calls[0].Should().BeNull(because: "Repository_CheckCreate takes no parameters");
-        calls[1]!.TryGetValue("RayMigratorVersion", out var stepVersion).Should().BeTrue();
-        stepVersion!.ParameterValue.Should().Be("3.0.0");
-        calls[2]!.TryGetValue("RayMigratorVersion", out var metaVersion).Should().BeTrue();
+        for (int step = 1; step <= RepositorySchema.CurrentVersion; step++)
+        {
+            calls[step]!.TryGetValue("RayMigratorVersion", out var stepVersion).Should().BeTrue($"step {step} binds the engine version");
+            stepVersion!.ParameterValue.Should().Be("3.0.0");
+        }
+        var meta = calls[^1]!;
+        meta.TryGetValue("RayMigratorVersion", out var metaVersion).Should().BeTrue();
         metaVersion!.ParameterValue.Should().Be("3.0.0");
-        calls[2]!.TryGetValue("RepositoryDatabaseType", out var databaseType).Should().BeTrue();
+        meta.TryGetValue("RepositoryDatabaseType", out var databaseType).Should().BeTrue();
         databaseType!.ParameterValue.Should().Be("SqlServer");
     }
 
@@ -133,7 +158,7 @@ public class TemplateExecutorRepositoryCreatedLoggingTests
         // Arrange
         using var scope = SensitiveDataMasker.BeginScope(revealSensitiveData: false);
         SensitiveDataMasker.RegisterSensitiveValue("ray");
-        var (executor, logger, _, _) = CreateExecutor(NoRepository, StepOneApplied, MetaRegistered);
+        var (executor, logger, _, _) = CreateExecutor(Results(NoRepository, [.. StepsFrom(1), MetaRegistered]));
 
         // Act
         executor.RepositoryCheckCreate();
@@ -149,7 +174,7 @@ public class TemplateExecutorRepositoryCreatedLoggingTests
         // Arrange
         using var scope = SensitiveDataMasker.BeginScope(revealSensitiveData: true);
         SensitiveDataMasker.RegisterSensitiveValue("ray");
-        var (executor, logger, _, _) = CreateExecutor(NoRepository, StepOneApplied, MetaRegistered);
+        var (executor, logger, _, _) = CreateExecutor(Results(NoRepository, [.. StepsFrom(1), MetaRegistered]));
 
         // Act
         executor.RepositoryCheckCreate();

@@ -494,6 +494,9 @@ public class CommandLineConfiguration
                     .ToArray(),
                 TargetGroupMigrationOrder = tgeoArray,
                 ConfigDir = ResolveConfigDir(parseResult.GetValue(configDirOption)),
+                Source = RunInitiator.DetectSource(),
+                InitiatedBy = RunInitiator.CurrentUserName,
+                Host = RunInitiator.CurrentHost,
             };
         });
     }
@@ -521,6 +524,9 @@ public class CommandLineConfiguration
                     .Where(a => !string.IsNullOrWhiteSpace(a))
                     .ToArray(),
                 ConfigDir = ResolveConfigDir(parseResult.GetValue(configDirOption)),
+                Source = RunInitiator.DetectSource(),
+                InitiatedBy = RunInitiator.CurrentUserName,
+                Host = RunInitiator.CurrentHost,
             };
         });
     }
@@ -550,6 +556,9 @@ public class CommandLineConfiguration
                     .Where(a => !string.IsNullOrWhiteSpace(a))
                     .ToArray(),
                 ConfigDir = ResolveConfigDir(parseResult.GetValue(configDirOption)),
+                Source = RunInitiator.DetectSource(),
+                InitiatedBy = RunInitiator.CurrentUserName,
+                Host = RunInitiator.CurrentHost,
             };
         });
     }
@@ -574,6 +583,9 @@ public class CommandLineConfiguration
                     .Where(a => !string.IsNullOrWhiteSpace(a))
                     .ToArray(),
                 ConfigDir = ResolveConfigDir(parseResult.GetValue(configDirOption)),
+                Source = RunInitiator.DetectSource(),
+                InitiatedBy = RunInitiator.CurrentUserName,
+                Host = RunInitiator.CurrentHost,
             };
         });
     }
@@ -593,6 +605,9 @@ public class CommandLineConfiguration
                 RevealSensitiveData = parseResult.GetValue(revealSensitiveDataOption),
                 HashValidationScope = null,
                 ConfigDir = ResolveConfigDir(parseResult.GetValue(configDirOption)),
+                Source = RunInitiator.DetectSource(),
+                InitiatedBy = RunInitiator.CurrentUserName,
+                Host = RunInitiator.CurrentHost,
             };
         });
     }
@@ -621,6 +636,9 @@ public class CommandLineConfiguration
                     .ToArray(),
                 TargetGroupMigrationOrder = tgeoArray,
                 ConfigDir = ResolveConfigDir(parseResult.GetValue(configDirOption)),
+                Source = RunInitiator.DetectSource(),
+                InitiatedBy = RunInitiator.CurrentUserName,
+                Host = RunInitiator.CurrentHost,
             };
         });
     }
@@ -652,6 +670,9 @@ public class CommandLineConfiguration
                 FixOlderThanMinutes = olderThan,
                 FixAssumedMigrationStatus = lastMigrationStatus,
                 ConfigDir = ResolveConfigDir(parseResult.GetValue(configDirOption)),
+                Source = RunInitiator.DetectSource(),
+                InitiatedBy = RunInitiator.CurrentUserName,
+                Host = RunInitiator.CurrentHost,
             };
         });
     }

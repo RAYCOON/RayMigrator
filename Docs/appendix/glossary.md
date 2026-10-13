@@ -295,7 +295,7 @@ The unique identifier for a product, used in configuration and CLI commands.
 A directory name representing a version of migrations (e.g., "Release 1.0", "v2.0.0"). Migrations are organized by release.
 
 ### Repository
-The database structure that tracks migration state, history, and metadata. Contains 12 tables (`RepositorySchemaVersion`, `MigratorMeta`, `Product`, `Environment`, `MigrationRun`, `MigrationRunMeta`, `MigrationRecord`, `MigrationRecordHistory`, plus four lookups); the schema is versioned and upgraded in numbered steps (ADR-024). See [Repository Schema](../03-database-layer/repository-schema.md).
+The database structure that tracks migration state, history, and metadata. Contains 13 tables (`RepositorySchemaVersion`, `MigratorMeta`, `Product`, `Environment`, `MigrationRun`, `MigrationRunMeta`, `MigrationRecord`, `MigrationRecordHistory`, plus five lookups); the schema is versioned and upgraded in numbered steps (ADR-024). See [Repository Schema](../03-database-layer/repository-schema.md).
 
 ### Rollback
 The process of reversing previously applied migrations using rollback files.

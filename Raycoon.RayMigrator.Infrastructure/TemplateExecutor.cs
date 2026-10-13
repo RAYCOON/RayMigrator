@@ -302,6 +302,17 @@ public class TemplateExecutor
         dalParameterList.AddParameter(new DalParameter("ToReleaseVersion", _ctxAccessor.Current.RayMigratorConsoleOptions.TargetReleaseVersion, typeof(string)));
         dalParameterList.AddParameter(new DalParameter("MigrationRunSettingsJson", migrationRunSettingsJson, typeof(string)));
 
+        // Run details (schema version 2): what the run does and who started it where. The operation is the one the
+        // service set for the command; source and initiator come from the host, the host name from the machine when
+        // the host did not name one.
+        var consoleOptions = _ctxAccessor.Current.RayMigratorConsoleOptions;
+        var source = consoleOptions.Source is { } s && s != MigrationRunSource.Undefined ? (byte?)s : null;
+        dalParameterList.AddParameter(new DalParameter("MigrationOperationId", (byte)_ctxAccessor.Current.MigrationState.MigrationOperation, typeof(byte)));
+        dalParameterList.AddParameter(new DalParameter("MigrationRunSourceId", source, typeof(byte)));
+        dalParameterList.AddParameter(new DalParameter("InitiatedBy", Truncate(consoleOptions.InitiatedBy, 200), typeof(string)));
+        dalParameterList.AddParameter(new DalParameter("InitiatedBySubject", Truncate(consoleOptions.InitiatedBySubject, 200), typeof(string)));
+        dalParameterList.AddParameter(new DalParameter("Host", Truncate(consoleOptions.Host ?? RunInitiator.CurrentHost, 200), typeof(string)));
+
         var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
 
         try
@@ -317,11 +328,19 @@ public class TemplateExecutor
     }
 
     /// <summary>
-    /// Updates an existing MigrationRun with the final result status and completion time.
+    /// The longest error message stored in <c>MigrationRun.ErrorMessage</c>; longer messages are cut.
+    /// </summary>
+    public const int MaxErrorMessageLength = 4000;
+
+    /// <summary>
+    /// Updates an existing MigrationRun with the final result status, the completion time and, for a run that did
+    /// not end <see cref="MigrationRunResult.Ok"/>, the code and message of the error that decided the result.
     /// </summary>
     /// <param name="runResult">The final result of the migration run.</param>
+    /// <param name="errorCode">The engine error code of the failure (<c>TemplateResultCode</c>), or null.</param>
+    /// <param name="errorMessage">The message of the failure, cut to <see cref="MaxErrorMessageLength"/>, or null.</param>
     /// <exception cref="TemplateExecutionException"></exception>
-    public void RepositoryMigrationRunUpdate(MigrationRunResult runResult)
+    public void RepositoryMigrationRunUpdate(MigrationRunResult runResult, string? errorCode = null, string? errorMessage = null)
     {
         var templateType = TemplateType.Repository_MigrationRun_Update;
         var eventId = MigrationEvent.TemplateExecutionRepositoryMigrationRunUpdate;
@@ -339,11 +358,21 @@ public class TemplateExecutor
         DalParameterList dalParameterList = new DalParameterList();
         dalParameterList.AddParameter(new DalParameter("MigrationRunId", _ctxAccessor.Current.MigrationState.MigrationRunId, typeof(int)));
         dalParameterList.AddParameter(new DalParameter("MigrationRunResultId", (byte)runResult, typeof(byte)));
+        dalParameterList.AddParameter(new DalParameter("ErrorCode", Truncate(errorCode, 100), typeof(string)));
+        dalParameterList.AddParameter(new DalParameter("ErrorMessage", Truncate(errorMessage, MaxErrorMessageLength), typeof(string)));
 
         var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
         ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId);
 
         _ctxAccessor.Current.MigrationState.MigrationRunResult = runResult;
+    }
+
+    /// <summary>Cuts <paramref name="value"/> to <paramref name="maxLength"/> characters; null and empty stay null.</summary>
+    internal static string? Truncate(string? value, int maxLength)
+    {
+        if (string.IsNullOrEmpty(value))
+            return null;
+        return value.Length <= maxLength ? value : value[..maxLength];
     }
 
     /// <summary>

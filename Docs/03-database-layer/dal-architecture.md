@@ -114,6 +114,7 @@ Raycoon.RayMigrator.Database.SqlServer/        <- Separate project
 │   ├── DatabaseLogging_Insert.sql
 │   ├── Repository_CheckCreate.sql
 │   ├── Repository_Upgrade_1.sql
+│   ├── Repository_Upgrade_2.sql
 │   ├── Repository_MigratorMeta_CheckInsert.sql
 │   ├── Repository_Drop.sql
 │   ├── Repository_Environment_CheckInsert.sql

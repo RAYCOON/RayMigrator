@@ -89,4 +89,28 @@ public class RayMigratorConsoleOptions
     /// </summary>
     public string? ConfigDir { get; init; }
 
+    /// <summary>
+    /// Where the run is started from, stamped into <c>MigrationRun.MigrationRunSourceId</c>. The CLI sets
+    /// <see cref="MigrationRunSource.Cli"/> or <see cref="MigrationRunSource.Ci"/> (see <see cref="RunInitiator"/>),
+    /// RayMigrator Studio sets <see cref="MigrationRunSource.Studio"/>. Null is stored as NULL.
+    /// </summary>
+    public MigrationRunSource? Source { get; init; }
+
+    /// <summary>
+    /// The display name of the person or service account that started the run (<c>MigrationRun.InitiatedBy</c>):
+    /// the OS user for the CLI, the signed-in user for Studio. Null is stored as NULL.
+    /// </summary>
+    public string? InitiatedBy { get; init; }
+
+    /// <summary>
+    /// A stable identifier of the initiator (<c>MigrationRun.InitiatedBySubject</c>), for example the subject claim of
+    /// the identity provider in Studio. The CLI leaves it null.
+    /// </summary>
+    public string? InitiatedBySubject { get; init; }
+
+    /// <summary>
+    /// The machine the run executes on (<c>MigrationRun.Host</c>). The engine uses the machine name when null.
+    /// </summary>
+    public string? Host { get; init; }
+
 }

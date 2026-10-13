@@ -67,11 +67,11 @@ Authoritative pages: [File naming](https://github.com/RAYCOON/RayMigrator/blob/m
 
 ### Migration repository schema
 
-The repository has 12 tables (canonical names below; PostgreSQL, MariaDB and MySQL use unquoted `snake_case`, SQL Server and
+The repository has 13 tables (canonical names below; PostgreSQL, MariaDB and MySQL use unquoted `snake_case`, SQL Server and
 SQLite PascalCase), prefixed by `TableBaseName` and placed in `SchemaName` where the engine supports schemas. The schema is
 versioned (ADR-024): `Repository_CheckCreate` creates only `RepositorySchemaVersion` and reports the version found, the numbered
-steps `Repository_Upgrade_{n}` create the other 11 tables with their lookup seeds (step 1) and every later change, and the first
-command of a newer engine applies the missing steps. A repository without a version row (created before 0.17.0) or with a version
+steps `Repository_Upgrade_{n}` create the other 12 tables with their lookup seeds (step 1 the first 11, step 2 `MigrationRunSource` and the
+run details of `MigrationRun`) and every later change, and the first command of a newer engine applies the missing steps. A repository without a version row (created before 0.17.0) or with a version
 newer than the engine is refused.
 
 | Table | Purpose |
@@ -79,11 +79,11 @@ newer than the engine is refused.
 | `RepositorySchemaVersion` | One row per applied schema version (`Version`, `AppliedAt`, `RayMigratorVersion`) |
 | `MigratorMeta` | One row per RayMigrator version that used the repository (`RayMigratorVersion`, `RepositoryDatabaseType`), registered by `Repository_MigratorMeta_CheckInsert`; the first row is the version that created the repository |
 | `Product`, `Environment` | Registered names with a `NameLower` unique index; their ids are referenced by every run and record |
-| `MigrationRun` | One row per run: mode, result, `FromReleaseVersion`, `ToReleaseVersion`, `StartedAt`, `FinishedAt`, `DurationInMs`; the open row is the run lock |
+| `MigrationRun` | One row per run: mode, result, `FromReleaseVersion`, `ToReleaseVersion`, `StartedAt`, `FinishedAt`, `DurationInMs`; since schema version 2 also the operation, the source (`MigrationRunSource`), `InitiatedBy`, `InitiatedBySubject`, `Host`, `ErrorCode`, `ErrorMessage` and `LastHeartbeatAt`; the open row is the run lock |
 | `MigrationRunMeta` | `MigrationRunSettingsJson`, the masked snapshot of the effective settings of a run |
 | `MigrationRecord` | One row per file and target: status, `FileOrderId`, three up hashes, three down hashes, block counters, config JSON, timestamps |
 | `MigrationRecordHistory` | Snapshot of a record whenever it reaches `Failed`, `NotMigrated` or `Migrated`; source of the `info` run history |
-| `MigrationRunMode`, `MigrationOperation`, `MigrationRunResult`, `MigrationStatus` | Lookup tables mirroring the Core enums of the same names |
+| `MigrationRunMode`, `MigrationOperation`, `MigrationRunResult`, `MigrationStatus`, `MigrationRunSource` | Lookup tables mirroring the Core enums of the same names |
 
 The optional logging database holds `MigrationEvent` and `MigrationLog`, created by `DatabaseLogging_CheckCreate` without foreign
 keys to the repository because it may live elsewhere.
@@ -179,8 +179,8 @@ Authoritative page: [Execution modes](https://github.com/RAYCOON/RayMigrator/blo
 
 ### Template-Driven Repository Schema
 
-All repository and log access goes through SQL templates. `TemplateType` has 23 members besides `Undefined`: 21 `Repository_*`
-(among them the schema step `Repository_Upgrade_1` and `Repository_MigratorMeta_CheckInsert` of ADR-024) plus
+All repository and log access goes through SQL templates. `TemplateType` has 24 members besides `Undefined`: 22 `Repository_*`
+(among them the schema steps `Repository_Upgrade_1` and `Repository_Upgrade_2` and `Repository_MigratorMeta_CheckInsert` of ADR-024) plus
 `DatabaseLogging_CheckCreate` and `DatabaseLogging_Insert`.
 `TemplateCache` loads `DataAccessLayers/{Type}/*.sql` below the application base directory at construction, maps file names to
 `TemplateType`, replaces `{ENV:*}` once and throws `ConfigurationValidationException` when a type misses a template, a template is

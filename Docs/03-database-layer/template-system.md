@@ -7,7 +7,8 @@ RayMigrator uses SQL templates with placeholder substitution for database-agnost
 | Template | Purpose |
 |----------|---------|
 | `Repository_CheckCreate` | Report the repository schema version; create the schema and the `RepositorySchemaVersion` table when missing (ADR-024) |
-| `Repository_Upgrade_1` | Schema step 1: create the 11 repository tables with indexes, foreign keys and lookup master data and write version row 1; later versions add `Repository_Upgrade_{n}` |
+| `Repository_Upgrade_1` | Schema step 1: create the 11 repository tables with indexes, foreign keys and lookup master data and write version row 1 |
+| `Repository_Upgrade_2` | Schema step 2: add the run details to `MigrationRun` and the `MigrationRunSource` lookup, write version row 2; later versions add `Repository_Upgrade_{n}` |
 | `Repository_MigratorMeta_CheckInsert` | Register the engine version in `MigratorMeta`, return the `MigratorMetaId` |
 | `Repository_Product_CheckInsert` | Ensure product exists |
 | `Repository_Environment_CheckInsert` | Ensure environment exists |
@@ -36,6 +37,7 @@ RayMigrator uses SQL templates with placeholder substitution for database-agnost
 | `DatabaseLogging_Insert` | Active | Active | Active | Active | Active |
 | `Repository_CheckCreate` | Active | Active | Active | Active | Active |
 | `Repository_Upgrade_1` | Active | Active | Active | Active | Active |
+| `Repository_Upgrade_2` | Active | Active | Active | Active | Active |
 | `Repository_MigratorMeta_CheckInsert` | Active | Active | Active | Active | Active |
 | `Repository_Drop` | Active | Active | Active | Active | Active |
 | `Repository_Product_CheckInsert` | Active | Active | Active | Active | Active |

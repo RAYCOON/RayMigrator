@@ -48,7 +48,8 @@ public sealed class EngineTestHost : IDisposable
         MigrationCommand command,
         MigrationRunMode runMode,
         string? targetReleaseVersion = null,
-        string environment = "Docker")
+        string environment = "Docker",
+        RunInitiatorValues? initiator = null)
     {
         // Resolve migration files root directory (solution root / Testing / MigrationFiles)
         string solutionRoot = FindSolutionRoot();
@@ -73,7 +74,11 @@ public sealed class EngineTestHost : IDisposable
             RunMode = runMode,
             TargetReleaseVersion = targetReleaseVersion,
             ShowStartupInfo = false,
-            RevealSensitiveData = false
+            RevealSensitiveData = false,
+            Source = initiator?.Source,
+            InitiatedBy = initiator?.InitiatedBy,
+            InitiatedBySubject = initiator?.InitiatedBySubject,
+            Host = initiator?.Host
         };
 
         // Configure Serilog

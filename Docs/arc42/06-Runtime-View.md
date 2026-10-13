@@ -111,7 +111,7 @@ sequenceDiagram
     participant LOGDB as Logging database
 
     DMP->>TC: new TemplateCache(options, revealSensitiveData, logger)
-    TC->>TC: Initialize(): load DataAccessLayers/{Type}/*.sql, replace ENV placeholders, require all 23 TemplateType files per type
+    TC->>TC: Initialize(): load DataAccessLayers/{Type}/*.sql, replace ENV placeholders, require all 24 TemplateType files per type
     TC->>TC: ValidateConfigurationAgainstTemplateCache(options)
     DMP->>DLW: InitDatabaseLogger(loggingType, templateCache, templateExecutor)
     DLW->>TE: ExecuteScalarWithNegativeResultCodeException(DatabaseLogging_CheckCreate)
@@ -139,7 +139,7 @@ sequenceDiagram
     TE-->>MS: MigrationState.MigrationRunId (ResultCode -2: MigrationAlreadyRunningException)
 ```
 
-1. `TemplateCache` is a DI singleton; its constructor scans `DataAccessLayers/{Type}/` next to the binary, maps file names to `TemplateType`, resolves `{ENV:*}` once and throws `ConfigurationValidationException` when a type lacks one of the 23 templates or when a configured `DatabaseType` has no template folder. No SQL runs in this phase.
+1. `TemplateCache` is a DI singleton; its constructor scans `DataAccessLayers/{Type}/` next to the binary, maps file names to `TemplateType`, resolves `{ENV:*}` once and throws `ConfigurationValidationException` when a type lacks one of the 24 templates or when a configured `DatabaseType` has no template folder. No SQL runs in this phase.
 2. If `DatabaseLogging` is configured, `DatabaseLogWriter.InitDatabaseLogger` executes `DatabaseLogging_CheckCreate` on the logging database during startup, regardless of run mode, and keeps `DatabaseLogging_Insert` in memory for the asynchronous queue. Log rows are written only when `CommandProfile.WritesDatabaseLog` is true.
 3. `TemplateExecutor.RepositoryCheckCreate` executes `Repository_CheckCreate`, which creates the schema (SQL Server, PostgreSQL) and the `RepositorySchemaVersion` table when they are missing and reports the schema version found. Every missing `Repository_Upgrade_{n}` step up to `RepositorySchema.CurrentVersion` then runs in order; step 1 creates the lookup tables `MigrationOperation`, `MigrationRunResult`, `MigrationRunMode`, `MigrationStatus`, the data tables `MigratorMeta`, `Product`, `Environment`, `MigrationRun`, `MigrationRunMeta`, `MigrationRecord`, `MigrationRecordHistory`, the indexes and foreign keys, seeds the lookup tables and writes version row 1. `Repository_MigratorMeta_CheckInsert` registers the engine version; its result code is the `MigratorMetaId`. A repository without a schema version (created before 0.17.0) or newer than the engine ends the run with `RepositorySchemaException` before anything is written (ADR-024).
 4. `RepositoryProductCheckInsert` and `RepositoryEnvironmentCheckInsert` register the product and environment by lowercase name. Commands whose profile does not write the repository (`info`, `validate-hash`, `fix` and `migrate-up`/`migrate-down` in `Simulate` mode) call `RepositoryProductSelect` and `RepositoryEnvironmentSelect` instead and treat an unknown product as an empty repository (`MigrationService.InitializeRepositoryAsync`, `ResolveRepositoryIdsReadOnlyAsync`).

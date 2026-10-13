@@ -183,6 +183,27 @@ public class MigrationRunInfo
     /// <summary>The highest Migrated release when the run started; null for a first run.</summary>
     public string? FromRelease { get; set; }
     public string? ToRelease { get; set; }
+
+    /// <summary>Where the run was started from (<c>MigrationRun.MigrationRunSourceId</c>); null when the host did not say.</summary>
+    public MigrationRunSource? Source { get; set; }
+
+    /// <summary>The display name of the person or service account that started the run; null when unknown.</summary>
+    public string? InitiatedBy { get; set; }
+
+    /// <summary>A stable identifier of the initiator, for example the subject claim of an identity provider; null when unknown.</summary>
+    public string? InitiatedBySubject { get; set; }
+
+    /// <summary>The machine the run executed on.</summary>
+    public string? Host { get; set; }
+
+    /// <summary>The engine error code that decided a result other than Ok, when there was one.</summary>
+    public string? ErrorCode { get; set; }
+
+    /// <summary>The message of the error that decided a result other than Ok, cut to 4000 characters; null for Ok.</summary>
+    public string? ErrorMessage { get; set; }
+
+    /// <summary>When the run last reported that it was alive (<c>MigrationRun.LastHeartbeatAt</c>).</summary>
+    public DateTime? LastHeartbeatAt { get; set; }
 }
 
 /// <summary>

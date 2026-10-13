@@ -947,10 +947,13 @@ public class RepositoryQueryHelper
     /// </summary>
     private string BuildMigrationRunRecordConcat()
     {
+        // ErrorMessage comes last: it is the only value that may contain the '|' delimiter, so the parser joins the rest.
         string[] columns =
         [
             "Id", "ProductId", "MigrationRunModeId", "MigrationRunResultId",
-            "EnvironmentId", "FromReleaseVersion", "ToReleaseVersion"
+            "EnvironmentId", "FromReleaseVersion", "ToReleaseVersion",
+            "MigrationOperationId", "MigrationRunSourceId", "InitiatedBy", "InitiatedBySubject", "Host", "ErrorCode",
+            "ErrorMessage"
         ];
 
         return BuildConcatExpression(columns);
@@ -1048,9 +1051,9 @@ public class RepositoryQueryHelper
 
     private static MigrationRunRecordDto ParseMigrationRunRecord(string delimited)
     {
-        string[] parts = delimited.Split('|');
-        if (parts.Length != 7)
-            throw new FormatException($"Expected 7 pipe-delimited values for MigrationRunRecordDto but got {parts.Length}: '{delimited}'");
+        string[] parts = delimited.Split('|', 14);
+        if (parts.Length != 14)
+            throw new FormatException($"Expected 14 pipe-delimited values for MigrationRunRecordDto but got {parts.Length}: '{delimited}'");
 
         return new MigrationRunRecordDto(
             Id: int.Parse(parts[0]),
@@ -1059,7 +1062,14 @@ public class RepositoryQueryHelper
             MigrationRunResultId: int.Parse(parts[3]),
             EnvironmentId: int.Parse(parts[4]),
             FromReleaseVersion: string.IsNullOrEmpty(parts[5]) ? null : parts[5],
-            ToReleaseVersion: string.IsNullOrEmpty(parts[6]) ? null : parts[6]
+            ToReleaseVersion: string.IsNullOrEmpty(parts[6]) ? null : parts[6],
+            MigrationOperationId: ParseNullableInt(parts[7]),
+            MigrationRunSourceId: ParseNullableInt(parts[8]),
+            InitiatedBy: string.IsNullOrEmpty(parts[9]) ? null : parts[9],
+            InitiatedBySubject: string.IsNullOrEmpty(parts[10]) ? null : parts[10],
+            Host: string.IsNullOrEmpty(parts[11]) ? null : parts[11],
+            ErrorCode: string.IsNullOrEmpty(parts[12]) ? null : parts[12],
+            ErrorMessage: string.IsNullOrEmpty(parts[13]) ? null : parts[13]
         );
     }
 
@@ -1105,4 +1115,6 @@ public record MigrationRecordDto(
 /// </summary>
 public record MigrationRunRecordDto(
     int Id, int ProductId, int MigrationRunModeId, int MigrationRunResultId,
-    int EnvironmentId, string? FromReleaseVersion, string? ToReleaseVersion);
+    int EnvironmentId, string? FromReleaseVersion, string? ToReleaseVersion,
+    int? MigrationOperationId, int? MigrationRunSourceId, string? InitiatedBy, string? InitiatedBySubject, string? Host,
+    string? ErrorCode, string? ErrorMessage);

@@ -214,6 +214,7 @@ public class SqliteTypeConventionsTests
         new object[] { "DatabaseLogging_CheckCreate.sql" },
         new object[] { "Repository_CheckCreate.sql" },
         new object[] { "Repository_Upgrade_1.sql" },
+        new object[] { "Repository_Upgrade_2.sql" },
         new object[] { "Repository_MigratorMeta_CheckInsert.sql" },
         new object[] { "Repository_Environment_CheckInsert.sql" },
         new object[] { "Repository_MigrationRecord_FixOrphaned.sql" },

@@ -24,6 +24,7 @@ public class PostgreSqlIdentifierCasingTests
     [
         "Repository_CheckCreate.sql",
         "Repository_Upgrade_1.sql",
+        "Repository_Upgrade_2.sql",
         "Repository_MigratorMeta_CheckInsert.sql",
         "Repository_Drop.sql",
         "Repository_Environment_CheckInsert.sql",
@@ -63,6 +64,7 @@ public class PostgreSqlIdentifierCasingTests
     [Theory]
     [InlineData("Repository_CheckCreate.sql")]
     [InlineData("Repository_Upgrade_1.sql")]
+    [InlineData("Repository_Upgrade_2.sql")]
     [InlineData("Repository_MigratorMeta_CheckInsert.sql")]
     [InlineData("Repository_Drop.sql")]
     [InlineData("Repository_Environment_CheckInsert.sql")]
@@ -118,13 +120,13 @@ public class PostgreSqlIdentifierCasingTests
     /// updating this test class the count assertion fails, prompting a review.
     /// </summary>
     [Fact]
-    public void PgTemplates_TotalCount_IsTwentyThree()
+    public void PgTemplates_TotalCount_IsTwentyFour()
     {
         var templatesDir = GetTemplatesDir("PostgreSQL");
         var actualFiles = Directory.GetFiles(templatesDir, "*.sql");
 
-        actualFiles.Should().HaveCount(23,
-            "the PostgreSQL Templates directory must contain exactly 23 .sql files after DAL-017 (+2 read-only Select templates, #7; +1 history Select template, #13; +2 schema version templates, ADR-024); " +
+        actualFiles.Should().HaveCount(24,
+            "the PostgreSQL Templates directory must contain exactly 24 .sql files after DAL-017 (+2 read-only Select templates, #7; +1 history Select template, #13; +3 schema version templates, ADR-024); " +
             "if you added a new template, also add it to P2_PostgreSqlIdentifierCasingTests");
     }
 
@@ -151,20 +153,20 @@ public class PostgreSqlIdentifierCasingTests
     }
 
     /// <summary>
-    /// Repository_MigrationRun_Select.sql must expose exactly 10 PascalCase output aliases.
+    /// Repository_MigrationRun_Select.sql must expose exactly 18 PascalCase output aliases (10 of schema version 1
+    /// plus the 8 run details of schema version 2).
     /// </summary>
     [Fact]
-    public void MigrationRunSelect_Has10PascalCaseAliases()
+    public void MigrationRunSelect_Has18PascalCaseAliases()
     {
         var content = ReadTemplate("PostgreSQL", "Repository_MigrationRun_Select.sql");
 
         var aliasPattern = new Regex(@"\bAS\s+""[A-Z][a-zA-Z]+""");
         var count = aliasPattern.Matches(content).Count;
 
-        count.Should().Be(10,
-            "Repository_MigrationRun_Select.sql must have exactly 10 AS \"PascalCase\" aliases " +
-            "(Id, ProductId, MigrationRunModeId, MigrationRunResultId, EnvironmentId, " +
-            "FromReleaseVersion, ToReleaseVersion, StartedAt, FinishedAt, DurationInMs)");
+        count.Should().Be(18,
+            "Repository_MigrationRun_Select.sql must have exactly 18 AS \"PascalCase\" aliases " +
+            "(Id, ProductId, MigrationRunModeId, MigrationRunResultId, EnvironmentId, FromReleaseVersion, ToReleaseVersion, StartedAt, FinishedAt, DurationInMs, MigrationOperationId, MigrationRunSourceId, InitiatedBy, InitiatedBySubject, Host, ErrorCode, ErrorMessage, LastHeartbeatAt)");
     }
 
     /// <summary>

@@ -329,7 +329,7 @@ public class MigrationService : IMigrationService
                                 runResult = MigrationRunResult.Recovered;
                             }
 
-                            await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(runResult));
+                            await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(runResult, errorMessage: lastErrorMessage));
                         }
 
                         return new MigrationOperationResult
@@ -360,7 +360,7 @@ public class MigrationService : IMigrationService
             var finalResult = failedMigrations > 0 ? MigrationRunResult.PartialSuccess : MigrationRunResult.Ok;
             if (request.RunMode.ShouldWriteRepository())
             {
-                await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(finalResult));
+                await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(finalResult, errorMessage: failedMigrations > 0 ? lastErrorMessage : null));
             }
 
             if (failedMigrations > 0)
@@ -419,7 +419,7 @@ public class MigrationService : IMigrationService
                 {
                     if (_ctxAccessor.Current.MigrationState.MigrationRunId > 0)
                     {
-                        await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(MigrationRunResult.Error));
+                        await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(MigrationRunResult.Error, ExtractErrorCode(ex)?.ToString(), ex.Message));
                     }
                 }
                 catch (Exception finalizeEx)
@@ -1547,7 +1547,7 @@ public class MigrationService : IMigrationService
                 {
                     if (_ctxAccessor.Current.MigrationState.MigrationRunId > 0)
                     {
-                        await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(MigrationRunResult.Error));
+                        await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(MigrationRunResult.Error, ExtractErrorCode(ex)?.ToString(), ex.Message));
                     }
                 }
                 catch (Exception finalizeEx)
@@ -1852,7 +1852,7 @@ public class MigrationService : IMigrationService
             {
                 if (_ctxAccessor.Current.MigrationState.MigrationRunId > 0)
                 {
-                    await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(MigrationRunResult.Error));
+                    await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(MigrationRunResult.Error, ExtractErrorCode(ex)?.ToString(), ex.Message));
                 }
             }
             catch (Exception finalizeEx)
@@ -3832,23 +3832,16 @@ public class MigrationService : IMigrationService
     }
 
     /// <summary>
-    /// Derives the <see cref="MigrationOperation"/> of a MigrationRun from the records it wrote. The MigrationRun
-    /// row has no operation column; every record of a run carries the operation the run was started with.
-    /// A run without records (nothing pending, validation failure before the first file) is reported as
-    /// <see cref="MigrationOperation.MigrateUp"/>.
-    /// </summary>
-    /// <summary>
     /// Summarizes the terminal transitions (<c>MigrationRecordHistory</c> rows) one run caused: the number of
     /// distinct records it touched, how many of them ended in the state the operation aims for (Migrated for
-    /// migrate-up and baseline, NotMigrated for migrate-down and error-recovery rollback), how many are Failed,
-    /// and the operation derived from the rows. The rows must be ordered by history id, so the last row of a
-    /// record is its final state within the run (#13).
+    /// migrate-up and baseline, NotMigrated for migrate-down), and how many are Failed. The operation comes from the
+    /// run row (<c>MigrationRun.MigrationOperationId</c>, schema version 2). The rows must be ordered by history id,
+    /// so the last row of a record is its final state within the run (#13).
     /// </summary>
-    internal static (int Total, int Successful, int Failed, MigrationOperation Operation) SummarizeRun(IEnumerable<MigrationRecord> historyRows)
+    internal static (int Total, int Successful, int Failed) SummarizeRun(IEnumerable<MigrationRecord> historyRows, MigrationOperation operation)
     {
         var rows = historyRows as IReadOnlyList<MigrationRecord> ?? historyRows.ToList();
         var finalStates = rows.GroupBy(r => r.Id).Select(g => g.Last()).ToList();
-        var operation = DeriveRunOperation(rows);
 
         // The target state depends on what the run set out to do: a migrate-up counts records that ended
         // Migrated (records its error recovery rolled back again are not successes), a migrate-down counts
@@ -3857,20 +3850,27 @@ public class MigrationService : IMigrationService
         int successful = finalStates.Count(r => r.MigrationStatusId == targetState);
         int failed = finalStates.Count(r => r.MigrationStatusId == MigrationStatus.Failed);
 
-        return (finalStates.Count, successful, failed, operation);
+        return (finalStates.Count, successful, failed);
     }
 
-    internal static MigrationOperation DeriveRunOperation(IEnumerable<MigrationRecord> runRecords)
+    /// <summary>A byte-valued enum column of a repository row, or null when the column is NULL or absent.</summary>
+    private static TEnum? ReadByteEnum<TEnum>(IReadOnlyDictionary<string, object?> row, string column) where TEnum : struct, Enum
     {
-        var records = runRecords as ICollection<MigrationRecord> ?? runRecords.ToList();
+        if (!row.TryGetValue(column, out var value) || value == null || value == DBNull.Value)
+            return null;
+        return (TEnum)Enum.ToObject(typeof(TEnum), Convert.ToByte(value));
+    }
 
-        if (records.Any(r => r.MigrationOperationId == MigrationOperation.Baseline))
-            return MigrationOperation.Baseline;
+    /// <summary>A text column of a repository row, or null when the column is NULL or absent.</summary>
+    private static string? ReadString(IReadOnlyDictionary<string, object?> row, string column)
+    {
+        return row.TryGetValue(column, out var value) && value != null && value != DBNull.Value ? Convert.ToString(value) : null;
+    }
 
-        if (records.Any(r => r.MigrationOperationId == MigrationOperation.MigrateDown))
-            return MigrationOperation.MigrateDown;
-
-        return MigrationOperation.MigrateUp;
+    /// <summary>A date column of a repository row, or null when the column is NULL or absent.</summary>
+    private static DateTime? ReadDateTime(IReadOnlyDictionary<string, object?> row, string column)
+    {
+        return row.TryGetValue(column, out var value) && value != null && value != DBNull.Value ? Convert.ToDateTime(value) : null;
     }
 
     /// <summary>
@@ -5383,8 +5383,11 @@ public class MigrationService : IMigrationService
                 string? fromRelease = row["FromReleaseVersion"] as string;
                 string? toRelease = row["ToReleaseVersion"] as string;
 
+                // Run details of schema version 2: the operation the run was started with, where and by whom it was
+                // started, and the error that decided its result. The run row carries them; the records say nothing.
+                var operation = ReadByteEnum<MigrationOperation>(row, "MigrationOperationId") ?? MigrationOperation.Undefined;
                 var runHistory = historyByRun.TryGetValue(runId, out var h) ? h : Array.Empty<MigrationRecord>();
-                var (totalMigrations, successfulMigrations, failedMigrations, operation) = SummarizeRun(runHistory);
+                var (totalMigrations, successfulMigrations, failedMigrations) = SummarizeRun(runHistory, operation);
 
                 runs.Add(new MigrationRunInfo
                 {
@@ -5399,7 +5402,14 @@ public class MigrationService : IMigrationService
                     TotalMigrations = totalMigrations,
                     SuccessfulMigrations = successfulMigrations,
                     FailedMigrations = failedMigrations,
-                    ToRelease = toRelease
+                    ToRelease = toRelease,
+                    Source = ReadByteEnum<MigrationRunSource>(row, "MigrationRunSourceId"),
+                    InitiatedBy = ReadString(row, "InitiatedBy"),
+                    InitiatedBySubject = ReadString(row, "InitiatedBySubject"),
+                    Host = ReadString(row, "Host"),
+                    ErrorCode = ReadString(row, "ErrorCode"),
+                    ErrorMessage = ReadString(row, "ErrorMessage"),
+                    LastHeartbeatAt = ReadDateTime(row, "LastHeartbeatAt")
                 });
             }
 

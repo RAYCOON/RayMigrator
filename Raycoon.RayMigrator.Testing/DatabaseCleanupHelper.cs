@@ -104,6 +104,7 @@ IF OBJECT_ID('{schemaName}.MigrationStatus', 'U') IS NOT NULL DROP TABLE [{schem
 IF OBJECT_ID('{schemaName}.MigrationRunResult', 'U') IS NOT NULL DROP TABLE [{schemaName}].[MigrationRunResult];
 IF OBJECT_ID('{schemaName}.MigrationOperation', 'U') IS NOT NULL DROP TABLE [{schemaName}].[MigrationOperation];
 IF OBJECT_ID('{schemaName}.MigrationRunMode', 'U') IS NOT NULL DROP TABLE [{schemaName}].[MigrationRunMode];
+IF OBJECT_ID('{schemaName}.MigrationRunSource', 'U') IS NOT NULL DROP TABLE [{schemaName}].[MigrationRunSource];
 IF OBJECT_ID('{schemaName}.RepositorySchemaVersion', 'U') IS NOT NULL DROP TABLE [{schemaName}].[RepositorySchemaVersion];
 
 -- Drop schema if it exists and is empty
@@ -209,6 +210,7 @@ DROP TABLE IF EXISTS migration_status;
 DROP TABLE IF EXISTS migration_run_result;
 DROP TABLE IF EXISTS migration_operation;
 DROP TABLE IF EXISTS migration_run_mode;
+DROP TABLE IF EXISTS migration_run_source;
 DROP TABLE IF EXISTS repository_schema_version;
 
 SET FOREIGN_KEY_CHECKS = 1;
@@ -253,6 +255,7 @@ DROP TABLE IF EXISTS MigrationStatus;
 DROP TABLE IF EXISTS MigrationRunResult;
 DROP TABLE IF EXISTS MigrationOperation;
 DROP TABLE IF EXISTS MigrationRunMode;
+DROP TABLE IF EXISTS MigrationRunSource;
 DROP TABLE IF EXISTS RepositorySchemaVersion;
 ";
     }

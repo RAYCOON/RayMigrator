@@ -8,7 +8,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_MigrationRun_Select"
 DatabaseType   = "SqlServer"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-10-12.1"
+Version        = "2026-10-13.1"
 
 [Description]
 Function = """
@@ -64,6 +64,14 @@ BEGIN TRY
         ,[StartedAt]
         ,[FinishedAt]
         ,[DurationInMs]
+        ,[MigrationOperationId]
+        ,[MigrationRunSourceId]
+        ,[InitiatedBy]
+        ,[InitiatedBySubject]
+        ,[Host]
+        ,[ErrorCode]
+        ,[ErrorMessage]
+        ,[LastHeartbeatAt]
     FROM
         [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRun]
     WHERE

@@ -8,7 +8,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_MigrationRun_Update"
 DatabaseType   = "SqlServer"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2025-01-29.1"
+Version        = "2026-10-13.1"
 
 [Description]
 Function = """
@@ -32,6 +32,8 @@ TableBaseName = "Table name prefix from Repository configuration (e.g., '' or 'R
 # SQL parameters bound at runtime
 MigrationRunId    = "INT | REQUIRED | The ID of the MigrationRun to update"
 MigrationRunResultId = "TINYINT | REQUIRED | Final result: 10=Running, 90=Error, 100=Ok"
+ErrorCode         = "VARCHAR(100) | OPTIONAL | Engine error code of the failure that decided the result; NULL for Ok"
+ErrorMessage      = "TEXT | OPTIONAL | Message of that failure, cut to 4000 characters by the engine; NULL for Ok"
 
 [ReturnValues]
 # Format: SELECT 'code,message'
@@ -64,6 +66,8 @@ BEGIN TRY
     UPDATE [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRun]
     SET
         MigrationRunResultId = @MigrationRunResultId,
+        ErrorCode = @ErrorCode,
+        ErrorMessage = @ErrorMessage,
         FinishedAt = SYSUTCDATETIME(),
         DurationInMs = DATEDIFF(MILLISECOND, StartedAt, SYSUTCDATETIME())
     WHERE Id = @MigrationRunId;

@@ -3,6 +3,8 @@
 The repository database stores migration tracking data. This schema is created automatically by RayMigrator and, since the schema is versioned, upgraded automatically by the first command of a newer RayMigrator (ADR-024, see [Schema versioning](#schema-versioning)).
 
 > **Breaking change (2026-10-13, unreleased):** The repository schema is versioned. `Repository_CheckCreate` creates only the new `RepositorySchemaVersion` table and reports the version found; the numbered steps `Repository_Upgrade_{n}` create the schema (step 1 = the 11 tables below with their master data) and the engine applies every missing step on the next command. `Repository_MigratorMeta_CheckInsert` registers the engine version. Repositories created by 0.16.0 or earlier have no schema version and are refused with `RepositorySchemaException`: drop their tables once and let this version create them again. The table count checks and their codes `-10` and `-11` are gone. From this version on a schema change keeps the data.
+>
+> **Schema version 2 (2026-10-13, unreleased):** `MigrationRun` records what a run does and who started it where: `MigrationOperationId`, `MigrationRunSourceId` (new lookup table `MigrationRunSource`: Cli = 10, Ci = 20, Studio = 30), `InitiatedBy`, `InitiatedBySubject`, `Host`, `ErrorCode`, `ErrorMessage` and `LastHeartbeatAt`. All eight columns are nullable; `Repository_Upgrade_2` adds them to a repository of version 1 and keeps its rows.
 
 > **Breaking change (2026-04-16):** A new `Environment` repository table was added (table count: 10 → 11). Existing repositories must be dropped and recreated.
 >
@@ -40,6 +42,8 @@ erDiagram
     MigrationRunMode ||--o{ MigrationRecord : "mode"
     MigrationOperation ||--o{ MigrationRecord : "operation"
     MigrationRunResult ||--o{ MigrationRun : "result"
+    MigrationOperation ||--o{ MigrationRun : "operation"
+    MigrationRunSource ||--o{ MigrationRun : "source"
     MigrationStatus ||--o{ MigrationRecord : "status"
 
     RepositorySchemaVersion {
@@ -180,7 +184,7 @@ erDiagram
 
 ## Tables Overview
 
-`Repository_CheckCreate` creates the `RepositorySchemaVersion` table; the schema steps `Repository_Upgrade_{n}` create the **11 repository tables** (4 lookup + 7 data), step 1 all of them (ADR-024).
+`Repository_CheckCreate` creates the `RepositorySchemaVersion` table; the schema steps `Repository_Upgrade_{n}` create the **12 repository tables** (5 lookup + 7 data): step 1 the 11 tables of the first schema, step 2 the `MigrationRunSource` lookup and the run detail columns of `MigrationRun` (ADR-024).
 
 | Table | Purpose | Status |
 |-------|---------|--------|
@@ -195,6 +199,7 @@ erDiagram
 | `MigrationRunMode` | Lookup: Validate/Simulate/Migrate | Created |
 | `MigrationOperation` | Lookup: Rollback/MigrateDown/MigrateUp | Created |
 | `MigrationRunResult` | Lookup: Running/PartialSuccess/Recovered/Error/Ok (used by MigrationRun) | Created |
+| `MigrationRunSource` | Lookup: Cli/Ci/Studio (where a run was started; schema version 2) | Created by `Repository_Upgrade_2` |
 | `MigrationStatus` | Lookup: Pending/Executing/Failed/NotMigrated/Migrated | Created |
 
 ## Core Tables
@@ -263,6 +268,16 @@ Migration execution sessions.
 | `StartedAt` | DATETIME2(3) | Run start timestamp |
 | `FinishedAt` | DATETIME2(3) | Run completion timestamp |
 | `DurationInMs` | BIGINT | Total duration in milliseconds |
+| `MigrationOperationId` | TINYINT NULL | FK to MigrationOperation: what the run does (MigrateUp, MigrateDown, Baseline); schema version 2 |
+| `MigrationRunSourceId` | TINYINT NULL | FK to MigrationRunSource: where the run was started (Cli, Ci, Studio); NULL when the host did not say |
+| `InitiatedBy` | NVARCHAR(200) NULL | Display name of the person or service account that started the run (the OS user for the CLI) |
+| `InitiatedBySubject` | NVARCHAR(200) NULL | Stable identifier of the initiator, for example the subject claim of an identity provider (Studio) |
+| `Host` | NVARCHAR(200) NULL | The machine the run executed on (the machine name unless the host names another) |
+| `ErrorCode` | NVARCHAR(100) NULL | Engine error code of the failure that decided a result other than Ok |
+| `ErrorMessage` | NVARCHAR(MAX) NULL | Message of that failure, cut to 4000 characters |
+| `LastHeartbeatAt` | DATETIME2(3) NULL | When the run last reported that it was alive; the start at insert |
+
+The run row is the only place these details live: the records of a run say nothing about who started it, and the `info` run history reads the operation from the row instead of deriving it from the records.
 
 ### MigrationRunMeta
 
@@ -321,7 +336,7 @@ Same columns as `MigrationRecord`, plus:
 
 ## Lookup Tables
 
-All four lookup tables (`MigrationOperation`, `MigrationRunResult`, `MigrationRunMode`, `MigrationStatus`) share the same column structure:
+All five lookup tables (`MigrationOperation`, `MigrationRunResult`, `MigrationRunMode`, `MigrationStatus`, `MigrationRunSource`) share the same column structure:
 
 | Column | Type | Nullable | Description |
 |--------|------|----------|-------------|
@@ -371,6 +386,16 @@ All four lookup tables (`MigrationOperation`, `MigrationRunResult`, `MigrationRu
 | 30 | Failed | Execution failed, DB state unclear |
 | 50 | NotMigrated | Not deployed / rolled back |
 | 100 | Migrated | Successfully deployed |
+
+### MigrationRunSource
+
+Where a run was started from (`MigrationRun.MigrationRunSourceId`, schema version 2). The CLI reports `Cli`, or `Ci` when one of the pipeline variables `CI`, `GITHUB_ACTIONS`, `GITLAB_CI`, `TF_BUILD`, `JENKINS_URL` or `TEAMCITY_VERSION` is set to a value other than `false` or `0`; RayMigrator Studio reports `Studio`.
+
+| Id | Name | Description |
+|----|------|-------------|
+| 10 | Cli | Started by the RayMigrator command line on a workstation or server |
+| 20 | Ci | Started by the RayMigrator command line in a CI/CD pipeline |
+| 30 | Studio | Started by RayMigrator Studio |
 
 ## Cross-Engine Type Mapping
 

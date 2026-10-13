@@ -34,10 +34,21 @@ public class ScenarioBuilder
     private int? _targetRetryDelayMs;
     private int? _targetCommandTimeoutSeconds;
     private string? _migrationFilesEncoding;
+    private RunInitiatorValues? _initiator;
 
     public ScenarioBuilder(EngineConfig engineConfig)
     {
         _engineConfig = engineConfig;
+    }
+
+    /// <summary>
+    /// Tells the engine who starts the runs of this scenario, as a host such as RayMigrator Studio would through
+    /// the console options: the source, the display name and subject of the initiator and the host name.
+    /// </summary>
+    public ScenarioBuilder WithRunInitiator(MigrationRunSource? source, string? initiatedBy = null, string? initiatedBySubject = null, string? host = null)
+    {
+        _initiator = new RunInitiatorValues(source, initiatedBy, initiatedBySubject, host);
+        return this;
     }
 
     /// <summary>
@@ -490,13 +501,13 @@ public class ScenarioBuilder
 
         // 6. Build host
         var host = new EngineTestHost();
-        host.Build(configPath, productAlias, command, mode, toRelease);
+        host.Build(configPath, productAlias, command, mode, toRelease, initiator: _initiator);
 
         // 7. Create query helper
         var queryHelper = new RepositoryQueryHelper(_engineConfig.DatabaseType, _engineConfig.ConnectionString, _engineConfig.SchemaName);
 
         // 8. Return context
-        return new ScenarioContext(host, queryHelper, _engineConfig, workDir, configPath, productAlias);
+        return new ScenarioContext(host, queryHelper, _engineConfig, workDir, configPath, productAlias, _initiator);
     }
 
     /// <summary>
