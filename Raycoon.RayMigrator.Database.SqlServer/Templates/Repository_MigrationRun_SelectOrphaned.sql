@@ -8,7 +8,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_MigrationRun_SelectOrphaned"
 DatabaseType   = "SqlServer"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-04-18.1"
+Version        = "2026-10-13.1"
 
 [Description]
 Function = """
@@ -41,7 +41,11 @@ SELECT
     [EnvironmentId],
     [StartedAt],
     [MigrationRunModeId],
-    DATEDIFF(MINUTE, [StartedAt], SYSUTCDATETIME()) AS MinutesRunning
+    DATEDIFF(MINUTE, [StartedAt], SYSUTCDATETIME()) AS MinutesRunning,
+    [LastHeartbeatAt],
+    DATEDIFF(MINUTE, COALESCE([LastHeartbeatAt], [StartedAt]), SYSUTCDATETIME()) AS MinutesSinceHeartbeat,
+    [InitiatedBy],
+    [Host]
 FROM [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRun]
 WHERE [ProductId] = @ProductId
     AND [EnvironmentId] = @EnvironmentId

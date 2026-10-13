@@ -275,7 +275,7 @@ Migration execution sessions.
 | `Host` | NVARCHAR(200) NULL | The machine the run executed on (the machine name unless the host names another) |
 | `ErrorCode` | NVARCHAR(100) NULL | Engine error code of the failure that decided a result other than Ok |
 | `ErrorMessage` | NVARCHAR(MAX) NULL | Message of that failure, cut to 4000 characters |
-| `LastHeartbeatAt` | DATETIME2(3) NULL | When the run last reported that it was alive; the start at insert |
+| `LastHeartbeatAt` | DATETIME2(3) NULL | When the run last reported that it was alive: the start at insert, refreshed by `Repository_MigrationRun_Heartbeat` every `Repository.HeartbeatIntervalInSeconds`; an open run whose heartbeat is older than `Repository.OrphanedRunThresholdInMinutes` is orphaned |
 
 The run row is the only place these details live: the records of a run say nothing about who started it, and the `info` run history reads the operation from the row instead of deriving it from the records.
 

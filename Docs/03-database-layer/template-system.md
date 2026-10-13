@@ -16,8 +16,9 @@ RayMigrator uses SQL templates with placeholder substitution for database-agnost
 | `Repository_Environment_Select` | Look up environment id read-only (no insert); returns `0` when not registered. Used by Simulate mode (#7) |
 | `Repository_MigrationRun_Insert` | Create new migration run |
 | `Repository_MigrationRun_Update` | Update migration run status |
-| `Repository_MigrationRun_SelectOrphaned` | Select orphaned migration runs |
-| `Repository_MigrationRun_FixOrphaned` | Fix an orphaned MigrationRun entry |
+| `Repository_MigrationRun_SelectOrphaned` | Select open migration runs with their heartbeat age (`MinutesSinceHeartbeat`) |
+| `Repository_MigrationRun_FixOrphaned` | Fix an orphaned MigrationRun entry whose heartbeat is older than `@ThresholdMinutes` |
+| `Repository_MigrationRun_Heartbeat` | Refresh `LastHeartbeatAt` of a running MigrationRun (every `Repository.HeartbeatIntervalInSeconds`) |
 | `Repository_MigrationRecord_FixOrphaned` | Fix orphaned Migration entries for a MigrationRun |
 | `Repository_MigrationRecord_Select` | Query migration records |
 | `Repository_MigrationRecord_Insert` | Create new migration record |
@@ -48,6 +49,7 @@ RayMigrator uses SQL templates with placeholder substitution for database-agnost
 | `Repository_MigrationRun_Update` | Active | Active | Active | Active | Active |
 | `Repository_MigrationRun_SelectOrphaned` | Active | Active | Active | Active | Active |
 | `Repository_MigrationRun_FixOrphaned` | Active | Active | Active | Active | Active |
+| `Repository_MigrationRun_Heartbeat` | Active | Active | Active | Active | Active |
 | `Repository_MigrationRun_Select` | Active | Active | Active | Active | Active |
 | `Repository_MigrationRecord_Select` | Active | Active | Active | Active | Active |
 | `Repository_MigrationRecord_FixOrphaned` | Active | Active | Active | Active | Active |

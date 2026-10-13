@@ -35,6 +35,8 @@ public class ScenarioBuilder
     private int? _targetCommandTimeoutSeconds;
     private string? _migrationFilesEncoding;
     private RunInitiatorValues? _initiator;
+    private int? _heartbeatIntervalSeconds;
+    private int? _orphanedRunThresholdMinutes;
 
     public ScenarioBuilder(EngineConfig engineConfig)
     {
@@ -48,6 +50,17 @@ public class ScenarioBuilder
     public ScenarioBuilder WithRunInitiator(MigrationRunSource? source, string? initiatedBy = null, string? initiatedBySubject = null, string? host = null)
     {
         _initiator = new RunInitiatorValues(source, initiatedBy, initiatedBySubject, host);
+        return this;
+    }
+
+    /// <summary>
+    /// Sets the heartbeat interval and the orphan threshold of the repository (<c>Repository.HeartbeatIntervalInSeconds</c>,
+    /// <c>Repository.OrphanedRunThresholdInMinutes</c>); the engine defaults are 30 seconds and 2 minutes.
+    /// </summary>
+    public ScenarioBuilder WithRepositoryHeartbeat(int intervalSeconds, int? orphanedRunThresholdMinutes = null)
+    {
+        _heartbeatIntervalSeconds = intervalSeconds;
+        _orphanedRunThresholdMinutes = orphanedRunThresholdMinutes;
         return this;
     }
 
@@ -493,6 +506,8 @@ public class ScenarioBuilder
 
         // 5. Clean databases
         DatabaseCleanupHelper.CleanDatabase(_engineConfig.DatabaseType, _engineConfig.ConnectionString, _engineConfig.SchemaName);
+        if (_mainTargetConnectionString != null && _mainTargetConnectionString != _engineConfig.ConnectionString)
+            DatabaseCleanupHelper.CleanDatabase(_engineConfig.DatabaseType, _mainTargetConnectionString, _engineConfig.SchemaName);
         if (_secondConnectionString != null)
             DatabaseCleanupHelper.CleanDatabase(_engineConfig.DatabaseType, _secondConnectionString, _engineConfig.SchemaName);
 
@@ -643,6 +658,10 @@ public class ScenarioBuilder
             ["DbCommandMaxRetries"] = 100,
             ["DbCommandWaitTimeInMsBeforeRetry"] = 250
         };
+        if (_heartbeatIntervalSeconds.HasValue)
+            repository["HeartbeatIntervalInSeconds"] = _heartbeatIntervalSeconds.Value;
+        if (_orphanedRunThresholdMinutes.HasValue)
+            repository["OrphanedRunThresholdInMinutes"] = _orphanedRunThresholdMinutes.Value;
 
         // Build Serilog
         var serilog = new Dictionary<string, object>

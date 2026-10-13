@@ -237,4 +237,16 @@ public class OrphanedRunInfo
     public double MinutesRunning { get; set; }
     public int MigrationRunModeId { get; set; }
     public bool WasFixed { get; set; }
+
+    /// <summary>When the run last reported that it was alive; null for a run that never wrote a heartbeat.</summary>
+    public DateTime? LastHeartbeatAt { get; set; }
+
+    /// <summary>Minutes since the last heartbeat, or since the start for a run without one; the age <c>--older-than</c> compares.</summary>
+    public double MinutesSinceHeartbeat { get; set; }
+
+    /// <summary>Who started the run, when the run row says.</summary>
+    public string? InitiatedBy { get; set; }
+
+    /// <summary>The machine the run executed on, when the run row says.</summary>
+    public string? Host { get; set; }
 }

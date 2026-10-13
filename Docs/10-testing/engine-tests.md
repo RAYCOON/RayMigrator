@@ -329,7 +329,7 @@ The catalog lists the unique test scenarios defined for the base PostgreSQL test
 | #60 | FL-1 | MixedFlatAndTraditionalLayout_AllReleasesMigrateSuccessfully | FlatLayoutTests |
 | #61 | FL-2 | MixedLayout_MigrateDownToRelease2_RollsBackFlatAndTraditionalReleases | FlatLayoutTests |
 
-**Features tests** (all 5 engines have 18 base feature test classes each; SqlServer adds 1 atomic-shared-connection class, Sqlite adds 1 datetime-CHECK-constraint class, plus a P2 file shared between MySql and MariaDb):
+**Features tests** (all 5 engines have 19 base feature test classes each; SqlServer adds 1 atomic-shared-connection class, Sqlite adds 1 datetime-CHECK-constraint class, plus a P2 file shared between MySql and MariaDb):
 
 | Class | Tests | Description |
 |-------|-------|-------------|
@@ -342,6 +342,7 @@ The catalog lists the unique test scenarios defined for the base PostgreSQL test
 | `MigSettingsInheritanceTests` | 13 | migsettings.txt inheritance (root, release, target group, TOML override) |
 | `OutOfOrderBlockingTests` | 3 | Out-of-order migration blocking (false=blocked, true=allowed, data integrity after blocking) |
 | `RepositoryIntegrityTests` | 4 | Repository tables, Product record, Migration records after successful run |
+| `HeartbeatTests` | 4 | The run heartbeat: a long block refreshes `LastHeartbeatAt`, an open run with a fresh heartbeat blocks a new start however old its start, a stale heartbeat is auto-fixed, `fix` reports and filters by heartbeat age |
 | `MigrationRunDetailsTests` | 6 | Run details of schema version 2: operation, source, initiator and host from the console options, NULL source and the machine name without them, the error message of a failed run, migrate-down and baseline operations, the history DTO, and the upgrade of a version 1 repository by the next command |
 | `RepositorySchemaTests` | 5 | Versioned repository schema (ADR-024): fresh repository gets every step and the engine version, second run changes nothing, a newer repository and one without a schema version are refused before anything is written, parallel start on an empty repository creates it once |
 | `ParameterRoundTripTests` | 2 (PostgreSQL 3) | A parameter value with quotes, backslashes, `$$`, other placeholders, comment and statement markers and non-ASCII text comes back unchanged through the DAL; PostgreSQL also inside a `DO` block |

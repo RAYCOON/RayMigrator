@@ -243,10 +243,10 @@ public class ScenarioContext : IAsyncDisposable
     /// Inserts a fake MigrationRun record with Running status and a StartedAt in the past,
     /// simulating an orphaned migration run.
     /// </summary>
-    public void InsertOrphanedMigrationRun(int minutesOld = 120)
+    public void InsertOrphanedMigrationRun(int minutesOld = 120, int? heartbeatMinutesOld = null)
     {
         int productId = _queryHelper.GetProductId(_productAlias);
-        _queryHelper.InsertOrphanedMigrationRun(productId, minutesOld, "Docker");
+        _queryHelper.InsertOrphanedMigrationRun(productId, minutesOld, "Docker", heartbeatMinutesOld);
     }
 
     /// <summary>
@@ -614,6 +614,12 @@ public class ScenarioContext : IAsyncDisposable
     /// Gets the count of MigrationRun records in the repository.
     /// </summary>
     public int CountMigrationRuns() => _queryHelper.CountMigrationRuns();
+
+    /// <summary>Whether the run at the 1-based index wrote a heartbeat after its start (<c>LastHeartbeatAt &gt; StartedAt</c>).</summary>
+    public bool HeartbeatAdvanced(int runIndex) => _queryHelper.HeartbeatAdvanced(runIndex);
+
+    /// <summary>The stored timestamps of the run at the 1-based index as <c>StartedAt|LastHeartbeatAt|FinishedAt</c>, for assertion messages.</summary>
+    public string? GetMigrationRunTimestamps(int runIndex) => _queryHelper.GetMigrationRunTimestamps(runIndex);
 
     /// <summary>
     /// Gets the latest MigrationRunResultId from the repository.

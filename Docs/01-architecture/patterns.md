@@ -357,10 +357,10 @@ DataAccessLayers/
 ├── SqlServer/
 │   ├── Raycoon.RayMigrator.Database.SqlServer.dll
 │   ├── Repository_CheckCreate.sql
-│   └── ... (24 templates per DAL, flat layout)
+│   └── ... (25 templates per DAL, flat layout)
 ├── PostgreSQL/
 │   ├── Raycoon.RayMigrator.Database.PostgreSQL.dll
-│   └── *.sql (24 template files)
+│   └── *.sql (25 template files)
 ├── MariaDb/
 │   ├── Raycoon.RayMigrator.Database.MariaDb.dll
 │   └── *.sql (21 template files)

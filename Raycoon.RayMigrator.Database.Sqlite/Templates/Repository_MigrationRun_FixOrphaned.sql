@@ -6,7 +6,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_MigrationRun_FixOrphaned"
 DatabaseType   = "Sqlite"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-02-12.1"
+Version        = "2026-10-13.1"
 
 [Description]
 Function = """
@@ -32,7 +32,7 @@ MigrationRunId = "INTEGER | REQUIRED | The ID of the orphaned MigrationRun to fi
 [ReturnValues]
 # Format: SELECT 'code,message'
 Success_Fixed          = "N (MigrationRunId),MigrationRun [N] marked as Error (orphaned run cleanup)"
-Error_-31_NotInRunning = "-31,MigrationRun [N] not found or not in Running state"
+Error_-31_NotInRunning = "-31,MigrationRun [N] not found or not in Running state or still alive"
 
 [ModificationNotes]
 Note1 = "SELECT result format: 'code,message' - DO NOT change this format"
@@ -57,7 +57,8 @@ SET "MigrationRunResultId" = 90,
     "DurationInMs" = CAST((julianday('now') - julianday("StartedAt")) * 86400000 AS INTEGER)
 WHERE "Id" = @MigrationRunId
     AND "MigrationRunResultId" = 10
-    AND "FinishedAt" IS NULL;
+    AND "FinishedAt" IS NULL
+    AND (julianday('now') - julianday(COALESCE("LastHeartbeatAt", "StartedAt"))) * 1440 >= @ThresholdMinutes;
 
 -- DROP+CREATE instead of CREATE IF NOT EXISTS+DELETE: DELETE is DML and resets changes() to 0.
 DROP TABLE IF EXISTS "_rc_affected";
@@ -65,7 +66,7 @@ CREATE TEMP TABLE "_rc_affected" ("cnt" INTEGER);
 INSERT INTO "_rc_affected" ("cnt") VALUES (changes());
 
 SELECT CASE WHEN (SELECT "cnt" FROM "_rc_affected") = 0
-    THEN '-31,MigrationRun [' || IFNULL(CAST(@MigrationRunId AS TEXT), 'NULL') || '] not found or not in Running state'
+    THEN '-31,MigrationRun [' || IFNULL(CAST(@MigrationRunId AS TEXT), 'NULL') || '] not found or not in Running state or still alive'
     ELSE CAST(@MigrationRunId AS TEXT) || ',MigrationRun [' || CAST(@MigrationRunId AS TEXT) || '] marked as Error (orphaned run cleanup)'
 END;
 

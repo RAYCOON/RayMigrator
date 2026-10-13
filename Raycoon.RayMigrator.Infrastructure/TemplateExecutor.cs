@@ -413,21 +413,51 @@ public class TemplateExecutor
     }
 
     /// <summary>
-    /// Marks a single orphaned MigrationRun as Error with FinishedAt set.
-    /// Used by the Fix command. Parameters are passed directly (not from MigrationContext).
+    /// Writes one heartbeat for the current run: sets <c>MigrationRun.LastHeartbeatAt</c> to now while the row is
+    /// still open (<c>FinishedAt IS NULL</c>).
+    /// </summary>
+    /// <returns>True when the row was open and updated; false when the run has already finished.</returns>
+    /// <exception cref="TemplateExecutionException"></exception>
+    public bool RepositoryMigrationRunHeartbeat()
+    {
+        var templateType = TemplateType.Repository_MigrationRun_Heartbeat;
+        var eventId = MigrationEvent.TemplateExecutionRepositoryMigrationRunHeartbeat;
+        int migrationRunId = _ctxAccessor.Current.MigrationState.MigrationRunId;
+
+        if (migrationRunId < 1)
+        {
+            throw new RayMigratorInternalException($"Invalid MigrationRunId [{migrationRunId}] when writing a heartbeat.");
+        }
+
+        DalParameterList dalParameterList = new DalParameterList();
+        dalParameterList.AddParameter(new DalParameter("MigrationRunId", migrationRunId, typeof(int)));
+
+        var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
+        var templateResponse = ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, null, eventId);
+
+        return templateResponse.ResultCode > 0;
+    }
+
+    /// <summary>
+    /// Marks a single orphaned MigrationRun as Error with FinishedAt set, provided its last heartbeat (or its
+    /// start, when it never wrote one) is at least <paramref name="thresholdMinutes"/> old; a run that is alive
+    /// is left open and reported as <c>-31</c>. Used by the Fix command and the auto-fix of a parallel start.
+    /// Parameters are passed directly (not from MigrationContext).
     /// </summary>
     /// <param name="migrationRunId">The ID of the orphaned MigrationRun to fix.</param>
+    /// <param name="thresholdMinutes">The minimum age of the last heartbeat in minutes; 0 closes the run regardless.</param>
     /// <exception cref="TemplateExecutionException"></exception>
-    public void RepositoryMigrationRunFixOrphaned(int migrationRunId)
+    public void RepositoryMigrationRunFixOrphaned(int migrationRunId, int thresholdMinutes)
     {
         var templateType = TemplateType.Repository_MigrationRun_FixOrphaned;
         var eventId = MigrationEvent.TemplateExecutionRepositoryMigrationRunFixOrphaned;
 
-        _logger.LogDebug(eventId, "Fixing orphaned MigrationRun {MigrationRunId}{MigrationContext}",
-            migrationRunId, _ctxAccessor.Current.Clone);
+        _logger.LogDebug(eventId, "Fixing orphaned MigrationRun {MigrationRunId} (heartbeat older than {ThresholdMinutes} minutes){MigrationContext}",
+            migrationRunId, thresholdMinutes, _ctxAccessor.Current.Clone);
 
         DalParameterList dalParameterList = new DalParameterList();
         dalParameterList.AddParameter(new DalParameter("MigrationRunId", migrationRunId, typeof(int)));
+        dalParameterList.AddParameter(new DalParameter("ThresholdMinutes", thresholdMinutes, typeof(int)));
 
         var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
         ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId);

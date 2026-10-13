@@ -318,6 +318,7 @@ These templates exist in the template cache but are only used during specific op
 | Template | When Used |
 |----------|-----------|
 | `Repository_Drop` | Explicit repository deletion |
+| `Repository_MigrationRun_Heartbeat` | Every `Repository.HeartbeatIntervalInSeconds` while a migrate-up, migrate-down or baseline runs: refreshes `LastHeartbeatAt` of the open run row (its own connection, failures are warnings) |
 | `Repository_MigrationRun_Update` | After completion or error of a MigrationRun: stores the result, `FinishedAt`, `DurationInMs` and, since schema version 2, `@ErrorCode` and `@ErrorMessage` of the failure that decided a result other than Ok |
 | `Repository_MigrationRecord_Insert` | Per migration file during actual migration execution |
 | `Repository_MigrationRecord_Update` | Block progress or completion per file |

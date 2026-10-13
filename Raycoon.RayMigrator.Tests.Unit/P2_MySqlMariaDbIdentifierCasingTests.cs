@@ -42,6 +42,7 @@ public class MySqlMariaDbIdentifierCasingTests
         "Repository_MigrationRun_Select.sql",
         "Repository_MigrationRun_SelectOrphaned.sql",
         "Repository_MigrationRun_FixOrphaned.sql",
+        "Repository_MigrationRun_Heartbeat.sql",
         "DatabaseLogging_CheckCreate.sql",
         "DatabaseLogging_Insert.sql"
     ];
@@ -85,6 +86,7 @@ public class MySqlMariaDbIdentifierCasingTests
     [InlineData("Repository_MigrationRun_Select.sql")]
     [InlineData("Repository_MigrationRun_SelectOrphaned.sql")]
     [InlineData("Repository_MigrationRun_FixOrphaned.sql")]
+    [InlineData("Repository_MigrationRun_Heartbeat.sql")]
     [InlineData("DatabaseLogging_CheckCreate.sql")]
     [InlineData("DatabaseLogging_Insert.sql")]
     public void MySqlTemplate_HasNoStrayBacktickedPascalCaseIdentifiers(string templateFile)
@@ -148,6 +150,7 @@ public class MySqlMariaDbIdentifierCasingTests
     [InlineData("Repository_MigrationRun_Select.sql")]
     [InlineData("Repository_MigrationRun_SelectOrphaned.sql")]
     [InlineData("Repository_MigrationRun_FixOrphaned.sql")]
+    [InlineData("Repository_MigrationRun_Heartbeat.sql")]
     [InlineData("DatabaseLogging_CheckCreate.sql")]
     [InlineData("DatabaseLogging_Insert.sql")]
     public void MariaDbTemplate_HasNoStrayBacktickedPascalCaseIdentifiers(string templateFile)
@@ -184,27 +187,27 @@ public class MySqlMariaDbIdentifierCasingTests
     /// updating this test class the count assertion fails, prompting a review.
     /// </summary>
     [Fact]
-    public void MySqlTemplates_TotalCount_IsTwentyFour()
+    public void MySqlTemplates_TotalCount_IsTwentyFive()
     {
         var templatesDir = GetTemplatesDir("MySql");
         var actualFiles = Directory.GetFiles(templatesDir, "*.sql");
 
-        actualFiles.Should().HaveCount(24,
-            "the MySql Templates directory must contain exactly 24 .sql files after DAL-018 (+2 read-only Select templates, #7; +1 history Select template, #13; +3 schema version templates, ADR-024); " +
+        actualFiles.Should().HaveCount(25,
+            "the MySql Templates directory must contain exactly 25 .sql files after DAL-018 (+2 read-only Select templates, #7; +1 history Select template, #13; +3 schema version templates, ADR-024; +1 heartbeat template); " +
             "if you added a new template, also add it to P2_MySqlMariaDbIdentifierCasingTests");
     }
 
     /// <summary>
-    /// Confirms the count of MariaDB templates: exactly 24. Mirrors MySqlTemplates_TotalCount_IsTwentyFour.
+    /// Confirms the count of MariaDB templates: exactly 25. Mirrors MySqlTemplates_TotalCount_IsTwentyFive.
     /// </summary>
     [Fact]
-    public void MariaDbTemplates_TotalCount_IsTwentyFour()
+    public void MariaDbTemplates_TotalCount_IsTwentyFive()
     {
         var templatesDir = GetTemplatesDir("MariaDb");
         var actualFiles = Directory.GetFiles(templatesDir, "*.sql");
 
-        actualFiles.Should().HaveCount(24,
-            "the MariaDb Templates directory must contain exactly 24 .sql files after DAL-018 (+2 read-only Select templates, #7; +1 history Select template, #13; +3 schema version templates, ADR-024); " +
+        actualFiles.Should().HaveCount(25,
+            "the MariaDb Templates directory must contain exactly 25 .sql files after DAL-018 (+2 read-only Select templates, #7; +1 history Select template, #13; +3 schema version templates, ADR-024; +1 heartbeat template); " +
             "if you added a new template, also add it to P2_MySqlMariaDbIdentifierCasingTests");
     }
 
@@ -282,36 +285,36 @@ public class MySqlMariaDbIdentifierCasingTests
     }
 
     /// <summary>
-    /// Repository_MigrationRun_SelectOrphaned.sql (MySQL) must expose exactly 5 PascalCase output aliases
+    /// Repository_MigrationRun_SelectOrphaned.sql (MySQL) must expose exactly 9 PascalCase output aliases
     /// consumed by MigrationService.FixIssuesAsync.
     /// </summary>
     [Fact]
-    public void MigrationRunSelectOrphaned_Has5Aliases_MySql()
+    public void MigrationRunSelectOrphaned_Has9Aliases_MySql()
     {
         var content = ReadTemplate("MySql", "Repository_MigrationRun_SelectOrphaned.sql");
 
         var aliasPattern = new Regex(@"\bAS\s+`[A-Z][a-zA-Z]+`", RegexOptions.IgnoreCase);
         var count = aliasPattern.Matches(content).Count;
 
-        count.Should().Be(5,
-            "Repository_MigrationRun_SelectOrphaned.sql (MySql) must have exactly 5 AS `PascalCase` aliases " +
-            "(MigrationRunId, EnvironmentId, StartedAt, MigrationRunModeId, MinutesRunning)");
+        count.Should().Be(9,
+            "Repository_MigrationRun_SelectOrphaned.sql (MySql) must have exactly 9 AS `PascalCase` aliases " +
+            "(MigrationRunId, EnvironmentId, StartedAt, MigrationRunModeId, MinutesRunning, LastHeartbeatAt, MinutesSinceHeartbeat, InitiatedBy, Host)");
     }
 
     /// <summary>
-    /// Repository_MigrationRun_SelectOrphaned.sql (MariaDB) must expose exactly 5 PascalCase output aliases.
+    /// Repository_MigrationRun_SelectOrphaned.sql (MariaDB) must expose exactly 9 PascalCase output aliases.
     /// </summary>
     [Fact]
-    public void MigrationRunSelectOrphaned_Has5Aliases_MariaDb()
+    public void MigrationRunSelectOrphaned_Has9Aliases_MariaDb()
     {
         var content = ReadTemplate("MariaDb", "Repository_MigrationRun_SelectOrphaned.sql");
 
         var aliasPattern = new Regex(@"\bAS\s+`[A-Z][a-zA-Z]+`", RegexOptions.IgnoreCase);
         var count = aliasPattern.Matches(content).Count;
 
-        count.Should().Be(5,
-            "Repository_MigrationRun_SelectOrphaned.sql (MariaDb) must have exactly 5 AS `PascalCase` aliases " +
-            "(MigrationRunId, EnvironmentId, StartedAt, MigrationRunModeId, MinutesRunning)");
+        count.Should().Be(9,
+            "Repository_MigrationRun_SelectOrphaned.sql (MariaDb) must have exactly 9 AS `PascalCase` aliases " +
+            "(MigrationRunId, EnvironmentId, StartedAt, MigrationRunModeId, MinutesRunning, LastHeartbeatAt, MinutesSinceHeartbeat, InitiatedBy, Host)");
     }
 
     // -------------------------------------------------------------------------

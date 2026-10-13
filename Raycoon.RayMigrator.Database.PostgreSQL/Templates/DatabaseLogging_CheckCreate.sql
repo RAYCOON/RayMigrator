@@ -108,6 +108,7 @@ BEGIN
         (112, 'TemplateExecutionRepositoryMigrationRunSelectOrphaned', ''),
         (113, 'TemplateExecutionRepositoryMigrationRunFixOrphaned', ''),
         (114, 'TemplateExecutionRepositoryMigrationFixOrphaned', ''),
+        (115, 'TemplateExecutionRepositoryMigrationRunHeartbeat', ''),
         (120, 'TemplateExecutionRepositoryProductCheckInsert', ''),
         (121, 'TemplateExecutionRepositoryEnvironmentCheckInsert', ''),
         (122, 'TemplateExecutionRepositoryProductSelect', ''),

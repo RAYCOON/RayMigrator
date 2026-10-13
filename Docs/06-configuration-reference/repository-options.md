@@ -13,10 +13,16 @@ The repository stores migration tracking data. Configuration is under `RayMigrat
 | `DbCommandTimeoutInSeconds` | int | No | 60 | Command timeout (0 = infinite) |
 | `DbCommandMaxRetries` | int | No | 100 | Retry attempts on transient failure |
 | `DbCommandWaitTimeInMsBeforeRetry` | int | No | 250 | Base wait time between retries (linear backoff: base * attempt) |
+| `HeartbeatIntervalInSeconds` | int | No | 30 | How often a running migrate-up, migrate-down or baseline refreshes `MigrationRun.LastHeartbeatAt` (0 = off) |
+| `OrphanedRunThresholdInMinutes` | int | No | 2 | Minutes after its last heartbeat an open run counts as orphaned: a parallel start closes it as Error and takes the run lock, `fix` uses the same age unless `--older-than` says otherwise |
 
 All string properties support `{ENV:VARIABLE_NAME}` placeholders.
 
 Repository retry is active. `RepositoryExtensions.GetDalSettings()` builds a `DalSettings` object from these properties for every repository template call. With the default of `DbCommandMaxRetries = 100`, repository operations automatically retry on transient database errors. See [Resilience and Recovery](../02-core-concepts/resilience.md) for details on transient error codes and retry behavior.
+
+## Heartbeat and orphaned runs
+
+A running migrate-up, migrate-down or baseline writes a heartbeat into its `MigrationRun` row every `HeartbeatIntervalInSeconds` (`Repository_MigrationRun_Heartbeat`, on its own connection; a failed beat is logged as a warning and never ends the run). An open run whose last heartbeat is older than `OrphanedRunThresholdInMinutes` is orphaned: the next start for the same product and environment closes it as `Error` and takes the run lock, and `fix` lists and repairs it with the same age unless `--older-than` names another. A run that never wrote a heartbeat (an engine before 0.17.0, or `HeartbeatIntervalInSeconds = 0`) is measured from its start, so a long run without heartbeat is treated as orphaned after the threshold; keep the heartbeat on for runs that take longer than two minutes. On SQLite a target block holds the write lock of its database file for its whole transaction; a repository that shares that file receives its heartbeat only after the block commits, so give the repository its own file when blocks run longer than the threshold. A parallel start on a shared file waits for the same lock and never takes the run for orphaned while a block holds it.
 
 When `TableBaseName` is `null` or omitted, repository tables have no prefix (e.g., `migrations.MigratorMeta`). When set (e.g., `"Ray"`), tables get the prefix (e.g., `migrations.RayMigratorMeta`). See [Table Naming](#table-naming) below.
 
@@ -70,7 +76,9 @@ When `TableBaseName` is `null` or omitted, repository tables have no prefix (e.g
       "TableBaseName": "Ray",
       "DbCommandTimeoutInSeconds": 60,
       "DbCommandMaxRetries": 3,
-      "DbCommandWaitTimeInMsBeforeRetry": 500
+      "DbCommandWaitTimeInMsBeforeRetry": 500,
+      "HeartbeatIntervalInSeconds": 30,
+      "OrphanedRunThresholdInMinutes": 2
     }
   }
 }

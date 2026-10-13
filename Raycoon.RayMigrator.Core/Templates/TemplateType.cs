@@ -25,6 +25,7 @@ public enum TemplateType
     Repository_MigrationRun_Select,
     Repository_MigrationRun_SelectOrphaned,
     Repository_MigrationRun_FixOrphaned,
+    Repository_MigrationRun_Heartbeat,
 
     Repository_MigrationRecord_Insert,
     Repository_MigrationRecord_Update,

@@ -223,6 +223,7 @@ public class SqliteTypeConventionsTests
         new object[] { "Repository_MigrationRecord_UpdateHash.sql" },
         new object[] { "Repository_MigrationRecord_UpdateRollback.sql" },
         new object[] { "Repository_MigrationRun_FixOrphaned.sql" },
+        new object[] { "Repository_MigrationRun_Heartbeat.sql" },
         new object[] { "Repository_MigrationRun_Insert.sql" },
         new object[] { "Repository_MigrationRun_Update.sql" },
         new object[] { "Repository_Product_CheckInsert.sql" },

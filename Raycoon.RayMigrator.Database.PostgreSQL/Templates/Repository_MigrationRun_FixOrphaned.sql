@@ -6,7 +6,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_MigrationRun_FixOrphaned"
 DatabaseType   = "PostgreSQL"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-02-12.1"
+Version        = "2026-10-13.1"
 
 [Description]
 Function = """
@@ -28,11 +28,12 @@ TableBaseName = "Table name prefix from Repository configuration (e.g., '' or 'R
 
 [Parameters]
 MigrationRunId = "INT | REQUIRED | The ID of the orphaned MigrationRun to fix"
+ThresholdMinutes = "INT | REQUIRED | Minimum age of the last heartbeat (or of the start without one) in minutes; 0 closes the run regardless"
 
 [ReturnValues]
 # Format: RAISE NOTICE 'code,message'
 Success_Fixed     = "N (MigrationRunId),MigrationRun [N] marked as Error (orphaned run cleanup)"
-Error_-31_NotInRunning = "-31,MigrationRun [N] not found or not in Running state"
+Error_-31_NotInRunning = "-31,MigrationRun [N] not found or not in Running state or still alive"
 
 [ModificationNotes]
 Note1 = "RAISE NOTICE format: 'code,message' - DO NOT change this format"
@@ -52,12 +53,13 @@ BEGIN
         duration_in_ms = EXTRACT(EPOCH FROM (NOW() - started_at)) * 1000
     WHERE id = @MigrationRunId
         AND migration_run_result_id = 10
-        AND finished_at IS NULL;
+        AND finished_at IS NULL
+        AND COALESCE(last_heartbeat_at, started_at) <= NOW() - make_interval(mins => @ThresholdMinutes);
 
     GET DIAGNOSTICS v_affected = ROW_COUNT;
 
     IF v_affected = 0 THEN
-        RAISE EXCEPTION '-31,MigrationRun [%] not found or not in Running state',
+        RAISE EXCEPTION '-31,MigrationRun [%] not found or not in Running state or still alive',
             COALESCE(CAST(@MigrationRunId AS VARCHAR(10)), 'NULL');
     ELSE
         RAISE NOTICE '%,MigrationRun [%] marked as Error (orphaned run cleanup)',

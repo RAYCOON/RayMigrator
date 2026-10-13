@@ -39,6 +39,18 @@ RayMigrator follows Semantic Versioning where applicable.
   reports `Source`, `InitiatedBy`, `InitiatedBySubject`, `Host`, `ErrorCode`,
   `ErrorMessage` and `LastHeartbeatAt`, and its `Operation` comes from the
   run row instead of being derived from the records.
+- A running migrate-up, migrate-down or baseline writes a heartbeat into
+  its run row (`Repository_MigrationRun_Heartbeat`, every
+  `Repository.HeartbeatIntervalInSeconds`, default 30, 0 = off) from its own
+  connection; a failed beat is a warning, never the end of the run. An open
+  run counts as orphaned when its last heartbeat (or its start, for a run
+  without one) is older than `Repository.OrphanedRunThresholdInMinutes`
+  (default 2): the next start for the same product and environment closes
+  it as Error and takes the run lock, `fix` lists and repairs it, and
+  `OrphanedRunInfo` reports `LastHeartbeatAt`, `MinutesSinceHeartbeat`,
+  `InitiatedBy` and `Host`. A run that still writes heartbeats is alive and
+  blocks a parallel start however long it runs; `fix` refuses to close it
+  (`-31`).
 - Typed progress events for hosts. `MigrationContext.ProgressObserver` takes an
   `IMigrationProgressObserver` (namespace `Raycoon.RayMigrator.Core.Progress`)
   that receives `RunStartedEvent` (after the run row exists, with its id),
@@ -66,9 +78,19 @@ RayMigrator follows Semantic Versioning where applicable.
   and `-11` (`RepositoryPartialWithoutVersionTable`) are gone; `-12` is
   returned by `Repository_MigratorMeta_CheckInsert`. External DALs must
   ship `Repository_Upgrade_1.sql` and
-  `Repository_MigratorMeta_CheckInsert.sql`; `TemplateCache` requires 23
-  templates per engine. ADR-007 and ADR-016 are superseded in their
-  repository part.
+  `Repository_MigratorMeta_CheckInsert.sql`; `TemplateCache` requires 25
+  templates per engine (`Repository_Upgrade_2.sql` and
+  `Repository_MigrationRun_Heartbeat.sql` included). ADR-007 and ADR-016 are
+  superseded in their repository part.
+- **Breaking:** orphaned runs are detected by heartbeat age, not by run age.
+  The auto-fix threshold of 10 minutes after the start
+  (`AutoFixOrphanedRunsThresholdMinutes`) is gone; `fix --older-than` and
+  `FixIssuesRequest.OlderThanMinutes` mean minutes since the last heartbeat
+  and default to 2 instead of 60. A healthy run longer than 10 minutes is
+  no longer closed by a parallel start, and a crashed pipeline run is
+  released after 2 minutes. `Repository_MigrationRun_FixOrphaned` takes
+  `@ThresholdMinutes` and `Repository_MigrationRun_SelectOrphaned` returns
+  `LastHeartbeatAt`, `MinutesSinceHeartbeat`, `InitiatedBy` and `Host`.
 - `IMigrationContextFactory` is the entry point of a host for one run, the CLI
   pipeline included. `Create` prepares options a host built in memory with the
   new `RayMigratorOptionsPreparer`, which gives them what options bound from

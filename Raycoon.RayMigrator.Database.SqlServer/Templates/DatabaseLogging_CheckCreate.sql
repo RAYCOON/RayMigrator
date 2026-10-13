@@ -106,6 +106,7 @@ BEGIN TRY
 					(112, 'TemplateExecutionRepositoryMigrationRunSelectOrphaned', N''),
 					(113, 'TemplateExecutionRepositoryMigrationRunFixOrphaned', N''),
 					(114, 'TemplateExecutionRepositoryMigrationFixOrphaned', N''),
+					(115, 'TemplateExecutionRepositoryMigrationRunHeartbeat', N''),
 					(120, 'TemplateExecutionRepositoryProductCheckInsert', N''),
 					(121, 'TemplateExecutionRepositoryEnvironmentCheckInsert', N''),
 					(122, 'TemplateExecutionRepositoryProductSelect', N''),

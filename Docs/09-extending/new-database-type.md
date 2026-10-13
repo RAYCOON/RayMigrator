@@ -84,6 +84,7 @@ Raycoon.RayMigrator.Database.Oracle/
 │   ├── Repository_MigrationRecord_UpdateHash.sql
 │   ├── Repository_MigrationRecord_UpdateRollback.sql
 │   ├── Repository_MigrationRun_FixOrphaned.sql
+│   ├── Repository_MigrationRun_Heartbeat.sql
 │   ├── Repository_MigrationRun_Insert.sql
 │   ├── Repository_MigrationRun_Select.sql
 │   ├── Repository_MigrationRun_SelectOrphaned.sql

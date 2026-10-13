@@ -407,8 +407,8 @@ public class CommandLineConfiguration
 
         var olderThanOption = new Option<int>("--older-than", "-ot")
         {
-            Description = "Only fix runs older than N minutes (0 = immediate)",
-            DefaultValueFactory = _ => 60
+            Description = "Only fix runs whose last heartbeat (or start) is older than N minutes (0 = immediate)",
+            DefaultValueFactory = _ => 2
         };
 
         // fix previews through --run-mode simulate like migrate-up / migrate-down; it has no switch of its own (#22).

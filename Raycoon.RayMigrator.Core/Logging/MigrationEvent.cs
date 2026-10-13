@@ -31,6 +31,7 @@ public static class MigrationEvent
     public static readonly EventId TemplateExecutionRepositoryMigrationRunSelectOrphaned = new EventId(112, nameof(TemplateExecutionRepositoryMigrationRunSelectOrphaned));
     public static readonly EventId TemplateExecutionRepositoryMigrationRunFixOrphaned = new EventId(113, nameof(TemplateExecutionRepositoryMigrationRunFixOrphaned));
     public static readonly EventId TemplateExecutionRepositoryMigrationFixOrphaned = new EventId(114, nameof(TemplateExecutionRepositoryMigrationFixOrphaned));
+    public static readonly EventId TemplateExecutionRepositoryMigrationRunHeartbeat = new EventId(115, nameof(TemplateExecutionRepositoryMigrationRunHeartbeat));
     public static readonly EventId TemplateExecutionRepositoryProductCheckInsert = new EventId(120, nameof(TemplateExecutionRepositoryProductCheckInsert));
     public static readonly EventId TemplateExecutionRepositoryEnvironmentCheckInsert = new EventId(121, nameof(TemplateExecutionRepositoryEnvironmentCheckInsert));
     public static readonly EventId TemplateExecutionRepositoryProductSelect = new EventId(122, nameof(TemplateExecutionRepositoryProductSelect));

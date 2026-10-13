@@ -1,0 +1,9 @@
+-- TODO: Implement for your database engine
+-- Purpose: Writes one heartbeat for a running MigrationRun: sets LastHeartbeatAt to now while FinishedAt IS NULL.
+-- See the corresponding template in Database.SqlServer or Database.PostgreSQL for reference.
+-- Returns: 'code,message' where code is 1 when the row was open and updated, 0 when the run has already finished.
+--
+-- Parameters used in this template:
+-- {CFG:SchemaName} - The repository schema name
+-- {CFG:TableBaseName} - The table name prefix
+-- @MigrationRunId - The ID of the running MigrationRun

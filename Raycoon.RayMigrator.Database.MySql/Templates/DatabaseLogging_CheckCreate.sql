@@ -95,6 +95,7 @@ FROM (
     UNION ALL SELECT 112, 'TemplateExecutionRepositoryMigrationRunSelectOrphaned', ''
     UNION ALL SELECT 113, 'TemplateExecutionRepositoryMigrationRunFixOrphaned', ''
     UNION ALL SELECT 114, 'TemplateExecutionRepositoryMigrationFixOrphaned', ''
+    UNION ALL SELECT 115, 'TemplateExecutionRepositoryMigrationRunHeartbeat', ''
     UNION ALL SELECT 120, 'TemplateExecutionRepositoryProductCheckInsert', ''
     UNION ALL SELECT 121, 'TemplateExecutionRepositoryEnvironmentCheckInsert', ''
     UNION ALL SELECT 122, 'TemplateExecutionRepositoryProductSelect', ''

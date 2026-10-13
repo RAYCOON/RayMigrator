@@ -98,6 +98,39 @@ public class TemplateExecutorRunDetailsTests
         ((string)Value(calls.Single()!, "ErrorMessage")!).Length.Should().Be(TemplateExecutor.MaxErrorMessageLength);
     }
 
+    [Fact]
+    public void RepositoryMigrationRunHeartbeat_BindsTheRunId_AndReportsAnOpenRow()
+    {
+        var (executor, calls) = CreateExecutor(configureContext: ctx => ctx.MigrationState.MigrationRunId = 5);
+
+        bool open = executor.RepositoryMigrationRunHeartbeat();
+
+        open.Should().BeTrue("the mocked template answers 1");
+        Value(calls.Single()!, "MigrationRunId").Should().Be(5);
+    }
+
+    [Fact]
+    public void RepositoryMigrationRunHeartbeat_WithoutRun_Throws()
+    {
+        var (executor, _) = CreateExecutor();
+
+        var act = () => executor.RepositoryMigrationRunHeartbeat();
+
+        act.Should().Throw<Raycoon.RayMigrator.Shared.Exceptions.RayMigratorInternalException>();
+    }
+
+    [Fact]
+    public void RepositoryMigrationRunFixOrphaned_BindsTheRunIdAndTheThreshold()
+    {
+        var (executor, calls) = CreateExecutor();
+
+        executor.RepositoryMigrationRunFixOrphaned(9, 2);
+
+        var parameters = calls.Single()!;
+        Value(parameters, "MigrationRunId").Should().Be(9);
+        Value(parameters, "ThresholdMinutes").Should().Be(2);
+    }
+
     [Theory]
     [InlineData(null, null)]
     [InlineData("", null)]

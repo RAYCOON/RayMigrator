@@ -97,4 +97,21 @@ public static class SqlDialect
         sb.AppendLine("*/");
         return sb.ToString();
     }
+
+    /// <summary>
+    /// Returns SQL that keeps a block busy for about <paramref name="seconds"/> seconds, so a run lasts long enough
+    /// for its heartbeat to fire. SQLite has no sleep; a recursive CTE burns the time instead.
+    /// </summary>
+    public static string GetSleepSql(string databaseType, int seconds)
+    {
+        return databaseType switch
+        {
+            "SqlServer" => $"WAITFOR DELAY '00:00:{seconds:00}';",
+            "PostgreSQL" => $"SELECT pg_sleep({seconds});",
+            "MariaDb" or "MySql" => $"DO SLEEP({seconds});",
+            "Sqlite" => $"WITH RECURSIVE busy(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM busy WHERE x < {seconds * 13000000}) SELECT COUNT(*) FROM busy;",
+            _ => throw new NotSupportedException($"Unsupported database type: {databaseType}")
+        };
+    }
 }
+

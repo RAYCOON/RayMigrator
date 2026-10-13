@@ -179,7 +179,7 @@ Authoritative page: [Execution modes](https://github.com/RAYCOON/RayMigrator/blo
 
 ### Template-Driven Repository Schema
 
-All repository and log access goes through SQL templates. `TemplateType` has 24 members besides `Undefined`: 22 `Repository_*`
+All repository and log access goes through SQL templates. `TemplateType` has 25 members besides `Undefined`: 23 `Repository_*`
 (among them the schema steps `Repository_Upgrade_1` and `Repository_Upgrade_2` and `Repository_MigratorMeta_CheckInsert` of ADR-024) plus
 `DatabaseLogging_CheckCreate` and `DatabaseLogging_Insert`.
 `TemplateCache` loads `DataAccessLayers/{Type}/*.sql` below the application base directory at construction, maps file names to
@@ -276,9 +276,11 @@ The lock is the open `MigrationRun` row. `Repository_MigrationRun_Insert` refuse
 `Simulate` runs never insert a row. The check is serialized inside the engine: `UPDLOCK, HOLDLOCK` on SQL Server,
 `pg_advisory_xact_lock` keyed by product on PostgreSQL, `GET_LOCK` named by product and environment on MariaDB and MySQL, a write
 transaction on SQLite. `TemplateExecutor.RepositoryMigrationRunInsert` converts the code into `MigrationAlreadyRunningException`;
-`RepositoryMigrationRunInsertWithAutoFix` closes runs older than `AutoFixOrphanedRunsThresholdMinutes` (10) as `Error` and retries
-once. `RepositoryMigrationRunUpdate` releases the lock by setting `FinishedAt`. The `fix` command (`FixScope` `All` 1 or
-`OrphanedRuns` 2, `--older-than` default 60, `--last-migration-status`) lists or repairs younger orphans with the
+a running migrate-up, migrate-down or baseline refreshes `MigrationRun.LastHeartbeatAt` every
+`Repository.HeartbeatIntervalInSeconds` (30), and `RepositoryMigrationRunInsertWithAutoFix` closes runs whose last heartbeat (or
+start, without one) is older than `Repository.OrphanedRunThresholdInMinutes` (2) as `Error` and retries once; `fix` refuses to
+close a run whose heartbeat is younger (`-31`). `RepositoryMigrationRunUpdate` releases the lock by setting `FinishedAt`. The
+`fix` command (`FixScope` `All` 1 or `OrphanedRuns` 2, `--older-than` default 2, `--last-migration-status`) lists or repairs orphans by heartbeat age with the
 `Repository_MigrationRun_SelectOrphaned` and `*_FixOrphaned` templates.
 Scenario: [Runtime View 6.7](06-Runtime-View.md#67-concurrency-exclusive-run-lock-and-orphaned-run-recovery-fix). Authoritative page: [Concurrency control](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/02-core-concepts/concurrency-control.md).
 

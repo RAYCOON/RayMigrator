@@ -198,6 +198,7 @@ Raycoon.RayMigrator.Tests.Unit/
 ├── P1_MigrationSafetyWarningTests.cs
 ├── P1_MigSettingsInheritanceTests.cs
 ├── P1_MissingSerilogSectionMessageTests.cs
+├── P1_MigrationRunHeartbeatTests.cs
 ├── P1_MySqlMariaDbTypeConventionsTests.cs
 ├── P1_OutOfOrderDetectionTests.cs
 ├── P1_PostgreSqlTypeConventionsTests.cs
@@ -295,6 +296,7 @@ Raycoon.RayMigrator.Tests.Unit/
 | `P1_RepositorySchemaTests` | `RepositorySchemaTests` | The repository schema version contract (ADR-024): `RepositorySchema.CurrentVersion` matches the `Repository_Upgrade_{n}` members of `TemplateType`, every engine ships `Repository_CheckCreate`, every step and `Repository_MigratorMeta_CheckInsert` with the declared parameters, the log events 101/102 exist and are seeded, `-10`/`-11` are no longer catalogued |
 | `P1_RunInitiatorTests` | `RunInitiatorTests` | `RunInitiator`: CI/CD detection from `CI`, `GITHUB_ACTIONS`, `GITLAB_CI`, `TF_BUILD`, `JENKINS_URL`, `TEAMCITY_VERSION` (false/0 do not count), user and machine name, `MigrationRunSource` values and their seeds in `Repository_Upgrade_2` of every engine, the CLI parser recording source, user and host |
 | `P1_TemplateExecutorRunDetailsTests` | `TemplateExecutorRunDetailsTests` | `RepositoryMigrationRunInsert` binds operation, source, initiator and host (NULL source and the machine name without a host), `RepositoryMigrationRunUpdate` binds error code and message cut to 4000 characters |
+| `P1_MigrationRunHeartbeatTests` | `MigrationRunHeartbeatTests` | `MigrationRunHeartbeat` beats until stopped and survives a failing beat; `Repository.HeartbeatIntervalInSeconds` (30) and `OrphanedRunThresholdInMinutes` (2) defaults; `fix --older-than` and `FixIssuesRequest` default 2; every engine ships `Repository_MigrationRun_Heartbeat`, measures `MinutesSinceHeartbeat` in the orphan select and guards the fix with `@ThresholdMinutes` |
 | `P1_RepositorySelectTemplateTests` | `RepositorySelectTemplateTests` | `Repository_Product_Select` / `Repository_Environment_Select` (#7): TemplateType membership, MigrationEvent ids 122/123, and per-engine structural checks that the templates exist, are read-only (no INSERT/UPDATE/DELETE/CREATE), look up by `NameLower` and return `0,... not found` for a missing row |
 | `P1_EnvironmentIdFkTests` | `EnvironmentIdFkTests` | Structural SQL-template tests for the EnvironmentId FK feature: confirms Environment text column is replaced with EnvironmentId INT FK across all 5 engines and that all INSERT/SELECT templates bind `@EnvironmentId` (not `@Environment`) |
 | `P1_EnvironmentResolverTests` | `EnvironmentResolverTests` | `EnvironmentResolver` decision table: the `--environment` argument is the environment, `DOTNET_ENVIRONMENT` is only cross-checked (a different value exits with 2), a blank argument exits with 3 whether or not the variable is set (#32) |

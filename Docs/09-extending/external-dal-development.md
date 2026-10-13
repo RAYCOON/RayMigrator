@@ -227,7 +227,7 @@ public class DalYourDb : DalBase, IDal
 
 All 21 template files must be present. `TemplateCache` loads templates from `DataAccessLayers/{Type}/` on the filesystem. Templates are delivered as `<Content>` items that propagate transitively through ProjectReference and as `contentFiles` in NuGet packages. `TemplateCache` validates completeness at startup and throws a `ConfigurationValidationException` listing any missing templates. Template files must not be empty -- if a template is not needed for your database type, add a SQL comment explaining why.
 
-The `Database.Example` project includes all 25 files as placeholders with TODO comments (24 required templates plus `Repository_MigrationRecordHistory_Archive.sql`). `TemplateCache` recognizes only the 24 files that correspond to `TemplateType` enum values; `Repository_MigrationRecordHistory_Archive.sql` is silently skipped during loading. Use `Database.SqlServer` or `Database.PostgreSQL` templates as reference implementations.
+The `Database.Example` project includes all 26 files as placeholders with TODO comments (25 required templates plus `Repository_MigrationRecordHistory_Archive.sql`). `TemplateCache` recognizes only the 25 files that correspond to `TemplateType` enum values; `Repository_MigrationRecordHistory_Archive.sql` is silently skipped during loading. Use `Database.SqlServer` or `Database.PostgreSQL` templates as reference implementations.
 
 ### Required Templates
 
@@ -250,6 +250,7 @@ The `Database.Example` project includes all 25 files as placeholders with TODO c
 | `Repository_MigrationRecord_UpdateHash.sql` | Update migration hash only |
 | `Repository_MigrationRecord_UpdateRollback.sql` | Update after rollback (includes inline MigrationRecordHistory insert) |
 | `Repository_MigrationRun_FixOrphaned.sql` | Fix orphaned run records |
+| `Repository_MigrationRun_Heartbeat.sql` | Refresh `LastHeartbeatAt` of a running MigrationRun while it is open; return `1` when updated, `0` when the run has finished |
 | `Repository_MigrationRun_Insert.sql` | Insert migration run record |
 | `Repository_MigrationRun_Select.sql` | Select the newest runs of a product and environment (`@ProductId`, `@EnvironmentId`, `@Limit`) |
 | `Repository_MigrationRun_SelectOrphaned.sql` | Select orphaned runs |
@@ -378,7 +379,7 @@ DataAccessLayers/YourDb/
 ├── Repository_Upgrade_1.sql
 ├── Repository_Upgrade_2.sql
 ├── Repository_MigratorMeta_CheckInsert.sql
-├── ... (24 .sql files total)
+├── ... (25 .sql files total)
 ├── TransientErrorCodes.txt   (optional: replaces the built-in transient error codes, ADR-022)
 ```
 

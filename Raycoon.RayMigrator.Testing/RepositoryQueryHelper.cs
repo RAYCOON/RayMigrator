@@ -505,42 +505,87 @@ public class RepositoryQueryHelper
     /// Inserts a fake MigrationRun record with MigrationRunResultId=10 (Running) and a StartedAt
     /// timestamp in the past, simulating an orphaned migration run that crashed without completing.
     /// </summary>
-    public void InsertOrphanedMigrationRun(int productId, int minutesOld, string environment = "Docker")
+    public void InsertOrphanedMigrationRun(int productId, int minutesOld, string environment = "Docker", int? heartbeatMinutesOld = null)
     {
         int environmentId = EnsureEnvironmentExists(environment);
         if (!DalFactory.TryGetDal(_databaseType, _repositoryConnectionString, out IDal? dal))
             throw new InvalidOperationException($"Could not create DAL for {_databaseType}");
 
         string qualifiedTable = GetQualifiedTableName("MigrationRun");
-        string timestampSql = _databaseType switch
-        {
-            "SqlServer" => $"DATEADD(MINUTE, -{minutesOld}, SYSUTCDATETIME())",
-            "PostgreSQL" => $"(NOW() AT TIME ZONE 'UTC') - INTERVAL '{minutesOld} minutes'",
-            "MariaDb" or "MySql" => $"UTC_TIMESTAMP() - INTERVAL {minutesOld} MINUTE",
-            "Sqlite" => $"datetime('now', '-{minutesOld} minutes')",
-            _ => throw new NotSupportedException($"Unsupported database type: {_databaseType}")
-        };
+        string timestampSql = MinutesAgoSql(minutesOld);
+        // A run of an engine before the heartbeat never wrote LastHeartbeatAt (NULL); a run with a heartbeat carries its age.
+        string heartbeatSql = heartbeatMinutesOld.HasValue ? MinutesAgoSql(heartbeatMinutesOld.Value) : "NULL";
 
         string sql = _databaseType switch
         {
             "SqlServer" =>
-                $"INSERT INTO {qualifiedTable} ([MigratorMetaId], [ProductId], [EnvironmentId], [MigrationRunModeId], [MigrationRunResultId], [StartedAt]) " +
-                $"VALUES (1, {productId}, {environmentId}, 100, 10, {timestampSql})",
+                $"INSERT INTO {qualifiedTable} ([MigratorMetaId], [ProductId], [EnvironmentId], [MigrationRunModeId], [MigrationRunResultId], [StartedAt], [LastHeartbeatAt]) " +
+                $"VALUES (1, {productId}, {environmentId}, 100, 10, {timestampSql}, {heartbeatSql})",
             // DAL-017: PostgreSQL columns are unquoted snake_case.
             "PostgreSQL" =>
-                $"INSERT INTO {qualifiedTable} (migrator_meta_id, product_id, environment_id, migration_run_mode_id, migration_run_result_id, started_at) " +
-                $"VALUES (1, {productId}, {environmentId}, 100, 10, {timestampSql})",
+                $"INSERT INTO {qualifiedTable} (migrator_meta_id, product_id, environment_id, migration_run_mode_id, migration_run_result_id, started_at, last_heartbeat_at) " +
+                $"VALUES (1, {productId}, {environmentId}, 100, 10, {timestampSql}, {heartbeatSql})",
             // DAL-018: MariaDB/MySQL columns are snake_case.
             "MariaDb" or "MySql" =>
-                $"INSERT INTO {qualifiedTable} (migrator_meta_id, product_id, environment_id, migration_run_mode_id, migration_run_result_id, started_at) " +
-                $"VALUES (1, {productId}, {environmentId}, 100, 10, {timestampSql})",
+                $"INSERT INTO {qualifiedTable} (migrator_meta_id, product_id, environment_id, migration_run_mode_id, migration_run_result_id, started_at, last_heartbeat_at) " +
+                $"VALUES (1, {productId}, {environmentId}, 100, 10, {timestampSql}, {heartbeatSql})",
             "Sqlite" =>
-                $"INSERT INTO {qualifiedTable} (MigratorMetaId, ProductId, EnvironmentId, MigrationRunModeId, MigrationRunResultId, StartedAt) " +
-                $"VALUES (1, {productId}, {environmentId}, 100, 10, {timestampSql})",
+                $"INSERT INTO {qualifiedTable} (MigratorMetaId, ProductId, EnvironmentId, MigrationRunModeId, MigrationRunResultId, StartedAt, LastHeartbeatAt) " +
+                $"VALUES (1, {productId}, {environmentId}, 100, 10, {timestampSql}, {heartbeatSql})",
             _ => throw new NotSupportedException($"Unsupported database type: {_databaseType}")
         };
 
         dal!.ExecuteScalarAsync(sql, QuerySettings, null).GetAwaiter().GetResult();
+    }
+
+    /// <summary>A UTC timestamp <paramref name="minutesAgo"/> minutes in the past, in the dialect of the engine.</summary>
+    private string MinutesAgoSql(int minutesAgo) => _databaseType switch
+    {
+        "SqlServer" => $"DATEADD(MINUTE, -{minutesAgo}, SYSUTCDATETIME())",
+        "PostgreSQL" => $"(NOW() AT TIME ZONE 'UTC') - INTERVAL '{minutesAgo} minutes'",
+        "MariaDb" or "MySql" => $"UTC_TIMESTAMP() - INTERVAL {minutesAgo} MINUTE",
+        "Sqlite" => $"datetime('now', '-{minutesAgo} minutes')",
+        _ => throw new NotSupportedException($"Unsupported database type: {_databaseType}")
+    };
+
+    /// <summary>
+    /// The timestamps of the run at the 1-based index (oldest first) as the engine stores them, pipe-delimited:
+    /// <c>StartedAt|LastHeartbeatAt|FinishedAt</c>; null when no row exists. For assertion messages.
+    /// </summary>
+    public string? GetMigrationRunTimestamps(int runIndex)
+    {
+        string table = GetQualifiedTableName("MigrationRun");
+        string cols = BuildConcatExpression(["StartedAt", "LastHeartbeatAt", "FinishedAt"]);
+        string id = QuoteColumn("Id");
+
+        string sql = _databaseType switch
+        {
+            "SqlServer" => $"SELECT {cols} FROM {table} ORDER BY {id} ASC OFFSET {runIndex - 1} ROWS FETCH NEXT 1 ROWS ONLY",
+            _ => $"SELECT {cols} FROM {table} ORDER BY {id} ASC LIMIT 1 OFFSET {runIndex - 1}"
+        };
+
+        return QueryScalarString(sql);
+    }
+
+    /// <summary>
+    /// Whether the run at the 1-based index (oldest first) wrote a heartbeat after its start, i.e.
+    /// <c>LastHeartbeatAt &gt; StartedAt</c>. False when no row exists or the heartbeat still equals the start.
+    /// </summary>
+    public bool HeartbeatAdvanced(int runIndex)
+    {
+        string table = GetQualifiedTableName("MigrationRun");
+        string id = QuoteColumn("Id");
+        string heartbeat = QuoteColumn("LastHeartbeatAt");
+        string started = QuoteColumn("StartedAt");
+
+        string sql = _databaseType switch
+        {
+            "SqlServer" => $"SELECT TOP 1 CASE WHEN {heartbeat} > {started} THEN 1 ELSE 0 END FROM (SELECT {heartbeat}, {started} FROM {table} ORDER BY {id} ASC OFFSET {runIndex - 1} ROWS FETCH NEXT 1 ROWS ONLY) r",
+            _ => $"SELECT CASE WHEN {heartbeat} > {started} THEN 1 ELSE 0 END FROM {table} ORDER BY {id} ASC LIMIT 1 OFFSET {runIndex - 1}"
+        };
+
+        string? result = QueryScalarString(sql);
+        return result == "1";
     }
 
     /// <summary>

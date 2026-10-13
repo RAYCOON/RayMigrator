@@ -118,7 +118,7 @@ asserted by the tests; the CLI accepts the names case insensitively.
 | `--target-group-migration-order` / `-tgmo` | CLI option (`migrate-up`, `baseline`) | Comma separated target group aliases that override the configured order for this run | [Command reference](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/08-cli-reference/command-reference.md) |
 | `--stop-rollback-on-missing-rollback-file` / `-sromrf` | CLI option (`migrate-up`) | Overrides `StopRollbackOnMissingRollbackFile` for the error recovery chain of this run | [Command reference](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/08-cli-reference/command-reference.md) |
 | `--scope` / `-s` | CLI option (`validate-hash`, `fix`) | `file`, `sqlblocks` or `disabled` for `validate-hash`; `all` or `orphanedruns` for `fix` | [Command reference](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/08-cli-reference/command-reference.md) |
-| `--older-than` / `-ot`, `--last-migration-status` / `-lms` | CLI options (`fix`) | Minimum age in minutes of an orphaned run (default 60); status given to its open records, `not-migrated` (default) or `migrated` | [Command reference](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/08-cli-reference/command-reference.md#fix) |
+| `--older-than` / `-ot`, `--last-migration-status` / `-lms` | CLI options (`fix`) | Minimum age in minutes of the last heartbeat of an open run to count it as orphaned (default 2); status given to its open records, `not-migrated` (default) or `migrated` | [Command reference](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/08-cli-reference/command-reference.md#fix) |
 
 ## Architecture and technology terms
 

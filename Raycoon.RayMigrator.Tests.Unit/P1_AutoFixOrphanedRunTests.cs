@@ -6,28 +6,12 @@ namespace Raycoon.RayMigrator.Tests.Unit;
 /// <summary>
 /// P1: OPT-2 tests for auto-fix orphaned runs behavior.
 /// The core auto-fix logic (RepositoryMigrationRunInsertWithAutoFix) requires TemplateExecutor
-/// and repository access, so it is tested via integration tests. These unit tests verify
-/// the configurable threshold and method accessibility.
+/// and repository access, so it is tested via integration tests. The threshold it applies is
+/// <c>Repository.OrphanedRunThresholdInMinutes</c> (see <see cref="MigrationRunHeartbeatTests"/>), measured
+/// against the last heartbeat of the open run.
 /// </summary>
 public class AutoFixOrphanedRunTests
 {
-    [Fact]
-    public void AutoFixThreshold_IsReasonableDefault()
-    {
-        // The threshold should be long enough to not interfere with genuinely running migrations
-        // but short enough to be useful for auto-recovery after crashes.
-        MigrationService.AutoFixOrphanedRunsThresholdMinutes.Should().BeGreaterThanOrEqualTo(5,
-            "threshold must be high enough to avoid interfering with legitimately running migrations");
-        MigrationService.AutoFixOrphanedRunsThresholdMinutes.Should().BeLessThanOrEqualTo(60,
-            "threshold should not be so high that it defeats the purpose of auto-recovery");
-    }
-
-    [Fact]
-    public void AutoFixThreshold_DefaultIsTenMinutes()
-    {
-        MigrationService.AutoFixOrphanedRunsThresholdMinutes.Should().Be(10);
-    }
-
     [Fact]
     public void RepositoryMigrationRunInsertWithAutoFix_IsInternalMethod()
     {
@@ -38,5 +22,13 @@ public class AutoFixOrphanedRunTests
         method.Should().NotBeNull("RepositoryMigrationRunInsertWithAutoFix should be accessible");
         method!.ReturnType.Should().Be(typeof(System.Threading.Tasks.Task),
             "method should return Task for async execution");
+    }
+
+    [Fact]
+    public void AutoFixThreshold_IsNoLongerAConstant()
+    {
+        typeof(MigrationService).GetField("AutoFixOrphanedRunsThresholdMinutes",
+                System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public)
+            .Should().BeNull("the threshold is Repository.OrphanedRunThresholdInMinutes since the heartbeat exists");
     }
 }
