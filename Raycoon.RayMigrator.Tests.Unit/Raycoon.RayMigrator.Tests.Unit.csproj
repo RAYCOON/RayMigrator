@@ -35,6 +35,7 @@
         <ProjectReference Include="..\Raycoon.RayMigrator.Database.MySql\Raycoon.RayMigrator.Database.MySql.csproj" />
         <ProjectReference Include="..\Raycoon.RayMigrator.Database.Sqlite\Raycoon.RayMigrator.Database.Sqlite.csproj" />
         <ProjectReference Include="..\Raycoon.RayMigrator.Database.Example\Raycoon.RayMigrator.Database.Example.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Repository.ReadModel\Raycoon.RayMigrator.Repository.ReadModel.csproj" />
         <ProjectReference Include="..\Raycoon.RayMigrator.Pipeline\Raycoon.RayMigrator.Pipeline.csproj" />
         <ProjectReference Include="..\Raycoon.RayMigrator.Testing\Raycoon.RayMigrator.Testing.csproj" />
     </ItemGroup>

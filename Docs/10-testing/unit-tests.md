@@ -175,6 +175,7 @@ Raycoon.RayMigrator.Tests.Unit/
 ├── P1_DalParameterEscapingTests.cs
 ├── P1_DalParameterSubstitutionTests.cs
 ├── P1_DatabaseLoggingDefaultsTests.cs
+├── P1_RepositoryReadModelTests.cs
 ├── P1_DalShippedTransientErrorCodesTests.cs
 ├── P1_DalSqlServerKilledSessionTests.cs
 ├── P1_DalSqliteForeignKeysTests.cs
@@ -287,6 +288,7 @@ Raycoon.RayMigrator.Tests.Unit/
 | `P1_DalFactoryTests` | `DalFactoryTests` | `DalFactory` discovery, caching by connection string, error handling for unknown types, and `RegisteredDalTypes`/`ScanAssemblyForDals` |
 | `P1_DalIsTransientTests` | `DalIsTransientTests` | `DalBase.IsTransient` base implementation: `TimeoutException`, non-transient exceptions (including `OperationCanceledException`), and recursive inner-exception traversal |
 | `P1_DalParameterEscapingTests` | `DalParameterEscapingTests` | `FormatParameterValue` of the PostgreSQL, MariaDB and MySQL DALs (quotes doubled; backslash kept on PostgreSQL, doubled on MariaDB/MySQL; booleans) and their `SubstituteParameters`, including the per-call `$rm…$` tag the PostgreSQL DAL gives every `DO $$` block |
+| `P1_RepositoryReadModelTests` | `RepositoryReadModelTests` | Read model package (ADR-025): `ToSnakeCase`, `RepositoryNaming` per engine (qualified and quoted names, canonical database type, schema rule, `SelectStatement`), `RepositoryRows.ColumnsOf` from the records, `RepositoryRowMapper` with SQLite, SQL Server and MySQL value types, missing column and null reporting, schema version |
 | `P1_DatabaseLoggingDefaultsTests` | `DatabaseLoggingDefaultsTests` | Database logging into the repository by default: `DatabaseLoggingDefaults.Apply` (missing or partial section, `Enabled: false`, other database type), `IsDatabaseLoggingEnabled`, PostConfigure, `SerilogFactory` sink by the `Enabled` rule, `DatabaseLogWriter` without `MinimumLevel`, `DatabaseLoggerQueue.WaitForEmptyAsync` |
 | `P1_DalParameterSubstitutionTests` | `DalParameterSubstitutionTests` | `DalParameterSubstitution.Substitute`, the single-pass substitution the four textual DALs share: a value containing another placeholder is not substituted again, whole-identifier matching (`@Product` vs `@ProductId`, `@@var`, `user@host`), case-sensitive names, session variables untouched |
 | `P1_DalShippedTransientErrorCodesTests` | `DalShippedTransientErrorCodesTests` | Drift guard: the `TransientErrorCodes.txt` each DAL ships in `DataAccessLayers/{Type}/` equals the built-in list of its `DalBase` subclass (ADR-022) |

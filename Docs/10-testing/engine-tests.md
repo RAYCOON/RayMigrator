@@ -329,7 +329,7 @@ The catalog lists the unique test scenarios defined for the base PostgreSQL test
 | #60 | FL-1 | MixedFlatAndTraditionalLayout_AllReleasesMigrateSuccessfully | FlatLayoutTests |
 | #61 | FL-2 | MixedLayout_MigrateDownToRelease2_RollsBackFlatAndTraditionalReleases | FlatLayoutTests |
 
-**Features tests** (all 5 engines have 20 base feature test classes each; SqlServer adds 1 atomic-shared-connection class, Sqlite adds 1 datetime-CHECK-constraint class, plus a P2 file shared between MySql and MariaDb):
+**Features tests** (all 5 engines have 21 base feature test classes each; SqlServer adds 1 atomic-shared-connection class, Sqlite adds 1 datetime-CHECK-constraint class, plus a P2 file shared between MySql and MariaDb):
 
 | Class | Tests | Description |
 |-------|-------|-------------|
@@ -337,6 +337,7 @@ The catalog lists the unique test scenarios defined for the base PostgreSQL test
 | `BaselineTests` | 10 | Baseline marking, incremental baseline, baseline then MigrateUp |
 | `DatabaseLogTests` | 4 | Log entries written after MigrateUp, multiple log levels, logs during error |
 | `DatabaseLogDefaultTests` | 3 | Database logging into the repository by default at Information, a section with only MinimumLevel, `Enabled: false` creates no log tables |
+| `ReadModelContractTests` | 1 | After a migrate-up every repository table reads through `RepositoryNaming.SelectStatement` via the engine DAL and maps with `RepositoryRowMapper`: schema version, run, records, lookups, log rows, UTC timestamps (`Infrastructure/ReadModelContract.cs`) |
 | `FixTests` | 8 | Fix command: no orphans, fix orphan, simulate, older-than filter, fix-then-migrate, multiple orphans, details, assumed-status=Migrated |
 | `InfoTests` | 8 | Info command: fresh repo, full/partial migration, baseline, target groups, error state, multiple-run history, run details |
 | `MigrationRunMetaTests` | 7 | MigrationRunSettingsJson content (console options, product, masked credentials, MigrateDown masking, Baseline masking) |

@@ -1,3 +1,4 @@
+using Raycoon.RayMigrator.Core.Configuration.Options;
 using AwesomeAssertions;
 using Raycoon.RayMigrator.Core;
 using Raycoon.RayMigrator.Core.Configuration;
@@ -30,6 +31,9 @@ public class ScenarioContext : IAsyncDisposable
     /// The temporary working directory containing the copied migration files.
     /// </summary>
     public string WorkDirectory => _workDir;
+
+    /// <summary>The repository options the host runs with (database type, connection string, schema, table prefix).</summary>
+    public RepositoryOptions RepositoryOptions => _host.RayMigratorOptions.Repository!;
 
     /// <summary>
     /// Returns the host's migration service and binds the host's MigrationContext to the ambient

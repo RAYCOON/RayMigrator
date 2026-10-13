@@ -614,6 +614,30 @@ Each DAL is a separate project (not a subdirectory of the Database project):
 |------|--------|
 | `TemplateType` | Undefined (0), DatabaseLogging_CheckCreate, DatabaseLogging_Insert, Repository_CheckCreate, Repository_Drop, Repository_MigrationRun_Insert, Repository_MigrationRun_Update, Repository_MigrationRun_SelectOrphaned, Repository_MigrationRun_FixOrphaned, Repository_MigrationRecord_FixOrphaned, Repository_Product_CheckInsert, Repository_Environment_CheckInsert, Repository_Product_Select, Repository_Environment_Select, Repository_MigrationRecord_Insert, Repository_MigrationRecord_Update, Repository_MigrationRecord_UpdateHash, Repository_MigrationRecord_UpdateRollback, Repository_MigrationRecord_Select, Repository_MigrationRecord_GetInterrupted, Repository_MigrationRun_Select, Repository_MigrationRecordHistory_Select |
 
+## Read Model Package Components
+
+The package `Raycoon.RayMigrator.Repository.ReadModel` (ADR-025) is the contract for readers of the repository that do not use the engine's templates, such as RayMigrator Studio. It depends on Core only; no EF Core, no database driver.
+
+### `RepositoryNaming`
+
+**Purpose**: The table and column names of one repository on one engine, from `DatabaseType`, `SchemaName` and `TableBaseName`: `TableName`, `ColumnName`, `QualifiedTableName`, `QualifiedColumnName`, `Quote` and `SelectStatement`. PascalCase on SQL Server and SQLite, snake_case on PostgreSQL, MySQL and MariaDB (`ToSnakeCase`, with the `RayMigrator` product-name exception); schema only on SQL Server and PostgreSQL; quoting as the templates write it.
+
+### Row records
+
+**Purpose**: One positional record per table (`RepositorySchemaVersionRow`, `MigratorMetaRow`, `ProductRow`, `EnvironmentRow`, `MigrationRunRow`, `MigrationRunMetaRow`, `MigrationRecordRow`, `MigrationRecordHistoryRow`, `LookupRow` for the five lookups, `MigrationEventRow`, `MigrationLogRow`). The constructor parameters are the columns in PascalCase in table order; lookup ids are typed as their enums, timestamps as UTC `DateTime`.
+
+### `RepositoryRows`
+
+**Purpose**: The record type of a `RepositoryTable` and, derived from the record's constructor, its column list (`ColumnsOf`), so that statements and records cannot drift.
+
+### `RepositoryRowMapper`
+
+**Purpose**: Builds a record from one ADO.NET row given as column values by name: integers of any width, `tinyint`/`sbyte`/`short` lookup ids to enums, `bit`/`0`/`1` to bool, SQLite text and kind-less timestamps to UTC, `DBNull` to null. A missing column or a null for a value type is reported with the record and column name.
+
+### `RepositoryReadModel`
+
+**Purpose**: `SchemaVersion` (= `RepositorySchema.CurrentVersion` of the engine release) and the list of `Tables`. A reader compares the version with `MAX(Version)` of `RepositorySchemaVersion` before trusting the names.
+
 ## Shared Layer Components
 
 ### `AssemblyInfoHelper`

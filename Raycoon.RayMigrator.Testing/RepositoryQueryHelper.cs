@@ -1,3 +1,4 @@
+using Raycoon.RayMigrator.Repository.ReadModel;
 using Raycoon.RayMigrator.Database;
 using Raycoon.RayMigrator.Database.Common;
 
@@ -864,29 +865,8 @@ public class RepositoryQueryHelper
     /// </example>
     // Exposed as internal so the PG + MariaDB/MySQL identifier-casing unit tests can exercise the
     // RayMigrator-exception conversion rule directly without reaching the full DAL stack.
-    internal static string ToSnakeCase(string pascalCase)
-    {
-        if (string.IsNullOrEmpty(pascalCase))
-            return pascalCase;
-
-        // Apply the RayMigrator product-name exception by collapsing the PascalCase token
-        // "RayMigrator" to a sentinel "Raymigrator" (only first letter uppercase) before the
-        // mechanical lower-to-upper split runs. The mechanical rule will then treat the whole
-        // token as a single word and produce "raymigrator".
-        string normalized = pascalCase.Replace("RayMigrator", "Raymigrator", StringComparison.Ordinal);
-
-        var sb = new System.Text.StringBuilder(normalized.Length + 8);
-        for (int i = 0; i < normalized.Length; i++)
-        {
-            char c = normalized[i];
-            if (i > 0 && char.IsUpper(c) && char.IsLower(normalized[i - 1]))
-            {
-                sb.Append('_');
-            }
-            sb.Append(char.ToLowerInvariant(c));
-        }
-        return sb.ToString();
-    }
+    /// <summary>The snake_case rule of the PostgreSQL, MySQL and MariaDB templates; the read model package owns it.</summary>
+    internal static string ToSnakeCase(string pascalCase) => RepositoryNaming.ToSnakeCase(pascalCase);
 
     /// <summary>
     /// Gets a full MigrationRecord entry by filename.

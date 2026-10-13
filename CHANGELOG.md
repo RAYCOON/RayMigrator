@@ -51,6 +51,16 @@ RayMigrator follows Semantic Versioning where applicable.
   `InitiatedBy` and `Host`. A run that still writes heartbeats is alive and
   blocks a parallel start however long it runs; `fix` refuses to close it
   (`-31`).
+- New package `Raycoon.RayMigrator.Repository.ReadModel` (ADR-025): the
+  technology-neutral read model of the repository for RayMigrator Studio
+  and other readers. `RepositoryNaming` gives the table and column names
+  of every engine (PascalCase or snake_case, schema, prefix, quoting) and
+  a `SELECT` per table; one positional record per table names the columns
+  and their .NET types (`MigrationRunRow`, `MigrationRecordRow`,
+  `MigrationLogRow`, `LookupRow`, ...); `RepositoryRowMapper` builds the
+  records from ADO.NET rows of any of the five providers;
+  `RepositoryReadModel.SchemaVersion` is the schema version of this
+  release. The package depends on `Raycoon.RayMigrator.Core` only.
 - `DatabaseLogWriter.FlushAsync(timeout)` waits until every queued log
   entry is written and leaves the queue open, for a host that runs several
   migrations in one process; `Flush()` stays the CLI's shutdown call.

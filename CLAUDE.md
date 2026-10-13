@@ -24,6 +24,7 @@ RayMigrator is a database migration framework for SQL Server, PostgreSQL, MariaD
 | Engine (NuGet) | `Core`, `Shared`, `Infrastructure`, `Services`, `Services.Abstractions`, `Pipeline`, `Database`, `Database.Common` | All prefixed `Raycoon.RayMigrator.`. Multi-target `net10.0;net9.0;net8.0`. |
 | DAL plugins (NuGet) | `Database.SqlServer`, `Database.PostgreSQL`, `Database.MariaDb`, `Database.MySql`, `Database.Sqlite` | SQL templates in `Templates/*.sql`, copied to `DataAccessLayers/<Db>/` at build. |
 | Validation (NuGet) | `Validation` | Shared rule catalog, WASM-safe, zero dependencies. Rules `RULE_<section>_<n>`, see `Docs/appendix/validation-rules.md`. |
+| Read model (NuGet) | `Repository.ReadModel` | Table and column names per engine, one record per repository table, row mapper, schema version (ADR-025). Depends on Core only; no EF Core, no driver. |
 | Test support (NuGet) | `Testing` | Reusable integration-test infrastructure. |
 | Config Wizard | `ConfigWizard.Core`, `ConfigWizard.Web` | Core has zero dependencies. Web is Blazor WASM, MudBlazor, `net10.0` only, deployed to Azure Static Web Apps. |
 | Example | `Database.Example` | MIT-licensed skeleton for external DAL plugins. Not packed. |

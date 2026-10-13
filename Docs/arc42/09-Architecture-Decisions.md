@@ -495,3 +495,15 @@ the file with the built-in list (rejected, because a built-in code could then ne
 
 
 **References.** `Raycoon.RayMigrator.Core/IMigrationContextFactory.cs`, `Raycoon.RayMigrator.Services/MigrationContextFactory.cs`, `Raycoon.RayMigrator.Core/Configuration/Validation/RayMigratorOptionsPreparer.cs`, `Raycoon.RayMigrator.Core/Progress/`, [MigrationContext: Hosting the engine in-process](../02-core-concepts/migration-context.md#hosting-the-engine-in-process), `CHANGELOG.md` (Unreleased).
+
+### ADR-025: Technology-neutral read model of the repository
+
+**Context.** RayMigrator Studio and other tools read the repository (runs, records, logs) on five engines whose names differ (PascalCase or snake_case, a schema or the connection's database, a configured prefix) and whose providers return different .NET types for the same column. Studio maps the tables with EF Core; the engine must not depend on EF Core (multi-target packages, no provider for every engine in this repository), and the names must not be copied by hand into every reader.
+
+**Decision.** The package `Raycoon.RayMigrator.Repository.ReadModel` carries the contract: `RepositoryTable`; `RepositoryNaming`, which derives the table and column names of an engine from `DatabaseType`, `SchemaName` and `TableBaseName` and quotes as the templates do (`ToSnakeCase` with the `RayMigrator` exception); one positional record per table whose constructor parameters are the columns in PascalCase (`RepositoryRows.ColumnsOf` reads them from the record); `RepositoryRowMapper` for ADO.NET rows (integer widths, enums, UTC timestamps, SQLite text, `DBNull`); and `RepositoryReadModel.SchemaVersion`, which is `RepositorySchema.CurrentVersion`. The package references Core for the enums and the schema version and nothing else. `ReadModelContractTests` on all five engines read every table after a real migrate-up with the package's statements through the engine DAL and map every row.
+
+**Consequences.** Positive: one source of names for every reader; a reader detects a schema mismatch by comparing the version; Studio generates its EF Core mappings from the records; the Testing package takes its snake_case rule from the package. Negative: a new column touches the template, the record and, through the record, the contract test; the package versions with the engine, and a reader must match the engine release of the repository it reads.
+
+**Alternatives considered.** EF Core entities in the engine (rejected: EF Core dependency and a MySQL provider question in the engine; Studio decided that separately). Reading through `IMigrationService` DTOs only (rejected: reports need rows, joins and paging, not operation results). Copying the names into Studio (rejected: drifts with every schema step).
+
+**References.** `Raycoon.RayMigrator.Repository.ReadModel/`, [Repository schema: Read model package](../03-database-layer/repository-schema.md#read-model-package), `Raycoon.RayMigrator.Tests.Engine/Infrastructure/ReadModelContract.cs`, `CHANGELOG.md` (Unreleased).

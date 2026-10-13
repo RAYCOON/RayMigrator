@@ -30,6 +30,7 @@ flowchart TB
     end
     INFRA[Infrastructure layer<br/>Raycoon.RayMigrator.Infrastructure<br/>TemplateCache, TemplateExecutor,<br/>DatabaseLogWriter, ConnectionValidator]
     CORE[Core layer<br/>Raycoon.RayMigrator.Core<br/>RayMigratorOptions, enums,<br/>MigrationContext, CommandLineConfiguration]
+    READMODEL[Read model<br/>Raycoon.RayMigrator.Repository.ReadModel<br/>RepositoryNaming, row records,<br/>RepositoryRowMapper]
     subgraph L_DB[Database layer]
         DB[Raycoon.RayMigrator.Database<br/>DalFactory]
         subgraph PLUG[Built-in DAL plugins]
@@ -57,6 +58,8 @@ flowchart TB
 
     CON --> PIPE
     CON --> PLUG
+    READMODEL --> CORE
+    TESTING --> READMODEL
     PIPE --> SVC
     SVC --> SVCA
     SVC --> INFRA
@@ -113,7 +116,8 @@ The prefix `Raycoon.RayMigrator.` is omitted in the reference column.
 | `Raycoon.RayMigrator.Validation` | Leaf | Engine independent configuration rule catalog shared with the Config Wizard; no NuGet or project dependency, WebAssembly safe. | yes | `RuleCatalog`, `ValidationInput`, `ValidationReport`, `RuleIds` | none |
 | `Raycoon.RayMigrator.ConfigWizard.Core` | Config Wizard | IO free model and services of the wizard: configuration model, serializer, merger, validator, scaffolder, defaults promotion, help texts. | no | `ConfigurationModel`, `WizardState`, `ConfigurationSerializer`, `ConfigurationValidator` | Validation |
 | `Raycoon.RayMigrator.ConfigWizard.Web` | Config Wizard | Blazor WebAssembly user interface (`net10.0` only) with MudBlazor components, state service, ZIP export and localization. | no | `WizardStateService`, `ZipExportService`, `FileInteropService`, `LocalizationService` | ConfigWizard.Core |
-| `Raycoon.RayMigrator.Testing` | Testing | Reusable helpers for integration tests: Docker health check, database cleanup, repository queries through `IDal`. | yes | `DatabaseCleanupHelper`, `DockerHealthCheck`, `RepositoryQueryHelper`, `MigrationRecordDto` | Database |
+| `Raycoon.RayMigrator.Repository.ReadModel` | Engine | Technology-neutral read model of the repository (ADR-025): table and column names per engine, one record per table, a row mapper for ADO.NET results, the schema version. No EF Core, no driver. | yes | `RepositoryNaming`, `RepositoryRows`, `RepositoryRowMapper`, `MigrationRunRow`, `MigrationRecordRow`, `MigrationLogRow`, `RepositoryReadModel` | Core |
+| `Raycoon.RayMigrator.Testing` | Testing | Reusable helpers for integration tests: Docker health check, database cleanup, repository queries through `IDal`. | yes | `DatabaseCleanupHelper`, `DockerHealthCheck`, `RepositoryQueryHelper`, `MigrationRecordDto` | Database, Repository.ReadModel |
 | `Raycoon.RayMigrator.Tests.Unit`, `.Tests.Unit.Validation`, `.Tests.Unit.ConfigWizard.Core`, `.Tests.Unit.ConfigWizard.Web`, `.Tests.Engine` | Testing | xUnit v3 suites; see [5.2.9](#529-testing-support-and-test-projects). | no | test classes, `EngineTestHost`, `ScenarioBuilder` | the projects under test; `Tests.Engine` additionally Console, Testing and ConfigWizard.Core |
 
 ### Important interfaces

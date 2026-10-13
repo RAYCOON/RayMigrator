@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>default</LangVersion>
+        <TargetFrameworks>net10.0;net9.0;net8.0</TargetFrameworks>
+        <PackageId>Raycoon.RayMigrator.Repository.ReadModel</PackageId>
+        <Authors>RAYCOON.com GmbH</Authors>
+        <Description>Technology-neutral read model of the RayMigrator repository: the table and column names of every database engine, one record type per table, the schema version and a row mapper for ADO.NET results. No EF Core and no database driver. Licensed under BUSL-1.1 with Additional Use Grant — see LICENSE.md.</Description>
+        <IsPackable>true</IsPackable>
+        <PackageTags>$(RayMigratorBaseTags);raymigrator;repository;read-model</PackageTags>
+        <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="..\NUGET_README.md" Pack="true" PackagePath="README.md" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Raycoon.RayMigrator.Core\Raycoon.RayMigrator.Core.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Raycoon.RayMigrator.Tests.Unit" />
+    </ItemGroup>
+
+</Project>

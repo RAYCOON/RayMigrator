@@ -37,6 +37,7 @@
         <ProjectReference Include="..\Raycoon.RayMigrator.Services.Abstractions\Raycoon.RayMigrator.Services.Abstractions.csproj" />
         <ProjectReference Include="..\Raycoon.RayMigrator.Core\Raycoon.RayMigrator.Core.csproj" />
         <ProjectReference Include="..\Raycoon.RayMigrator.Infrastructure\Raycoon.RayMigrator.Infrastructure.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Repository.ReadModel\Raycoon.RayMigrator.Repository.ReadModel.csproj" />
         <ProjectReference Include="..\Raycoon.RayMigrator.Database\Raycoon.RayMigrator.Database.csproj" />
         <ProjectReference Include="..\Raycoon.RayMigrator.Database.Common\Raycoon.RayMigrator.Database.Common.csproj" />
         <ProjectReference Include="..\Raycoon.RayMigrator.Database.SqlServer\Raycoon.RayMigrator.Database.SqlServer.csproj" />

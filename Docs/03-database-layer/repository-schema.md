@@ -532,6 +532,21 @@ The two logging tables follow the same convention: `MigrationEvent` → `migrati
 
 **`TableBaseName` constraint:** For PostgreSQL, MariaDB, and MySQL, the `Repository.TableBaseName` and `DatabaseLogging.TableBaseName` configuration values must be all-lowercase. The `RayMigratorOptionsValidator` rejects any uppercase character with a descriptive error. Rationale: PostgreSQL folds unquoted identifiers to lowercase; the MariaDB and MySQL snake_case repository schema is stored as lowercase; any uppercase prefix character would break the `information_schema.tables` existence checks in `Repository_CheckCreate` and `DatabaseLogging_CheckCreate`.
 
+## Read model package
+
+`Raycoon.RayMigrator.Repository.ReadModel` (ADR-025) is the contract for everything that reads the repository without the engine's templates: RayMigrator Studio, reports, scripts. It depends on `Raycoon.RayMigrator.Core` for the enums and the schema version and on nothing else; it contains no EF Core and no database driver.
+
+| Member | Purpose |
+|--------|---------|
+| `RepositoryTable` | The 15 tables of this page, the two log tables included (database logging goes into the repository by default). |
+| `RepositoryNaming(databaseType, schemaName, tableBaseName)` | `TableName`, `ColumnName`, `QualifiedTableName`, `QualifiedColumnName`, `Quote` and `SelectStatement` as the engine templates write them: PascalCase on SQL Server and SQLite, snake_case on PostgreSQL, MySQL and MariaDB; schema only on SQL Server and PostgreSQL; brackets, backticks, double quotes, or nothing on PostgreSQL. `ToSnakeCase` is the rule of this page, product-name exception included. |
+| `*Row` records | One positional record per table (`MigrationRunRow`, `MigrationRecordRow`, `LookupRow` for the five lookups, `MigrationLogRow`, ...). The constructor parameters are the columns in PascalCase in table order, the parameter types the .NET types: lookup ids as their enums, timestamps as UTC `DateTime`. |
+| `RepositoryRows.ColumnsOf(table)` | The column list derived from the record, so statements and records cannot drift. |
+| `RepositoryRowMapper.Map` | Builds a record from an ADO.NET row (column values by name): integer widths, `tinyint`/`sbyte` lookup ids, `bit`/`0`/`1` booleans, SQLite text timestamps and timestamps without a kind (all UTC), `DBNull`. |
+| `RepositoryReadModel.SchemaVersion` | `RepositorySchema.CurrentVersion` of the engine release the package ships with; a reader compares it with `MAX(Version)` of `RepositorySchemaVersion` before trusting the names. |
+
+`ReadModelContractTests` on all five engines read every table after a real migrate-up with the package's statements through the engine DAL and map every row; `RepositoryQueryHelper` of the Testing package takes its snake_case rule from the package.
+
 ## Schema versioning
 
 Since 0.17.0 the schema is versioned and upgraded in numbered steps (ADR-024):
