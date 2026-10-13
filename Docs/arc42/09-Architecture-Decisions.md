@@ -33,8 +33,9 @@ followed the same day by the commit tagged `v0.10.3`; a decision already present
 | ADR-020 | Error handling strategies with rollback files and run results | Accepted (refined 0.13.0, 0.14.0) | <= 0.10.3 | [Rollback Strategies](08-Crosscutting-Concepts.md#rollback-strategies) |
 | ADR-021 | Configuration arrays merge by alias in every application | Accepted (0.15.0, #23) | 2026-09-23 | [Configuration Inheritance with Validation](08-Crosscutting-Concepts.md#configuration-inheritance-with-validation) |
 | ADR-022 | Transient error codes ship as an editable file per DAL folder | Accepted (0.16.0, #24) | 2026-10-10 | [Retry on Transient Errors](08-Crosscutting-Concepts.md#retry-on-transient-errors), [DAL Abstraction and plugin discovery](08-Crosscutting-Concepts.md#dal-abstraction-and-plugin-discovery) |
-| ADR-023 | The context factory is the hosting seam: one prepared, activated context per run, and typed progress events | Accepted (unreleased) | 2026-10-12 | [Dependency injection and the context pattern](08-Crosscutting-Concepts.md#dependency-injection-and-the-context-pattern) |
-| ADR-024 | The repository schema is versioned and upgraded in numbered steps | Accepted (unreleased) | 2026-10-13 | [Migration repository schema](08-Crosscutting-Concepts.md#migration-repository-schema), [Template-Driven Repository Schema](08-Crosscutting-Concepts.md#template-driven-repository-schema) |
+| ADR-023 | The context factory is the hosting seam: one prepared, activated context per run, and typed progress events | Accepted (0.17.0) | 2026-10-12 | [Dependency injection and the context pattern](08-Crosscutting-Concepts.md#dependency-injection-and-the-context-pattern) |
+| ADR-024 | The repository schema is versioned and upgraded in numbered steps | Accepted (0.17.0) | 2026-10-13 | [Migration repository schema](08-Crosscutting-Concepts.md#migration-repository-schema), [Template-Driven Repository Schema](08-Crosscutting-Concepts.md#template-driven-repository-schema) |
+| ADR-025 | Technology-neutral read model of the repository | Accepted (0.17.0) | 2026-10-13 | [Migration repository schema](08-Crosscutting-Concepts.md#migration-repository-schema) |
 
 ## ADRs
 
@@ -172,7 +173,7 @@ mode, a repository account that needs DDL on first contact, and every pre-1.0 sc
 
 **Alternatives considered.** Migration state inside each target (rejected: no cross target view, no central lock).
 
-**Superseded in part.** ADR-024 (unreleased) versions the schema and upgrades it in steps; the separate repository and the run lock stay as decided here, the drop-and-recreate rule applies one last time to repositories created before 0.17.0.
+**Superseded in part.** ADR-024 (0.17.0) versions the schema and upgrades it in steps; the separate repository and the run lock stay as decided here, the drop-and-recreate rule applies one last time to repositories created before 0.17.0.
 
 **References.** [Repository Separate from Targets](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/01-architecture/design-decisions.md#repository-separate-from-targets), [Repository schema](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/03-database-layer/repository-schema.md), CHANGELOG 0.14.0 (#6, #12, #18 and the `MigratorMeta` follow-up).
 
@@ -329,7 +330,7 @@ every 0.x upgrade may require a recreated repository and updated pipelines in th
 
 **Alternatives considered.** Keeping the aliases (implemented in 0.13.0, reversed one release later).
 
-**Superseded in part.** ADR-024 (unreleased) introduces versioned in-place repository upgrades; the rest of the policy (no aliases, no shims, breaking changes marked in `CHANGELOG.md`) stands.
+**Superseded in part.** ADR-024 (0.17.0) introduces versioned in-place repository upgrades; the rest of the policy (no aliases, no shims, breaking changes marked in `CHANGELOG.md`) stands.
 
 **References.** CHANGELOG 0.13.0 (#19), 0.14.0 (#6, #9, #12, #18, #19, #21, #22), [Solution Strategy 4.4](04-Solution-Strategy.md#44-organizational-decisions).
 
@@ -494,7 +495,7 @@ the file with the built-in list (rejected, because a built-in code could then ne
 **Alternatives considered.** A version column in `MigratorMeta` (rejected: that table records engine versions, not schema versions, and a step history shows partial upgrades). Branching on the version inside `Repository_CheckCreate` in SQL (rejected: SQLite cannot branch, and the template would grow with every version). Dropping and recreating as before (rejected: Studio keeps configuration in the repository).
 
 
-**References.** `Raycoon.RayMigrator.Core/IMigrationContextFactory.cs`, `Raycoon.RayMigrator.Services/MigrationContextFactory.cs`, `Raycoon.RayMigrator.Core/Configuration/Validation/RayMigratorOptionsPreparer.cs`, `Raycoon.RayMigrator.Core/Progress/`, [MigrationContext: Hosting the engine in-process](../02-core-concepts/migration-context.md#hosting-the-engine-in-process), `CHANGELOG.md` (Unreleased).
+**References.** `Raycoon.RayMigrator.Core/IMigrationContextFactory.cs`, `Raycoon.RayMigrator.Services/MigrationContextFactory.cs`, `Raycoon.RayMigrator.Core/Configuration/Validation/RayMigratorOptionsPreparer.cs`, `Raycoon.RayMigrator.Core/Progress/`, [MigrationContext: Hosting the engine in-process](../02-core-concepts/migration-context.md#hosting-the-engine-in-process), `CHANGELOG.md` (0.17.0).
 
 ### ADR-025: Technology-neutral read model of the repository
 
@@ -506,4 +507,4 @@ the file with the built-in list (rejected, because a built-in code could then ne
 
 **Alternatives considered.** EF Core entities in the engine (rejected: EF Core dependency and a MySQL provider question in the engine; Studio decided that separately). Reading through `IMigrationService` DTOs only (rejected: reports need rows, joins and paging, not operation results). Copying the names into Studio (rejected: drifts with every schema step).
 
-**References.** `Raycoon.RayMigrator.Repository.ReadModel/`, [Repository schema: Read model package](../03-database-layer/repository-schema.md#read-model-package), `Raycoon.RayMigrator.Tests.Engine/Infrastructure/ReadModelContract.cs`, `CHANGELOG.md` (Unreleased).
+**References.** `Raycoon.RayMigrator.Repository.ReadModel/`, [Repository schema: Read model package](../03-database-layer/repository-schema.md#read-model-package), `Raycoon.RayMigrator.Tests.Engine/Infrastructure/ReadModelContract.cs`, `CHANGELOG.md` (0.17.0).

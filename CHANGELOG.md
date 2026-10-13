@@ -7,6 +7,8 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ## [Unreleased]
 
+## [0.17.0] — 2026-10-13
+
 ### Added
 
 - The repository schema is versioned (ADR-024). The new table
