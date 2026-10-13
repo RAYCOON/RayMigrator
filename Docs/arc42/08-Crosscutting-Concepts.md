@@ -67,13 +67,17 @@ Authoritative pages: [File naming](https://github.com/RAYCOON/RayMigrator/blob/m
 
 ### Migration repository schema
 
-`Repository_CheckCreate` creates 11 tables (canonical names below; PostgreSQL, MariaDB and MySQL use unquoted `snake_case`, SQL
-Server and SQLite PascalCase), prefixed by `TableBaseName` and placed in `SchemaName` where the engine supports schemas. Lookup
-tables are seeded once at creation; an existing repository is never upgraded in place.
+The repository has 12 tables (canonical names below; PostgreSQL, MariaDB and MySQL use unquoted `snake_case`, SQL Server and
+SQLite PascalCase), prefixed by `TableBaseName` and placed in `SchemaName` where the engine supports schemas. The schema is
+versioned (ADR-024): `Repository_CheckCreate` creates only `RepositorySchemaVersion` and reports the version found, the numbered
+steps `Repository_Upgrade_{n}` create the other 11 tables with their lookup seeds (step 1) and every later change, and the first
+command of a newer engine applies the missing steps. A repository without a version row (created before 0.17.0) or with a version
+newer than the engine is refused.
 
 | Table | Purpose |
 |-------|---------|
-| `MigratorMeta` | One row per RayMigrator version that used the repository (`RayMigratorVersion`, `RepositoryDatabaseType`); the first row is the version that created the schema |
+| `RepositorySchemaVersion` | One row per applied schema version (`Version`, `AppliedAt`, `RayMigratorVersion`) |
+| `MigratorMeta` | One row per RayMigrator version that used the repository (`RayMigratorVersion`, `RepositoryDatabaseType`), registered by `Repository_MigratorMeta_CheckInsert`; the first row is the version that created the repository |
 | `Product`, `Environment` | Registered names with a `NameLower` unique index; their ids are referenced by every run and record |
 | `MigrationRun` | One row per run: mode, result, `FromReleaseVersion`, `ToReleaseVersion`, `StartedAt`, `FinishedAt`, `DurationInMs`; the open row is the run lock |
 | `MigrationRunMeta` | `MigrationRunSettingsJson`, the masked snapshot of the effective settings of a run |
@@ -175,15 +179,16 @@ Authoritative page: [Execution modes](https://github.com/RAYCOON/RayMigrator/blo
 
 ### Template-Driven Repository Schema
 
-All repository and log access goes through SQL templates. `TemplateType` has 21 members besides `Undefined`: 19 `Repository_*`
-(among them `Repository_MigrationRecordHistory_Select`) plus `DatabaseLogging_CheckCreate` and `DatabaseLogging_Insert`.
+All repository and log access goes through SQL templates. `TemplateType` has 23 members besides `Undefined`: 21 `Repository_*`
+(among them the schema step `Repository_Upgrade_1` and `Repository_MigratorMeta_CheckInsert` of ADR-024) plus
+`DatabaseLogging_CheckCreate` and `DatabaseLogging_Insert`.
 `TemplateCache` loads `DataAccessLayers/{Type}/*.sql` below the application base directory at construction, maps file names to
 `TemplateType`, replaces `{ENV:*}` once and throws `ConfigurationValidationException` when a type misses a template, a template is
 empty or a configured `DatabaseType` has no folder. `{CFG:*}` is replaced per call and limited to `SchemaName` and
 `TableBaseName`; values are bound as `@Parameter` through `DalParameterList`. Every template returns one scalar
 `ResultCode,ResultMessage`, parsed by `TemplateExecutor` into `TemplateResponse`; a negative code raises `TemplateResultException`
-for codes of the `TemplateResultCode` catalog (`-2` `MigrationAlreadyRunning`, `-10` `RepositoryIncomplete`, `-12`
-`RepositoryMultipleVersionEntries`, ...) and `UndefinedTemplateResultException` for unknown ones.
+for codes of the `TemplateResultCode` catalog (`-2` `MigrationAlreadyRunning`, `-12` `RepositoryMultipleVersionEntries`, `-20`
+`ProductNameEmpty`, ...) and `UndefinedTemplateResultException` for unknown ones.
 Authoritative pages: [Template system](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/03-database-layer/template-system.md), [Template customization](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/09-extending/template-customization.md).
 
 ### DAL Abstraction and plugin discovery

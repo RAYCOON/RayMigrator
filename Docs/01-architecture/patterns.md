@@ -95,7 +95,9 @@ public class RayMigratorBootstrapOptions
 The repository database is separate from target databases. SQL templates handle CRUD operations:
 
 ```
-Repository_CheckCreate.sql              - Create repository structure
+Repository_CheckCreate.sql              - Report the schema version, create RepositorySchemaVersion if missing
+Repository_Upgrade_1.sql                - Schema step 1: create the repository tables with master data (ADR-024)
+Repository_MigratorMeta_CheckInsert.sql - Register the engine version, return MigratorMetaId
 Repository_Drop.sql                     - Drop repository schema
 Repository_Product_CheckInsert.sql      - Ensure product exists (Name + NameLower)
 Repository_Environment_CheckInsert.sql  - Ensure environment exists (Name + NameLower)
@@ -354,10 +356,10 @@ DataAccessLayers/
 ├── SqlServer/
 │   ├── Raycoon.RayMigrator.Database.SqlServer.dll
 │   ├── Repository_CheckCreate.sql
-│   └── ... (21 templates per DAL, flat layout)
+│   └── ... (23 templates per DAL, flat layout)
 ├── PostgreSQL/
 │   ├── Raycoon.RayMigrator.Database.PostgreSQL.dll
-│   └── *.sql (21 template files)
+│   └── *.sql (23 template files)
 ├── MariaDb/
 │   ├── Raycoon.RayMigrator.Database.MariaDb.dll
 │   └── *.sql (21 template files)

@@ -12,23 +12,23 @@ public class PostgreSqlTypeConventionsTests
     #region DAL-012: TIMESTAMPTZ + plain NOW()
 
     [Fact]
-    public void Repository_CheckCreate_AllAuditColumns_UseTimestampTz()
+    public void Repository_Upgrade1_AllAuditColumns_UseTimestampTz()
     {
-        var content = ReadTemplate("PostgreSQL", "Repository_CheckCreate.sql");
+        var content = ReadTemplate("PostgreSQL", "Repository_Upgrade_1.sql");
 
         // DAL-017: PostgreSQL repository columns use unquoted snake_case identifiers.
         foreach (var column in new[] { "created_at", "started_at", "finished_at", "historized_at" })
         {
             var pattern = new Regex(@"\b" + Regex.Escape(column) + @"\s+TIMESTAMPTZ\b");
             pattern.IsMatch(content).Should().BeTrue(
-                $"column {column} in Repository_CheckCreate.sql must be declared as TIMESTAMPTZ after DAL-012");
+                $"column {column} in Repository_Upgrade_1.sql must be declared as TIMESTAMPTZ after DAL-012");
         }
     }
 
     [Fact]
-    public void Repository_CheckCreate_ContainsNoBareTimestamp()
+    public void Repository_Upgrade1_ContainsNoBareTimestamp()
     {
-        var content = ReadTemplate("PostgreSQL", "Repository_CheckCreate.sql");
+        var content = ReadTemplate("PostgreSQL", "Repository_Upgrade_1.sql");
 
         // Match TIMESTAMP followed by whitespace then (NOT)? NULL.
         // TIMESTAMPTZ does NOT match: \bTIMESTAMP\b requires a word boundary after the final P,
@@ -37,7 +37,7 @@ public class PostgreSqlTypeConventionsTests
         // between the keyword and the next token.
         var pattern = new Regex(@"\bTIMESTAMP\s+(?:NOT\s+)?NULL\b");
         pattern.IsMatch(content).Should().BeFalse(
-            "Repository_CheckCreate.sql must not contain bare TIMESTAMP column declarations after DAL-012");
+            "Repository_Upgrade_1.sql must not contain bare TIMESTAMP column declarations after DAL-012");
     }
 
     [Fact]
@@ -118,9 +118,9 @@ public class PostgreSqlTypeConventionsTests
     #region DAL-013: TEXT replaces VARCHAR(n) in column declarations
 
     [Fact]
-    public void Repository_CheckCreate_ColumnDeclarations_UseText()
+    public void Repository_Upgrade1_ColumnDeclarations_UseText()
     {
-        var content = ReadTemplate("PostgreSQL", "Repository_CheckCreate.sql");
+        var content = ReadTemplate("PostgreSQL", "Repository_Upgrade_1.sql");
 
         // DAL-017: PostgreSQL columns use unquoted snake_case identifiers.
         // Representative columns from various tables that were formerly VARCHAR(n).
@@ -146,17 +146,17 @@ public class PostgreSqlTypeConventionsTests
             // Use word boundaries to avoid matching substrings (e.g., 'name' inside 'name_lower').
             var pattern = new Regex(@"\b" + Regex.Escape(column) + @"\b\s+TEXT\b");
             pattern.IsMatch(content).Should().BeTrue(
-                $"column {column} in Repository_CheckCreate.sql must be declared as TEXT after DAL-013");
+                $"column {column} in Repository_Upgrade_1.sql must be declared as TEXT after DAL-013");
         }
     }
 
     [Fact]
-    public void Repository_CheckCreate_NoVarcharInColumnDecls()
+    public void Repository_Upgrade1_NoVarcharInColumnDecls()
     {
-        var content = ReadTemplate("PostgreSQL", "Repository_CheckCreate.sql");
+        var content = ReadTemplate("PostgreSQL", "Repository_Upgrade_1.sql");
         var blocks = ExtractCreateTableColumnSections(content);
 
-        blocks.Should().NotBeEmpty("Repository_CheckCreate.sql must contain at least one CREATE TABLE block");
+        blocks.Should().NotBeEmpty("Repository_Upgrade_1.sql must contain at least one CREATE TABLE block");
 
         foreach (var block in blocks)
         {

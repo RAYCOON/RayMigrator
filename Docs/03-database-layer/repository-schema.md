@@ -1,6 +1,8 @@
 # Repository Schema
 
-The repository database stores migration tracking data. This schema is created automatically by RayMigrator.
+The repository database stores migration tracking data. This schema is created automatically by RayMigrator and, since the schema is versioned, upgraded automatically by the first command of a newer RayMigrator (ADR-024, see [Schema versioning](#schema-versioning)).
+
+> **Breaking change (2026-10-13, unreleased):** The repository schema is versioned. `Repository_CheckCreate` creates only the new `RepositorySchemaVersion` table and reports the version found; the numbered steps `Repository_Upgrade_{n}` create the schema (step 1 = the 11 tables below with their master data) and the engine applies every missing step on the next command. `Repository_MigratorMeta_CheckInsert` registers the engine version. Repositories created by 0.16.0 or earlier have no schema version and are refused with `RepositorySchemaException`: drop their tables once and let this version create them again. The table count checks and their codes `-10` and `-11` are gone. From this version on a schema change keeps the data.
 
 > **Breaking change (2026-04-16):** A new `Environment` repository table was added (table count: 10 → 11). Existing repositories must be dropped and recreated.
 >
@@ -39,6 +41,12 @@ erDiagram
     MigrationOperation ||--o{ MigrationRecord : "operation"
     MigrationRunResult ||--o{ MigrationRun : "result"
     MigrationStatus ||--o{ MigrationRecord : "status"
+
+    RepositorySchemaVersion {
+        int Version PK
+        datetime2 AppliedAt
+        nvarchar RayMigratorVersion
+    }
 
     MigratorMeta {
         int Id PK
@@ -172,11 +180,12 @@ erDiagram
 
 ## Tables Overview
 
-The `Repository_CheckCreate` template creates **11 tables** (4 lookup + 7 data).
+`Repository_CheckCreate` creates the `RepositorySchemaVersion` table; the schema steps `Repository_Upgrade_{n}` create the **11 repository tables** (4 lookup + 7 data), step 1 all of them (ADR-024).
 
 | Table | Purpose | Status |
 |-------|---------|--------|
-| `MigratorMeta` | Repository version tracking | Created |
+| `RepositorySchemaVersion` | One row per applied schema version (ADR-024) | Created by `Repository_CheckCreate` |
+| `MigratorMeta` | RayMigrator versions that used the repository | Created |
 | `Product` | Registered products | Created |
 | `Environment` | Registered environments | Created |
 | `MigrationRun` | Migration run sessions | Created |
@@ -190,9 +199,19 @@ The `Repository_CheckCreate` template creates **11 tables** (4 lookup + 7 data).
 
 ## Core Tables
 
+### RepositorySchemaVersion
+
+One row per applied schema version (ADR-024). `Repository_CheckCreate` creates the table when it is missing and reports `MAX(Version)`; each step `Repository_Upgrade_{n}` writes its row after its DDL. The highest `Version` is the schema the repository has; `RepositorySchema.CurrentVersion` in `Raycoon.RayMigrator.Core` is the schema the engine expects. The table has no foreign keys.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `Version` | INT | Primary key: the schema version the step created |
+| `AppliedAt` | DATETIME2(3) | When the step ran (UTC) |
+| `RayMigratorVersion` | NVARCHAR(100) | RayMigrator version that applied the step |
+
 ### MigratorMeta
 
-Lists the RayMigrator versions that have used the repository. `Repository_CheckCreate` inserts a row on the first run of each RayMigrator version (per `RepositoryDatabaseType`), and every `MigrationRun` references the row of the version that executed it. The first row (lowest `Id`) is the version that created the repository and therefore identifies its schema: RayMigrator never upgrades a repository in place, so a schema or master-data change in a newer version means drop and recreate. There is no separate schema version constant. Release builds write the bare version (`0.14.0`); builds outside the release workflows write the pre-release form with the commit hash (`0.14.0-dev+39b6fa3`), so a repository created from `develop` names the exact commit whose templates created it.
+Lists the RayMigrator versions that have used the repository. `Repository_MigratorMeta_CheckInsert` inserts a row on the first run of each RayMigrator version (per `RepositoryDatabaseType`) after the schema steps ran, and every `MigrationRun` references the row of the version that executed it. The first row (lowest `Id`) is the version that created the repository; the schema is identified by `RepositorySchemaVersion`, not by this table. Release builds write the bare version (`0.14.0`); builds outside the release workflows write the pre-release form with the commit hash (`0.14.0-dev+39b6fa3`), so a repository created from `develop` names the exact commit whose templates created it.
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -486,6 +505,18 @@ The two logging tables follow the same convention: `MigrationEvent` → `migrati
 **Product-name exception:** The brand token `RayMigrator` is treated as a single token rather than two words. `RayMigratorVersion` → `raymigrator_version` (not `ray_migrator_version`), and the token stays merged in the middle of an identifier as well. This exception applies equally to PostgreSQL, MariaDB, and MySQL. See [Naming Conventions per Engine](sql-dialects.md#naming-conventions-per-engine) in `sql-dialects.md` for the full rule.
 
 **`TableBaseName` constraint:** For PostgreSQL, MariaDB, and MySQL, the `Repository.TableBaseName` and `DatabaseLogging.TableBaseName` configuration values must be all-lowercase. The `RayMigratorOptionsValidator` rejects any uppercase character with a descriptive error. Rationale: PostgreSQL folds unquoted identifiers to lowercase; the MariaDB and MySQL snake_case repository schema is stored as lowercase; any uppercase prefix character would break the `information_schema.tables` existence checks in `Repository_CheckCreate` and `DatabaseLogging_CheckCreate`.
+
+## Schema versioning
+
+Since 0.17.0 the schema is versioned and upgraded in numbered steps (ADR-024):
+
+1. `Repository_CheckCreate` creates the schema (SQL Server, PostgreSQL) and the `RepositorySchemaVersion` table if they are missing and returns `'schemaVersion,unversionedTables,message'`: the highest applied version (`0` when none) and `1` when the `MigratorMeta` table exists.
+2. `TemplateExecutor.RepositoryCheckCreate` compares the version with the target of the run (`RepositorySchema.CurrentVersion`, unless an engine test pins an older version through `MigrationContext.RepositorySchemaTargetVersion`) and executes every missing `Repository_Upgrade_{n}` in order. Each step creates its version on top of the one before, returns its own number and writes its row of `RepositorySchemaVersion`. Step 1 creates the 11 tables of this page with their master data, so a fresh repository runs every step from 1 and the steps are the single source of the schema.
+3. `Repository_MigratorMeta_CheckInsert` registers the engine version in `MigratorMeta` and returns the `MigratorMetaId` every run row references.
+
+Every step is idempotent per engine: SQL Server runs it in one transaction with `sp_getapplock`, PostgreSQL in one `DO` block with `pg_advisory_xact_lock`, SQLite in one `BEGIN IMMEDIATE` transaction (`CREATE TABLE IF NOT EXISTS`, `INSERT OR IGNORE`), MySQL and MariaDB statement by statement (`CREATE TABLE IF NOT EXISTS`, `INSERT IGNORE`) under `GET_LOCK()`, because their DDL commits implicitly. `Repository_CheckCreate` takes the same lock (or waits in the SQLite busy timeout), so a check that runs while another process applies a step never sees the tables without their version row. A parallel start on an empty repository therefore creates it once.
+
+Two cases are refused with `RepositorySchemaException` before anything is written: a repository with `MigratorMeta` but no schema version was created by a RayMigrator before 0.17.0 and must be recreated once; a repository whose version is higher than the engine supports needs a newer RayMigrator. A later schema version ships as a new `Repository_Upgrade_{n}` template in every DAL plus a bump of `RepositorySchema.CurrentVersion`; existing step templates never change again.
 
 ## Schema Configuration
 

@@ -181,6 +181,7 @@ Raycoon.RayMigrator.Tests.Unit/
 ├── P1_DalSqlServerOverrideTests.cs
 ├── P1_DalTransientErrorCodesTests.cs
 ├── P1_EnvironmentCheckInsertTests.cs
+├── P1_RepositorySchemaTests.cs
 ├── P1_RepositorySelectTemplateTests.cs
 ├── P1_EnvironmentIdFkTests.cs
 ├── P1_EnvironmentResolverTests.cs
@@ -289,6 +290,7 @@ Raycoon.RayMigrator.Tests.Unit/
 | `P1_DalSqlServerOverrideTests` | `DalSqlServerOverrideTests` | SQL Server `ConvertToDbValue` DateTime clamping (pre-1753 dates) and `CreateParameter` string size logic |
 | `P1_DalTransientErrorCodesTests` | `DalTransientErrorCodesTests` | `DalBase` transient error code list: built-in defaults until `SetTransientErrorCodes` replaces them completely, case-insensitive comparison, `IsTransientCode` classification, `TransientErrorCodesSource` (ADR-022) |
 | `P1_EnvironmentCheckInsertTests` | `EnvironmentCheckInsertTests` | `Repository_Environment_CheckInsert` feature: TemplateType enum membership, MigrationEvent EventId, `MigrationState.EnvironmentId`, `TemplateResultCode.EnvironmentNameEmpty`, and SQL template structural patterns across all 5 engines (NameLower lookup, TOML header DatabaseType/TemplateType) |
+| `P1_RepositorySchemaTests` | `RepositorySchemaTests` | The repository schema version contract (ADR-024): `RepositorySchema.CurrentVersion` matches the `Repository_Upgrade_{n}` members of `TemplateType`, every engine ships `Repository_CheckCreate`, every step and `Repository_MigratorMeta_CheckInsert` with the declared parameters, the log events 101/102 exist and are seeded, `-10`/`-11` are no longer catalogued |
 | `P1_RepositorySelectTemplateTests` | `RepositorySelectTemplateTests` | `Repository_Product_Select` / `Repository_Environment_Select` (#7): TemplateType membership, MigrationEvent ids 122/123, and per-engine structural checks that the templates exist, are read-only (no INSERT/UPDATE/DELETE/CREATE), look up by `NameLower` and return `0,... not found` for a missing row |
 | `P1_EnvironmentIdFkTests` | `EnvironmentIdFkTests` | Structural SQL-template tests for the EnvironmentId FK feature: confirms Environment text column is replaced with EnvironmentId INT FK across all 5 engines and that all INSERT/SELECT templates bind `@EnvironmentId` (not `@Environment`) |
 | `P1_EnvironmentResolverTests` | `EnvironmentResolverTests` | `EnvironmentResolver` decision table: the `--environment` argument is the environment, `DOTNET_ENVIRONMENT` is only cross-checked (a different value exits with 2), a blank argument exits with 3 whether or not the variable is set (#32) |

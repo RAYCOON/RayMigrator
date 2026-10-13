@@ -6,7 +6,9 @@ RayMigrator uses SQL templates with placeholder substitution for database-agnost
 
 | Template | Purpose |
 |----------|---------|
-| `Repository_CheckCreate` | Create repository schema and tables |
+| `Repository_CheckCreate` | Report the repository schema version; create the schema and the `RepositorySchemaVersion` table when missing (ADR-024) |
+| `Repository_Upgrade_1` | Schema step 1: create the 11 repository tables with indexes, foreign keys and lookup master data and write version row 1; later versions add `Repository_Upgrade_{n}` |
+| `Repository_MigratorMeta_CheckInsert` | Register the engine version in `MigratorMeta`, return the `MigratorMetaId` |
 | `Repository_Product_CheckInsert` | Ensure product exists |
 | `Repository_Environment_CheckInsert` | Ensure environment exists |
 | `Repository_Product_Select` | Look up product id read-only (no insert); returns `0` when not registered. Used by Simulate mode (#7) |
@@ -33,6 +35,8 @@ RayMigrator uses SQL templates with placeholder substitution for database-agnost
 | `DatabaseLogging_CheckCreate` | Active | Active | Active | Active | Active |
 | `DatabaseLogging_Insert` | Active | Active | Active | Active | Active |
 | `Repository_CheckCreate` | Active | Active | Active | Active | Active |
+| `Repository_Upgrade_1` | Active | Active | Active | Active | Active |
+| `Repository_MigratorMeta_CheckInsert` | Active | Active | Active | Active | Active |
 | `Repository_Drop` | Active | Active | Active | Active | Active |
 | `Repository_Product_CheckInsert` | Active | Active | Active | Active | Active |
 | `Repository_Environment_CheckInsert` | Active | Active | Active | Active | Active |
@@ -247,14 +251,14 @@ SELECT '1,MigrationRun created successfully';
 SELECT '-1,Error message without commas';
 
 -- Further integer codes between the result code and the message (Repository_CheckCreate)
-SELECT '3,1,RayMigrator repository-tables with master data and new VersionId [3] successfully created';
+SELECT '1,1,RayMigrator repository has schema version [1]';
 ```
 
 **Format**: `{ResultCode}[,{Code}...],{Message}`
 
 - `ResultCode >= 0`: Success (code can carry additional info like VersionId)
 - `ResultCode < 0`: Error (triggers migration abort)
-- Further integer codes before the message carry template-specific information. `Repository_CheckCreate` returns `RepositoryWasCreated` as its second code (`1` when this run created the repository, `0` when it existed), which `TemplateExecutor.RepositoryCheckCreate` reports at Information level. The parser takes every leading integer token as a code and the rest as the message, so a message must not start with an integer followed by a comma.
+- Further integer codes before the message carry template-specific information. `Repository_CheckCreate` returns the schema version as its first code and `unversionedTables` as its second (`1` when the `MigratorMeta` table exists, which with version `0` marks a repository of a RayMigrator before 0.17.0); `TemplateExecutor.RepositoryCheckCreate` decides from them which `Repository_Upgrade_{n}` steps to run and whether to refuse the repository (ADR-024). The parser takes every leading integer token as a code and the rest as the message, so a message must not start with an integer followed by a comma.
 
 ## Template Class
 
@@ -438,9 +442,9 @@ Templates are loaded from the filesystem: `DataAccessLayers/{DatabaseType}/*.sql
 
 Each template file maps to a `TemplateType` enum value (unrecognized filenames are skipped with a debug log). The cache validates that all `TemplateType` enum values (except `Undefined`) have a corresponding file for each DAL.
 
-## Example: Repository_CheckCreate
+## Example: Repository_CheckCreate and the schema steps
 
-The `Version` header of a template is the revision of that file and is maintained per file and per engine; it is not written to the database. The repository carries no schema version constant: `MigratorMeta` records the RayMigrator version that used the repository (`@RayMigratorVersion`, bound by `TemplateExecutor`), and the first row is the version that created it. A schema or master-data change ships in a new RayMigrator version; existing repositories are dropped and recreated, never upgraded in place.
+The `Version` header of a template is the revision of that file and is maintained per file and per engine; it is not written to the database. The schema version of a repository lives in its `RepositorySchemaVersion` table (ADR-024): `Repository_CheckCreate` creates that table when it is missing and reports the highest applied version, the steps `Repository_Upgrade_{n}` create the schema on top of each other (step 1 the 11 repository tables with their master data) and write their version row, and `Repository_MigratorMeta_CheckInsert` registers the RayMigrator version in `MigratorMeta` (`@RayMigratorVersion`, bound by `TemplateExecutor`). A schema change ships as a new step template in every DAL and a bump of `RepositorySchema.CurrentVersion`; the next command of the newer RayMigrator applies the missing steps and the data stays. Only a repository without a schema version (created before 0.17.0) must be recreated once.
 
 ### SQL Server Version
 
@@ -449,42 +453,42 @@ The `Version` header of a template is the revision of that file and is maintaine
 [RayMigratorTemplate]
 TemplateType = "Repository_CheckCreate"
 DatabaseType = "SqlServer"
-Version = "2026-10-10.1"
+Version = "2026-10-13.1"
 */
 
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
 
 BEGIN TRY
-    -- Check if repository exists
-    IF OBJECT_ID('{CFG:SchemaName}.{CFG:TableBaseName}MigratorMeta', 'U') IS NOT NULL
-    BEGIN
-        -- Repository exists, return existing VersionId
-        SELECT @VersionId + ',0,Repository already exists';
-        RETURN;
-    END;
+	BEGIN TRANSACTION;
 
-    -- Create schema
-    IF SCHEMA_ID('{CFG:SchemaName}') IS NULL
-        EXECUTE('CREATE SCHEMA [{CFG:SchemaName}]');
+	-- Serialise a parallel start on the same repository
+	DECLARE @LockResult INT;
+	EXEC @LockResult = sp_getapplock @Resource = 'RayMigrator_{CFG:SchemaName}_{CFG:TableBaseName}', @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 60000;
+	IF (@LockResult < 0) BEGIN ROLLBACK TRANSACTION; SELECT '-1,Could not acquire the repository schema lock'; RETURN; END;
 
-    -- Create tables
-    CREATE TABLE [{CFG:SchemaName}].[{CFG:TableBaseName}MigratorMeta] (
-        Id INT IDENTITY(1,1) PRIMARY KEY,
-        RayMigratorVersion NVARCHAR(100) NOT NULL,
-        RepositoryDatabaseType NVARCHAR(100) NOT NULL,
-        CreatedAt DATETIME2(3) NOT NULL
-    );
+	IF SCHEMA_ID('{CFG:SchemaName}') IS NULL EXECUTE('CREATE SCHEMA [{CFG:SchemaName}];');
 
-    -- ... more tables ...
+	IF OBJECT_ID('{CFG:SchemaName}.{CFG:TableBaseName}RepositorySchemaVersion', 'U') IS NULL
+		CREATE TABLE [{CFG:SchemaName}].[{CFG:TableBaseName}RepositorySchemaVersion] (
+			Version int NOT NULL, AppliedAt datetime2(3) NOT NULL, RayMigratorVersion nvarchar(100) NOT NULL,
+			CONSTRAINT pk_RepositorySchemaVersion PRIMARY KEY ( Version ));
 
-    SELECT '1,1,Repository created successfully';
+	DECLARE @SchemaVersion INT = (SELECT COALESCE(MAX([Version]), 0) FROM [{CFG:SchemaName}].[{CFG:TableBaseName}RepositorySchemaVersion]);
+	DECLARE @UnversionedTables INT = CASE WHEN OBJECT_ID('{CFG:SchemaName}.{CFG:TableBaseName}MigratorMeta', 'U') IS NULL THEN 0 ELSE 1 END;
+
+	COMMIT TRANSACTION;
+
+	-- 'schemaVersion,unversionedTables,message'
+	SELECT CAST(@SchemaVersion AS VARCHAR(10)) + ',' + CAST(@UnversionedTables AS VARCHAR(1)) + ',RayMigrator repository has schema version [' + CAST(@SchemaVersion AS VARCHAR(10)) + ']';
 END TRY
 BEGIN CATCH
-    IF @@TRANCOUNT > 0 ROLLBACK;
-    THROW;
+    IF (@@TRANCOUNT > 0) ROLLBACK TRANSACTION;
+    ;THROW;
 END CATCH;
 ```
+
+`Repository_Upgrade_1.sql` runs under the same lock, creates the 11 tables only when `MigratorMeta` does not exist, inserts the lookup master data, writes `(1, SYSUTCDATETIME(), @RayMigratorVersion)` into `RepositorySchemaVersion` unless row 1 exists, and returns `'1,RayMigrator repository schema version [1] applied: 11 tables with master data'`.
 
 ### PostgreSQL Version
 
@@ -493,39 +497,30 @@ END CATCH;
 [RayMigratorTemplate]
 TemplateType = "Repository_CheckCreate"
 DatabaseType = "PostgreSQL"
-Version = "2026-10-10.1"
+Version = "2026-10-13.1"
 */
 
 DO $$
 DECLARE
-    v_version_id INT;
+    v_schema_version INT;
+    v_unversioned_tables INT;
 BEGIN
-    -- Check if repository exists
-    IF EXISTS (SELECT 1 FROM pg_tables
-               WHERE schemaname = '{CFG:SchemaName}'
-               AND tablename = '{CFG:TableBaseName}migrator_meta')
-    THEN
-        -- Repository exists
-        RAISE NOTICE '1,0,Repository already exists';
-        RETURN;
-    END IF;
+    PERFORM pg_advisory_xact_lock(hashtext('RayMigrator_{CFG:SchemaName}_{CFG:TableBaseName}'));
 
-    -- Create schema
     CREATE SCHEMA IF NOT EXISTS {CFG:SchemaName};
 
-    -- Create tables (unquoted snake_case identifiers — DAL-017)
-    CREATE TABLE {CFG:SchemaName}.{CFG:TableBaseName}migrator_meta (
-        id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-        raymigrator_version TEXT NOT NULL,
-        repository_database_type TEXT NOT NULL,
-        created_at TIMESTAMPTZ NOT NULL
-    );
+    CREATE TABLE IF NOT EXISTS {CFG:SchemaName}.{CFG:TableBaseName}repository_schema_version (
+        version INT NOT NULL, applied_at TIMESTAMPTZ NOT NULL, raymigrator_version TEXT NOT NULL,
+        CONSTRAINT pk_repository_schema_version PRIMARY KEY (version));
 
-    -- ... more tables ...
+    SELECT COALESCE(MAX(version), 0) INTO v_schema_version FROM {CFG:SchemaName}.{CFG:TableBaseName}repository_schema_version;
+    SELECT CASE WHEN EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = '{CFG:SchemaName}' AND table_name = '{CFG:TableBaseName}migrator_meta') THEN 1 ELSE 0 END INTO v_unversioned_tables;
 
-    RAISE NOTICE '1,1,Repository created successfully';
+    RAISE NOTICE '%,%,RayMigrator repository has schema version [%]', v_schema_version, v_unversioned_tables, v_schema_version;
 END $$;
 ```
+
+The DO block is delimited with `$$` and nothing else: the DAL replaces `$$` with a tag unique to the call before it substitutes parameter values (see [Parameter Substitution](sql-dialects.md#parameter-substitution)).
 
 ## Best Practices
 

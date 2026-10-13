@@ -24,6 +24,8 @@ public static class MigrationEvent
 
     // Template Execution - Repository Operations
     public static readonly EventId TemplateExecutionRepositoryCheckCreate = new EventId(100, nameof(TemplateExecutionRepositoryCheckCreate));
+    public static readonly EventId TemplateExecutionRepositoryUpgrade = new EventId(101, nameof(TemplateExecutionRepositoryUpgrade));
+    public static readonly EventId TemplateExecutionRepositoryMigratorMetaCheckInsert = new EventId(102, nameof(TemplateExecutionRepositoryMigratorMetaCheckInsert));
     public static readonly EventId TemplateExecutionRepositoryMigrationRunInsert = new EventId(110, nameof(TemplateExecutionRepositoryMigrationRunInsert));
     public static readonly EventId TemplateExecutionRepositoryMigrationRunUpdate = new EventId(111, nameof(TemplateExecutionRepositoryMigrationRunUpdate));
     public static readonly EventId TemplateExecutionRepositoryMigrationRunSelectOrphaned = new EventId(112, nameof(TemplateExecutionRepositoryMigrationRunSelectOrphaned));

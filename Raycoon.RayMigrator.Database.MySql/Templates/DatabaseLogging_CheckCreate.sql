@@ -88,6 +88,8 @@ FROM (
     UNION ALL SELECT 70, 'ValidateConnectionStrings', ''
     UNION ALL SELECT 80, 'RayMigratorServiceStart', ''
     UNION ALL SELECT 100, 'TemplateExecutionRepositoryCheckCreate', ''
+    UNION ALL SELECT 101, 'TemplateExecutionRepositoryUpgrade', ''
+    UNION ALL SELECT 102, 'TemplateExecutionRepositoryMigratorMetaCheckInsert', ''
     UNION ALL SELECT 110, 'TemplateExecutionRepositoryMigrationRunInsert', ''
     UNION ALL SELECT 111, 'TemplateExecutionRepositoryMigrationRunUpdate', ''
     UNION ALL SELECT 112, 'TemplateExecutionRepositoryMigrationRunSelectOrphaned', ''

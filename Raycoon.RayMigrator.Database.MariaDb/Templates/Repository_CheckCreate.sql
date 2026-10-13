@@ -6,326 +6,69 @@ RayMigrator SQL Template
 TemplateType   = "Repository_CheckCreate"
 DatabaseType   = "MariaDb"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-10-10.1"
+Version        = "2026-10-13.1"
 
 [Description]
 Function = """
-Checks for repository existence and completeness. Creates RayMigrator
-infrastructure on the target database if necessary. Returns the VersionId.
+Reports the schema version of the repository (ADR-024). Creates the repository_schema_version
+table when it does not exist; creates nothing else. The engine applies the missing
+Repository_Upgrade_{n} steps afterwards.
 """
 
 Behaviour = """
-- Return value >= 0: Success (logged at Debug level)
-- Return value < 0: Error (logged at Error level, migration aborted)
-- Creates all 11 repository tables with master data
-- Inserts a MigratorMeta row on the first run of each RayMigrator version (the first row is the version that created the repository)
+- First code: highest applied schema version, 0 when the repository has none
+- Second code: 1 when the migrator_meta table exists, 0 otherwise. With version 0 this
+  means a repository of a RayMigrator before 0.17.0, which the engine refuses
+- Idempotent (CREATE TABLE IF NOT EXISTS); takes the schema lock of the steps (GET_LOCK), so a
+  parallel start waits for a step another process is applying
 """
 
 [ConfigPlaceholders]
-SchemaName    = "Database schema from Repository configuration"
+SchemaName    = "Not used - MariaDB schema equals the database of the connection"
 TableBaseName = "Table name prefix from Repository configuration - MUST be lowercase for MariaDB (DAL-018)"
 
 [Parameters]
-RayMigratorVersion     = "VARCHAR(20) | REQUIRED | The RayMigrator application version (e.g., '3.0.0')"
-RepositoryDatabaseType = "VARCHAR(20) | REQUIRED | The database type for the repository (e.g., 'MariaDb')"
+# none
 
 [ReturnValues]
-# Format: SELECT 'VersionId,RepositoryWasCreated,message' (RepositoryWasCreated: 1 = created in this run, 0 = existed before)
-Success_N           = "N (VersionId),0,RayMigrator repository already exists. Using VersionId [N]."
-Success_N_Created   = "N (VersionId),1,RayMigrator repository-tables with master data and new VersionId [N] successfully created"
-Success_N_NewVer    = "N (VersionId),0,RayMigrator repository already exists. New VersionId [N] created."
-Error_-10_Incomplete        = "-10,RayMigrator repository incomplete or corrupt. Repository contains [X] tables instead of [11]."
-Error_-11_PartialNoVersion  = "-11,RayMigrator repository incomplete or corrupt. Repository contains [X] tables instead of the expected amount of [0]."
-Error_-12_MultipleVersions  = "-12,Multiple [migrator_meta]-entries found for RayMigratorVersion [...] RepositoryDatabaseType [...]."
+# Format: SELECT 'schemaVersion,unversionedTables,message'
+Success_N        = "N (schema version),0|1,RayMigrator repository has schema version [N]"
+Success_Legacy   = "0,1,RayMigrator repository tables exist without a schema version"
+Success_None     = "0,0,RayMigrator repository does not exist yet"
 
 [ModificationNotes]
-Note1 = "SELECT result format: 'VersionId,RepositoryWasCreated,message' - RayMigrator logs the repository creation from the second value (#27); DO NOT change this format"
-Note2 = "No commas allowed in error messages"
-Note3 = "Use CURRENT_TIMESTAMP for all timestamps (session time_zone='+00:00' ensures UTC)"
-Note4 = "MigratorMeta lists the RayMigrator versions that used the repository; the first row is the version that created it and therefore identifies the schema. There is no RepositoryVersion constant and no in-place upgrade."
-Note5 = "MariaDB DDL causes implicit commit - tables are created individually with IF NOT EXISTS"
-Note6 = "Uses idempotent CREATE TABLE IF NOT EXISTS; master data is inserted only when the repository is created in this run (gated on @v_version_table_exists = 0)"
-Note7 = "Tables must be created in FK dependency order"
-Note8 = "Tables created: migrator_meta, product, environment, migration_run, migration_run_meta, migration_record, migration_record_history, migration_run_mode, migration_operation, migration_run_result, migration_status"
-Note9 = "DAL-018: All identifiers (tables, columns, constraints, indexes) use unquoted snake_case; only reserved-word collisions keep backticks"
-Note10 = "ResultCode catalog: see TemplateResultCode.cs in Shared project"
+Note1 = "SELECT result format: 'schemaVersion,unversionedTables,message' - DO NOT change this format"
+Note2 = "No commas allowed in messages"
+Note3 = "Creates only the repository_schema_version table; the repository tables come from Repository_Upgrade_1"
+Note4 = "MariaDB DDL causes an implicit commit; the statement is idempotent instead of transactional"
+Note5 = "DAL-018: All identifiers use unquoted snake_case"
 ================================================================================
 */
 
--- Capture pre-DDL state
-SET @v_number_of_tables_found = (
-    SELECT COUNT(*) FROM information_schema.TABLES
-    WHERE TABLE_SCHEMA = DATABASE()
-      AND TABLE_NAME IN (
-          '{CFG:TableBaseName}migrator_meta',
-          '{CFG:TableBaseName}product',
-          '{CFG:TableBaseName}migration_run',
-          '{CFG:TableBaseName}migration_run_meta',
-          '{CFG:TableBaseName}migration_record',
-          '{CFG:TableBaseName}migration_record_history',
-          '{CFG:TableBaseName}migration_run_mode',
-          '{CFG:TableBaseName}migration_operation',
-          '{CFG:TableBaseName}migration_run_result',
-          '{CFG:TableBaseName}migration_status',
-          '{CFG:TableBaseName}environment'
-      )
-);
+-- The schema lock of the Repository_Upgrade_{n} steps: a check that runs while another process applies a step waits for
+-- the step to finish, so it never sees the tables without the version row.
+SET @v_lock_name = CONCAT('raymigrator_schema_', DATABASE());
+SET @v_lock_acquired = GET_LOCK(@v_lock_name, 60);
 
-SET @v_version_table_exists = (
+CREATE TABLE IF NOT EXISTS {CFG:TableBaseName}repository_schema_version (
+    version                INT          NOT NULL,
+    applied_at             TIMESTAMP    NOT NULL,
+    raymigrator_version    VARCHAR(100) NOT NULL,
+    PRIMARY KEY (version)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+SET @v_schema_version = (SELECT IFNULL(MAX(version), 0) FROM {CFG:TableBaseName}repository_schema_version);
+
+SET @v_unversioned_tables = (
     SELECT COUNT(*) FROM information_schema.TABLES
     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{CFG:TableBaseName}migrator_meta'
 );
 
--- Lookup tables (no FK dependencies)
-CREATE TABLE IF NOT EXISTS {CFG:TableBaseName}migration_operation (
-    id                     TINYINT UNSIGNED NOT NULL,
-    name                   VARCHAR(100)     NOT NULL,
-    description            VARCHAR(1000)        NULL,
-    PRIMARY KEY (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+DO RELEASE_LOCK(@v_lock_name);
 
-CREATE TABLE IF NOT EXISTS {CFG:TableBaseName}migration_run_result (
-    id                     TINYINT UNSIGNED NOT NULL,
-    name                   VARCHAR(100)     NOT NULL,
-    description            VARCHAR(1000)        NULL,
-    PRIMARY KEY (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS {CFG:TableBaseName}migration_run_mode (
-    id                     TINYINT UNSIGNED NOT NULL,
-    name                   VARCHAR(100)     NOT NULL,
-    description            VARCHAR(1000)        NULL,
-    PRIMARY KEY (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS {CFG:TableBaseName}migration_status (
-    id                     TINYINT UNSIGNED NOT NULL,
-    name                   VARCHAR(100)     NOT NULL,
-    description            VARCHAR(1000)        NULL,
-    PRIMARY KEY (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS {CFG:TableBaseName}migrator_meta (
-    id                             INT          NOT NULL AUTO_INCREMENT,
-    raymigrator_version            VARCHAR(100) NOT NULL,
-    repository_database_type       VARCHAR(100) NOT NULL,
-    created_at                     TIMESTAMP    NOT NULL,
-    PRIMARY KEY (id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS {CFG:TableBaseName}product (
-    id                     INT          NOT NULL AUTO_INCREMENT,
-    name                   VARCHAR(100) NOT NULL,
-    name_lower             VARCHAR(100) NOT NULL,
-    created_at             TIMESTAMP    NOT NULL,
-    PRIMARY KEY (id),
-    UNIQUE KEY uix_{CFG:TableBaseName}product_name_lower (name_lower)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS {CFG:TableBaseName}environment (
-    id                     INT          NOT NULL AUTO_INCREMENT,
-    name                   VARCHAR(100) NOT NULL,
-    name_lower             VARCHAR(100) NOT NULL,
-    created_at             TIMESTAMP    NOT NULL,
-    PRIMARY KEY (id),
-    UNIQUE KEY uix_{CFG:TableBaseName}environment_name_lower (name_lower)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Tables with FK dependencies (created after their referenced tables)
-CREATE TABLE IF NOT EXISTS {CFG:TableBaseName}migration_run (
-    id                      INT          NOT NULL AUTO_INCREMENT,
-    migrator_meta_id        INT          NOT NULL,
-    product_id              INT          NOT NULL,
-    environment_id          INT          NOT NULL,
-    migration_run_mode_id   TINYINT UNSIGNED NOT NULL,
-    migration_run_result_id TINYINT UNSIGNED NOT NULL,
-    from_release_version    VARCHAR(100)     NULL,
-    to_release_version      VARCHAR(100)     NULL,
-    started_at              TIMESTAMP    NOT NULL,
-    finished_at             TIMESTAMP        NULL,
-    duration_in_ms          BIGINT           NULL,
-    PRIMARY KEY (id),
-    INDEX ix_{CFG:TableBaseName}migration_run_environment_id (environment_id),
-    CONSTRAINT fk_migration_run_product FOREIGN KEY (product_id) REFERENCES {CFG:TableBaseName}product(id),
-    CONSTRAINT fk_migration_run_environment FOREIGN KEY (environment_id) REFERENCES {CFG:TableBaseName}environment(id),
-    CONSTRAINT fk_migration_run_migrator_meta FOREIGN KEY (migrator_meta_id) REFERENCES {CFG:TableBaseName}migrator_meta(id),
-    CONSTRAINT fk_migration_run_migration_run_result FOREIGN KEY (migration_run_result_id) REFERENCES {CFG:TableBaseName}migration_run_result(id),
-    CONSTRAINT fk_migration_run_migration_run_mode FOREIGN KEY (migration_run_mode_id) REFERENCES {CFG:TableBaseName}migration_run_mode(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS {CFG:TableBaseName}migration_run_meta (
-    migration_run_id            INT          NOT NULL,
-    migration_run_settings_json TEXT             NULL,
-    description                 TEXT             NULL,
-    PRIMARY KEY (migration_run_id),
-    CONSTRAINT fk_migration_run_meta_migration_run FOREIGN KEY (migration_run_id) REFERENCES {CFG:TableBaseName}migration_run(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS {CFG:TableBaseName}migration_record (
-    id                        INT          NOT NULL AUTO_INCREMENT,
-    product_id                INT          NOT NULL,
-    environment_id            INT          NOT NULL,
-    migration_run_id          INT          NOT NULL,
-    migration_run_mode_id     TINYINT UNSIGNED NOT NULL,
-    migration_operation_id    TINYINT UNSIGNED NOT NULL,
-    migration_status_id       TINYINT UNSIGNED NOT NULL,
-    release_version           VARCHAR(100) NOT NULL,
-    target_group_alias        VARCHAR(100) NOT NULL,
-    target_alias              VARCHAR(100) NOT NULL,
-    filename                  VARCHAR(200) NOT NULL,
-    file_order_id             INT          NOT NULL,
-    file_up_hash              VARCHAR(100) NOT NULL,
-    file_up_config_hash       VARCHAR(100)     NULL,
-    file_up_blocks_hash       VARCHAR(100) NOT NULL,
-    file_up_blocks_migrated   INT          NOT NULL,
-    file_up_blocks_total      INT          NOT NULL,
-    file_up_config_json       TEXT             NULL,
-    migrate_down_file_exists  BOOLEAN      NOT NULL,
-    file_down_hash            VARCHAR(100)     NULL,
-    file_down_config_hash     VARCHAR(100)     NULL,
-    file_down_blocks_hash     VARCHAR(100)     NULL,
-    file_down_blocks_migrated INT              NULL,
-    file_down_blocks_total    INT              NULL,
-    file_down_config_json     TEXT             NULL,
-    started_at                TIMESTAMP        NULL,
-    finished_at               TIMESTAMP        NULL,
-    duration_in_ms            BIGINT           NULL,
-    PRIMARY KEY (id),
-    INDEX ix_{CFG:TableBaseName}migration_record_environment_id (environment_id),
-    CONSTRAINT fk_migration_record_product FOREIGN KEY (product_id) REFERENCES {CFG:TableBaseName}product(id),
-    CONSTRAINT fk_migration_record_environment FOREIGN KEY (environment_id) REFERENCES {CFG:TableBaseName}environment(id),
-    CONSTRAINT fk_migration_record_migration_run FOREIGN KEY (migration_run_id) REFERENCES {CFG:TableBaseName}migration_run(id),
-    CONSTRAINT fk_migration_record_migration_run_mode FOREIGN KEY (migration_run_mode_id) REFERENCES {CFG:TableBaseName}migration_run_mode(id),
-    CONSTRAINT fk_migration_record_migration_operation FOREIGN KEY (migration_operation_id) REFERENCES {CFG:TableBaseName}migration_operation(id),
-    CONSTRAINT fk_migration_record_migration_status FOREIGN KEY (migration_status_id) REFERENCES {CFG:TableBaseName}migration_status(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS {CFG:TableBaseName}migration_record_history (
-    id                        INT          NOT NULL AUTO_INCREMENT,
-    migration_record_id       INT          NOT NULL,
-    product_id                INT          NOT NULL,
-    environment_id            INT          NOT NULL,
-    migration_run_id          INT          NOT NULL,
-    migration_run_mode_id     TINYINT UNSIGNED NOT NULL,
-    migration_operation_id    TINYINT UNSIGNED NOT NULL,
-    migration_status_id       TINYINT UNSIGNED NOT NULL,
-    release_version           VARCHAR(100) NOT NULL,
-    target_group_alias        VARCHAR(100) NOT NULL,
-    target_alias              VARCHAR(100) NOT NULL,
-    filename                  VARCHAR(200) NOT NULL,
-    file_order_id             INT          NOT NULL,
-    file_up_hash              VARCHAR(100) NOT NULL,
-    file_up_config_hash       VARCHAR(100)     NULL,
-    file_up_blocks_hash       VARCHAR(100) NOT NULL,
-    file_up_blocks_migrated   INT          NOT NULL,
-    file_up_blocks_total      INT          NOT NULL,
-    file_up_config_json       TEXT             NULL,
-    migrate_down_file_exists  BOOLEAN      NOT NULL,
-    file_down_hash            VARCHAR(100)     NULL,
-    file_down_config_hash     VARCHAR(100)     NULL,
-    file_down_blocks_hash     VARCHAR(100)     NULL,
-    file_down_blocks_migrated INT              NULL,
-    file_down_blocks_total    INT              NULL,
-    file_down_config_json     TEXT             NULL,
-    started_at                TIMESTAMP        NULL,
-    finished_at               TIMESTAMP        NULL,
-    duration_in_ms            BIGINT           NULL,
-    historized_at             TIMESTAMP    NOT NULL  DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    INDEX ix_{CFG:TableBaseName}migration_record_history_migration_record_id (migration_record_id),
-    INDEX ix_{CFG:TableBaseName}migration_record_history_environment_id (environment_id),
-    CONSTRAINT fk_migration_record_history_migration_run FOREIGN KEY (migration_run_id) REFERENCES {CFG:TableBaseName}migration_run(id),
-    CONSTRAINT fk_migration_record_history_product FOREIGN KEY (product_id) REFERENCES {CFG:TableBaseName}product(id),
-    CONSTRAINT fk_migration_record_history_environment FOREIGN KEY (environment_id) REFERENCES {CFG:TableBaseName}environment(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Master data: written only when the repository did not exist before this run. Existing repositories are not
--- upgraded in place; the schema of a repository is the schema of the RayMigrator version that created it.
-INSERT INTO {CFG:TableBaseName}migration_run_mode (id, name, description)
-SELECT v.id, v.name, v.description
-FROM (
-              SELECT 10 AS id, 'Validate' AS name, 'Validates configuration and all migration files. Does NOT perform actual migration against target databases.' AS description
-    UNION ALL SELECT 20, 'Simulate', 'Validates configuration and all migration files. Simulates the entire migration process. Does NOT perform actual migrations against target databases.'
-    UNION ALL SELECT 100, 'Migrate', 'Validates configuration and all migration files. Performs actual migrations against target databases.'
-) AS v
-WHERE @v_version_table_exists = 0;
-
-INSERT INTO {CFG:TableBaseName}migration_operation (id, name, description)
-SELECT v.id, v.name, v.description
-FROM (
-              SELECT 5 AS id, 'Rollback' AS name, 'Performing Rollback of current MigrationRun' AS description
-    UNION ALL SELECT 50, 'MigrateDown', 'Performing Down-Migration'
-    UNION ALL SELECT 100, 'MigrateUp', 'Performing Up-Migration'
-    UNION ALL SELECT 110, 'Baseline', 'Marking migration files as migrated without executing them (baseline command)'
-) AS v
-WHERE @v_version_table_exists = 0;
-
-INSERT INTO {CFG:TableBaseName}migration_run_result (id, name, description)
-SELECT v.id, v.name, v.description
-FROM (
-              SELECT 10 AS id, 'Running' AS name, 'Migration process is currently running' AS description
-    UNION ALL SELECT 50, 'PartialSuccess', 'Migration(s) finished but at least one file was skipped or left Failed'
-    UNION ALL SELECT 80, 'Recovered', 'Migration(s) failed and the configured error recovery rolled back cleanly'
-    UNION ALL SELECT 90, 'Error', 'Migration(s) stopped due to error(s)'
-    UNION ALL SELECT 100, 'Ok', 'Migration(s) successfully executed'
-) AS v
-WHERE @v_version_table_exists = 0;
-
-INSERT INTO {CFG:TableBaseName}migration_status (id, name, description)
-SELECT v.id, v.name, v.description
-FROM (
-              SELECT 10 AS id, 'Pending' AS name, 'Record created, execution pending' AS description
-    UNION ALL SELECT 20, 'Executing', 'SQL blocks are being executed'
-    UNION ALL SELECT 30, 'Failed', 'Execution failed, DB state unclear'
-    UNION ALL SELECT 50, 'NotMigrated', 'Not deployed / rolled back'
-    UNION ALL SELECT 100, 'Migrated', 'Successfully deployed'
-) AS v
-WHERE @v_version_table_exists = 0;
-
--- Handle version logic
-SET @v_version_id = NULL;
-SET @v_number_of_rows = 0;
-
-SET @v_version_id = (SELECT id FROM {CFG:TableBaseName}migrator_meta
-     WHERE raymigrator_version = @RayMigratorVersion
-       AND repository_database_type = @RepositoryDatabaseType
-     LIMIT 1);
-
-SET @v_number_of_rows = (SELECT COUNT(*) FROM {CFG:TableBaseName}migrator_meta
-     WHERE raymigrator_version = @RayMigratorVersion
-       AND repository_database_type = @RepositoryDatabaseType);
-
--- Insert version if not found (idempotent via WHERE clause)
-INSERT INTO {CFG:TableBaseName}migrator_meta
-    (raymigrator_version, repository_database_type, created_at)
-SELECT @RayMigratorVersion, @RepositoryDatabaseType, CURRENT_TIMESTAMP
-FROM DUAL
-WHERE @v_number_of_rows = 0;
-
-SET @v_final_version_id = IF(@v_version_id IS NOT NULL, @v_version_id, LAST_INSERT_ID());
-
-SELECT CASE
-    -- Repository existed before but is incomplete/corrupt
-    WHEN @v_version_table_exists > 0 AND @v_number_of_tables_found != 11 THEN
-        CONCAT('-10,RayMigrator repository incomplete or corrupt. Repository contains [', CAST(@v_number_of_tables_found AS CHAR), '] tables instead of [11].')
-
-    -- Repository exists and matching version found
-    WHEN @v_version_table_exists > 0 AND @v_number_of_rows = 1 THEN
-        CONCAT(CAST(@v_version_id AS CHAR), ',0,RayMigrator repository already exists. Using VersionId [', CAST(@v_version_id AS CHAR), '].')
-
-    -- Repository exists but version not found (new version inserted above)
-    WHEN @v_version_table_exists > 0 AND @v_number_of_rows = 0 THEN
-        CONCAT(CAST(@v_final_version_id AS CHAR), ',0,RayMigrator repository already exists. New VersionId [', CAST(@v_final_version_id AS CHAR), '] created.')
-
-    -- Repository exists but multiple matching versions (error)
-    WHEN @v_version_table_exists > 0 AND @v_number_of_rows > 1 THEN
-        CONCAT('-12,Multiple [migrator_meta]-entries found for RayMigratorVersion [', IFNULL(@RayMigratorVersion, 'NULL'), '] RepositoryDatabaseType [', IFNULL(@RepositoryDatabaseType, 'NULL'), '].')
-
-    -- No version table but some tables exist (corrupt - before DDL ran)
-    WHEN @v_version_table_exists = 0 AND @v_number_of_tables_found != 0 THEN
-        CONCAT('-11,RayMigrator repository incomplete or corrupt. Repository contains [', CAST(@v_number_of_tables_found AS CHAR), '] tables instead of the expected amount of [0].')
-
-    -- No repository existed - everything was just created
-    ELSE
-        CONCAT(CAST(@v_final_version_id AS CHAR), ',1,RayMigrator repository-tables with master data and new VersionId [', CAST(@v_final_version_id AS CHAR), '] successfully created')
-END;
+SELECT CONCAT(CAST(@v_schema_version AS CHAR), ',', CAST(@v_unversioned_tables AS CHAR), ',',
+    CASE
+        WHEN @v_schema_version > 0 THEN CONCAT('RayMigrator repository has schema version [', CAST(@v_schema_version AS CHAR), ']')
+        WHEN @v_unversioned_tables = 1 THEN 'RayMigrator repository tables exist without a schema version'
+        ELSE 'RayMigrator repository does not exist yet'
+    END);

@@ -111,7 +111,7 @@ sequenceDiagram
     participant LOGDB as Logging database
 
     DMP->>TC: new TemplateCache(options, revealSensitiveData, logger)
-    TC->>TC: Initialize(): load DataAccessLayers/{Type}/*.sql, replace ENV placeholders, require all 21 TemplateType files per type
+    TC->>TC: Initialize(): load DataAccessLayers/{Type}/*.sql, replace ENV placeholders, require all 23 TemplateType files per type
     TC->>TC: ValidateConfigurationAgainstTemplateCache(options)
     DMP->>DLW: InitDatabaseLogger(loggingType, templateCache, templateExecutor)
     DLW->>TE: ExecuteScalarWithNegativeResultCodeException(DatabaseLogging_CheckCreate)
@@ -121,9 +121,14 @@ sequenceDiagram
     TE->>TC: GetRepositoryTemplate(Repository_CheckCreate, repositoryOptions) with CFG placeholders resolved
     TE->>DF: TryGetDal(Repository.DatabaseType, Repository.ConnectionString) (lazy, cached)
     DF-->>TE: IDal
-    TE->>DAL: ExecuteScalarAsync(template, DalParameterList RepositoryDatabaseType, RayMigratorVersion)
-    DAL->>REPO: schema, 4 lookup tables, 7 data tables, indexes, 15 FKs, lookup seeds, MigratorMeta row (only when absent)
-    REPO-->>TE: ResultCode,ResultMessage
+    TE->>DAL: ExecuteScalarAsync(Repository_CheckCreate)
+    DAL->>REPO: schema and RepositorySchemaVersion (only when absent)
+    REPO-->>TE: schemaVersion,unversionedTables,message
+    TE->>DAL: ExecuteScalarAsync(Repository_Upgrade_{n}) for every missing step (RayMigratorVersion)
+    DAL->>REPO: step 1: 4 lookup tables, 7 data tables, indexes, 15 FKs, lookup seeds, version row
+    TE->>DAL: ExecuteScalarAsync(Repository_MigratorMeta_CheckInsert, RepositoryDatabaseType, RayMigratorVersion)
+    DAL->>REPO: MigratorMeta row (only when absent)
+    REPO-->>TE: MigratorMetaId,message
     TE-->>MS: MigrationState.MigratorMetaId
     MS->>TE: RepositoryProductCheckInsert(), RepositoryEnvironmentCheckInsert()
     TE-->>MS: MigrationState.ProductId, EnvironmentId
@@ -134,13 +139,13 @@ sequenceDiagram
     TE-->>MS: MigrationState.MigrationRunId (ResultCode -2: MigrationAlreadyRunningException)
 ```
 
-1. `TemplateCache` is a DI singleton; its constructor scans `DataAccessLayers/{Type}/` next to the binary, maps file names to `TemplateType`, resolves `{ENV:*}` once and throws `ConfigurationValidationException` when a type lacks one of the 21 templates or when a configured `DatabaseType` has no template folder. No SQL runs in this phase.
+1. `TemplateCache` is a DI singleton; its constructor scans `DataAccessLayers/{Type}/` next to the binary, maps file names to `TemplateType`, resolves `{ENV:*}` once and throws `ConfigurationValidationException` when a type lacks one of the 23 templates or when a configured `DatabaseType` has no template folder. No SQL runs in this phase.
 2. If `DatabaseLogging` is configured, `DatabaseLogWriter.InitDatabaseLogger` executes `DatabaseLogging_CheckCreate` on the logging database during startup, regardless of run mode, and keeps `DatabaseLogging_Insert` in memory for the asynchronous queue. Log rows are written only when `CommandProfile.WritesDatabaseLog` is true.
-3. `TemplateExecutor.RepositoryCheckCreate` executes `Repository_CheckCreate` with the parameters `RepositoryDatabaseType` and `RayMigratorVersion`. On a fresh database the template creates the schema (SQL Server, PostgreSQL), the lookup tables `MigrationOperation`, `MigrationRunResult`, `MigrationRunMode`, `MigrationStatus`, the data tables `MigratorMeta`, `Product`, `Environment`, `MigrationRun`, `MigrationRunMeta`, `MigrationRecord`, `MigrationRecordHistory`, the indexes and foreign keys, seeds the lookup tables and inserts the first `MigratorMeta` row. The result code is the `MigratorMetaId`.
+3. `TemplateExecutor.RepositoryCheckCreate` executes `Repository_CheckCreate`, which creates the schema (SQL Server, PostgreSQL) and the `RepositorySchemaVersion` table when they are missing and reports the schema version found. Every missing `Repository_Upgrade_{n}` step up to `RepositorySchema.CurrentVersion` then runs in order; step 1 creates the lookup tables `MigrationOperation`, `MigrationRunResult`, `MigrationRunMode`, `MigrationStatus`, the data tables `MigratorMeta`, `Product`, `Environment`, `MigrationRun`, `MigrationRunMeta`, `MigrationRecord`, `MigrationRecordHistory`, the indexes and foreign keys, seeds the lookup tables and writes version row 1. `Repository_MigratorMeta_CheckInsert` registers the engine version; its result code is the `MigratorMetaId`. A repository without a schema version (created before 0.17.0) or newer than the engine ends the run with `RepositorySchemaException` before anything is written (ADR-024).
 4. `RepositoryProductCheckInsert` and `RepositoryEnvironmentCheckInsert` register the product and environment by lowercase name. Commands whose profile does not write the repository (`info`, `validate-hash`, `fix` and `migrate-up`/`migrate-down` in `Simulate` mode) call `RepositoryProductSelect` and `RepositoryEnvironmentSelect` instead and treat an unknown product as an empty repository (`MigrationService.InitializeRepositoryAsync`, `ResolveRepositoryIdsReadOnlyAsync`).
 5. `RepositoryMigrationGetInterrupted` reports a record left in `Executing` by a crashed run as a warning; `RepositoryMigrationRunInsert` then creates the `MigrationRun` row with `MigrationRunResult.Running` and a JSON snapshot of the effective settings in `MigrationRunMeta` (6.7 for the lock).
 
-On later runs the same calls execute, but `Repository_CheckCreate` finds the version table and only returns the existing `MigratorMetaId`; lookup tables are seeded at creation only and no engine upgrades an existing repository in place. `DatabaseLogging_CheckCreate` behaves the same way for the log tables. `Validate` run mode skips the repository part of the phase because it never connects to the repository; only step 2 still runs. Detailed page:
+On later runs the same calls execute, but `Repository_CheckCreate` finds the version table at the current version, no step runs and `Repository_MigratorMeta_CheckInsert` only returns the existing `MigratorMetaId`; after an engine update the missing steps run once and the data stays. `DatabaseLogging_CheckCreate` behaves the same way for the log tables. `Validate` run mode skips the repository part of the phase because it never connects to the repository; only step 2 still runs. Detailed page:
 [Template execution order](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/03-database-layer/template-execution-order.md),
 [Template executor](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/04-service-layer/template-executor.md).
 

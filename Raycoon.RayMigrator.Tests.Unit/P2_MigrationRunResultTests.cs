@@ -29,18 +29,18 @@ public class MigrationRunResultTests
     }
 
     [Fact]
-    public void EveryMember_IsSeededByEveryRepositoryCheckCreateTemplate()
+    public void EveryMember_IsSeededByEverySchemaStepOneTemplate()
     {
         var root = FindRepoRoot();
         foreach (var dal in new[] { "SqlServer", "PostgreSQL", "Sqlite", "MySql", "MariaDb" })
         {
-            var template = File.ReadAllText(Path.Combine(root, $"Raycoon.RayMigrator.Database.{dal}", "Templates", "Repository_CheckCreate.sql"));
+            var template = File.ReadAllText(Path.Combine(root, $"Raycoon.RayMigrator.Database.{dal}", "Templates", "Repository_Upgrade_1.sql"));
             foreach (var member in Enum.GetValues<MigrationRunResult>().Where(m => m != MigrationRunResult.Undefined))
             {
                 // VALUES rows "(50, 'PartialSuccess'," (SqlServer, PostgreSQL, Sqlite) or the UNION ALL rows of the
                 // MySql/MariaDb derived table ("SELECT 50, 'PartialSuccess'," / "SELECT 10 AS id, 'Running' AS name,").
                 template.Should().MatchRegex($@"(\({(byte)member}, '{member}',|SELECT {(byte)member}( AS id)?, '{member}'( AS name)?,)",
-                    $"Repository_CheckCreate.sql of {dal} must seed MigrationRunResult.{member}");
+                    $"Repository_Upgrade_1.sql of {dal} must seed MigrationRunResult.{member}");
             }
         }
     }

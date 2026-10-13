@@ -9,6 +9,22 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ### Added
 
+- The repository schema is versioned (ADR-024). The new table
+  `RepositorySchemaVersion` records every applied schema version;
+  `RepositorySchema.CurrentVersion` in `Raycoon.RayMigrator.Core` names the
+  newest one, and every DAL ships one `Repository_Upgrade_{n}` template per
+  version, each creating its version on top of the one before, idempotent
+  and serialised against a parallel start. `Repository_CheckCreate` now
+  creates only the version table and reports the version found;
+  `TemplateExecutor.RepositoryCheckCreate` applies the missing steps in
+  order, logs a created or upgraded repository at Information level and then
+  registers the engine version through the new
+  `Repository_MigratorMeta_CheckInsert`, whose result is the
+  `MigratorMetaId`. A repository whose schema version is newer than the
+  engine supports is refused with the new `RepositorySchemaException`
+  before anything is written. New log events
+  `TemplateExecutionRepositoryUpgrade` (101) and
+  `TemplateExecutionRepositoryMigratorMetaCheckInsert` (102).
 - Typed progress events for hosts. `MigrationContext.ProgressObserver` takes an
   `IMigrationProgressObserver` (namespace `Raycoon.RayMigrator.Core.Progress`)
   that receives `RunStartedEvent` (after the run row exists, with its id),
@@ -27,6 +43,18 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ### Changed
 
+- **Breaking:** repositories created by 0.16.0 or earlier carry no schema
+  version and are refused with `RepositorySchemaException`; drop their
+  tables once and let this version create them again. From this version on
+  a schema change ships as a new `Repository_Upgrade_{n}` step that the
+  next command applies, and the data stays. The table count checks of
+  `Repository_CheckCreate` and their codes `-10` (`RepositoryIncomplete`)
+  and `-11` (`RepositoryPartialWithoutVersionTable`) are gone; `-12` is
+  returned by `Repository_MigratorMeta_CheckInsert`. External DALs must
+  ship `Repository_Upgrade_1.sql` and
+  `Repository_MigratorMeta_CheckInsert.sql`; `TemplateCache` requires 23
+  templates per engine. ADR-007 and ADR-016 are superseded in their
+  repository part.
 - `IMigrationContextFactory` is the entry point of a host for one run, the CLI
   pipeline included. `Create` prepares options a host built in memory with the
   new `RayMigratorOptionsPreparer`, which gives them what options bound from

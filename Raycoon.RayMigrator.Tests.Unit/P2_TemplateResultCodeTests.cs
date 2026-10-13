@@ -23,8 +23,6 @@ public class TemplateResultCodeTests
     #region Known ResultCodes
 
     [Theory]
-    [InlineData("-10,RayMigrator repository incomplete or corrupt. Repository contains [5] tables instead of [10].", -10)]
-    [InlineData("-11,RayMigrator repository incomplete or corrupt. Repository contains [3] tables instead of the expected amount of [0].", -11)]
     [InlineData("-12,Multiple [MigratorMeta]-entries found for RayMigratorVersion [3.0.0] RepositoryDatabaseType [SqlServer].", -12)]
     [InlineData("-20,Product with empty name [NULL] is not allowed!", -20)]
     [InlineData("-30,MigrationRun with Id [42] does not exist", -30)]
@@ -43,8 +41,6 @@ public class TemplateResultCodeTests
     }
 
     [Theory]
-    [InlineData("-10,RayMigrator repository incomplete or corrupt. Repository contains [5] tables instead of [10].")]
-    [InlineData("-11,RayMigrator repository incomplete or corrupt. Repository contains [3] tables instead of the expected amount of [0].")]
     [InlineData("-12,Multiple [MigratorMeta]-entries found for RayMigratorVersion [3.0.0] RepositoryDatabaseType [SqlServer].")]
     [InlineData("-20,Product with empty name [NULL] is not allowed!")]
     [InlineData("-30,MigrationRun with Id [42] does not exist")]
@@ -104,8 +100,8 @@ public class TemplateResultCodeTests
     [Theory]
     [InlineData(-1, true)]
     [InlineData(-2, true)]
-    [InlineData(-10, true)]
-    [InlineData(-11, true)]
+    [InlineData(-10, false)]
+    [InlineData(-11, false)]
     [InlineData(-12, true)]
     [InlineData(-20, true)]
     [InlineData(-30, true)]

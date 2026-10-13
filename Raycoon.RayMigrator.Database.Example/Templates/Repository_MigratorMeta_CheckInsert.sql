@@ -1,0 +1,11 @@
+-- TODO: Implement for your database engine
+-- Purpose: Registers the RayMigrator version in MigratorMeta if it is not registered yet and returns the id of its row
+--          (MigratorMetaId). Runs after Repository_CheckCreate and the Repository_Upgrade_{n} steps (ADR-024).
+-- See the corresponding template in Database.SqlServer or Database.PostgreSQL for reference.
+-- Returns: 'code,message' where code is the MigratorMetaId, or -12 when several rows match.
+--
+-- Parameters used in this template:
+-- {CFG:SchemaName} - The repository schema name
+-- {CFG:TableBaseName} - The table name prefix
+-- @RayMigratorVersion - The RayMigrator application version
+-- @RepositoryDatabaseType - The database type of the repository

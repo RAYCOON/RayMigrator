@@ -67,40 +67,121 @@ public class TemplateExecutor
     }
 
     /// <summary>
-    /// Create RayMigrator infrastructure for all TargetGroups.Repository.
+    /// Makes sure the repository exists in the schema version this run expects and registers the engine version
+    /// (ADR-024): <c>Repository_CheckCreate</c> creates the schema version table when it is missing and reports the
+    /// version the repository has; every missing <c>Repository_Upgrade_{n}</c> step up to
+    /// <see cref="MigrationContext.RepositorySchemaTargetVersion"/> runs in order, step 1 creating the tables of a
+    /// fresh repository; and <c>Repository_MigratorMeta_CheckInsert</c> yields the <c>MigratorMetaId</c> of this
+    /// engine version. A repository that has tables but no schema version was created by a RayMigrator before
+    /// 0.17.0 and is refused, as is one whose version is newer than the target.
     /// </summary>
+    /// <exception cref="RepositorySchemaException">The repository has no schema version but repository tables, or a
+    /// schema version newer than this engine supports.</exception>
     /// <exception cref="TemplateExecutionException"></exception>
     public void RepositoryCheckCreate()
     {
-        var templateType = TemplateType.Repository_CheckCreate;
         var eventId = MigrationEvent.TemplateExecutionRepositoryCheckCreate;
-        
-        _logger.LogDebug(eventId, "Check and create Repository if it does not exist...{MigrationContext}", _ctxAccessor.Current.Clone);
+        int targetVersion = _ctxAccessor.Current.RepositorySchemaTargetVersion;
+
+        _logger.LogDebug(eventId, "Checking the repository schema version (target version [{TargetVersion}])...{MigrationContext}", targetVersion, _ctxAccessor.Current.Clone);
+
+        var checkTemplate = _templateCache.GetRepositoryTemplate(TemplateType.Repository_CheckCreate, _repository);
+        var check = ExecuteScalarWithNegativeResultCodeException(checkTemplate, _repositoryDal, _repository.GetDalSettings(), null, _logger, eventId);
+
+        // Repository_CheckCreate returns 'schemaVersion,unversionedTables,message': the highest applied schema version (0 when
+        // none) and 1 when the MigratorMeta table exists, which with version 0 means a repository of a RayMigrator before 0.17.0.
+        int foundVersion = check.ResultCode;
+        bool unversionedTables = check.ResultCodes.Length > 1 && check.ResultCodes[1] == 1;
+        string schemaName = SensitiveDataMasker.Mask(_repository.SchemaName);
+
+        if (foundVersion == 0 && unversionedTables)
+        {
+            throw new RepositorySchemaException(
+                $"The repository (DatabaseType [{_repositoryDal.DatabaseType}], schema [{schemaName}]) has repository tables but no schema version: " +
+                "a RayMigrator before 0.17.0 created it, and repositories are not upgraded across that boundary. " +
+                "Drop the repository tables and let this version create them again.",
+                foundVersion, targetVersion);
+        }
+
+        if (foundVersion > targetVersion)
+        {
+            throw new RepositorySchemaException(
+                $"The repository (DatabaseType [{_repositoryDal.DatabaseType}], schema [{schemaName}]) has schema version [{foundVersion}], " +
+                $"but RayMigrator [{_ctxAccessor.Current.RayMigratorVersion}] supports version [{targetVersion}] at most. Use a RayMigrator that supports this repository.",
+                foundVersion, targetVersion);
+        }
+
+        for (int step = foundVersion + 1; step <= targetVersion; step++)
+        {
+            RepositoryUpgrade(step);
+        }
+
+        // An operator should see a created or upgraded repository without Debug logging: a first run creates the schema and
+        // the tables in a database that may belong to someone else (#27).
+        if (foundVersion == 0)
+        {
+            _logger.LogInformation(eventId,
+                "Repository created: DatabaseType [{DatabaseType}], schema [{SchemaName}], schema version [{SchemaVersion}].{MigrationContext}",
+                _repositoryDal.DatabaseType, schemaName, targetVersion, _ctxAccessor.Current.Clone);
+        }
+        else if (foundVersion < targetVersion)
+        {
+            _logger.LogInformation(eventId,
+                "Repository schema upgraded: DatabaseType [{DatabaseType}], schema [{SchemaName}], version [{FromVersion}] to [{ToVersion}].{MigrationContext}",
+                _repositoryDal.DatabaseType, schemaName, foundVersion, targetVersion, _ctxAccessor.Current.Clone);
+        }
+
+        _ctxAccessor.Current.MigrationState.MigratorMetaId = RepositoryMigratorMetaCheckInsert();
+    }
+
+    /// <summary>
+    /// Applies one schema step: <c>Repository_Upgrade_{step}</c> creates schema version <paramref name="step"/> on top of
+    /// the version before it and writes its row of the schema version table. The step is idempotent per engine and
+    /// serialised against a parallel start on the same repository.
+    /// </summary>
+    /// <exception cref="TemplateExecutionException"></exception>
+    /// <exception cref="TemplateResultException">The step did not return its own version as result code.</exception>
+    private void RepositoryUpgrade(int step)
+    {
+        var templateType = RepositorySchema.UpgradeTemplate(step);
+        var eventId = MigrationEvent.TemplateExecutionRepositoryUpgrade;
+
+        _logger.LogDebug(eventId, "Applying repository schema version [{SchemaVersion}] ({TemplateType})...{MigrationContext}", step, templateType, _ctxAccessor.Current.Clone);
 
         DalParameterList dalParameterList = new DalParameterList();
-        dalParameterList.AddParameter(new DalParameter("RepositoryDatabaseType", _repositoryDal.DatabaseType, typeof(string)));
         dalParameterList.AddParameter(new DalParameter("RayMigratorVersion", _ctxAccessor.Current.RayMigratorVersion, typeof(string)));
 
         var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
         var templateResponse = ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId);
 
-        _ctxAccessor.Current.MigrationState.MigratorMetaId = templateResponse.ResultCode;
-
-        // Repository_CheckCreate returns 'VersionId,RepositoryWasCreated,message'. The second code is 1 when this run
-        // created the schema and the repository tables, which an operator should see without Debug logging: a first
-        // run creates them in a database that may belong to someone else (#27). A customised template that still
-        // returns 'code,message' produces no Information line.
-        bool repositoryCreated = templateResponse.ResultCodes.Length > 1 && templateResponse.ResultCodes[1] == 1;
-        if (repositoryCreated)
+        if (templateResponse.ResultCode != step)
         {
-            _logger.LogInformation(eventId,
-                "Repository created: DatabaseType [{DatabaseType}], schema [{SchemaName}], VersionId [{VersionId}]. {ResultMessage}{MigrationContext}",
-                _repositoryDal.DatabaseType,
-                SensitiveDataMasker.Mask(_repository.SchemaName),
-                templateResponse.ResultCode,
-                templateResponse.ResultMessage,
-                _ctxAccessor.Current.Clone);
+            throw new TemplateResultException(
+                $"Repository schema step [{step}] ({template}) returned result code [{templateResponse.ResultCode}] instead of its version. {templateResponse.ResultMessage}",
+                templateResponse.ResultCode);
         }
+    }
+
+    /// <summary>
+    /// Registers the engine version in <c>MigratorMeta</c> if it is not registered yet and returns the id of its row,
+    /// which every run of this engine version references as <c>MigratorMetaId</c>.
+    /// </summary>
+    /// <exception cref="TemplateExecutionException"></exception>
+    private int RepositoryMigratorMetaCheckInsert()
+    {
+        var templateType = TemplateType.Repository_MigratorMeta_CheckInsert;
+        var eventId = MigrationEvent.TemplateExecutionRepositoryMigratorMetaCheckInsert;
+
+        _logger.LogDebug(eventId, "Registering RayMigrator version [{RayMigratorVersion}] in the repository...{MigrationContext}", _ctxAccessor.Current.RayMigratorVersion, _ctxAccessor.Current.Clone);
+
+        DalParameterList dalParameterList = new DalParameterList();
+        dalParameterList.AddParameter(new DalParameter("RayMigratorVersion", _ctxAccessor.Current.RayMigratorVersion, typeof(string)));
+        dalParameterList.AddParameter(new DalParameter("RepositoryDatabaseType", _repositoryDal.DatabaseType, typeof(string)));
+
+        var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
+        var templateResponse = ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId);
+
+        return templateResponse.ResultCode;
     }
 
     /// <summary>

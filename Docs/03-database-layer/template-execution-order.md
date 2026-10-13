@@ -91,18 +91,19 @@ This template is **not executed immediately**. It is first used when the Serilog
 **Call site:** `MigrationService.MigrateUpAsync()` -> `TemplateExecutor.RepositoryCheckCreate()`
 **Target database:** Repository database (from `Repository` configuration section)
 
-### Template 3: `Repository_CheckCreate`
+### Template 3: `Repository_CheckCreate`, `Repository_Upgrade_{n}` and `Repository_MigratorMeta_CheckInsert`
 
-**File:** `DataAccessLayers/{DB}/Repository_CheckCreate.sql`
-**Purpose:** Checks if the repository exists and is complete. Creates the entire RayMigrator infrastructure on first run.
+**Files:** `DataAccessLayers/{DB}/Repository_CheckCreate.sql`, `Repository_Upgrade_{n}.sql`, `Repository_MigratorMeta_CheckInsert.sql`
+**Purpose:** Brings the repository to the schema version of the engine and registers the engine version (ADR-024). `TemplateExecutor.RepositoryCheckCreate` orchestrates the three templates:
 
-**SQL parameters:**
-- `@RepositoryDatabaseType` - The database type (e.g., `SqlServer`)
-- `@RayMigratorVersion` - The application version (e.g., `3.0.0`)
+1. `Repository_CheckCreate` (no parameters) creates the schema (SQL Server, PostgreSQL) and the `RepositorySchemaVersion` table when they are missing and returns `'schemaVersion,unversionedTables,message'`: the highest applied version (`0` = none) and `1` when the `MigratorMeta` table exists. Version `0` with existing tables marks a repository of a RayMigrator before 0.17.0, which is refused with `RepositorySchemaException`; a version above `RepositorySchema.CurrentVersion` is refused as well. Neither case writes anything.
+2. Every missing `Repository_Upgrade_{n}` from version + 1 to the target version runs in order (parameter `@RayMigratorVersion`, EventId `101`). Each step is idempotent per engine, serialised against a parallel start, returns its own version number and writes its row of `RepositorySchemaVersion`. A fresh repository runs every step from 1. A created or upgraded repository is logged at Information level.
+3. `Repository_MigratorMeta_CheckInsert` (parameters `@RayMigratorVersion`, `@RepositoryDatabaseType`, EventId `102`) registers the engine version in `MigratorMeta` and returns the `MigratorMetaId`, stored in `MigrationContext.MigrationState.MigratorMetaId`.
 
+**What schema step 1 (`Repository_Upgrade_1`) creates:**
 **What is created:**
 
-> **Note**: SQL Server wraps this in a transaction with `BEGIN TRY`/`BEGIN CATCH`. PostgreSQL uses a `DO $$` block. MariaDB and MySQL use `CREATE TABLE IF NOT EXISTS` with inline FK constraints, since DDL causes implicit commits and cannot be wrapped in a transaction; the master data is inserted only when the repository did not exist before the run (`WHERE @v_version_table_exists = 0`). No engine upgrades an existing repository in place.
+> **Note**: SQL Server runs the step in one transaction under `sp_getapplock`, PostgreSQL in one `DO $$` block under `pg_advisory_xact_lock`; both create the tables only when `MigratorMeta` does not exist. MariaDB and MySQL use `CREATE TABLE IF NOT EXISTS` with inline FK constraints and `INSERT IGNORE` for the master data under `GET_LOCK()`, since DDL causes implicit commits and cannot be wrapped in a transaction; SQLite uses `CREATE TABLE IF NOT EXISTS` and `INSERT OR IGNORE`. Every step is idempotent, so a rerun after a failure completes what is missing.
 
 1. **Schema** (e.g., `[ray]`) if it does not exist (SQL Server/PostgreSQL only; MariaDB/MySQL uses the database itself)
 
@@ -171,9 +172,9 @@ This template is **not executed immediately**. It is first used when the Serilog
    | 50 | NotMigrated | Not deployed / rolled back |
    | 100 | Migrated | Successfully deployed |
 
-8. **MigratorMeta entry** with the current `RayMigratorVersion` and `RepositoryDatabaseType` (the first row of the table is the version that created the repository)
+8. **RepositorySchemaVersion row 1** with `AppliedAt` and the `RayMigratorVersion` that applied the step
 
-**Return value:** VersionId (positive integer), stored in `MigrationContext.MigrationState.MigratorMetaId`
+**Return values:** `Repository_CheckCreate` returns `'schemaVersion,unversionedTables,message'`; `Repository_Upgrade_{n}` returns `'n,message'`; `Repository_MigratorMeta_CheckInsert` returns the `MigratorMetaId` (positive integer, `-12` when several `MigratorMeta` rows match), stored in `MigrationContext.MigrationState.MigratorMetaId`
 
 ---
 

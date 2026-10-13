@@ -3,6 +3,7 @@ using Raycoon.RayMigrator.Core.Configuration.Enums;
 using Raycoon.RayMigrator.Core.Configuration.Options;
 using Raycoon.RayMigrator.Core.Configuration.Validation;
 using Raycoon.RayMigrator.Core.Progress;
+using Raycoon.RayMigrator.Core.Templates;
 using Raycoon.RayMigrator.Database.Common;
 using Raycoon.RayMigrator.Shared.Exceptions;
 
@@ -116,6 +117,12 @@ public class MigrationContext
     /// logging only.
     /// </summary>
     public IMigrationProgressObserver ProgressObserver { get; set; } = NullMigrationProgressObserver.Instance;
+
+    /// <summary>
+    /// The repository schema version this run creates or upgrades to: <see cref="RepositorySchema.CurrentVersion"/>,
+    /// unless an engine test pins an older version to exercise the upgrade path of the next one (ADR-024).
+    /// </summary>
+    public int RepositorySchemaTargetVersion { get; internal set; } = RepositorySchema.CurrentVersion;
 
     /// <summary>
     /// Getting a deep copy regarding MigrationState for logging purposes.

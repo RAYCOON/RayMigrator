@@ -101,6 +101,8 @@ BEGIN
         (70, 'ValidateConnectionStrings', ''),
         (80, 'RayMigratorServiceStart', ''),
         (100, 'TemplateExecutionRepositoryCheckCreate', ''),
+        (101, 'TemplateExecutionRepositoryUpgrade', ''),
+        (102, 'TemplateExecutionRepositoryMigratorMetaCheckInsert', ''),
         (110, 'TemplateExecutionRepositoryMigrationRunInsert', ''),
         (111, 'TemplateExecutionRepositoryMigrationRunUpdate', ''),
         (112, 'TemplateExecutionRepositoryMigrationRunSelectOrphaned', ''),

@@ -1,9 +1,11 @@
 -- TODO: Implement for your database engine
--- Purpose: Creates all repository tables (MigrationRun, MigrationRecord, MigrationRecordHistory, lookup tables) if they don't exist
+-- Purpose: Reports the schema version of the repository (ADR-024). Creates the schema (if the engine has schemas) and the
+--          RepositorySchemaVersion table when they do not exist; creates nothing else.
 -- See the corresponding template in Database.SqlServer or Database.PostgreSQL for reference.
--- Returns: 'VersionId,RepositoryWasCreated,message' (RepositoryWasCreated: 1 = created in this run, 0 = existed before).
+-- Returns: 'schemaVersion,unversionedTables,message' (schemaVersion: highest applied version, 0 = none;
+--          unversionedTables: 1 when the MigratorMeta table exists, which with version 0 means a repository of a
+--          RayMigrator before 0.17.0 that the engine refuses).
 --
 -- Parameters used in this template:
 -- {CFG:SchemaName} - The repository schema name
 -- {CFG:TableBaseName} - The table name prefix
--- @ParameterName - SQL parameters (see reference implementations)

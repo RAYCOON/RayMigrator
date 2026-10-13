@@ -17,7 +17,7 @@ followed the same day by the commit tagged `v0.10.3`; a decision already present
 | ADR-004 | Plain SQL migration files with TOML header | Accepted | <= 0.10.3 | [Migration files, releases and metadata](08-Crosscutting-Concepts.md#migration-files-releases-and-metadata) |
 | ADR-005 | SQL template system for the repository schema | Accepted | <= 0.10.3 | [Template-Driven Repository Schema](08-Crosscutting-Concepts.md#template-driven-repository-schema) |
 | ADR-006 | `MigrationContext` pattern with `IMigrationContextAccessor` | Accepted | <= 0.10.3 | [Dependency injection and the context pattern](08-Crosscutting-Concepts.md#dependency-injection-and-the-context-pattern) |
-| ADR-007 | Repository separate from targets, recreated instead of upgraded | Accepted (refined 0.14.0) | <= 0.10.3 | [Migration repository schema](08-Crosscutting-Concepts.md#migration-repository-schema), [Migration history and info](08-Crosscutting-Concepts.md#migration-history-and-info) |
+| ADR-007 | Repository separate from targets, recreated instead of upgraded | Accepted (refined 0.14.0; recreate part superseded by ADR-024) | <= 0.10.3 | [Migration repository schema](08-Crosscutting-Concepts.md#migration-repository-schema), [Migration history and info](08-Crosscutting-Concepts.md#migration-history-and-info) |
 | ADR-008 | Block-level execution with per-block transactions | Accepted (refined 0.13.0) | <= 0.10.3 | [Block-Level Execution and Transactions](08-Crosscutting-Concepts.md#block-level-execution-and-transactions) |
 | ADR-009 | Flat directory layout auto-detection | Accepted | <= 0.10.3 | [Migration files, releases and metadata](08-Crosscutting-Concepts.md#migration-files-releases-and-metadata), [Deterministic File Ordering](08-Crosscutting-Concepts.md#deterministic-file-ordering) |
 | ADR-010 | No parallel database execution | Accepted | <= 0.10.3 | [Execution modes](08-Crosscutting-Concepts.md#execution-modes), [Exclusive Run Lock and Orphaned Run Detection](08-Crosscutting-Concepts.md#exclusive-run-lock-and-orphaned-run-detection) |
@@ -26,7 +26,7 @@ followed the same day by the commit tagged `v0.10.3`; a decision already present
 | ADR-013 | Hash validation scopes | Accepted | <= 0.10.3 | [Hash Validation](08-Crosscutting-Concepts.md#hash-validation) |
 | ADR-014 | Configuration inheritance with rule-based validation | Accepted | <= 0.10.3 | [Configuration Inheritance with Validation](08-Crosscutting-Concepts.md#configuration-inheritance-with-validation) |
 | ADR-015 | Multi-framework targeting | Accepted | <= 0.10.3 | [Architecture Constraints](02-Architecture-Constraints.md#platform-and-toolchain) |
-| ADR-016 | Pre-1.0 compatibility policy: no aliases, no in-place upgrades | Accepted | 0.14.0 | [Error model and exit codes](08-Crosscutting-Concepts.md#error-model-and-exit-codes) |
+| ADR-016 | Pre-1.0 compatibility policy: no aliases, no in-place upgrades | Accepted (repository part superseded by ADR-024) | 0.14.0 | [Error model and exit codes](08-Crosscutting-Concepts.md#error-model-and-exit-codes) |
 | ADR-017 | Business Source License 1.1 with Additional Use Grant | Accepted (supersedes RMLA v1.0) | 0.11.0 | [Architecture Constraints](02-Architecture-Constraints.md#23-conventions) |
 | ADR-018 | Structured logging with a database sink | Accepted (refined 0.12.0, 0.13.0) | <= 0.10.3 | [Structured Logging to Console, File and Database](08-Crosscutting-Concepts.md#structured-logging-to-console-file-and-database) |
 | ADR-019 | Blazor WebAssembly Config Wizard as a separate, database-free tool | Accepted | <= 0.10.3 | [Configuration Inheritance with Validation](08-Crosscutting-Concepts.md#configuration-inheritance-with-validation), [Runtime View 6.9](06-Runtime-View.md#69-config-wizard-session-short) |
@@ -34,6 +34,7 @@ followed the same day by the commit tagged `v0.10.3`; a decision already present
 | ADR-021 | Configuration arrays merge by alias in every application | Accepted (0.15.0, #23) | 2026-09-23 | [Configuration Inheritance with Validation](08-Crosscutting-Concepts.md#configuration-inheritance-with-validation) |
 | ADR-022 | Transient error codes ship as an editable file per DAL folder | Accepted (0.16.0, #24) | 2026-10-10 | [Retry on Transient Errors](08-Crosscutting-Concepts.md#retry-on-transient-errors), [DAL Abstraction and plugin discovery](08-Crosscutting-Concepts.md#dal-abstraction-and-plugin-discovery) |
 | ADR-023 | The context factory is the hosting seam: one prepared, activated context per run, and typed progress events | Accepted (unreleased) | 2026-10-12 | [Dependency injection and the context pattern](08-Crosscutting-Concepts.md#dependency-injection-and-the-context-pattern) |
+| ADR-024 | The repository schema is versioned and upgraded in numbered steps | Accepted (unreleased) | 2026-10-13 | [Migration repository schema](08-Crosscutting-Concepts.md#migration-repository-schema), [Template-Driven Repository Schema](08-Crosscutting-Concepts.md#template-driven-repository-schema) |
 
 ## ADRs
 
@@ -170,6 +171,8 @@ mode, a repository account that needs DDL on first contact, and every pre-1.0 sc
 `MigrationRecordHistory` audit trail unless it is exported first. The repository may share a database with a target (ADR-012).
 
 **Alternatives considered.** Migration state inside each target (rejected: no cross target view, no central lock).
+
+**Superseded in part.** ADR-024 (unreleased) versions the schema and upgrades it in steps; the separate repository and the run lock stay as decided here, the drop-and-recreate rule applies one last time to repositories created before 0.17.0.
 
 **References.** [Repository Separate from Targets](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/01-architecture/design-decisions.md#repository-separate-from-targets), [Repository schema](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/03-database-layer/repository-schema.md), CHANGELOG 0.14.0 (#6, #12, #18 and the `MigratorMeta` follow-up).
 
@@ -326,6 +329,8 @@ every 0.x upgrade may require a recreated repository and updated pipelines in th
 
 **Alternatives considered.** Keeping the aliases (implemented in 0.13.0, reversed one release later).
 
+**Superseded in part.** ADR-024 (unreleased) introduces versioned in-place repository upgrades; the rest of the policy (no aliases, no shims, breaking changes marked in `CHANGELOG.md`) stands.
+
 **References.** CHANGELOG 0.13.0 (#19), 0.14.0 (#6, #9, #12, #18, #19, #21, #22), [Solution Strategy 4.4](04-Solution-Strategy.md#44-organizational-decisions).
 
 ### ADR-017: Business Source License 1.1 with Additional Use Grant
@@ -477,5 +482,16 @@ the file with the built-in list (rejected, because a built-in code could then ne
 **Consequences.** Positive: a host runs the engine with one factory call per run and no options registration; the CLI and a host take the same path, so the engine test host lost its duplicated steps; progress is observable without parsing log text; a run row records the release it started from. Negative: breaking changes to the service constructor, the factory signature, `TemplateCache`, the result DTOs and the `Repository_MigrationRun_Select` template (allowed by ADR-016); `DirectModePipeline` remains CLI-shaped (static `Log.Logger`, console output, exit code) and is not the host path; the observer is called synchronously on the thread of the run, so a slow observer slows the run.
 
 **Alternatives considered.** Keeping `IOptions` and registering one container per configuration in the host (rejected: every run would build a container, and the two option sources could still diverge). Reporting progress through a Serilog sink only (rejected: the per-file message has no event id and changes with the wording). Raising the run-started event before the run row exists (rejected: a host needs the run id to correlate the live run with the repository).
+
+### ADR-024: The repository schema is versioned and upgraded in numbered steps
+
+**Context.** RayMigrator Studio makes the repository the database of truth for runs, logs and its own configuration and keeps it across engine releases, while ADR-007 and ADR-016 answered every schema change with drop and recreate, which discards the audit trail and that configuration with it. `Repository_CheckCreate` created all 11 tables in one script, counted them to detect a corrupt repository (`-10`, `-11`), and no engine knew which schema a repository had beyond the first `MigratorMeta` row.
+
+**Decision.** Since 0.17.0 the repository carries a `RepositorySchemaVersion` table with one row per applied schema version. `RepositorySchema.CurrentVersion` in Core names the newest version; every DAL ships `Repository_Upgrade_{n}` for every version from 1 to `CurrentVersion`, each creating its version on top of the one before, idempotent per engine and serialised against a parallel start (`sp_getapplock`, `pg_advisory_xact_lock`, `GET_LOCK()`, the SQLite busy timeout). `Repository_CheckCreate` creates only the version table and reports the version found; `TemplateExecutor.RepositoryCheckCreate` applies the missing steps in order and then registers the engine version through `Repository_MigratorMeta_CheckInsert`. A fresh repository runs every step from 1, so the steps are the single source of the schema. A repository with tables but no version row was created before 0.17.0 and is refused with `RepositorySchemaException` (recreated once, as ADR-016 allows); a repository newer than the engine is refused as well. ADR-007 keeps the separate repository; its "recreated instead of upgraded" part and the "no in-place repository upgrades" part of ADR-016 are superseded.
+
+**Consequences.** Positive: a schema change is one new step template per engine and a bump of `CurrentVersion`, data survives engine updates, Studio reads the version before it touches a repository, and the table count codes are gone. Negative: the repository account keeps DDL rights for every later upgrade, because the step runs inside the first command of a newer engine; MySQL and MariaDB cannot roll a failed step back, so their steps are idempotent per statement instead of transactional; external DALs must ship the step templates; and repositories of 0.16.0 and earlier are recreated one last time.
+
+**Alternatives considered.** A version column in `MigratorMeta` (rejected: that table records engine versions, not schema versions, and a step history shows partial upgrades). Branching on the version inside `Repository_CheckCreate` in SQL (rejected: SQLite cannot branch, and the template would grow with every version). Dropping and recreating as before (rejected: Studio keeps configuration in the repository).
+
 
 **References.** `Raycoon.RayMigrator.Core/IMigrationContextFactory.cs`, `Raycoon.RayMigrator.Services/MigrationContextFactory.cs`, `Raycoon.RayMigrator.Core/Configuration/Validation/RayMigratorOptionsPreparer.cs`, `Raycoon.RayMigrator.Core/Progress/`, [MigrationContext: Hosting the engine in-process](../02-core-concepts/migration-context.md#hosting-the-engine-in-process), `CHANGELOG.md` (Unreleased).
