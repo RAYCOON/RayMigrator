@@ -131,10 +131,18 @@ public class DalSqlite : DalBase, IDal
         }
         else
         {
-            await using var command = connection.CreateCommand();
-            command.CommandText = sql;
-            command.CommandTimeout = dalSettings.DbCommandTimeoutInSeconds;
-            await ExecuteAllStatementsAsync(command);
+            try
+            {
+                await using var command = connection.CreateCommand();
+                command.CommandText = sql;
+                command.CommandTimeout = dalSettings.DbCommandTimeoutInSeconds;
+                await ExecuteAllStatementsAsync(command);
+            }
+            catch
+            {
+                RollbackOpenTransaction(connection);
+                throw;
+            }
         }
     }
 
@@ -171,10 +179,18 @@ public class DalSqlite : DalBase, IDal
         }
         else
         {
-            using var command = connection.CreateCommand();
-            command.CommandText = sql;
-            command.CommandTimeout = dalSettings.DbCommandTimeoutInSeconds;
-            ExecuteAllStatements(command);
+            try
+            {
+                using var command = connection.CreateCommand();
+                command.CommandText = sql;
+                command.CommandTimeout = dalSettings.DbCommandTimeoutInSeconds;
+                ExecuteAllStatements(command);
+            }
+            catch
+            {
+                RollbackOpenTransaction(connection);
+                throw;
+            }
         }
     }
 
@@ -212,10 +228,40 @@ public class DalSqlite : DalBase, IDal
         }
         else
         {
-            await using var command = connection.CreateCommand();
-            command.CommandText = sql;
-            command.CommandTimeout = dalSettings.DbCommandTimeoutInSeconds;
-            return await ExecuteScalarAllStatementsAsync(command);
+            try
+            {
+                await using var command = connection.CreateCommand();
+                command.CommandText = sql;
+                command.CommandTimeout = dalSettings.DbCommandTimeoutInSeconds;
+                return await ExecuteScalarAllStatementsAsync(command);
+            }
+            catch
+            {
+                RollbackOpenTransaction(connection);
+                throw;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Ends a transaction a template opened itself (<c>BEGIN IMMEDIATE</c> in the repository steps) when the script fails
+    /// before its <c>COMMIT</c>. Microsoft.Data.Sqlite pools connections: a handle returned with an open transaction
+    /// keeps the write lock on the file, and every later writer fails with "database is locked".
+    /// </summary>
+    private static void RollbackOpenTransaction(SqliteConnection connection)
+    {
+        if (connection.State != ConnectionState.Open)
+            return;
+
+        try
+        {
+            using var rollback = connection.CreateCommand();
+            rollback.CommandText = "ROLLBACK;";
+            rollback.ExecuteNonQuery();
+        }
+        catch (SqliteException)
+        {
+            // No transaction is active: the failing statement was outside one, or SQLite rolled it back already.
         }
     }
 

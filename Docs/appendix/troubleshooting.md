@@ -515,7 +515,7 @@ The `Repository_Product_CheckInsert` template rejects a `NULL`/empty `Name` para
 
 **Solutions:**
 
-1. **Verify DatabaseLogging configuration** (inside `RayMigrator` section, activated by presence of the section)
+1. **Verify DatabaseLogging configuration** (inside `RayMigrator` section; on by default into the repository, off with `Enabled: false`)
    ```json
    {
      "RayMigrator": {

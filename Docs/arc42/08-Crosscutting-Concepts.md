@@ -85,8 +85,8 @@ newer than the engine is refused.
 | `MigrationRecordHistory` | Snapshot of a record whenever it reaches `Failed`, `NotMigrated` or `Migrated`; source of the `info` run history |
 | `MigrationRunMode`, `MigrationOperation`, `MigrationRunResult`, `MigrationStatus`, `MigrationRunSource` | Lookup tables mirroring the Core enums of the same names |
 
-The optional logging database holds `MigrationEvent` and `MigrationLog`, created by `DatabaseLogging_CheckCreate` without foreign
-keys to the repository because it may live elsewhere.
+`MigrationEvent` and `MigrationLog`, created by `DatabaseLogging_CheckCreate`, live in the repository by default and carry no foreign
+keys to it, because a `DatabaseLogging` section may move them to another database.
 Authoritative pages: [Repository schema](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/03-database-layer/repository-schema.md), [Logging schema](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/03-database-layer/logging-schema.md).
 
 ## 8.2 Configuration
@@ -298,8 +298,9 @@ Authoritative page: [Execution modes](https://github.com/RAYCOON/RayMigrator/blo
 
 One Serilog pipeline serves all sinks. `SerilogFactory.Create` reads the `RayMigrator.Serilog` node with
 `Serilog.Settings.Configuration` (console, file and `Raycoon.Serilog.Sinks.SQLite` sinks are referenced), adds
-`Enrich.FromLogContext()` and `MigrationContextEnricher`, and, when a `DatabaseLogging` node exists, `RayMigratorDatabaseSink`
-with `DatabaseLogging.MinimumLevel` (default `Information`). The enricher reads the static `MigrationLoggingContext.Current` (an
+`Enrich.FromLogContext()` and `MigrationContextEnricher`, and, unless the `DatabaseLogging` node says `Enabled: false`,
+`RayMigratorDatabaseSink` with `DatabaseLogging.MinimumLevel` (default `Information`); without a node the log goes into the
+repository (`DatabaseLoggingDefaults` fills the section from `Repository`). The enricher reads the static `MigrationLoggingContext.Current` (an
 `AsyncLocal`) and adds run, target group, target, file and block properties for the text sinks plus `RunModeId`, `DbLogEnabled`,
 `ProductId`, `EnvironmentId`, `MigrationRecordId` and `ReleaseVersion` for the database sink. `DbLogEnabled` carries
 `CommandProfile.WritesDatabaseLog`, so `info`, `validate-hash` and simulated runs produce no rows.

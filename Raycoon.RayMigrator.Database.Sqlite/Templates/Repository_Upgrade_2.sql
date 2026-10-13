@@ -37,7 +37,7 @@ Success_2  = "2,RayMigrator repository schema version [2] applied: MigrationRun 
 Note1 = "SELECT result format: 'code,message' - DO NOT change this format; the code must equal the step number"
 Note2 = "No commas allowed in messages"
 Note3 = "New MigrationRun columns are nullable: rows of schema version 1 keep NULL"
-Note4 = "ALTER TABLE ADD COLUMN has no IF NOT EXISTS in SQLite; the transaction makes the step all-or-nothing instead"
+Note4 = "ALTER TABLE ADD COLUMN has no IF NOT EXISTS in SQLite; the transaction makes the step all-or-nothing instead, and a parallel start that lost the race fails on the first ALTER TABLE: TemplateExecutor re-reads the version and accepts the step as applied"
 Note5 = "A later schema version is a new Repository_Upgrade_{n} template; this file never changes again"
 Note6 = "The last statement must be the SELECT: the DAL returns the first column of the last result set"
 ================================================================================

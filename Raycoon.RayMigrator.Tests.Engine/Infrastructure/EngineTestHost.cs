@@ -88,8 +88,9 @@ public sealed class EngineTestHost : IDisposable
             .Enrich.With(new MigrationContextEnricher());
 
         RayMigratorDatabaseSink? databaseSink = null;
+        // Database logging is on unless the section says Enabled: false; without a section it goes into the repository.
         var dbLoggingSection = rayMigratorSection.GetSection("DatabaseLogging");
-        if (dbLoggingSection.Exists())
+        if (!dbLoggingSection.Exists() || !(bool.TryParse(dbLoggingSection["Enabled"], out var dbLoggingEnabled) && !dbLoggingEnabled))
         {
             LogEventLevel dbSinkMinimumLevel = LogEventLevel.Information;
             var minLevelStr = dbLoggingSection["MinimumLevel"];
@@ -128,7 +129,7 @@ public sealed class EngineTestHost : IDisposable
                     rayMigratorOptions = serviceProvider.GetRequiredService<IOptions<RayMigratorOptions>>().Value;
                     _rayMigratorOptions = rayMigratorOptions;
 
-                    if (rayMigratorOptions.DatabaseLogging != null)
+                    if (rayMigratorOptions.IsDatabaseLoggingEnabled())
                     {
                         if (DalFactory.TryGetDal(
                                 rayMigratorOptions.DatabaseLogging!.DatabaseType!,
@@ -179,8 +180,8 @@ public sealed class EngineTestHost : IDisposable
         // (BeginScope + RegisterSensitiveData), not here, to ensure AsyncLocal scope
         // is in the same async context as the service call.
 
-        // Initialize DatabaseLogWriter
-        if (rayMigratorOptions.DatabaseLogging != null)
+        // Initialize DatabaseLogWriter (on by default, into the repository; off with Enabled: false)
+        if (rayMigratorOptions.IsDatabaseLoggingEnabled())
         {
             string loggingDatabaseType = rayMigratorOptions.DatabaseLogging!.DatabaseType!;
             var templateCache = _host.Services.GetRequiredService<TemplateCache>();

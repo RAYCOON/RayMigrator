@@ -152,7 +152,22 @@ public class TemplateExecutor
         dalParameterList.AddParameter(new DalParameter("RayMigratorVersion", _ctxAccessor.Current.RayMigratorVersion, typeof(string)));
 
         var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
-        var templateResponse = ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId);
+        TemplateResponse templateResponse;
+        try
+        {
+            templateResponse = ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId);
+        }
+        catch (TemplateExecutionException)
+        {
+            // Two processes that start on the same repository both read the version before either applies the step. The
+            // step is serialised and idempotent where the engine allows it; SQLite cannot make ALTER TABLE ADD COLUMN
+            // idempotent, so the second process fails on a column the first one added. The version row decides.
+            if (!StepAppliedMeanwhile(step))
+                throw;
+
+            _logger.LogDebug(eventId, "Repository schema version [{SchemaVersion}] was applied by a parallel start meanwhile; the step is skipped.{MigrationContext}", step, _ctxAccessor.Current.Clone);
+            return;
+        }
 
         if (templateResponse.ResultCode != step)
         {
@@ -162,6 +177,25 @@ public class TemplateExecutor
         }
     }
 
+
+    /// <summary>
+    /// Whether the repository already has schema version <paramref name="step"/>, read through <c>Repository_CheckCreate</c>
+    /// after a failed step. A read that fails itself counts as "not applied", so the step's own exception surfaces.
+    /// </summary>
+    private bool StepAppliedMeanwhile(int step)
+    {
+        try
+        {
+            var checkTemplate = _templateCache.GetRepositoryTemplate(TemplateType.Repository_CheckCreate, _repository);
+            var check = ExecuteScalarWithNegativeResultCodeException(checkTemplate, _repositoryDal, _repository.GetDalSettings(), null, _logger, MigrationEvent.TemplateExecutionRepositoryCheckCreate);
+            return check.ResultCode >= step;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(MigrationEvent.TemplateExecutionRepositoryCheckCreate, "Could not re-read the repository schema version after a failed step: {Error}{MigrationContext}", ex.Message, _ctxAccessor.Current.Clone);
+            return false;
+        }
+    }
     /// <summary>
     /// Registers the engine version in <c>MigratorMeta</c> if it is not registered yet and returns the id of its row,
     /// which every run of this engine version references as <c>MigratorMetaId</c>.

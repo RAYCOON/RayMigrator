@@ -34,6 +34,55 @@ public class TemplateExecutorRepositoryCreatedLoggingTests
 
     private static string[] Results(string first, params string[] rest) => [first, .. rest];
 
+    /// <summary>A result that makes the mocked DAL throw instead of answering, as a failed step does.</summary>
+    private const string Throw = "<throw>";
+
+    [Fact]
+    public void RepositoryCheckCreate_StepFailsButAParallelStartAppliedIt_SkipsTheStepAndContinues()
+    {
+        // Arrange: step 1 fails, the re-read shows the repository at the current version (the other process won the race)
+        var (executor, logger, context, calls) = CreateExecutor(Results(NoRepository, [Throw, CurrentRepository, .. StepsFrom(2), MetaRegistered]));
+
+        // Act
+        executor.RepositoryCheckCreate();
+
+        // Assert
+        calls.Count.Should().Be(1 + 1 + 1 + (RepositorySchema.CurrentVersion - 1) + 1,
+            because: "the check, the failed step, the re-read, the remaining steps and the MigratorMeta registration each execute one template");
+        logger.Entries.Should().ContainSingle(e => e.LogLevel == LogLevel.Debug && e.Message.Contains("applied by a parallel start"))
+            .Which.Message.Should().Contain("schema version [1]");
+        context.MigrationState.MigratorMetaId.Should().Be(7);
+    }
+
+    [Fact]
+    public void RepositoryCheckCreate_StepFailsAndTheVersionIsUnchanged_ThrowsTheStepError()
+    {
+        // Arrange: step 1 fails and the re-read still reports version 0
+        var (executor, _, _, calls) = CreateExecutor(NoRepository, Throw, NoRepository);
+
+        // Act
+        var act = () => executor.RepositoryCheckCreate();
+
+        // Assert
+        act.Should().Throw<TemplateExecutionException>().Which.Message.Should().Contain("Repository_Upgrade_1");
+        calls.Count.Should().Be(3, because: "nothing runs after the failed step");
+    }
+
+    [Fact]
+    public void RepositoryCheckCreate_StepFailsAndTheReReadFails_ThrowsTheStepError()
+    {
+        // Arrange: step 1 fails and so does the re-read of the version
+        var (executor, logger, _, _) = CreateExecutor(NoRepository, Throw, Throw);
+
+        // Act
+        var act = () => executor.RepositoryCheckCreate();
+
+        // Assert
+        act.Should().Throw<TemplateExecutionException>().Which.Message.Should().Contain("Repository_Upgrade_1",
+            because: "the step's own error surfaces, not the failed re-read");
+        logger.Entries.Should().Contain(e => e.LogLevel == LogLevel.Debug && e.Message.Contains("Could not re-read"));
+    }
+
     [Fact]
     public void RepositoryCheckCreate_FreshRepository_AppliesEveryStepAndLogsCreated()
     {
@@ -200,7 +249,10 @@ public class TemplateExecutorRepositoryCreatedLoggingTests
            .Returns(callInfo =>
            {
                calls.Add(callInfo.ArgAt<DalParameterList?>(2));
-               return Task.FromResult<object?>(results.Dequeue());
+               string result = results.Dequeue();
+               if (result == Throw)
+                   throw new InvalidOperationException("SQLite Error 1: 'duplicate column name: MigrationOperationId'.");
+               return Task.FromResult<object?>(result);
            });
 
         var context = BuildContext();

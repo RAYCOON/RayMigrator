@@ -28,6 +28,16 @@ public class RayConnectionStringAttribute : ValidationAttribute
         var consoleOptions = validationContext.GetService<RayMigratorConsoleOptions>();
         bool revealSensitiveData = consoleOptions?.RevealSensitiveData ?? false;
 
+        // Null means "not written": fine for an optional connection string, missing for a required one.
+        if (value is null)
+        {
+            if (!_isRequired)
+                return ValidationResult.Success!;
+
+            return new ValidationResult($"Missing property [{validationContext.MemberName}].",
+                validationContext.MemberName != null ? new[] { validationContext.MemberName } : null);
+        }
+
         if (value is string connectionString)
         {
             string[]? memberNames;

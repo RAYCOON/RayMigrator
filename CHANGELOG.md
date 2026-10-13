@@ -51,6 +51,9 @@ RayMigrator follows Semantic Versioning where applicable.
   `InitiatedBy` and `Host`. A run that still writes heartbeats is alive and
   blocks a parallel start however long it runs; `fix` refuses to close it
   (`-31`).
+- `DatabaseLogWriter.FlushAsync(timeout)` waits until every queued log
+  entry is written and leaves the queue open, for a host that runs several
+  migrations in one process; `Flush()` stays the CLI's shutdown call.
 - Typed progress events for hosts. `MigrationContext.ProgressObserver` takes an
   `IMigrationProgressObserver` (namespace `Raycoon.RayMigrator.Core.Progress`)
   that receives `RunStartedEvent` (after the run row exists, with its id),
@@ -82,6 +85,15 @@ RayMigrator follows Semantic Versioning where applicable.
   templates per engine (`Repository_Upgrade_2.sql` and
   `Repository_MigrationRun_Heartbeat.sql` included). ADR-007 and ADR-016 are
   superseded in their repository part.
+- **Breaking:** database logging is on by default and goes into the
+  repository. Without a `DatabaseLogging` section, or with one that leaves
+  values out, the database type, connection string, schema and table prefix
+  come from `Repository` and `MinimumLevel` is `Information`
+  (`DatabaseLoggingDefaults`, applied before validation); `MigrationLog` and
+  `MigrationEvent` are created in the repository schema on the first run.
+  `"DatabaseLogging": { "Enabled": false }` switches it off, a section with
+  another `DatabaseType` describes a separate log database. A section
+  without `MinimumLevel` no longer ends the start with an exception.
 - **Breaking:** orphaned runs are detected by heartbeat age, not by run age.
   The auto-fix threshold of 10 minutes after the start
   (`AutoFixOrphanedRunsThresholdMinutes`) is gone; `fix --older-than` and
@@ -145,6 +157,16 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ### Fixed
 
+- A SQLite script that opens its own transaction (`BEGIN IMMEDIATE`, as
+  the repository schema steps do) and fails before `COMMIT` is rolled back
+  by the DAL. Microsoft.Data.Sqlite pools the connection, and a handle
+  returned with an open transaction kept the file's write lock, so every
+  later writer failed with "database is locked" until the process ended.
+  Two processes that start on an empty SQLite repository at the same time
+  no longer fail: both read the schema version before either applies a
+  step, and the second one failed on a column the first had added (SQLite
+  has no `ADD COLUMN IF NOT EXISTS`); a step that fails is now accepted
+  when a re-read of the version shows it applied.
 - The PostgreSQL, MySQL, MariaDB and SQLite DALs substitute template
   parameters into the SQL text, because their providers cannot bind
   parameters in the scripts the templates use. The substitution now scans

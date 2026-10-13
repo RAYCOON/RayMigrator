@@ -184,12 +184,20 @@ public class RepositoryOptions
 
 
 /// <summary>
-/// 
+/// Where the structured migration log goes. Without this section, or with values left out, the log goes into the
+/// repository (<see cref="Validation.DatabaseLoggingDefaults"/> fills the section from <see cref="RepositoryOptions"/>
+/// with <c>MinimumLevel</c> Information); <c>Enabled: false</c> switches database logging off.
 /// </summary>
 public class DatabaseLoggingOptions
 {
+    /// <summary>
+    /// False switches database logging off. Null or true keeps it on; the missing values then come from the repository.
+    /// </summary>
+    public bool? Enabled { get; set; }
+
     public string? DatabaseType { get; set; }
     
+    /// <summary>The lowest <see cref="LogLevel"/> written to the log database; Information when left out.</summary>
     [RayEnum(typeof(LogLevel), false, false)]
     public string? MinimumLevel { get; set; }
     

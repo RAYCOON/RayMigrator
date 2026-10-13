@@ -27,7 +27,7 @@ This document describes the exact order in which SQL templates are executed when
 **Call site:** `DirectModePipeline.cs` (in Pipeline project) -> `DatabaseLogWriter.InitDatabaseLogger()`
 **Target database:** Logging database (from `DatabaseLogging` configuration section)
 
-This phase executes whenever the `DatabaseLogging` section is present in the configuration, regardless of run mode. If the section is omitted, the phase is skipped entirely.
+This phase executes unless the `DatabaseLogging` section says `Enabled: false`, regardless of run mode; without a section the log database is the repository (the defaults fill the section from `Repository`).
 
 ### Template 1: `DatabaseLogging_CheckCreate`
 

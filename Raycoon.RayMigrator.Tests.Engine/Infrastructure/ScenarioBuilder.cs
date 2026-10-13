@@ -24,6 +24,8 @@ public class ScenarioBuilder
         TargetMigrationOrder? order, HashValidationScope? hashScope)> _additionalTargetGroups = new();
     private bool _databaseLogging;
     private string _databaseLoggingMinLevel = "Debug";
+    private bool _databaseLoggingDisabled;
+    private string? _databaseLoggingLevelOnly;
     private string? _mainTargetConnectionString;
     private string _serilogMinimumLevel = "Warning";
     private readonly List<Dictionary<string, object>> _cliTools = new();
@@ -50,6 +52,26 @@ public class ScenarioBuilder
     public ScenarioBuilder WithRunInitiator(MigrationRunSource? source, string? initiatedBy = null, string? initiatedBySubject = null, string? host = null)
     {
         _initiator = new RunInitiatorValues(source, initiatedBy, initiatedBySubject, host);
+        return this;
+    }
+
+    /// <summary>
+    /// Writes <c>"DatabaseLogging": { "Enabled": false }</c>: database logging off. Without any DatabaseLogging call
+    /// the scenario has no section, so the log goes into the repository with level Information (the engine default).
+    /// </summary>
+    public ScenarioBuilder WithDatabaseLoggingDisabled()
+    {
+        _databaseLoggingDisabled = true;
+        return this;
+    }
+
+    /// <summary>
+    /// Writes a DatabaseLogging section that names only <paramref name="minimumLevel"/>: the log still goes into
+    /// the repository, the defaults fill everything else.
+    /// </summary>
+    public ScenarioBuilder WithDatabaseLoggingMinimumLevelOnly(string minimumLevel)
+    {
+        _databaseLoggingLevelOnly = minimumLevel;
         return this;
     }
 
@@ -690,7 +712,15 @@ public class ScenarioBuilder
             rayMigratorConfig["CliTools"] = _cliTools;
 
         // Add DatabaseLogging section if enabled
-        if (_databaseLogging)
+        if (_databaseLoggingDisabled)
+        {
+            rayMigratorConfig["DatabaseLogging"] = new Dictionary<string, object> { ["Enabled"] = false };
+        }
+        else if (_databaseLoggingLevelOnly != null)
+        {
+            rayMigratorConfig["DatabaseLogging"] = new Dictionary<string, object> { ["MinimumLevel"] = _databaseLoggingLevelOnly };
+        }
+        else if (_databaseLogging)
         {
             rayMigratorConfig["DatabaseLogging"] = new Dictionary<string, object>
             {

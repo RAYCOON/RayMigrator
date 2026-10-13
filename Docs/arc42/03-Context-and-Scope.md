@@ -63,7 +63,7 @@ its own or inside one of the target databases: `Repository.DatabaseType` and
 `MigrationService.CanUseSharedConnection` even switches to a single atomic
 transaction when repository and target share engine and connection string
 (see [Atomic Shared Connection](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/01-architecture/design-decisions.md#atomic-shared-connection)).
-The same applies to the optional `DatabaseLogging` tables, which may share the
+The same applies to the `DatabaseLogging` tables, which live in the repository by default and may share the
 repository connection or use a separate one.
 
 | Communication partner | Inputs to RayMigrator | Outputs from RayMigrator | Notes |
@@ -74,7 +74,7 @@ repository connection or use a separate one.
 | Environment variables | `DOTNET_ENVIRONMENT`, cross checked by `EnvironmentResolver` against the mandatory `--environment` value; any variable referenced by `{ENV:NAME}` in configuration values, SQL templates and migration file content | None | Unresolved placeholders in configuration or templates terminate the run; in migration files they become an empty string with a warning. Resolved values are masked in logs. See [Environment variables](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/06-configuration-reference/environment-variables.md). |
 | Target databases | Query results and errors per SQL block | Migration SQL blocks, rollback SQL, transactions where `UseTransaction` is set | One target group per engine, one target per connection. All five engines are supported through the built in DAL plugins. |
 | Migration repository database | Existing `MigrationRun`, `MigrationRecord` and `MigrationRecordHistory` rows, hashes, interrupted or orphaned runs | Schema creation on first use and upgrade after an engine update (`Repository_CheckCreate`, `Repository_Upgrade_{n}`), one run row per invocation, one record per file and target, hash updates, fix operations | Hosted on any of the five engines. A second run for the same product and environment is rejected here. See [Repository schema](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/03-database-layer/repository-schema.md). |
-| Database logging tables | None | `MigrationLog` rows with event id, run, target and file context; `MigrationEvent` catalog seeded at creation | Optional; active only when the `DatabaseLogging` node exists and only for state changing commands. See [Logging schema](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/03-database-layer/logging-schema.md). |
+| Database logging tables | None | `MigrationLog` rows with event id, run, target and file context; `MigrationEvent` catalog seeded at creation | In the repository by default (`DatabaseLogging.Enabled: false` switches it off, a section may name another database); rows only for state changing commands. See [Logging schema](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/03-database-layer/logging-schema.md). |
 | External CLI tools | Exit code, standard output and standard error | Process start with `ExecutablePath` and rendered `ArgumentTemplate`; file path (`InputMode` `File`) or file content on stdin (`InputMode` `Stdin`) | `sqlcmd`, `psql`, `mysql`, `mariadb`, `sqlite3`, or `docker exec` wrappers; selected per product, target group, target, directory or file by `UseCliToolAlias`. Only the exit code is evaluated against `SuccessExitCodes`. See [CLI tools options](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/06-configuration-reference/cli-tools-options.md). |
 | Log sinks | Serilog configuration under `RayMigrator.Serilog` | Structured log events to console, rolling log files and optionally a local SQLite log file | Enriched with `MigrationRunId`, `TargetGroupAlias`, `TargetAlias`, `MigrationFilename` and block ids. See [Logging options](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/06-configuration-reference/logging-options.md). |
 | Config Wizard | Existing `appsettings*.json` uploaded in the browser (optional) | ZIP with the generated `appsettings*.json` hierarchy, `example.env` and a `TERMS-ACCEPTANCE.txt` record | Browser only application at `config.raymigrator.com`; shares validation rules with the engine through `Raycoon.RayMigrator.Validation`. |
@@ -218,7 +218,7 @@ places and match the table in
 A `migrate-up` that fails and is then rolled back by the configured
 `MigrationErrorAction` still returns `1`; the repository records the run with
 `MigrationRunResult` `Recovered` so that the outcome is distinguishable
-afterwards. Optional `DatabaseLogging` and the `MigrationRun` table are the
+afterwards. `DatabaseLogging` (in the repository by default) and the `MigrationRun` table are the
 channels for central monitoring across many pipeline runs.
 
 ## Related documentation

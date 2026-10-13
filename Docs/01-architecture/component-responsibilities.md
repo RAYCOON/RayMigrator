@@ -83,7 +83,7 @@ private Task<int> ExecuteFixIssuesAsync()
 ### `SerilogFactory`
 **Location**: `Raycoon.RayMigrator.Pipeline/SerilogFactory.cs`
 
-**Purpose**: Creates and configures the Serilog logger from the RayMigrator configuration section. Handles the database sink creation when DatabaseLogging is configured. Also maps `Microsoft.Extensions.Logging.LogLevel` to `Serilog.Events.LogEventLevel`.
+**Purpose**: Creates and configures the Serilog logger from the RayMigrator configuration section. Creates the database sink unless `DatabaseLogging` is disabled (`Enabled: false`). Also maps `Microsoft.Extensions.Logging.LogLevel` to `Serilog.Events.LogEventLevel`.
 
 ## Service Layer Components
 

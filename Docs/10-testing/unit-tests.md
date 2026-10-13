@@ -174,9 +174,11 @@ Raycoon.RayMigrator.Tests.Unit/
 ├── P1_DalIsTransientTests.cs
 ├── P1_DalParameterEscapingTests.cs
 ├── P1_DalParameterSubstitutionTests.cs
+├── P1_DatabaseLoggingDefaultsTests.cs
 ├── P1_DalShippedTransientErrorCodesTests.cs
 ├── P1_DalSqlServerKilledSessionTests.cs
 ├── P1_DalSqliteForeignKeysTests.cs
+├── P1_DalSqliteOpenTransactionTests.cs
 ├── P1_DalSqliteParameterTests.cs
 ├── P1_DalSqlServerOverrideTests.cs
 ├── P1_DalTransientErrorCodesTests.cs
@@ -285,9 +287,11 @@ Raycoon.RayMigrator.Tests.Unit/
 | `P1_DalFactoryTests` | `DalFactoryTests` | `DalFactory` discovery, caching by connection string, error handling for unknown types, and `RegisteredDalTypes`/`ScanAssemblyForDals` |
 | `P1_DalIsTransientTests` | `DalIsTransientTests` | `DalBase.IsTransient` base implementation: `TimeoutException`, non-transient exceptions (including `OperationCanceledException`), and recursive inner-exception traversal |
 | `P1_DalParameterEscapingTests` | `DalParameterEscapingTests` | `FormatParameterValue` of the PostgreSQL, MariaDB and MySQL DALs (quotes doubled; backslash kept on PostgreSQL, doubled on MariaDB/MySQL; booleans) and their `SubstituteParameters`, including the per-call `$rm…$` tag the PostgreSQL DAL gives every `DO $$` block |
+| `P1_DatabaseLoggingDefaultsTests` | `DatabaseLoggingDefaultsTests` | Database logging into the repository by default: `DatabaseLoggingDefaults.Apply` (missing or partial section, `Enabled: false`, other database type), `IsDatabaseLoggingEnabled`, PostConfigure, `SerilogFactory` sink by the `Enabled` rule, `DatabaseLogWriter` without `MinimumLevel`, `DatabaseLoggerQueue.WaitForEmptyAsync` |
 | `P1_DalParameterSubstitutionTests` | `DalParameterSubstitutionTests` | `DalParameterSubstitution.Substitute`, the single-pass substitution the four textual DALs share: a value containing another placeholder is not substituted again, whole-identifier matching (`@Product` vs `@ProductId`, `@@var`, `user@host`), case-sensitive names, session variables untouched |
 | `P1_DalShippedTransientErrorCodesTests` | `DalShippedTransientErrorCodesTests` | Drift guard: the `TransientErrorCodes.txt` each DAL ships in `DataAccessLayers/{Type}/` equals the built-in list of its `DalBase` subclass (ADR-022) |
 | `P1_DalSqlServerKilledSessionTests` | `DalSqlServerKilledSessionTests` | SQL Server classification of a killed pooled session: 4021 and 596 are transient and clear the connection pool (`RequiresPoolClear`), permanent login errors are not |
+| `P1_DalSqliteOpenTransactionTests` | `DalSqliteOpenTransactionTests` | A script with its own `BEGIN IMMEDIATE` that fails before `COMMIT` is rolled back by the DAL, so the pooled connection releases the file's write lock and the next writer succeeds (scalar async and non-query sync) |
 | `P1_DalSqliteForeignKeysTests` | `DalSqliteForeignKeysTests` | `DalSqlite.EnsureForeignKeysEnabled` connection-string transformation (DAL-001): appends `Foreign Keys=True` when missing, preserves explicit values |
 | `P1_DalSqliteParameterTests` | `DalSqliteParameterTests` | SQLite-specific `FormatParameterValue` and `SubstituteParameters` (null/bool/string escaping) |
 | `P1_DalSqlServerOverrideTests` | `DalSqlServerOverrideTests` | SQL Server `ConvertToDbValue` DateTime clamping (pre-1753 dates) and `CreateParameter` string size logic |
@@ -338,7 +342,7 @@ Raycoon.RayMigrator.Tests.Unit/
 | `P1_TargetMigrationOrderExecutionTests` | `TargetMigrationOrderExecutionTests` | `TargetMigrationOrder` (FileByFile vs TargetByTarget) execution order |
 | `P1_TemplateCacheCfgValidationTests` | `TemplateCacheCfgValidationTests` | `TemplateCache` configuration validation against available templates |
 | `P1_TemplateExecutorEnvironmentIdTests` | `TemplateExecutorEnvironmentIdTests` | `TemplateExecutor` parameter binding for the EnvironmentId FK feature: verifies the five flipped methods bind `@EnvironmentId` (int) and not a text `@Environment` parameter to `IDal` |
-| `P1_TemplateExecutorRepositoryCreatedLoggingTests` | `TemplateExecutorRepositoryCreatedLoggingTests` | `TemplateExecutor.RepositoryCheckCreate` logs "Repository created" at Information level only when the template's second result code is 1; schema name masked unless `--reveal-sensitive-data` (#27) |
+| `P1_TemplateExecutorRepositoryCreatedLoggingTests` | `TemplateExecutorRepositoryCreatedLoggingTests` | `TemplateExecutor.RepositoryCheckCreate` logs "Repository created" at Information level only when the template's second result code is 1; schema name masked unless `--reveal-sensitive-data` (#27); a step that fails after a parallel start applied it is accepted on re-read of the version, otherwise the step's own error surfaces |
 | `P1_TransientErrorCodesFileTests` | `TransientErrorCodesFileTests` | `TransientErrorCodesFile` parser and loader for `TransientErrorCodes.txt`: comments, blank lines, trimming, whitespace inside a code throws with the line number, missing file falls back (ADR-022) |
 | `P1_TryFinalizeCompletedMigrationTests` | `TryFinalizeCompletedMigrationTests` | Migration finalization (status updates after execution) |
 | `P1_UseCliToolAliasInheritanceTests` | `UseCliToolAliasInheritanceTests` | `UseCliToolAlias` inheritance cascade via `ProductDefaultsPostConfigureOptions.MergeDefaults` (ProductDefaults -> Product -> TargetGroup -> Target, explicit values not overridden) |
