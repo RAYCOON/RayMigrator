@@ -67,22 +67,26 @@ Authoritative pages: [File naming](https://github.com/RAYCOON/RayMigrator/blob/m
 
 ### Migration repository schema
 
-`Repository_CheckCreate` creates 11 tables (canonical names below; PostgreSQL, MariaDB and MySQL use unquoted `snake_case`, SQL
-Server and SQLite PascalCase), prefixed by `TableBaseName` and placed in `SchemaName` where the engine supports schemas. Lookup
-tables are seeded once at creation; an existing repository is never upgraded in place.
+The repository has 13 tables (canonical names below; PostgreSQL, MariaDB and MySQL use unquoted `snake_case`, SQL Server and
+SQLite PascalCase), prefixed by `TableBaseName` and placed in `SchemaName` where the engine supports schemas. The schema is
+versioned (ADR-024): `Repository_CheckCreate` creates only `RepositorySchemaVersion` and reports the version found, the numbered
+steps `Repository_Upgrade_{n}` create the other 12 tables with their lookup seeds (step 1 the first 11, step 2 `MigrationRunSource` and the
+run details of `MigrationRun`) and every later change, and the first command of a newer engine applies the missing steps. A repository without a version row (created before 0.17.0) or with a version
+newer than the engine is refused.
 
 | Table | Purpose |
 |-------|---------|
-| `MigratorMeta` | One row per RayMigrator version that used the repository (`RayMigratorVersion`, `RepositoryDatabaseType`); the first row is the version that created the schema |
+| `RepositorySchemaVersion` | One row per applied schema version (`Version`, `AppliedAt`, `RayMigratorVersion`) |
+| `MigratorMeta` | One row per RayMigrator version that used the repository (`RayMigratorVersion`, `RepositoryDatabaseType`), registered by `Repository_MigratorMeta_CheckInsert`; the first row is the version that created the repository |
 | `Product`, `Environment` | Registered names with a `NameLower` unique index; their ids are referenced by every run and record |
-| `MigrationRun` | One row per run: mode, result, `FromReleaseVersion`, `ToReleaseVersion`, `StartedAt`, `FinishedAt`, `DurationInMs`; the open row is the run lock |
+| `MigrationRun` | One row per run: mode, result, `FromReleaseVersion`, `ToReleaseVersion`, `StartedAt`, `FinishedAt`, `DurationInMs`; since schema version 2 also the operation, the source (`MigrationRunSource`), `InitiatedBy`, `InitiatedBySubject`, `Host`, `ErrorCode`, `ErrorMessage` and `LastHeartbeatAt`; the open row is the run lock |
 | `MigrationRunMeta` | `MigrationRunSettingsJson`, the masked snapshot of the effective settings of a run |
 | `MigrationRecord` | One row per file and target: status, `FileOrderId`, three up hashes, three down hashes, block counters, config JSON, timestamps |
 | `MigrationRecordHistory` | Snapshot of a record whenever it reaches `Failed`, `NotMigrated` or `Migrated`; source of the `info` run history |
-| `MigrationRunMode`, `MigrationOperation`, `MigrationRunResult`, `MigrationStatus` | Lookup tables mirroring the Core enums of the same names |
+| `MigrationRunMode`, `MigrationOperation`, `MigrationRunResult`, `MigrationStatus`, `MigrationRunSource` | Lookup tables mirroring the Core enums of the same names |
 
-The optional logging database holds `MigrationEvent` and `MigrationLog`, created by `DatabaseLogging_CheckCreate` without foreign
-keys to the repository because it may live elsewhere.
+`MigrationEvent` and `MigrationLog`, created by `DatabaseLogging_CheckCreate`, live in the repository by default and carry no foreign
+keys to it, because a `DatabaseLogging` section may move them to another database.
 Authoritative pages: [Repository schema](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/03-database-layer/repository-schema.md), [Logging schema](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/03-database-layer/logging-schema.md).
 
 ## 8.2 Configuration
@@ -175,15 +179,16 @@ Authoritative page: [Execution modes](https://github.com/RAYCOON/RayMigrator/blo
 
 ### Template-Driven Repository Schema
 
-All repository and log access goes through SQL templates. `TemplateType` has 21 members besides `Undefined`: 19 `Repository_*`
-(among them `Repository_MigrationRecordHistory_Select`) plus `DatabaseLogging_CheckCreate` and `DatabaseLogging_Insert`.
+All repository and log access goes through SQL templates. `TemplateType` has 25 members besides `Undefined`: 23 `Repository_*`
+(among them the schema steps `Repository_Upgrade_1` and `Repository_Upgrade_2` and `Repository_MigratorMeta_CheckInsert` of ADR-024) plus
+`DatabaseLogging_CheckCreate` and `DatabaseLogging_Insert`.
 `TemplateCache` loads `DataAccessLayers/{Type}/*.sql` below the application base directory at construction, maps file names to
 `TemplateType`, replaces `{ENV:*}` once and throws `ConfigurationValidationException` when a type misses a template, a template is
 empty or a configured `DatabaseType` has no folder. `{CFG:*}` is replaced per call and limited to `SchemaName` and
 `TableBaseName`; values are bound as `@Parameter` through `DalParameterList`. Every template returns one scalar
 `ResultCode,ResultMessage`, parsed by `TemplateExecutor` into `TemplateResponse`; a negative code raises `TemplateResultException`
-for codes of the `TemplateResultCode` catalog (`-2` `MigrationAlreadyRunning`, `-10` `RepositoryIncomplete`, `-12`
-`RepositoryMultipleVersionEntries`, ...) and `UndefinedTemplateResultException` for unknown ones.
+for codes of the `TemplateResultCode` catalog (`-2` `MigrationAlreadyRunning`, `-12` `RepositoryMultipleVersionEntries`, `-20`
+`ProductNameEmpty`, ...) and `UndefinedTemplateResultException` for unknown ones.
 Authoritative pages: [Template system](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/03-database-layer/template-system.md), [Template customization](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/09-extending/template-customization.md).
 
 ### DAL Abstraction and plugin discovery
@@ -271,9 +276,11 @@ The lock is the open `MigrationRun` row. `Repository_MigrationRun_Insert` refuse
 `Simulate` runs never insert a row. The check is serialized inside the engine: `UPDLOCK, HOLDLOCK` on SQL Server,
 `pg_advisory_xact_lock` keyed by product on PostgreSQL, `GET_LOCK` named by product and environment on MariaDB and MySQL, a write
 transaction on SQLite. `TemplateExecutor.RepositoryMigrationRunInsert` converts the code into `MigrationAlreadyRunningException`;
-`RepositoryMigrationRunInsertWithAutoFix` closes runs older than `AutoFixOrphanedRunsThresholdMinutes` (10) as `Error` and retries
-once. `RepositoryMigrationRunUpdate` releases the lock by setting `FinishedAt`. The `fix` command (`FixScope` `All` 1 or
-`OrphanedRuns` 2, `--older-than` default 60, `--last-migration-status`) lists or repairs younger orphans with the
+a running migrate-up, migrate-down or baseline refreshes `MigrationRun.LastHeartbeatAt` every
+`Repository.HeartbeatIntervalInSeconds` (30), and `RepositoryMigrationRunInsertWithAutoFix` closes runs whose last heartbeat (or
+start, without one) is older than `Repository.OrphanedRunThresholdInMinutes` (2) as `Error` and retries once; `fix` refuses to
+close a run whose heartbeat is younger (`-31`). `RepositoryMigrationRunUpdate` releases the lock by setting `FinishedAt`. The
+`fix` command (`FixScope` `All` 1 or `OrphanedRuns` 2, `--older-than` default 2, `--last-migration-status`) lists or repairs orphans by heartbeat age with the
 `Repository_MigrationRun_SelectOrphaned` and `*_FixOrphaned` templates.
 Scenario: [Runtime View 6.7](06-Runtime-View.md#67-concurrency-exclusive-run-lock-and-orphaned-run-recovery-fix). Authoritative page: [Concurrency control](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/02-core-concepts/concurrency-control.md).
 
@@ -291,8 +298,9 @@ Authoritative page: [Execution modes](https://github.com/RAYCOON/RayMigrator/blo
 
 One Serilog pipeline serves all sinks. `SerilogFactory.Create` reads the `RayMigrator.Serilog` node with
 `Serilog.Settings.Configuration` (console, file and `Raycoon.Serilog.Sinks.SQLite` sinks are referenced), adds
-`Enrich.FromLogContext()` and `MigrationContextEnricher`, and, when a `DatabaseLogging` node exists, `RayMigratorDatabaseSink`
-with `DatabaseLogging.MinimumLevel` (default `Information`). The enricher reads the static `MigrationLoggingContext.Current` (an
+`Enrich.FromLogContext()` and `MigrationContextEnricher`, and, unless the `DatabaseLogging` node says `Enabled: false`,
+`RayMigratorDatabaseSink` with `DatabaseLogging.MinimumLevel` (default `Information`); without a node the log goes into the
+repository (`DatabaseLoggingDefaults` fills the section from `Repository`). The enricher reads the static `MigrationLoggingContext.Current` (an
 `AsyncLocal`) and adds run, target group, target, file and block properties for the text sinks plus `RunModeId`, `DbLogEnabled`,
 `ProductId`, `EnvironmentId`, `MigrationRecordId` and `ReleaseVersion` for the database sink. `DbLogEnabled` carries
 `CommandProfile.WritesDatabaseLog`, so `info`, `validate-hash` and simulated runs produce no rows.

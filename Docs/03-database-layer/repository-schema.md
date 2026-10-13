@@ -1,6 +1,10 @@
 # Repository Schema
 
-The repository database stores migration tracking data. This schema is created automatically by RayMigrator.
+The repository database stores migration tracking data. This schema is created automatically by RayMigrator and, since the schema is versioned, upgraded automatically by the first command of a newer RayMigrator (ADR-024, see [Schema versioning](#schema-versioning)).
+
+> **Breaking change (2026-10-13, unreleased):** The repository schema is versioned. `Repository_CheckCreate` creates only the new `RepositorySchemaVersion` table and reports the version found; the numbered steps `Repository_Upgrade_{n}` create the schema (step 1 = the 11 tables below with their master data) and the engine applies every missing step on the next command. `Repository_MigratorMeta_CheckInsert` registers the engine version. Repositories created by 0.16.0 or earlier have no schema version and are refused with `RepositorySchemaException`: drop their tables once and let this version create them again. The table count checks and their codes `-10` and `-11` are gone. From this version on a schema change keeps the data.
+>
+> **Schema version 2 (2026-10-13, unreleased):** `MigrationRun` records what a run does and who started it where: `MigrationOperationId`, `MigrationRunSourceId` (new lookup table `MigrationRunSource`: Cli = 10, Ci = 20, Studio = 30), `InitiatedBy`, `InitiatedBySubject`, `Host`, `ErrorCode`, `ErrorMessage` and `LastHeartbeatAt`. All eight columns are nullable; `Repository_Upgrade_2` adds them to a repository of version 1 and keeps its rows.
 
 > **Breaking change (2026-04-16):** A new `Environment` repository table was added (table count: 10 → 11). Existing repositories must be dropped and recreated.
 >
@@ -38,7 +42,15 @@ erDiagram
     MigrationRunMode ||--o{ MigrationRecord : "mode"
     MigrationOperation ||--o{ MigrationRecord : "operation"
     MigrationRunResult ||--o{ MigrationRun : "result"
+    MigrationOperation ||--o{ MigrationRun : "operation"
+    MigrationRunSource ||--o{ MigrationRun : "source"
     MigrationStatus ||--o{ MigrationRecord : "status"
+
+    RepositorySchemaVersion {
+        int Version PK
+        datetime2 AppliedAt
+        nvarchar RayMigratorVersion
+    }
 
     MigratorMeta {
         int Id PK
@@ -172,11 +184,12 @@ erDiagram
 
 ## Tables Overview
 
-The `Repository_CheckCreate` template creates **11 tables** (4 lookup + 7 data).
+`Repository_CheckCreate` creates the `RepositorySchemaVersion` table; the schema steps `Repository_Upgrade_{n}` create the **12 repository tables** (5 lookup + 7 data): step 1 the 11 tables of the first schema, step 2 the `MigrationRunSource` lookup and the run detail columns of `MigrationRun` (ADR-024).
 
 | Table | Purpose | Status |
 |-------|---------|--------|
-| `MigratorMeta` | Repository version tracking | Created |
+| `RepositorySchemaVersion` | One row per applied schema version (ADR-024) | Created by `Repository_CheckCreate` |
+| `MigratorMeta` | RayMigrator versions that used the repository | Created |
 | `Product` | Registered products | Created |
 | `Environment` | Registered environments | Created |
 | `MigrationRun` | Migration run sessions | Created |
@@ -186,13 +199,25 @@ The `Repository_CheckCreate` template creates **11 tables** (4 lookup + 7 data).
 | `MigrationRunMode` | Lookup: Validate/Simulate/Migrate | Created |
 | `MigrationOperation` | Lookup: Rollback/MigrateDown/MigrateUp | Created |
 | `MigrationRunResult` | Lookup: Running/PartialSuccess/Recovered/Error/Ok (used by MigrationRun) | Created |
+| `MigrationRunSource` | Lookup: Cli/Ci/Studio (where a run was started; schema version 2) | Created by `Repository_Upgrade_2` |
+| `MigrationEvent`, `MigrationLog` | The structured run log; in the repository by default (see [Logging schema](logging-schema.md)) | Created by `DatabaseLogging_CheckCreate` |
 | `MigrationStatus` | Lookup: Pending/Executing/Failed/NotMigrated/Migrated | Created |
 
 ## Core Tables
 
+### RepositorySchemaVersion
+
+One row per applied schema version (ADR-024). `Repository_CheckCreate` creates the table when it is missing and reports `MAX(Version)`; each step `Repository_Upgrade_{n}` writes its row after its DDL. The highest `Version` is the schema the repository has; `RepositorySchema.CurrentVersion` in `Raycoon.RayMigrator.Core` is the schema the engine expects. The table has no foreign keys.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `Version` | INT | Primary key: the schema version the step created |
+| `AppliedAt` | DATETIME2(3) | When the step ran (UTC) |
+| `RayMigratorVersion` | NVARCHAR(100) | RayMigrator version that applied the step |
+
 ### MigratorMeta
 
-Lists the RayMigrator versions that have used the repository. `Repository_CheckCreate` inserts a row on the first run of each RayMigrator version (per `RepositoryDatabaseType`), and every `MigrationRun` references the row of the version that executed it. The first row (lowest `Id`) is the version that created the repository and therefore identifies its schema: RayMigrator never upgrades a repository in place, so a schema or master-data change in a newer version means drop and recreate. There is no separate schema version constant. Release builds write the bare version (`0.14.0`); builds outside the release workflows write the pre-release form with the commit hash (`0.14.0-dev+39b6fa3`), so a repository created from `develop` names the exact commit whose templates created it.
+Lists the RayMigrator versions that have used the repository. `Repository_MigratorMeta_CheckInsert` inserts a row on the first run of each RayMigrator version (per `RepositoryDatabaseType`) after the schema steps ran, and every `MigrationRun` references the row of the version that executed it. The first row (lowest `Id`) is the version that created the repository; the schema is identified by `RepositorySchemaVersion`, not by this table. Release builds write the bare version (`0.14.0`); builds outside the release workflows write the pre-release form with the commit hash (`0.14.0-dev+39b6fa3`), so a repository created from `develop` names the exact commit whose templates created it.
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -244,6 +269,16 @@ Migration execution sessions.
 | `StartedAt` | DATETIME2(3) | Run start timestamp |
 | `FinishedAt` | DATETIME2(3) | Run completion timestamp |
 | `DurationInMs` | BIGINT | Total duration in milliseconds |
+| `MigrationOperationId` | TINYINT NULL | FK to MigrationOperation: what the run does (MigrateUp, MigrateDown, Baseline); schema version 2 |
+| `MigrationRunSourceId` | TINYINT NULL | FK to MigrationRunSource: where the run was started (Cli, Ci, Studio); NULL when the host did not say |
+| `InitiatedBy` | NVARCHAR(200) NULL | Display name of the person or service account that started the run (the OS user for the CLI) |
+| `InitiatedBySubject` | NVARCHAR(200) NULL | Stable identifier of the initiator, for example the subject claim of an identity provider (Studio) |
+| `Host` | NVARCHAR(200) NULL | The machine the run executed on (the machine name unless the host names another) |
+| `ErrorCode` | NVARCHAR(100) NULL | Engine error code of the failure that decided a result other than Ok |
+| `ErrorMessage` | NVARCHAR(MAX) NULL | Message of that failure, cut to 4000 characters |
+| `LastHeartbeatAt` | DATETIME2(3) NULL | When the run last reported that it was alive: the start at insert, refreshed by `Repository_MigrationRun_Heartbeat` every `Repository.HeartbeatIntervalInSeconds`; an open run whose heartbeat is older than `Repository.OrphanedRunThresholdInMinutes` is orphaned |
+
+The run row is the only place these details live: the records of a run say nothing about who started it, and the `info` run history reads the operation from the row instead of deriving it from the records.
 
 ### MigrationRunMeta
 
@@ -302,7 +337,7 @@ Same columns as `MigrationRecord`, plus:
 
 ## Lookup Tables
 
-All four lookup tables (`MigrationOperation`, `MigrationRunResult`, `MigrationRunMode`, `MigrationStatus`) share the same column structure:
+All five lookup tables (`MigrationOperation`, `MigrationRunResult`, `MigrationRunMode`, `MigrationStatus`, `MigrationRunSource`) share the same column structure:
 
 | Column | Type | Nullable | Description |
 |--------|------|----------|-------------|
@@ -352,6 +387,16 @@ All four lookup tables (`MigrationOperation`, `MigrationRunResult`, `MigrationRu
 | 30 | Failed | Execution failed, DB state unclear |
 | 50 | NotMigrated | Not deployed / rolled back |
 | 100 | Migrated | Successfully deployed |
+
+### MigrationRunSource
+
+Where a run was started from (`MigrationRun.MigrationRunSourceId`, schema version 2). The CLI reports `Cli`, or `Ci` when one of the pipeline variables `CI`, `GITHUB_ACTIONS`, `GITLAB_CI`, `TF_BUILD`, `JENKINS_URL` or `TEAMCITY_VERSION` is set to a value other than `false` or `0`; RayMigrator Studio reports `Studio`.
+
+| Id | Name | Description |
+|----|------|-------------|
+| 10 | Cli | Started by the RayMigrator command line on a workstation or server |
+| 20 | Ci | Started by the RayMigrator command line in a CI/CD pipeline |
+| 30 | Studio | Started by RayMigrator Studio |
 
 ## Cross-Engine Type Mapping
 
@@ -486,6 +531,35 @@ The two logging tables follow the same convention: `MigrationEvent` → `migrati
 **Product-name exception:** The brand token `RayMigrator` is treated as a single token rather than two words. `RayMigratorVersion` → `raymigrator_version` (not `ray_migrator_version`), and the token stays merged in the middle of an identifier as well. This exception applies equally to PostgreSQL, MariaDB, and MySQL. See [Naming Conventions per Engine](sql-dialects.md#naming-conventions-per-engine) in `sql-dialects.md` for the full rule.
 
 **`TableBaseName` constraint:** For PostgreSQL, MariaDB, and MySQL, the `Repository.TableBaseName` and `DatabaseLogging.TableBaseName` configuration values must be all-lowercase. The `RayMigratorOptionsValidator` rejects any uppercase character with a descriptive error. Rationale: PostgreSQL folds unquoted identifiers to lowercase; the MariaDB and MySQL snake_case repository schema is stored as lowercase; any uppercase prefix character would break the `information_schema.tables` existence checks in `Repository_CheckCreate` and `DatabaseLogging_CheckCreate`.
+
+## Read model package
+
+`Raycoon.RayMigrator.Repository.ReadModel` (ADR-025) is the contract for everything that reads the repository without the engine's templates: RayMigrator Studio, reports, scripts. It depends on `Raycoon.RayMigrator.Core` for the enums and the schema version and on nothing else; it contains no EF Core and no database driver.
+
+| Member | Purpose |
+|--------|---------|
+| `RepositoryTable` | The 15 tables of this page, the two log tables included (database logging goes into the repository by default). |
+| `RepositoryNaming(databaseType, schemaName, tableBaseName)` | `TableName`, `ColumnName`, `QualifiedTableName`, `QualifiedColumnName`, `Quote` and `SelectStatement` as the engine templates write them: PascalCase on SQL Server and SQLite, snake_case on PostgreSQL, MySQL and MariaDB; schema only on SQL Server and PostgreSQL; brackets, backticks, double quotes, or nothing on PostgreSQL. `ToSnakeCase` is the rule of this page, product-name exception included. |
+| `*Row` records | One positional record per table (`MigrationRunRow`, `MigrationRecordRow`, `LookupRow` for the five lookups, `MigrationLogRow`, ...). The constructor parameters are the columns in PascalCase in table order, the parameter types the .NET types: lookup ids as their enums, timestamps as UTC `DateTime`. |
+| `RepositoryRows.ColumnsOf(table)` | The column list derived from the record, so statements and records cannot drift. |
+| `RepositoryRowMapper.Map` | Builds a record from an ADO.NET row (column values by name): integer widths, `tinyint`/`sbyte` lookup ids, `bit`/`0`/`1` booleans, SQLite text timestamps and timestamps without a kind (all UTC), `DBNull`. |
+| `RepositoryReadModel.SchemaVersion` | `RepositorySchema.CurrentVersion` of the engine release the package ships with; a reader compares it with `MAX(Version)` of `RepositorySchemaVersion` before trusting the names. |
+
+`ReadModelContractTests` on all five engines read every table after a real migrate-up with the package's statements through the engine DAL and map every row; `RepositoryQueryHelper` of the Testing package takes its snake_case rule from the package.
+
+> **MySQL and MariaDB session time zone:** the timestamp columns are `TIMESTAMP`, which the server converts to the session time zone on read. The engine DAL runs every session in UTC (`SET time_zone = '+00:00'` after each open); a reader with its own connection (RayMigrator Studio, a script) must do the same, or `RepositoryRowMapper` labels local wall time as UTC and every heartbeat age is off by the server's offset.
+
+## Schema versioning
+
+Since 0.17.0 the schema is versioned and upgraded in numbered steps (ADR-024):
+
+1. `Repository_CheckCreate` creates the schema (SQL Server, PostgreSQL) and the `RepositorySchemaVersion` table if they are missing and returns `'schemaVersion,unversionedTables,message'`: the highest applied version (`0` when none) and `1` when the `MigratorMeta` table exists.
+2. `TemplateExecutor.RepositoryCheckCreate` compares the version with the target of the run (`RepositorySchema.CurrentVersion`, unless an engine test pins an older version through `MigrationContext.RepositorySchemaTargetVersion`) and executes every missing `Repository_Upgrade_{n}` in order. Each step creates its version on top of the one before, returns its own number and writes its row of `RepositorySchemaVersion`. Step 1 creates the 11 tables of this page with their master data, so a fresh repository runs every step from 1 and the steps are the single source of the schema.
+3. `Repository_MigratorMeta_CheckInsert` registers the engine version in `MigratorMeta` and returns the `MigratorMetaId` every run row references.
+
+Every step is idempotent per engine: SQL Server runs it in one transaction with `sp_getapplock`, PostgreSQL in one `DO` block with `pg_advisory_xact_lock`, SQLite in one `BEGIN IMMEDIATE` transaction (`CREATE TABLE IF NOT EXISTS`, `INSERT OR IGNORE`), MySQL and MariaDB statement by statement (`CREATE TABLE IF NOT EXISTS`, `INSERT IGNORE`) under `GET_LOCK()`, because their DDL commits implicitly. `Repository_CheckCreate` takes the same lock (or waits in the SQLite busy timeout), so a check that runs while another process applies a step never sees the tables without their version row. A parallel start on an empty repository therefore creates it once. Both processes may still read version 0 before either applies a step; a step that fails on what the other process already did (SQLite has no `ADD COLUMN IF NOT EXISTS`) is accepted when a re-read of the version shows it applied, and the DAL rolls back the failed script's own `BEGIN IMMEDIATE` so that a pooled connection does not keep the write lock.
+
+Two cases are refused with `RepositorySchemaException` before anything is written: a repository with `MigratorMeta` but no schema version was created by a RayMigrator before 0.17.0 and must be recreated once; a repository whose version is higher than the engine supports needs a newer RayMigrator. A later schema version ships as a new `Repository_Upgrade_{n}` template in every DAL plus a bump of `RepositorySchema.CurrentVersion`; existing step templates never change again.
 
 ## Schema Configuration
 

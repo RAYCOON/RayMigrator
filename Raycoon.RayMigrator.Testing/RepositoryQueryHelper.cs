@@ -1,3 +1,4 @@
+using Raycoon.RayMigrator.Repository.ReadModel;
 using Raycoon.RayMigrator.Database;
 using Raycoon.RayMigrator.Database.Common;
 
@@ -505,42 +506,114 @@ public class RepositoryQueryHelper
     /// Inserts a fake MigrationRun record with MigrationRunResultId=10 (Running) and a StartedAt
     /// timestamp in the past, simulating an orphaned migration run that crashed without completing.
     /// </summary>
-    public void InsertOrphanedMigrationRun(int productId, int minutesOld, string environment = "Docker")
+    public void InsertOrphanedMigrationRun(int productId, int minutesOld, string environment = "Docker", int? heartbeatMinutesOld = null)
+    {
+        // A run of an engine before the heartbeat never wrote LastHeartbeatAt (NULL); a run with a heartbeat carries its age.
+        string heartbeatSql = heartbeatMinutesOld.HasValue ? MinutesAgoSql(heartbeatMinutesOld.Value) : "NULL";
+        InsertRunningMigrationRun(productId, environment, MinutesAgoSql(minutesOld), heartbeatSql);
+    }
+
+    /// <summary>
+    /// Inserts an open MigrationRun (Running) with exact UTC timestamps, for tests that probe the heartbeat age
+    /// arithmetic of an engine at a minute boundary. Second precision: SQLite stores <c>YYYY-MM-DD HH:MM:SS</c>.
+    /// </summary>
+    public void InsertOpenMigrationRun(int productId, DateTime startedAtUtc, DateTime? lastHeartbeatAtUtc, string environment = "Docker")
+    {
+        string heartbeatSql = lastHeartbeatAtUtc.HasValue ? TimestampSql(lastHeartbeatAtUtc.Value) : "NULL";
+        InsertRunningMigrationRun(productId, environment, TimestampSql(startedAtUtc), heartbeatSql);
+    }
+
+    private void InsertRunningMigrationRun(int productId, string environment, string startedAtSql, string heartbeatSql)
     {
         int environmentId = EnsureEnvironmentExists(environment);
         if (!DalFactory.TryGetDal(_databaseType, _repositoryConnectionString, out IDal? dal))
             throw new InvalidOperationException($"Could not create DAL for {_databaseType}");
 
         string qualifiedTable = GetQualifiedTableName("MigrationRun");
-        string timestampSql = _databaseType switch
-        {
-            "SqlServer" => $"DATEADD(MINUTE, -{minutesOld}, SYSUTCDATETIME())",
-            "PostgreSQL" => $"(NOW() AT TIME ZONE 'UTC') - INTERVAL '{minutesOld} minutes'",
-            "MariaDb" or "MySql" => $"UTC_TIMESTAMP() - INTERVAL {minutesOld} MINUTE",
-            "Sqlite" => $"datetime('now', '-{minutesOld} minutes')",
-            _ => throw new NotSupportedException($"Unsupported database type: {_databaseType}")
-        };
-
         string sql = _databaseType switch
         {
             "SqlServer" =>
-                $"INSERT INTO {qualifiedTable} ([MigratorMetaId], [ProductId], [EnvironmentId], [MigrationRunModeId], [MigrationRunResultId], [StartedAt]) " +
-                $"VALUES (1, {productId}, {environmentId}, 100, 10, {timestampSql})",
+                $"INSERT INTO {qualifiedTable} ([MigratorMetaId], [ProductId], [EnvironmentId], [MigrationRunModeId], [MigrationRunResultId], [StartedAt], [LastHeartbeatAt]) " +
+                $"VALUES (1, {productId}, {environmentId}, 100, 10, {startedAtSql}, {heartbeatSql})",
             // DAL-017: PostgreSQL columns are unquoted snake_case.
             "PostgreSQL" =>
-                $"INSERT INTO {qualifiedTable} (migrator_meta_id, product_id, environment_id, migration_run_mode_id, migration_run_result_id, started_at) " +
-                $"VALUES (1, {productId}, {environmentId}, 100, 10, {timestampSql})",
+                $"INSERT INTO {qualifiedTable} (migrator_meta_id, product_id, environment_id, migration_run_mode_id, migration_run_result_id, started_at, last_heartbeat_at) " +
+                $"VALUES (1, {productId}, {environmentId}, 100, 10, {startedAtSql}, {heartbeatSql})",
             // DAL-018: MariaDB/MySQL columns are snake_case.
             "MariaDb" or "MySql" =>
-                $"INSERT INTO {qualifiedTable} (migrator_meta_id, product_id, environment_id, migration_run_mode_id, migration_run_result_id, started_at) " +
-                $"VALUES (1, {productId}, {environmentId}, 100, 10, {timestampSql})",
+                $"INSERT INTO {qualifiedTable} (migrator_meta_id, product_id, environment_id, migration_run_mode_id, migration_run_result_id, started_at, last_heartbeat_at) " +
+                $"VALUES (1, {productId}, {environmentId}, 100, 10, {startedAtSql}, {heartbeatSql})",
             "Sqlite" =>
-                $"INSERT INTO {qualifiedTable} (MigratorMetaId, ProductId, EnvironmentId, MigrationRunModeId, MigrationRunResultId, StartedAt) " +
-                $"VALUES (1, {productId}, {environmentId}, 100, 10, {timestampSql})",
+                $"INSERT INTO {qualifiedTable} (MigratorMetaId, ProductId, EnvironmentId, MigrationRunModeId, MigrationRunResultId, StartedAt, LastHeartbeatAt) " +
+                $"VALUES (1, {productId}, {environmentId}, 100, 10, {startedAtSql}, {heartbeatSql})",
             _ => throw new NotSupportedException($"Unsupported database type: {_databaseType}")
         };
 
         dal!.ExecuteScalarAsync(sql, QuerySettings, null).GetAwaiter().GetResult();
+    }
+
+    /// <summary>A UTC timestamp literal with second precision, in the dialect of the engine (the MySQL session runs in UTC).</summary>
+    private string TimestampSql(DateTime utc)
+    {
+        string text = utc.ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture);
+        return _databaseType switch
+        {
+            "SqlServer" => $"CONVERT(datetime2(3), '{text.Replace(' ', 'T')}', 126)",
+            "PostgreSQL" => $"TIMESTAMPTZ '{text}+00'",
+            "MariaDb" or "MySql" => $"TIMESTAMP '{text}'",
+            "Sqlite" => $"'{text}'",
+            _ => throw new NotSupportedException($"Unsupported database type: {_databaseType}")
+        };
+    }
+
+    /// <summary>A UTC timestamp <paramref name="minutesAgo"/> minutes in the past, in the dialect of the engine.</summary>
+    private string MinutesAgoSql(int minutesAgo) => _databaseType switch
+    {
+        "SqlServer" => $"DATEADD(MINUTE, -{minutesAgo}, SYSUTCDATETIME())",
+        "PostgreSQL" => $"(NOW() AT TIME ZONE 'UTC') - INTERVAL '{minutesAgo} minutes'",
+        "MariaDb" or "MySql" => $"UTC_TIMESTAMP() - INTERVAL {minutesAgo} MINUTE",
+        "Sqlite" => $"datetime('now', '-{minutesAgo} minutes')",
+        _ => throw new NotSupportedException($"Unsupported database type: {_databaseType}")
+    };
+
+    /// <summary>
+    /// The timestamps of the run at the 1-based index (oldest first) as the engine stores them, pipe-delimited:
+    /// <c>StartedAt|LastHeartbeatAt|FinishedAt</c>; null when no row exists. For assertion messages.
+    /// </summary>
+    public string? GetMigrationRunTimestamps(int runIndex)
+    {
+        string table = GetQualifiedTableName("MigrationRun");
+        string cols = BuildConcatExpression(["StartedAt", "LastHeartbeatAt", "FinishedAt"]);
+        string id = QuoteColumn("Id");
+
+        string sql = _databaseType switch
+        {
+            "SqlServer" => $"SELECT {cols} FROM {table} ORDER BY {id} ASC OFFSET {runIndex - 1} ROWS FETCH NEXT 1 ROWS ONLY",
+            _ => $"SELECT {cols} FROM {table} ORDER BY {id} ASC LIMIT 1 OFFSET {runIndex - 1}"
+        };
+
+        return QueryScalarString(sql);
+    }
+
+    /// <summary>
+    /// Whether the run at the 1-based index (oldest first) wrote a heartbeat after its start, i.e.
+    /// <c>LastHeartbeatAt &gt; StartedAt</c>. False when no row exists or the heartbeat still equals the start.
+    /// </summary>
+    public bool HeartbeatAdvanced(int runIndex)
+    {
+        string table = GetQualifiedTableName("MigrationRun");
+        string id = QuoteColumn("Id");
+        string heartbeat = QuoteColumn("LastHeartbeatAt");
+        string started = QuoteColumn("StartedAt");
+
+        string sql = _databaseType switch
+        {
+            "SqlServer" => $"SELECT TOP 1 CASE WHEN {heartbeat} > {started} THEN 1 ELSE 0 END FROM (SELECT {heartbeat}, {started} FROM {table} ORDER BY {id} ASC OFFSET {runIndex - 1} ROWS FETCH NEXT 1 ROWS ONLY) r",
+            _ => $"SELECT CASE WHEN {heartbeat} > {started} THEN 1 ELSE 0 END FROM {table} ORDER BY {id} ASC LIMIT 1 OFFSET {runIndex - 1}"
+        };
+
+        string? result = QueryScalarString(sql);
+        return result == "1";
     }
 
     /// <summary>
@@ -819,29 +892,8 @@ public class RepositoryQueryHelper
     /// </example>
     // Exposed as internal so the PG + MariaDB/MySQL identifier-casing unit tests can exercise the
     // RayMigrator-exception conversion rule directly without reaching the full DAL stack.
-    internal static string ToSnakeCase(string pascalCase)
-    {
-        if (string.IsNullOrEmpty(pascalCase))
-            return pascalCase;
-
-        // Apply the RayMigrator product-name exception by collapsing the PascalCase token
-        // "RayMigrator" to a sentinel "Raymigrator" (only first letter uppercase) before the
-        // mechanical lower-to-upper split runs. The mechanical rule will then treat the whole
-        // token as a single word and produce "raymigrator".
-        string normalized = pascalCase.Replace("RayMigrator", "Raymigrator", StringComparison.Ordinal);
-
-        var sb = new System.Text.StringBuilder(normalized.Length + 8);
-        for (int i = 0; i < normalized.Length; i++)
-        {
-            char c = normalized[i];
-            if (i > 0 && char.IsUpper(c) && char.IsLower(normalized[i - 1]))
-            {
-                sb.Append('_');
-            }
-            sb.Append(char.ToLowerInvariant(c));
-        }
-        return sb.ToString();
-    }
+    /// <summary>The snake_case rule of the PostgreSQL, MySQL and MariaDB templates; the read model package owns it.</summary>
+    internal static string ToSnakeCase(string pascalCase) => RepositoryNaming.ToSnakeCase(pascalCase);
 
     /// <summary>
     /// Gets a full MigrationRecord entry by filename.
@@ -947,10 +999,13 @@ public class RepositoryQueryHelper
     /// </summary>
     private string BuildMigrationRunRecordConcat()
     {
+        // ErrorMessage comes last: it is the only value that may contain the '|' delimiter, so the parser joins the rest.
         string[] columns =
         [
             "Id", "ProductId", "MigrationRunModeId", "MigrationRunResultId",
-            "EnvironmentId", "FromReleaseVersion", "ToReleaseVersion"
+            "EnvironmentId", "FromReleaseVersion", "ToReleaseVersion",
+            "MigrationOperationId", "MigrationRunSourceId", "InitiatedBy", "InitiatedBySubject", "Host", "ErrorCode",
+            "ErrorMessage"
         ];
 
         return BuildConcatExpression(columns);
@@ -1048,9 +1103,9 @@ public class RepositoryQueryHelper
 
     private static MigrationRunRecordDto ParseMigrationRunRecord(string delimited)
     {
-        string[] parts = delimited.Split('|');
-        if (parts.Length != 7)
-            throw new FormatException($"Expected 7 pipe-delimited values for MigrationRunRecordDto but got {parts.Length}: '{delimited}'");
+        string[] parts = delimited.Split('|', 14);
+        if (parts.Length != 14)
+            throw new FormatException($"Expected 14 pipe-delimited values for MigrationRunRecordDto but got {parts.Length}: '{delimited}'");
 
         return new MigrationRunRecordDto(
             Id: int.Parse(parts[0]),
@@ -1059,7 +1114,14 @@ public class RepositoryQueryHelper
             MigrationRunResultId: int.Parse(parts[3]),
             EnvironmentId: int.Parse(parts[4]),
             FromReleaseVersion: string.IsNullOrEmpty(parts[5]) ? null : parts[5],
-            ToReleaseVersion: string.IsNullOrEmpty(parts[6]) ? null : parts[6]
+            ToReleaseVersion: string.IsNullOrEmpty(parts[6]) ? null : parts[6],
+            MigrationOperationId: ParseNullableInt(parts[7]),
+            MigrationRunSourceId: ParseNullableInt(parts[8]),
+            InitiatedBy: string.IsNullOrEmpty(parts[9]) ? null : parts[9],
+            InitiatedBySubject: string.IsNullOrEmpty(parts[10]) ? null : parts[10],
+            Host: string.IsNullOrEmpty(parts[11]) ? null : parts[11],
+            ErrorCode: string.IsNullOrEmpty(parts[12]) ? null : parts[12],
+            ErrorMessage: string.IsNullOrEmpty(parts[13]) ? null : parts[13]
         );
     }
 
@@ -1105,4 +1167,6 @@ public record MigrationRecordDto(
 /// </summary>
 public record MigrationRunRecordDto(
     int Id, int ProductId, int MigrationRunModeId, int MigrationRunResultId,
-    int EnvironmentId, string? FromReleaseVersion, string? ToReleaseVersion);
+    int EnvironmentId, string? FromReleaseVersion, string? ToReleaseVersion,
+    int? MigrationOperationId, int? MigrationRunSourceId, string? InitiatedBy, string? InitiatedBySubject, string? Host,
+    string? ErrorCode, string? ErrorMessage);

@@ -6,7 +6,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_MigrationRun_SelectOrphaned"
 DatabaseType   = "Sqlite"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-04-18.1"
+Version        = "2026-10-13.1"
 
 [Description]
 Function = """
@@ -39,7 +39,11 @@ SELECT
     "EnvironmentId",
     "StartedAt",
     "MigrationRunModeId",
-    CAST((julianday('now') - julianday("StartedAt")) * 1440 AS INTEGER) AS MinutesRunning
+    CAST((julianday('now') - julianday("StartedAt")) * 1440 AS INTEGER) AS MinutesRunning,
+    "LastHeartbeatAt",
+    CAST((julianday('now') - julianday(COALESCE("LastHeartbeatAt", "StartedAt"))) * 1440 AS INTEGER) AS MinutesSinceHeartbeat,
+    "InitiatedBy",
+    "Host"
 FROM "{CFG:TableBaseName}MigrationRun"
 WHERE "ProductId" = @ProductId
     AND "EnvironmentId" = @EnvironmentId

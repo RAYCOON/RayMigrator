@@ -629,7 +629,7 @@ For full details, see [migsettings Files](../07-migration-files/migsettings-file
 
 ## Database Logging
 
-RayMigrator can optionally log migration events to a database table for centralized log storage and monitoring. Database logging is **in addition to** console and file logging (Serilog). It is activated by the presence of the `DatabaseLogging` section in configuration.
+RayMigrator logs migration events to a database table for centralized log storage and monitoring, **in addition to** console and file logging (Serilog). It is on by default and goes into the repository; a `DatabaseLogging` section changes the level, points the log at another database, or switches it off with `"Enabled": false`.
 
 ### Configuration
 

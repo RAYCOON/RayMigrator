@@ -69,6 +69,9 @@ Raycoon.RayMigrator.Database.Oracle/
 │   ├── DatabaseLogging_CheckCreate.sql
 │   ├── DatabaseLogging_Insert.sql
 │   ├── Repository_CheckCreate.sql
+│   ├── Repository_Upgrade_1.sql
+│   ├── Repository_Upgrade_2.sql
+│   ├── Repository_MigratorMeta_CheckInsert.sql
 │   ├── Repository_Drop.sql
 │   ├── Repository_Environment_CheckInsert.sql
 │   ├── Repository_Environment_Select.sql
@@ -81,6 +84,7 @@ Raycoon.RayMigrator.Database.Oracle/
 │   ├── Repository_MigrationRecord_UpdateHash.sql
 │   ├── Repository_MigrationRecord_UpdateRollback.sql
 │   ├── Repository_MigrationRun_FixOrphaned.sql
+│   ├── Repository_MigrationRun_Heartbeat.sql
 │   ├── Repository_MigrationRun_Insert.sql
 │   ├── Repository_MigrationRun_Select.sql
 │   ├── Repository_MigrationRun_SelectOrphaned.sql

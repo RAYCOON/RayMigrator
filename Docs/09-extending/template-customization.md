@@ -150,7 +150,7 @@ All templates that use `ExecuteScalar` must return a result string in the format
 
 - **ResultCode >= 0**: Success (e.g., the new record ID)
 - **ResultCode < 0**: Error (migration aborted, see `TemplateResultCode.cs` for the catalog of known codes)
-- **Further codes**: template-specific information; `Repository_CheckCreate` returns `RepositoryWasCreated` (`1`/`0`) as its second code so that the engine can log the creation at Information level
+- **Further codes**: template-specific information; `Repository_CheckCreate` returns the schema version as its first code and `unversionedTables` (`1`/`0`) as its second, from which the engine decides which `Repository_Upgrade_{n}` steps to run (ADR-024)
 - **ResultMessage**: A human-readable description after the last code; it must not start with an integer followed by a comma
 
 The result is parsed by `TemplateExecutor.ExecuteScalarWithNegativeResultCodeException()` into a `TemplateResponse` object with `ResultCode` (int), `ResultCodes` (int[]) and `ResultMessage` (string?).
@@ -163,12 +163,11 @@ Known result codes (from `TemplateResultCode` in `Shared/Constants/`):
 |------|----------|---------|
 | `-1` | `GeneralError` | General/unclassified template error |
 | `-2` | `MigrationAlreadyRunning` | Parallel run prevention |
-| `-10` | `RepositoryIncomplete` | Wrong table count (MigratorMeta exists) |
-| `-11` | `RepositoryPartialWithoutVersionTable` | Partial tables, no MigratorMeta |
-| `-12` | `RepositoryMultipleVersionEntries` | Multiple MigratorMeta entries |
+| `-12` | `RepositoryMultipleVersionEntries` | Multiple MigratorMeta entries for one RayMigrator version (`Repository_MigratorMeta_CheckInsert`) |
 | `-20` | `ProductNameEmpty` | Product name is NULL or empty |
 | `-30` | `MigrationRunNotFound` | MigrationRun with given Id does not exist |
 | `-31` | `MigrationRunNotInRunningState` | MigrationRun not in Running state |
+| `-32` | `RepositorySchemaLockNotAcquired` | MariaDB and MySQL: the repository schema lock (`GET_LOCK()`) was not acquired within 60 seconds |
 | `-40` | `MigrationNotFound` | Migration with given Id does not exist |
 | `-50` | `EnvironmentNameEmpty` | Environment name is NULL or empty |
 
@@ -192,10 +191,10 @@ When customizing these templates, preserve the inline `INSERT INTO MigrationReco
 
 ### Schema Creation Template
 
-The `Repository_CheckCreate.sql` template creates all 11 repository tables (MigratorMeta, Product, Environment, MigrationRun, MigrationRunMeta, MigrationRecord, MigrationRecordHistory, MigrationRunMode, MigrationOperation, MigrationRunResult, MigrationStatus) in a single template. Here is the MigrationRecord table excerpt (SQL Server):
+The schema is versioned (ADR-024): `Repository_CheckCreate.sql` creates only the `RepositorySchemaVersion` table and reports the version, and the schema step `Repository_Upgrade_1.sql` creates all 11 repository tables (MigratorMeta, Product, Environment, MigrationRun, MigrationRunMeta, MigrationRecord, MigrationRecordHistory, MigrationRunMode, MigrationOperation, MigrationRunResult, MigrationStatus) with their master data. A customised step must stay idempotent and return its own version number; a later version is a new `Repository_Upgrade_{n}` template, never a change to an existing step. Here is the MigrationRecord table excerpt (SQL Server):
 
 ```sql
--- Repository_CheckCreate.sql (excerpt: MigrationRecord table)
+-- Repository_Upgrade_1.sql (excerpt: MigrationRecord table)
 CREATE  TABLE [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRecord] (
 	Id                   int    IDENTITY(1,1)  NOT NULL,
 	ProductId            int      NOT NULL,
@@ -558,8 +557,8 @@ The project uses xUnit and AwesomeAssertions for testing:
 [Fact]
 public void CustomTemplate_CreatesRepositoryTables()
 {
-    // TemplateExecutor.RepositoryCheckCreate() creates all repository tables
-    // using the Repository_CheckCreate.sql template
+    // TemplateExecutor.RepositoryCheckCreate() creates the repository through
+    // Repository_CheckCreate.sql and the schema steps Repository_Upgrade_{n}.sql
     _templateExecutor.RepositoryCheckCreate();
 
     // Verify table exists using the DAL

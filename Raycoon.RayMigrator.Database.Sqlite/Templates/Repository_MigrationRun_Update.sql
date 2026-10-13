@@ -6,7 +6,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_MigrationRun_Update"
 DatabaseType   = "Sqlite"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2025-02-03.1"
+Version        = "2026-10-13.1"
 
 [Description]
 Function = """
@@ -28,6 +28,8 @@ TableBaseName = "Table name prefix from Repository configuration"
 [Parameters]
 MigrationRunId       = "INTEGER | REQUIRED | The ID of the MigrationRun to update"
 MigrationRunResultId = "INTEGER | REQUIRED | Final result: 10=Running, 90=Error, 100=Ok"
+ErrorCode         = "VARCHAR(100) | OPTIONAL | Engine error code of the failure that decided the result; NULL for Ok"
+ErrorMessage      = "TEXT | OPTIONAL | Message of that failure, cut to 4000 characters by the engine; NULL for Ok"
 
 [ReturnValues]
 # Format: SELECT 'code,message'
@@ -56,6 +58,8 @@ Note6 = "Uses temp table to capture changes() since SQLite has no session variab
 UPDATE "{CFG:TableBaseName}MigrationRun"
 SET
     "MigrationRunResultId" = @MigrationRunResultId,
+    "ErrorCode" = @ErrorCode,
+    "ErrorMessage" = @ErrorMessage,
     "FinishedAt" = datetime('now'),
     "DurationInMs" = CAST((julianday('now') - julianday("StartedAt")) * 86400000 AS INTEGER)
 WHERE "Id" = @MigrationRunId;

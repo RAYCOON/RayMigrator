@@ -23,6 +23,9 @@ public class PostgreSqlIdentifierCasingTests
     private static readonly string[] AllPgTemplates =
     [
         "Repository_CheckCreate.sql",
+        "Repository_Upgrade_1.sql",
+        "Repository_Upgrade_2.sql",
+        "Repository_MigratorMeta_CheckInsert.sql",
         "Repository_Drop.sql",
         "Repository_Environment_CheckInsert.sql",
         "Repository_Product_CheckInsert.sql",
@@ -39,6 +42,7 @@ public class PostgreSqlIdentifierCasingTests
         "Repository_MigrationRun_Select.sql",
         "Repository_MigrationRun_SelectOrphaned.sql",
         "Repository_MigrationRun_FixOrphaned.sql",
+        "Repository_MigrationRun_Heartbeat.sql",
         "DatabaseLogging_CheckCreate.sql",
         "DatabaseLogging_Insert.sql"
     ];
@@ -60,6 +64,9 @@ public class PostgreSqlIdentifierCasingTests
     /// </summary>
     [Theory]
     [InlineData("Repository_CheckCreate.sql")]
+    [InlineData("Repository_Upgrade_1.sql")]
+    [InlineData("Repository_Upgrade_2.sql")]
+    [InlineData("Repository_MigratorMeta_CheckInsert.sql")]
     [InlineData("Repository_Drop.sql")]
     [InlineData("Repository_Environment_CheckInsert.sql")]
     [InlineData("Repository_Product_CheckInsert.sql")]
@@ -78,6 +85,7 @@ public class PostgreSqlIdentifierCasingTests
     [InlineData("Repository_MigrationRun_Select.sql")]
     [InlineData("Repository_MigrationRun_SelectOrphaned.sql")]
     [InlineData("Repository_MigrationRun_FixOrphaned.sql")]
+    [InlineData("Repository_MigrationRun_Heartbeat.sql")]
     [InlineData("DatabaseLogging_CheckCreate.sql")]
     [InlineData("DatabaseLogging_Insert.sql")]
     public void PgTemplate_HasNoStrayQuotedPascalCaseIdentifiers(string templateFile)
@@ -114,13 +122,13 @@ public class PostgreSqlIdentifierCasingTests
     /// updating this test class the count assertion fails, prompting a review.
     /// </summary>
     [Fact]
-    public void PgTemplates_TotalCount_IsTwentyOne()
+    public void PgTemplates_TotalCount_IsTwentyFive()
     {
         var templatesDir = GetTemplatesDir("PostgreSQL");
         var actualFiles = Directory.GetFiles(templatesDir, "*.sql");
 
-        actualFiles.Should().HaveCount(21,
-            "the PostgreSQL Templates directory must contain exactly 21 .sql files after DAL-017 (+2 read-only Select templates, #7; +1 history Select template, #13); " +
+        actualFiles.Should().HaveCount(25,
+            "the PostgreSQL Templates directory must contain exactly 25 .sql files after DAL-017 (+2 read-only Select templates, #7; +1 history Select template, #13; +3 schema version templates, ADR-024; +1 heartbeat template); " +
             "if you added a new template, also add it to P2_PostgreSqlIdentifierCasingTests");
     }
 
@@ -147,37 +155,38 @@ public class PostgreSqlIdentifierCasingTests
     }
 
     /// <summary>
-    /// Repository_MigrationRun_Select.sql must expose exactly 10 PascalCase output aliases.
+    /// Repository_MigrationRun_Select.sql must expose exactly 18 PascalCase output aliases (10 of schema version 1
+    /// plus the 8 run details of schema version 2).
     /// </summary>
     [Fact]
-    public void MigrationRunSelect_Has10PascalCaseAliases()
+    public void MigrationRunSelect_Has18PascalCaseAliases()
     {
         var content = ReadTemplate("PostgreSQL", "Repository_MigrationRun_Select.sql");
 
         var aliasPattern = new Regex(@"\bAS\s+""[A-Z][a-zA-Z]+""");
         var count = aliasPattern.Matches(content).Count;
 
-        count.Should().Be(10,
-            "Repository_MigrationRun_Select.sql must have exactly 10 AS \"PascalCase\" aliases " +
-            "(Id, ProductId, MigrationRunModeId, MigrationRunResultId, EnvironmentId, " +
-            "FromReleaseVersion, ToReleaseVersion, StartedAt, FinishedAt, DurationInMs)");
+        count.Should().Be(18,
+            "Repository_MigrationRun_Select.sql must have exactly 18 AS \"PascalCase\" aliases " +
+            "(Id, ProductId, MigrationRunModeId, MigrationRunResultId, EnvironmentId, FromReleaseVersion, ToReleaseVersion, StartedAt, FinishedAt, DurationInMs, MigrationOperationId, MigrationRunSourceId, InitiatedBy, InitiatedBySubject, Host, ErrorCode, ErrorMessage, LastHeartbeatAt)");
     }
 
     /// <summary>
-    /// Repository_MigrationRun_SelectOrphaned.sql must expose exactly 5 PascalCase output aliases
+    /// Repository_MigrationRun_SelectOrphaned.sql must expose exactly 9 PascalCase output aliases (5 of schema version 1 plus
+    /// the heartbeat age, the heartbeat, the initiator and the host of schema version 2)
     /// consumed by MigrationService.FixIssuesAsync.
     /// </summary>
     [Fact]
-    public void MigrationRunSelectOrphaned_Has5PascalCaseAliases()
+    public void MigrationRunSelectOrphaned_Has9PascalCaseAliases()
     {
         var content = ReadTemplate("PostgreSQL", "Repository_MigrationRun_SelectOrphaned.sql");
 
         var aliasPattern = new Regex(@"\bAS\s+""[A-Z][a-zA-Z]+""");
         var count = aliasPattern.Matches(content).Count;
 
-        count.Should().Be(5,
-            "Repository_MigrationRun_SelectOrphaned.sql must have exactly 5 AS \"PascalCase\" aliases " +
-            "(MigrationRunId, EnvironmentId, StartedAt, MigrationRunModeId, MinutesRunning)");
+        count.Should().Be(9,
+            "Repository_MigrationRun_SelectOrphaned.sql must have exactly 9 AS \"PascalCase\" aliases " +
+            "(MigrationRunId, EnvironmentId, StartedAt, MigrationRunModeId, MinutesRunning, LastHeartbeatAt, MinutesSinceHeartbeat, InitiatedBy, Host)");
     }
 
     /// <summary>

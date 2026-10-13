@@ -24,6 +24,8 @@ public class ScenarioBuilder
         TargetMigrationOrder? order, HashValidationScope? hashScope)> _additionalTargetGroups = new();
     private bool _databaseLogging;
     private string _databaseLoggingMinLevel = "Debug";
+    private bool _databaseLoggingDisabled;
+    private string? _databaseLoggingLevelOnly;
     private string? _mainTargetConnectionString;
     private string _serilogMinimumLevel = "Warning";
     private readonly List<Dictionary<string, object>> _cliTools = new();
@@ -34,10 +36,54 @@ public class ScenarioBuilder
     private int? _targetRetryDelayMs;
     private int? _targetCommandTimeoutSeconds;
     private string? _migrationFilesEncoding;
+    private RunInitiatorValues? _initiator;
+    private int? _heartbeatIntervalSeconds;
+    private int? _orphanedRunThresholdMinutes;
 
     public ScenarioBuilder(EngineConfig engineConfig)
     {
         _engineConfig = engineConfig;
+    }
+
+    /// <summary>
+    /// Tells the engine who starts the runs of this scenario, as a host such as RayMigrator Studio would through
+    /// the console options: the source, the display name and subject of the initiator and the host name.
+    /// </summary>
+    public ScenarioBuilder WithRunInitiator(MigrationRunSource? source, string? initiatedBy = null, string? initiatedBySubject = null, string? host = null)
+    {
+        _initiator = new RunInitiatorValues(source, initiatedBy, initiatedBySubject, host);
+        return this;
+    }
+
+    /// <summary>
+    /// Writes <c>"DatabaseLogging": { "Enabled": false }</c>: database logging off. Without any DatabaseLogging call
+    /// the scenario has no section, so the log goes into the repository with level Information (the engine default).
+    /// </summary>
+    public ScenarioBuilder WithDatabaseLoggingDisabled()
+    {
+        _databaseLoggingDisabled = true;
+        return this;
+    }
+
+    /// <summary>
+    /// Writes a DatabaseLogging section that names only <paramref name="minimumLevel"/>: the log still goes into
+    /// the repository, the defaults fill everything else.
+    /// </summary>
+    public ScenarioBuilder WithDatabaseLoggingMinimumLevelOnly(string minimumLevel)
+    {
+        _databaseLoggingLevelOnly = minimumLevel;
+        return this;
+    }
+
+    /// <summary>
+    /// Sets the heartbeat interval and the orphan threshold of the repository (<c>Repository.HeartbeatIntervalInSeconds</c>,
+    /// <c>Repository.OrphanedRunThresholdInMinutes</c>); the engine defaults are 30 seconds and 2 minutes.
+    /// </summary>
+    public ScenarioBuilder WithRepositoryHeartbeat(int intervalSeconds, int? orphanedRunThresholdMinutes = null)
+    {
+        _heartbeatIntervalSeconds = intervalSeconds;
+        _orphanedRunThresholdMinutes = orphanedRunThresholdMinutes;
+        return this;
     }
 
     /// <summary>
@@ -482,6 +528,8 @@ public class ScenarioBuilder
 
         // 5. Clean databases
         DatabaseCleanupHelper.CleanDatabase(_engineConfig.DatabaseType, _engineConfig.ConnectionString, _engineConfig.SchemaName);
+        if (_mainTargetConnectionString != null && _mainTargetConnectionString != _engineConfig.ConnectionString)
+            DatabaseCleanupHelper.CleanDatabase(_engineConfig.DatabaseType, _mainTargetConnectionString, _engineConfig.SchemaName);
         if (_secondConnectionString != null)
             DatabaseCleanupHelper.CleanDatabase(_engineConfig.DatabaseType, _secondConnectionString, _engineConfig.SchemaName);
 
@@ -490,13 +538,13 @@ public class ScenarioBuilder
 
         // 6. Build host
         var host = new EngineTestHost();
-        host.Build(configPath, productAlias, command, mode, toRelease);
+        host.Build(configPath, productAlias, command, mode, toRelease, initiator: _initiator);
 
         // 7. Create query helper
         var queryHelper = new RepositoryQueryHelper(_engineConfig.DatabaseType, _engineConfig.ConnectionString, _engineConfig.SchemaName);
 
         // 8. Return context
-        return new ScenarioContext(host, queryHelper, _engineConfig, workDir, configPath, productAlias);
+        return new ScenarioContext(host, queryHelper, _engineConfig, workDir, configPath, productAlias, _initiator);
     }
 
     /// <summary>
@@ -632,6 +680,10 @@ public class ScenarioBuilder
             ["DbCommandMaxRetries"] = 100,
             ["DbCommandWaitTimeInMsBeforeRetry"] = 250
         };
+        if (_heartbeatIntervalSeconds.HasValue)
+            repository["HeartbeatIntervalInSeconds"] = _heartbeatIntervalSeconds.Value;
+        if (_orphanedRunThresholdMinutes.HasValue)
+            repository["OrphanedRunThresholdInMinutes"] = _orphanedRunThresholdMinutes.Value;
 
         // Build Serilog
         var serilog = new Dictionary<string, object>
@@ -660,7 +712,15 @@ public class ScenarioBuilder
             rayMigratorConfig["CliTools"] = _cliTools;
 
         // Add DatabaseLogging section if enabled
-        if (_databaseLogging)
+        if (_databaseLoggingDisabled)
+        {
+            rayMigratorConfig["DatabaseLogging"] = new Dictionary<string, object> { ["Enabled"] = false };
+        }
+        else if (_databaseLoggingLevelOnly != null)
+        {
+            rayMigratorConfig["DatabaseLogging"] = new Dictionary<string, object> { ["MinimumLevel"] = _databaseLoggingLevelOnly };
+        }
+        else if (_databaseLogging)
         {
             rayMigratorConfig["DatabaseLogging"] = new Dictionary<string, object>
             {

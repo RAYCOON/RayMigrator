@@ -41,7 +41,8 @@ public class DatabaseLogWriter
                 DbCommandTimeoutInSeconds = (int)_options.DatabaseLogging!.DbCommandTimeoutInSeconds!
             };
 
-            _minimumLogLevel = Enum.Parse<LogLevel>(options.DatabaseLogging!.MinimumLevel!, true);
+            // A section without MinimumLevel means Information; the defaults fill it, but a host may build the options by hand.
+            _minimumLogLevel = Enum.TryParse<LogLevel>(options.DatabaseLogging?.MinimumLevel, true, out var level) ? level : LogLevel.Information;
         }
     }
 
@@ -67,6 +68,17 @@ public class DatabaseLogWriter
     public void Flush(TimeSpan? timeout = null)
     {
         _databaseLoggerQueue.Flush(timeout);
+    }
+
+    /// <summary>
+    /// Waits until every enqueued log entry has been written, without closing the queue: a host that runs several
+    /// migrations in one process calls it at the end of a run; the CLI calls <see cref="Flush"/> at shutdown instead.
+    /// </summary>
+    /// <param name="timeout">How long to wait at most; null waits without limit.</param>
+    /// <returns>True when the queue is empty; false when the timeout elapsed first.</returns>
+    public Task<bool> FlushAsync(TimeSpan? timeout = null)
+    {
+        return _databaseLoggerQueue.WaitForEmptyAsync(timeout);
     }
 
     /// <summary>

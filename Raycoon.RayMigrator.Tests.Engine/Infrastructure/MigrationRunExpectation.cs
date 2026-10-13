@@ -10,4 +10,6 @@ public record MigrationRunExpectation
     public int? EnvironmentId { get; init; }
     public string? FromReleaseVersion { get; init; }
     public string? ToReleaseVersion { get; init; }
+    public int? MigrationOperationId { get; init; }
+    public int? MigrationRunSourceId { get; init; }
 }

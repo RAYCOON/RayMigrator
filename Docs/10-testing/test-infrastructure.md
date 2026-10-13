@@ -80,7 +80,7 @@ docker compose --env-file default.env --profile all down -v
 
 ### Shared Test Helpers
 
-The `Raycoon.RayMigrator.Testing` project (multi-target `net10.0;net9.0;net8.0`, published as a reusable NuGet package) centralizes infrastructure used by both the unit and engine test suites:
+The `Raycoon.RayMigrator.Testing` project (multi-target `net10.0;net9.0;net8.0`, published as a reusable NuGet package; its snake_case rule comes from `Raycoon.RayMigrator.Repository.ReadModel`) centralizes infrastructure used by both the unit and engine test suites:
 
 - `DatabaseCleanupHelper.cs` — truncates or drops repository + user tables between test runs (keeps engines in sync with any schema change; must be updated whenever the repository schema evolves). After DAL-018, `GetMySqlFamilyCleanupSql` drops both new snake_case tables and the legacy backtick-quoted PascalCase names (safety net for pre-DAL-018 Docker volumes).
 - `RepositoryQueryHelper.cs` — query helpers against the repository tables (`ProductExists`, `GetProductId`, `EnvironmentExists`, `CountMigrations`, `CountMigrationRuns`, `InsertRunningMigrationRun`, etc.). `ProductExists` and `GetProductId` perform case-insensitive lookups via the `NameLower` column (computed with `ToLowerInvariant()` in C#). Schema/table names are formatted per engine via `QuoteColumn` / `GetQualifiedTableName`: for PostgreSQL and MariaDB/MySQL the helper converts the input to snake_case via the internal `ToSnakeCase` helper (which honours the `RayMigrator`-single-token exception); for PostgreSQL identifiers are unquoted; for MariaDB/MySQL table names are backtick-quoted snake_case (e.g., `` `migration_record` ``) and column names are also backtick-quoted snake_case; for SQL Server identifiers are bracket-quoted PascalCase.

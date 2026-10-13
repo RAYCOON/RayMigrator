@@ -386,7 +386,7 @@ raymigrator fix --product <alias> --environment <env> [--scope <scope>] [--older
 | `--product` | `-p` | `string` | Yes | — | Any product alias from configuration |
 | `--environment` | `-env` | `string` | Yes | — | Any environment name |
 | `--scope` | `-s` | `string` | No | `"OrphanedRuns"` | `OrphanedRuns`, `All` |
-| `--older-than` | `-ot` | `int` | No | `60` | Minutes threshold for orphan detection |
+| `--older-than` | `-ot` | `int` | No | `2` | Minutes since the last heartbeat (or the start) for orphan detection |
 | `--run-mode` | `-rm` | `string` | No | `"migrate"` | `migrate`, `simulate` |
 | `--last-migration-status` | `-lms` | `string` | No | `"not-migrated"` | `migrated`, `not-migrated` |
 
@@ -394,7 +394,7 @@ raymigrator fix --product <alias> --environment <env> [--scope <scope>] [--older
 
 **--scope**: Validated case-insensitively. Only `"All"` and `"OrphanedRuns"` are accepted. Parsed via `ParseFixScope()` into `FixScope.All` or `FixScope.OrphanedRuns`; `All` runs every known repair (currently the orphaned-run repair) and the result lists the repairs that ran (#16).
 
-**--older-than**: Minimum age in minutes for a MigrationRun to be considered orphaned. Default is 60 minutes.
+**--older-than**: Minimum age of the last heartbeat (or of the start, for a run that never wrote one) in minutes for an open MigrationRun to be considered orphaned; `0` repairs every open run. Default is 2 minutes, the `Repository.OrphanedRunThresholdInMinutes` default. A run whose heartbeat is younger is alive and left open even when the age is passed on the command line.
 
 **--run-mode**: `migrate` repairs the orphaned runs; `simulate` lists the runs that would be repaired, writes nothing and leaves no DatabaseLogging rows. `validate` is rejected for `fix` (#22).
 

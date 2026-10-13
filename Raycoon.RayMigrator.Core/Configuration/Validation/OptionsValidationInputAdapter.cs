@@ -23,10 +23,14 @@ internal static class OptionsValidationInputAdapter
     {
         ArgumentNullException.ThrowIfNull(options);
 
+        var repository = ToRepositoryInput(options.Repository, Child(sectionAsWritten, nameof(RayMigratorOptions.Repository)));
+
         return new ValidationInput
         {
-            Repository = ToRepositoryInput(options.Repository, Child(sectionAsWritten, nameof(RayMigratorOptions.Repository))),
-            DatabaseLogging = ToRepositoryInput(options.DatabaseLogging, Child(sectionAsWritten, nameof(RayMigratorOptions.DatabaseLogging))),
+            Repository = repository,
+            DatabaseLogging = options.IsDatabaseLoggingEnabled()
+                ? ToDatabaseLoggingInput(options.DatabaseLogging!, Child(sectionAsWritten, nameof(RayMigratorOptions.DatabaseLogging)), repository)
+                : null,
             CliTools = options.CliTools?.Select(ToCliToolInput).ToList() ?? new List<CliToolInput>(),
             Defaults = ToDefaultsInput(options.ProductDefaults),
             Products = options.Products?
@@ -45,15 +49,30 @@ internal static class OptionsValidationInputAdapter
             TableBaseName = repo.TableBaseName,
         };
 
-    private static RepositoryInput? ToRepositoryInput(DatabaseLoggingOptions? dbLog, IConfigurationSection? written) =>
-        dbLog == null ? null : new RepositoryInput
+    /// <summary>
+    /// The logging section after <see cref="DatabaseLoggingDefaults"/>. A connection string the section inherited from
+    /// the repository (nothing written, bound value equal to the repository's) is reported as the repository wrote it,
+    /// so that RULE_7_3 sees the <c>{ENV:...}</c> placeholder and not the resolved credential.
+    /// </summary>
+    private static RepositoryInput ToDatabaseLoggingInput(DatabaseLoggingOptions dbLog, IConfigurationSection? written, RepositoryInput? repository)
+    {
+        string? connectionString = AsWrittenOrBound(written, nameof(DatabaseLoggingOptions.ConnectionString), dbLog.ConnectionString);
+        bool inherited = written?[nameof(DatabaseLoggingOptions.ConnectionString)] == null
+                         && repository != null
+                         && dbLog.ConnectionString != null
+                         && dbLog.ConnectionString == repository.EffectiveConnectionString;
+        if (inherited)
+            connectionString = repository!.ConnectionString;
+
+        return new RepositoryInput
         {
             DatabaseType = dbLog.DatabaseType,
-            ConnectionString = AsWrittenOrBound(written, nameof(DatabaseLoggingOptions.ConnectionString), dbLog.ConnectionString),
+            ConnectionString = connectionString,
             EffectiveConnectionString = dbLog.ConnectionString,
             SchemaName = dbLog.SchemaName,
             TableBaseName = dbLog.TableBaseName,
         };
+    }
 
     private static ProductDefaultsInput ToDefaultsInput(ProductDefaultOptions? defaults) =>
         new()

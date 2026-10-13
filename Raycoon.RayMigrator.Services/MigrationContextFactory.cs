@@ -68,7 +68,7 @@ public sealed class MigrationContextFactory : IMigrationContextFactory
             }
         }
 
-        if (options.DatabaseLogging?.DatabaseType != null)
+        if (options.IsDatabaseLoggingEnabled() && options.DatabaseLogging?.DatabaseType != null)
         {
             SetDalSpecificProperties(ctx, options.DatabaseLogging.DatabaseType, options.DatabaseLogging.ConnectionString!);
         }
@@ -79,7 +79,7 @@ public sealed class MigrationContextFactory : IMigrationContextFactory
             options.Repository.SchemaName,
             "Repository", _logger);
 
-        if (options.DatabaseLogging?.DatabaseType != null)
+        if (options.IsDatabaseLoggingEnabled() && options.DatabaseLogging?.DatabaseType != null)
         {
             SchemaNameValidator.ValidateSchemaName(
                 ctx.DalSpecificPropertiesDictionary,

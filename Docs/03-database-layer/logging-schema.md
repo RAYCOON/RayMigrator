@@ -117,7 +117,7 @@ The `MigrationEvent` table is the catalogue of the `EventId`s RayMigrator logs w
 
 ## Configuration
 
-Database logging is activated by the presence of the `DatabaseLogging` section in the configuration. If the section is omitted, database logging is disabled:
+Database logging is on by default and goes into the repository: without a `DatabaseLogging` section the log tables are created in the repository schema and `MinimumLevel` is `Information`; `"DatabaseLogging": { "Enabled": false }` switches it off. A fully written section describes a separate log database:
 
 ```json
 {
@@ -340,7 +340,7 @@ RayMigrator uses Serilog for logging. Console and file sinks are configured alon
 
 ## Best Practices
 
-1. **Use separate database** for logs vs repository
+1. **Separate database** for logs when their growth or retention must not touch the repository (the repository is the default home, where Studio reads them)
 2. **Set appropriate retention** - logs can grow quickly
 3. **Index by MigrationRunId** for efficient queries
 4. **Monitor disk space** - NVARCHAR(MAX) columns can be large

@@ -20,6 +20,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\Raycoon.RayMigrator.Database\Raycoon.RayMigrator.Database.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Repository.ReadModel\Raycoon.RayMigrator.Repository.ReadModel.csproj" />
     </ItemGroup>
 
     <ItemGroup>

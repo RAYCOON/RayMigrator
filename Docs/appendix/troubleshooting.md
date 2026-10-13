@@ -515,7 +515,7 @@ The `Repository_Product_CheckInsert` template rejects a `NULL`/empty `Name` para
 
 **Solutions:**
 
-1. **Verify DatabaseLogging configuration** (inside `RayMigrator` section, activated by presence of the section)
+1. **Verify DatabaseLogging configuration** (inside `RayMigrator` section; on by default into the repository, off with `Enabled: false`)
    ```json
    {
      "RayMigrator": {
@@ -593,7 +593,7 @@ The `Repository_Product_CheckInsert` template rejects a `NULL`/empty `Name` para
    # Preview what would be fixed (no changes applied)
    raymigrator fix -p MyProduct -env Production --scope orphanedruns --run-mode simulate
 
-   # Fix orphaned runs (default: only runs older than 60 minutes)
+   # Fix orphaned runs (default: only runs whose last heartbeat is older than 2 minutes)
    raymigrator fix -p MyProduct -env Production --scope orphanedruns
 
    # Fix runs older than 10 minutes
@@ -655,9 +655,9 @@ The `Repository_Product_CheckInsert` template rejects a `NULL`/empty `Name` para
 
 **Explanation:**
 
-When RayMigrator detects a parallel-run conflict (another migration appears to be running), it checks if the existing run is orphaned (older than 10 minutes). If so, it automatically marks the orphaned run as Error and proceeds with the new migration. This threshold is controlled by the internal constant `AutoFixOrphanedRunsThresholdMinutes` (default: 10 minutes).
+When RayMigrator detects a parallel-run conflict (another migration appears to be running), it checks whether the existing run is orphaned: its last heartbeat (`MigrationRun.LastHeartbeatAt`, refreshed every `Repository.HeartbeatIntervalInSeconds`, default 30 seconds) is older than `Repository.OrphanedRunThresholdInMinutes` (default 2 minutes). If so, it automatically marks the orphaned run as Error and proceeds with the new migration.
 
-If the orphaned run is younger than 10 minutes, RayMigrator aborts with a `MigrationAlreadyRunningException`. Use the `fix` command with `--older-than 0` for immediate manual cleanup.
+If the open run still writes heartbeats, it is alive and RayMigrator aborts with a `MigrationAlreadyRunningException`. Use the `fix` command with `--older-than 0` for immediate manual cleanup; `fix` closes only runs whose heartbeat is older than the given age.
 
 ### Transient Database Error After Retries
 

@@ -329,19 +329,25 @@ The catalog lists the unique test scenarios defined for the base PostgreSQL test
 | #60 | FL-1 | MixedFlatAndTraditionalLayout_AllReleasesMigrateSuccessfully | FlatLayoutTests |
 | #61 | FL-2 | MixedLayout_MigrateDownToRelease2_RollsBackFlatAndTraditionalReleases | FlatLayoutTests |
 
-**Features tests** (all 5 engines have 15 base feature test classes each; SqlServer adds 1 atomic-shared-connection class, Sqlite adds 1 datetime-CHECK-constraint class, plus a P2 file shared between MySql and MariaDb):
+**Features tests** (all 5 engines have 21 base feature test classes each; SqlServer adds 1 atomic-shared-connection class, Sqlite adds 1 datetime-CHECK-constraint class, plus a P2 file shared between MySql and MariaDb):
 
 | Class | Tests | Description |
 |-------|-------|-------------|
 | `MigrationHistoryTrackingTests` | 5 | MigrationRecordHistory records written inline on terminal status transitions (simulate, first run, failed retry, down-then-up, baseline). Source file: `ArchiveRetentionTests.cs`. |
 | `BaselineTests` | 10 | Baseline marking, incremental baseline, baseline then MigrateUp |
 | `DatabaseLogTests` | 4 | Log entries written after MigrateUp, multiple log levels, logs during error |
+| `DatabaseLogDefaultTests` | 3 | Database logging into the repository by default at Information, a section with only MinimumLevel, `Enabled: false` creates no log tables |
+| `ReadModelContractTests` | 1 | After a migrate-up every repository table reads through `RepositoryNaming.SelectStatement` via the engine DAL and maps with `RepositoryRowMapper`: schema version, run, records, lookups, log rows, UTC timestamps (`Infrastructure/ReadModelContract.cs`) |
 | `FixTests` | 8 | Fix command: no orphans, fix orphan, simulate, older-than filter, fix-then-migrate, multiple orphans, details, assumed-status=Migrated |
 | `InfoTests` | 8 | Info command: fresh repo, full/partial migration, baseline, target groups, error state, multiple-run history, run details |
 | `MigrationRunMetaTests` | 7 | MigrationRunSettingsJson content (console options, product, masked credentials, MigrateDown masking, Baseline masking) |
 | `MigSettingsInheritanceTests` | 13 | migsettings.txt inheritance (root, release, target group, TOML override) |
 | `OutOfOrderBlockingTests` | 3 | Out-of-order migration blocking (false=blocked, true=allowed, data integrity after blocking) |
 | `RepositoryIntegrityTests` | 4 | Repository tables, Product record, Migration records after successful run |
+| `HeartbeatTests` | 4 | The run heartbeat: a long block refreshes `LastHeartbeatAt`, an open run with a fresh heartbeat blocks a new start however old its start, a stale heartbeat is auto-fixed, `fix` reports and filters by heartbeat age |
+| `MigrationRunDetailsTests` | 6 | Run details of schema version 2: operation, source, initiator and host from the console options, NULL source and the machine name without them, the error message of a failed run, migrate-down and baseline operations, the history DTO, and the upgrade of a version 1 repository by the next command |
+| `RepositorySchemaTests` | 5 | Versioned repository schema (ADR-024): fresh repository gets every step and the engine version, second run changes nothing, a newer repository and one without a schema version are refused before anything is written, parallel start on an empty repository creates it once |
+| `ParameterRoundTripTests` | 2 (PostgreSQL 3) | A parameter value with quotes, backslashes, `$$`, other placeholders, comment and statement markers and non-ASCII text comes back unchanged through the DAL; PostgreSQL also inside a `DO` block |
 | `RunningGuardTests` | 6 | Concurrent run prevention (MigrateUp, MigrateDown, Baseline blocked; ValidateHash/UpdateHash allowed) |
 | `SimulateModeTests` | 11 | Simulate mode (no user tables written), Validate mode, MigrateDown simulate, MigrateDown Validate (non-destructive + missing rollback detection), Simulate reads the same records as Migrate: preview of pending files only, nothing pending after a full migrate, rollback candidates, empty repository (#7) |
 | `TargetGroupMigrationOrderTests` | 10 | TargetGroupMigrationOrder overrides (CLI, appsettings, migsettings), wrong-case error, Baseline, single-TG rejection |

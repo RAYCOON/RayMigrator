@@ -185,20 +185,31 @@ public class RayConnectionStringAttributeTests
     }
 
     [Fact]
-    public void NullWithRequired_ReturnsError()
+    public void NullWithRequired_ReturnsMissing()
     {
         var attr = new RayConnectionStringAttribute(true);
         var result = Validate(attr, null);
 
         result.Should().NotBe(ValidationResult.Success);
-        result!.ErrorMessage.Should().Contain("Invalid type");
+        result!.ErrorMessage.Should().Contain("Missing property");
     }
 
     [Fact]
-    public void NullWithOptional_ReturnsError()
+    public void NullWithOptional_ReturnsSuccess()
     {
+        // Null means "not written": a DatabaseLogging section filled by the defaults, or one with Enabled: false,
+        // leaves the connection string null, and an optional connection string must accept that.
         var attr = new RayConnectionStringAttribute(false);
         var result = Validate(attr, null);
+
+        result.Should().Be(ValidationResult.Success);
+    }
+
+    [Fact]
+    public void NonStringWithOptional_ReturnsError()
+    {
+        var attr = new RayConnectionStringAttribute(false);
+        var result = Validate(attr, 42);
 
         result.Should().NotBe(ValidationResult.Success);
         result!.ErrorMessage.Should().Contain("Invalid type");

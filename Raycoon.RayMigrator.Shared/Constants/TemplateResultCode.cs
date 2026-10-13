@@ -14,15 +14,11 @@ public static class TemplateResultCode
     /// <summary>Migration already running — parallel run prevention (MigrationRun_Insert).</summary>
     public const int MigrationAlreadyRunning = -2;
 
-    // --- Repository_CheckCreate (-10 to -19) ---
+    // --- Repository_CheckCreate, Repository_Upgrade_{n}, Repository_MigratorMeta_CheckInsert (-10 to -19) ---
+    // -10 and -11 (table count checks of the former Repository_CheckCreate) are gone since the schema is versioned
+    // (ADR-024): a repository without a schema version or with a newer one is refused by TemplateExecutor in C#.
 
-    /// <summary>Repository incomplete: wrong table count (MigratorMeta table exists).</summary>
-    public const int RepositoryIncomplete = -10;
-
-    /// <summary>Repository incomplete: partial tables found but no MigratorMeta table.</summary>
-    public const int RepositoryPartialWithoutVersionTable = -11;
-
-    /// <summary>Multiple MigratorMeta entries found for same combination.</summary>
+    /// <summary>Multiple MigratorMeta entries found for the same RayMigratorVersion and RepositoryDatabaseType.</summary>
     public const int RepositoryMultipleVersionEntries = -12;
 
     // --- Repository_Product_CheckInsert (-20 to -29) ---
@@ -37,6 +33,12 @@ public static class TemplateResultCode
 
     /// <summary>MigrationRun not found or not in Running state (FixOrphaned).</summary>
     public const int MigrationRunNotInRunningState = -31;
+
+    /// <summary>
+    /// MariaDB and MySQL schema templates: the repository schema lock (<c>GET_LOCK()</c>) was not acquired within
+    /// 60 seconds; nothing was written (Repository_CheckCreate, Repository_Upgrade_{n}, Repository_MigratorMeta_CheckInsert).
+    /// </summary>
+    public const int RepositorySchemaLockNotAcquired = -32;
 
     // --- Repository_Migration (-40 to -49) ---
 
@@ -64,8 +66,8 @@ public static class TemplateResultCode
     private static readonly HashSet<int> KnownNegativeCodes =
     [
         GeneralError, MigrationAlreadyRunning,
-        RepositoryIncomplete, RepositoryPartialWithoutVersionTable, RepositoryMultipleVersionEntries,
-        ProductNameEmpty, MigrationRunNotFound, MigrationRunNotInRunningState, MigrationNotFound,
+        RepositoryMultipleVersionEntries,
+        ProductNameEmpty, MigrationRunNotFound, MigrationRunNotInRunningState, RepositorySchemaLockNotAcquired, MigrationNotFound,
         EnvironmentNameEmpty
     ];
 

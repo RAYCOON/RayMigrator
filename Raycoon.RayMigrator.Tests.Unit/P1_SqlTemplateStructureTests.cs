@@ -69,12 +69,12 @@ public class SqlTemplateStructureTests
 
     #endregion
 
-    #region O6: CheckCreate Lock Hint Test
+    #region O6: MigratorMeta registration Lock Hint Test
 
     [Fact]
-    public void SqlServer_CheckCreate_UsesRowLevelLocking()
+    public void SqlServer_MigratorMetaCheckInsert_UsesRowLevelLocking()
     {
-        var templatePath = GetTemplatePath("SqlServer", "Repository_CheckCreate.sql");
+        var templatePath = GetTemplatePath("SqlServer", "Repository_MigratorMeta_CheckInsert.sql");
         var content = File.ReadAllText(templatePath);
 
         content.Should().Contain("UPDLOCK, ROWLOCK, HOLDLOCK", "SqlServer template should use row-level locking");

@@ -10,6 +10,7 @@ public class ProductDefaultsPostConfigureOptions : IPostConfigureOptions<RayMigr
     public void PostConfigure(string? name, RayMigratorOptions options)
     {
         MergeDefaults(options);
+        DatabaseLoggingDefaults.Apply(options);
         EnsureEnumValuesAreParsable(options);
     }
 

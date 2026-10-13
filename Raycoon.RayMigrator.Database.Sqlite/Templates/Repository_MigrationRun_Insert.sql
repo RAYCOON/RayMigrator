@@ -6,7 +6,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_MigrationRun_Insert"
 DatabaseType   = "Sqlite"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-04-18.1"
+Version        = "2026-10-13.1"
 
 [Description]
 Function = """
@@ -35,6 +35,11 @@ MigrationRunResultId  = "INTEGER | REQUIRED | Initial result status (should be 1
 FromReleaseVersion = "TEXT | OPTIONAL | Starting release version for the migration range"
 ToReleaseVersion   = "TEXT | OPTIONAL | Target release version for the migration range"
 MigrationRunSettingsJson = "TEXT | REQUIRED | JSON snapshot of all RayMigrator settings at migration start"
+MigrationOperationId = "TINYINT | REQUIRED | What the run does: 50=MigrateDown, 100=MigrateUp, 110=Baseline (schema version 2)"
+MigrationRunSourceId = "TINYINT | OPTIONAL | Where the run was started: 10=Cli, 20=Ci, 30=Studio; NULL when the host did not say"
+InitiatedBy        = "VARCHAR(200) | OPTIONAL | Display name of the person or service account that started the run"
+InitiatedBySubject = "VARCHAR(200) | OPTIONAL | Stable identifier of the initiator (e.g. the subject claim of an identity provider)"
+Host               = "VARCHAR(200) | OPTIONAL | The machine the run executes on"
 
 [ReturnValues]
 # Format: SELECT 'code,message'
@@ -75,9 +80,11 @@ INSERT OR REPLACE INTO "_rc_state" ("key", "val") VALUES
 -- Insert only if no running migration exists
 INSERT INTO "{CFG:TableBaseName}MigrationRun"
     ("MigratorMetaId", "ProductId", "EnvironmentId", "MigrationRunModeId", "MigrationRunResultId",
-     "FromReleaseVersion", "ToReleaseVersion", "StartedAt")
+     "FromReleaseVersion", "ToReleaseVersion", "StartedAt",
+     "MigrationOperationId", "MigrationRunSourceId", "InitiatedBy", "InitiatedBySubject", "Host", "LastHeartbeatAt")
 SELECT @MigratorMetaId, @ProductId, @EnvironmentId, @MigrationRunModeId, @MigrationRunResultId,
-       @FromReleaseVersion, @ToReleaseVersion, datetime('now')
+       @FromReleaseVersion, @ToReleaseVersion, datetime('now'),
+       @MigrationOperationId, @MigrationRunSourceId, @InitiatedBy, @InitiatedBySubject, @Host, datetime('now')
 WHERE CAST((SELECT "val" FROM "_rc_state" WHERE "key"='running') AS INTEGER) = 0;
 
 -- Capture insert state: new_id MUST be captured first in a separate INSERT.

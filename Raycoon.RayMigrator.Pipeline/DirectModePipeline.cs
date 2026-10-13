@@ -233,7 +233,7 @@ public static class DirectModePipeline
             string loggingDatabaseType = string.Empty;
             try
             {
-                if (rayMigratorOptions.DatabaseLogging != null)
+                if (rayMigratorOptions.IsDatabaseLoggingEnabled())
                 {
                     loggingDatabaseType = rayMigratorOptions.DatabaseLogging!.DatabaseType!;
                     var templateCache = host.Services.GetRequiredService<TemplateCache>();
@@ -470,7 +470,7 @@ public static class DirectModePipeline
     {
         try
         {
-            if (rayMigratorOptions.DatabaseLogging != null)
+            if (rayMigratorOptions.IsDatabaseLoggingEnabled())
             {
                 if (DalFactory.TryGetDal(rayMigratorOptions.DatabaseLogging!.DatabaseType!,
                         rayMigratorOptions.DatabaseLogging.ConnectionString!, out IDal? dalInstance))

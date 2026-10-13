@@ -79,7 +79,7 @@ RULE_7_3 inspects the connection strings **as written** in the files, in the eng
 
 These run **outside** the shared catalog because they rely on APIs that are unavailable in Blazor WebAssembly:
 
-- `RayConnectionStringAttribute` — uses `System.Data.Common.DbConnectionStringBuilder` to parse `ConnectionString` syntax (applied via `[RayConnectionString]` DataAnnotation on `TargetOptions.ConnectionString`).
+- `RayConnectionStringAttribute` — uses `System.Data.Common.DbConnectionStringBuilder` to parse `ConnectionString` syntax (applied via `[RayConnectionString]` DataAnnotation on `TargetOptions.ConnectionString`); a null value passes for an optional connection string and is reported as missing for a required one.
 - `RayDirectoryExistsAttribute` — verifies filesystem existence of directory paths.
 - `SchemaNameValidator` — pipeline-level DAL-aware check that uses `DalSpecificProperties.SupportsSchema` (runs after DAL discovery).
 

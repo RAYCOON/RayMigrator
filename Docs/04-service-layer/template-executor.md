@@ -78,7 +78,7 @@ public void RepositoryProductCheckInsert();
 public void RepositoryEnvironmentCheckInsert();
 ```
 
-- `RepositoryCheckCreate` passes `@RepositoryDatabaseType` and `@RayMigratorVersion`, stores the returned `ResultCode` as `MigrationState.MigratorMetaId` (EventId `100`).
+- `RepositoryCheckCreate` brings the repository to the schema version of the run and registers the engine version (ADR-024): it executes `Repository_CheckCreate` (no parameters, EventId `100`), which reports the schema version found and whether unversioned tables exist; refuses a repository without a version or newer than `MigrationContext.RepositorySchemaTargetVersion` with `RepositorySchemaException`; runs every missing `Repository_Upgrade_{n}` in order (`@RayMigratorVersion`, EventId `101`, the step must return its own number); logs a created or upgraded repository at Information level; and executes `Repository_MigratorMeta_CheckInsert` (`@RayMigratorVersion`, `@RepositoryDatabaseType`, EventId `102`), whose `ResultCode` becomes `MigrationState.MigratorMetaId`.
 - `RepositoryProductCheckInsert` passes `@Name` (the product alias from `RayMigratorConsoleOptions.Product`) and `@NameLower` (the lowercase invariant of that name), stores the returned `ResultCode` as `MigrationState.ProductId` (EventId `120`).
 - `RepositoryEnvironmentCheckInsert` passes `@Name` (the environment name from `RayMigratorConsoleOptions.Environment`) and `@NameLower` (the lowercase invariant of that name), stores the returned `ResultCode` as `MigrationState.EnvironmentId` (EventId `121`).
 
@@ -231,15 +231,15 @@ var response = ExecuteScalarWithNegativeResultCodeException(template, _repositor
 ### Executing a Template
 
 ```csharp
-public void RepositoryCheckCreate()
+private int RepositoryMigratorMetaCheckInsert()
 {
-    var templateType = TemplateType.Repository_CheckCreate;
-    var eventId = MigrationEvent.TemplateExecutionRepositoryCheckCreate;
+    var templateType = TemplateType.Repository_MigratorMeta_CheckInsert;
+    var eventId = MigrationEvent.TemplateExecutionRepositoryMigratorMetaCheckInsert;
 
     // Build parameter list
     DalParameterList dalParameterList = new DalParameterList();
-    dalParameterList.AddParameter(new DalParameter("RepositoryDatabaseType", _repositoryDal.DatabaseType, typeof(string)));
     dalParameterList.AddParameter(new DalParameter("RayMigratorVersion", _ctxAccessor.Current.RayMigratorVersion, typeof(string)));
+    dalParameterList.AddParameter(new DalParameter("RepositoryDatabaseType", _repositoryDal.DatabaseType, typeof(string)));
 
     // Load template from cache (CFG placeholders replaced during load)
     var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
@@ -249,10 +249,12 @@ public void RepositoryCheckCreate()
         template, _repositoryDal, _repository.GetDalSettings(),
         dalParameterList, _logger, eventId);
 
-    // ResultCode is used as the output value (e.g., MigratorMetaId)
-    _ctxAccessor.Current.MigrationState.MigratorMetaId = templateResponse.ResultCode;
+    // ResultCode is used as the output value (here the MigratorMetaId)
+    return templateResponse.ResultCode;
 }
 ```
+
+`RepositoryCheckCreate` calls this helper after `Repository_CheckCreate` reported the schema version and every missing `Repository_Upgrade_{n}` step ran (ADR-024).
 
 ### Parsing Results
 

@@ -18,9 +18,9 @@ public class MySqlMariaDbTypeConventionsTests
     [Theory]
     [InlineData("MySql")]
     [InlineData("MariaDb")]
-    public void Repository_CheckCreate_AllAuditColumns_UseTimestamp(string engine)
+    public void Repository_Upgrade1_AllAuditColumns_UseTimestamp(string engine)
     {
-        var content = ReadTemplate(engine, "Repository_CheckCreate.sql");
+        var content = ReadTemplate(engine, "Repository_Upgrade_1.sql");
 
         // DAL-018: columns are now snake_case and unquoted (no backticks around identifiers).
         foreach (var column in new[] { "created_at", "started_at", "finished_at", "historized_at" })
@@ -28,20 +28,20 @@ public class MySqlMariaDbTypeConventionsTests
             // Match column name followed by whitespace, then TIMESTAMP, then whitespace, then optional NOT + NULL.
             var pattern = new Regex(@"\b" + Regex.Escape(column) + @"\s+TIMESTAMP\s+(?:NOT\s+)?NULL\b", RegexOptions.IgnoreCase);
             pattern.IsMatch(content).Should().BeTrue(
-                $"column {column} in {engine} Repository_CheckCreate.sql must be declared as TIMESTAMP after DAL-014 and use snake_case after DAL-018");
+                $"column {column} in {engine} Repository_Upgrade_1.sql must be declared as TIMESTAMP after DAL-014 and use snake_case after DAL-018");
         }
     }
 
     [Theory]
     [InlineData("MySql")]
     [InlineData("MariaDb")]
-    public void Repository_CheckCreate_ContainsNoDatetime(string engine)
+    public void Repository_Upgrade1_ContainsNoDatetime(string engine)
     {
-        var content = ReadTemplate(engine, "Repository_CheckCreate.sql");
+        var content = ReadTemplate(engine, "Repository_Upgrade_1.sql");
 
         var pattern = new Regex(@"\bDATETIME\b");
         pattern.IsMatch(content).Should().BeFalse(
-            $"{engine} Repository_CheckCreate.sql must not contain any DATETIME token after DAL-014");
+            $"{engine} Repository_Upgrade_1.sql must not contain any DATETIME token after DAL-014");
     }
 
     [Theory]
@@ -78,14 +78,14 @@ public class MySqlMariaDbTypeConventionsTests
     [Theory]
     [InlineData("MySql")]
     [InlineData("MariaDb")]
-    public void Repository_CheckCreate_HistorizedAt_DefaultIsCurrentTimestamp(string engine)
+    public void Repository_Upgrade1_HistorizedAt_DefaultIsCurrentTimestamp(string engine)
     {
-        var content = ReadTemplate(engine, "Repository_CheckCreate.sql");
+        var content = ReadTemplate(engine, "Repository_Upgrade_1.sql");
 
         // DAL-018: column is now unquoted snake_case. Must be bare `DEFAULT CURRENT_TIMESTAMP` without parentheses.
         var pattern = new Regex(@"\bhistorized_at\s+TIMESTAMP\s+NOT\s+NULL\s+DEFAULT\s+CURRENT_TIMESTAMP\b(?!\s*\()", RegexOptions.IgnoreCase);
         pattern.IsMatch(content).Should().BeTrue(
-            $"{engine} Repository_CheckCreate.sql historized_at default must be bare CURRENT_TIMESTAMP (no parentheses) after DAL-014 and use snake_case after DAL-018");
+            $"{engine} Repository_Upgrade_1.sql historized_at default must be bare CURRENT_TIMESTAMP (no parentheses) after DAL-014 and use snake_case after DAL-018");
     }
 
     #endregion
@@ -95,14 +95,14 @@ public class MySqlMariaDbTypeConventionsTests
     [Theory]
     [InlineData("MySql", "utf8mb4_0900_ai_ci", 11)]
     [InlineData("MariaDb", "utf8mb4_unicode_ci", 11)]
-    public void Repository_CheckCreate_AllCreateTables_EndWithCorrectEngineCharsetCollate(string engine, string expectedCollation, int expectedCount)
+    public void Repository_Upgrade1_AllCreateTables_EndWithCorrectEngineCharsetCollate(string engine, string expectedCollation, int expectedCount)
     {
-        var content = ReadTemplate(engine, "Repository_CheckCreate.sql");
+        var content = ReadTemplate(engine, "Repository_Upgrade_1.sql");
         var needle = $") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE={expectedCollation};";
 
         var actual = CountOccurrences(content, needle);
         actual.Should().Be(expectedCount,
-            $"{engine} Repository_CheckCreate.sql must contain exactly {expectedCount} occurrences of '{needle}' after DAL-015");
+            $"{engine} Repository_Upgrade_1.sql must contain exactly {expectedCount} occurrences of '{needle}' after DAL-015");
     }
 
     [Theory]
@@ -123,7 +123,7 @@ public class MySqlMariaDbTypeConventionsTests
     [InlineData("MariaDb")]
     public void AllTemplates_NoBareEngineInnoDb(string engine)
     {
-        foreach (var templateName in new[] { "Repository_CheckCreate.sql", "DatabaseLogging_CheckCreate.sql" })
+        foreach (var templateName in new[] { "Repository_CheckCreate.sql", "Repository_Upgrade_1.sql", "DatabaseLogging_CheckCreate.sql" })
         {
             var content = ReadTemplate(engine, templateName);
             var pattern = new Regex(@"\)\s+ENGINE=InnoDB\s*;");

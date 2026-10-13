@@ -23,12 +23,11 @@ public class TemplateResultCodeTests
     #region Known ResultCodes
 
     [Theory]
-    [InlineData("-10,RayMigrator repository incomplete or corrupt. Repository contains [5] tables instead of [10].", -10)]
-    [InlineData("-11,RayMigrator repository incomplete or corrupt. Repository contains [3] tables instead of the expected amount of [0].", -11)]
     [InlineData("-12,Multiple [MigratorMeta]-entries found for RayMigratorVersion [3.0.0] RepositoryDatabaseType [SqlServer].", -12)]
     [InlineData("-20,Product with empty name [NULL] is not allowed!", -20)]
     [InlineData("-30,MigrationRun with Id [42] does not exist", -30)]
     [InlineData("-31,MigrationRun [42] not found or not in Running state", -31)]
+    [InlineData("-32,RayMigrator could not acquire the repository schema lock within 60 seconds", -32)]
     [InlineData("-40,Migration with Id [99] does not exist", -40)]
     [InlineData("-50,Environment with empty name [NULL] is not allowed!", -50)]
     public void GetValidatedTemplateResponse_WithKnownNegativeCode_ThrowsTemplateResultExceptionWithCorrectCode(
@@ -43,12 +42,11 @@ public class TemplateResultCodeTests
     }
 
     [Theory]
-    [InlineData("-10,RayMigrator repository incomplete or corrupt. Repository contains [5] tables instead of [10].")]
-    [InlineData("-11,RayMigrator repository incomplete or corrupt. Repository contains [3] tables instead of the expected amount of [0].")]
     [InlineData("-12,Multiple [MigratorMeta]-entries found for RayMigratorVersion [3.0.0] RepositoryDatabaseType [SqlServer].")]
     [InlineData("-20,Product with empty name [NULL] is not allowed!")]
     [InlineData("-30,MigrationRun with Id [42] does not exist")]
     [InlineData("-31,MigrationRun [42] not found or not in Running state")]
+    [InlineData("-32,RayMigrator could not acquire the repository schema lock within 60 seconds")]
     [InlineData("-40,Migration with Id [99] does not exist")]
     [InlineData("-50,Environment with empty name [NULL] is not allowed!")]
     [InlineData("-1,General template error")]
@@ -104,12 +102,13 @@ public class TemplateResultCodeTests
     [Theory]
     [InlineData(-1, true)]
     [InlineData(-2, true)]
-    [InlineData(-10, true)]
-    [InlineData(-11, true)]
+    [InlineData(-10, false)]
+    [InlineData(-11, false)]
     [InlineData(-12, true)]
     [InlineData(-20, true)]
     [InlineData(-30, true)]
     [InlineData(-31, true)]
+    [InlineData(-32, true)]
     [InlineData(-40, true)]
     [InlineData(-50, true)]
     [InlineData(-3, false)]

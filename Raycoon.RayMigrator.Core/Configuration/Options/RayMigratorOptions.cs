@@ -164,16 +164,40 @@ public class RepositoryOptions
 
     [RayRangeInt(0, int.MaxValue, 250)]
     public int? DbCommandWaitTimeInMsBeforeRetry { get; set; }
+
+    /// <summary>
+    /// How often a running migrate-up, migrate-down or baseline refreshes <c>MigrationRun.LastHeartbeatAt</c>, in
+    /// seconds (default 30; 0 switches the heartbeat off). The heartbeat tells other processes that the run is alive:
+    /// a run whose heartbeat is older than <see cref="OrphanedRunThresholdInMinutes"/> is treated as orphaned.
+    /// </summary>
+    [RayRangeInt(0, int.MaxValue, 30)]
+    public int? HeartbeatIntervalInSeconds { get; set; } // int must be nullable, otherwise defaultValue is not applied!
+
+    /// <summary>
+    /// How many minutes after its last heartbeat an open run counts as orphaned (default 2, about four missed
+    /// heartbeats): a parallel start then closes it as Error and takes the run lock, and <c>fix</c> uses the same
+    /// age unless <c>--older-than</c> says otherwise. A run that never wrote a heartbeat is measured from its start.
+    /// </summary>
+    [RayRangeInt(0, int.MaxValue, 2)]
+    public int? OrphanedRunThresholdInMinutes { get; set; } // int must be nullable, otherwise defaultValue is not applied!
 }
 
 
 /// <summary>
-/// 
+/// Where the structured migration log goes. Without this section, or with values left out, the log goes into the
+/// repository (<see cref="Validation.DatabaseLoggingDefaults"/> fills the section from <see cref="RepositoryOptions"/>
+/// with <c>MinimumLevel</c> Information); <c>Enabled: false</c> switches database logging off.
 /// </summary>
 public class DatabaseLoggingOptions
 {
+    /// <summary>
+    /// False switches database logging off. Null or true keeps it on; the missing values then come from the repository.
+    /// </summary>
+    public bool? Enabled { get; set; }
+
     public string? DatabaseType { get; set; }
     
+    /// <summary>The lowest <see cref="LogLevel"/> written to the log database; Information when left out.</summary>
     [RayEnum(typeof(LogLevel), false, false)]
     public string? MinimumLevel { get; set; }
     

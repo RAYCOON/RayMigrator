@@ -9,6 +9,61 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ### Added
 
+- The repository schema is versioned (ADR-024). The new table
+  `RepositorySchemaVersion` records every applied schema version;
+  `RepositorySchema.CurrentVersion` in `Raycoon.RayMigrator.Core` names the
+  newest one, and every DAL ships one `Repository_Upgrade_{n}` template per
+  version, each creating its version on top of the one before, idempotent
+  and serialised against a parallel start. `Repository_CheckCreate` now
+  creates only the version table and reports the version found;
+  `TemplateExecutor.RepositoryCheckCreate` applies the missing steps in
+  order, logs a created or upgraded repository at Information level and then
+  registers the engine version through the new
+  `Repository_MigratorMeta_CheckInsert`, whose result is the
+  `MigratorMetaId`. A repository whose schema version is newer than the
+  engine supports is refused with the new `RepositorySchemaException`
+  before anything is written. New log events
+  `TemplateExecutionRepositoryUpgrade` (101) and
+  `TemplateExecutionRepositoryMigratorMetaCheckInsert` (102).
+- Schema version 2: a run row records what it does and who started it
+  where. `MigrationRun` gains `MigrationOperationId`, `MigrationRunSourceId`
+  (new lookup table `MigrationRunSource`: Cli = 10, Ci = 20, Studio = 30),
+  `InitiatedBy`, `InitiatedBySubject`, `Host`, `ErrorCode`, `ErrorMessage`
+  and `LastHeartbeatAt`, all nullable. `RayMigratorConsoleOptions` takes
+  `Source`, `InitiatedBy`, `InitiatedBySubject` and `Host` from a host; the
+  CLI fills the OS user, the machine name and `Cli`, or `Ci` when one of
+  `CI`, `GITHUB_ACTIONS`, `GITLAB_CI`, `TF_BUILD`, `JENKINS_URL` or
+  `TEAMCITY_VERSION` is set (`RunInitiator`). A run that does not end Ok
+  stores the message of the failure that decided its result, cut to 4000
+  characters, and the engine error code when there is one. `MigrationRunInfo`
+  reports `Source`, `InitiatedBy`, `InitiatedBySubject`, `Host`, `ErrorCode`,
+  `ErrorMessage` and `LastHeartbeatAt`, and its `Operation` comes from the
+  run row instead of being derived from the records.
+- A running migrate-up, migrate-down or baseline writes a heartbeat into
+  its run row (`Repository_MigrationRun_Heartbeat`, every
+  `Repository.HeartbeatIntervalInSeconds`, default 30, 0 = off) from its own
+  connection; a failed beat is a warning, never the end of the run. An open
+  run counts as orphaned when its last heartbeat (or its start, for a run
+  without one) is older than `Repository.OrphanedRunThresholdInMinutes`
+  (default 2): the next start for the same product and environment closes
+  it as Error and takes the run lock, `fix` lists and repairs it, and
+  `OrphanedRunInfo` reports `LastHeartbeatAt`, `MinutesSinceHeartbeat`,
+  `InitiatedBy` and `Host`. A run that still writes heartbeats is alive and
+  blocks a parallel start however long it runs; `fix` refuses to close it
+  (`-31`).
+- New package `Raycoon.RayMigrator.Repository.ReadModel` (ADR-025): the
+  technology-neutral read model of the repository for RayMigrator Studio
+  and other readers. `RepositoryNaming` gives the table and column names
+  of every engine (PascalCase or snake_case, schema, prefix, quoting) and
+  a `SELECT` per table; one positional record per table names the columns
+  and their .NET types (`MigrationRunRow`, `MigrationRecordRow`,
+  `MigrationLogRow`, `LookupRow`, ...); `RepositoryRowMapper` builds the
+  records from ADO.NET rows of any of the five providers;
+  `RepositoryReadModel.SchemaVersion` is the schema version of this
+  release. The package depends on `Raycoon.RayMigrator.Core` only.
+- `DatabaseLogWriter.FlushAsync(timeout)` waits until every queued log
+  entry is written and leaves the queue open, for a host that runs several
+  migrations in one process; `Flush()` stays the CLI's shutdown call.
 - Typed progress events for hosts. `MigrationContext.ProgressObserver` takes an
   `IMigrationProgressObserver` (namespace `Raycoon.RayMigrator.Core.Progress`)
   that receives `RunStartedEvent` (after the run row exists, with its id),
@@ -27,6 +82,37 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ### Changed
 
+- **Breaking:** repositories created by 0.16.0 or earlier carry no schema
+  version and are refused with `RepositorySchemaException`; drop their
+  tables once and let this version create them again. From this version on
+  a schema change ships as a new `Repository_Upgrade_{n}` step that the
+  next command applies, and the data stays. The table count checks of
+  `Repository_CheckCreate` and their codes `-10` (`RepositoryIncomplete`)
+  and `-11` (`RepositoryPartialWithoutVersionTable`) are gone; `-12` is
+  returned by `Repository_MigratorMeta_CheckInsert`. External DALs must
+  ship `Repository_Upgrade_1.sql` and
+  `Repository_MigratorMeta_CheckInsert.sql`; `TemplateCache` requires 25
+  templates per engine (`Repository_Upgrade_2.sql` and
+  `Repository_MigrationRun_Heartbeat.sql` included). ADR-007 and ADR-016 are
+  superseded in their repository part.
+- **Breaking:** database logging is on by default and goes into the
+  repository. Without a `DatabaseLogging` section, or with one that leaves
+  values out, the database type, connection string, schema and table prefix
+  come from `Repository` and `MinimumLevel` is `Information`
+  (`DatabaseLoggingDefaults`, applied before validation); `MigrationLog` and
+  `MigrationEvent` are created in the repository schema on the first run.
+  `"DatabaseLogging": { "Enabled": false }` switches it off, a section with
+  another `DatabaseType` describes a separate log database. A section
+  without `MinimumLevel` no longer ends the start with an exception.
+- **Breaking:** orphaned runs are detected by heartbeat age, not by run age.
+  The auto-fix threshold of 10 minutes after the start
+  (`AutoFixOrphanedRunsThresholdMinutes`) is gone; `fix --older-than` and
+  `FixIssuesRequest.OlderThanMinutes` mean minutes since the last heartbeat
+  and default to 2 instead of 60. A healthy run longer than 10 minutes is
+  no longer closed by a parallel start, and a crashed pipeline run is
+  released after 2 minutes. `Repository_MigrationRun_FixOrphaned` takes
+  `@ThresholdMinutes` and `Repository_MigrationRun_SelectOrphaned` returns
+  `LastHeartbeatAt`, `MinutesSinceHeartbeat`, `InitiatedBy` and `Host`.
 - `IMigrationContextFactory` is the entry point of a host for one run, the CLI
   pipeline included. `Create` prepares options a host built in memory with the
   new `RayMigratorOptionsPreparer`, which gives them what options bound from
@@ -81,6 +167,59 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ### Fixed
 
+- A parallel start and the `fix` command close an orphaned run before they
+  rewrite its records, and a run that wrote a heartbeat between the orphan
+  select and the fix (`-31`) is left alone, records included; a start that
+  finds every candidate alive fails with `MigrationAlreadyRunningException`
+  as documented instead of a template result error. On PostgreSQL
+  `Repository_MigrationRun_FixOrphaned` reports the alive run with
+  `RAISE NOTICE` instead of `RAISE EXCEPTION`, so the engine reads the
+  `-31` as a result code like on the other engines.
+- SQL Server measures the heartbeat age in elapsed seconds, as the other
+  engines do. `DATEDIFF(MINUTE)` counted minute boundaries, so a run that
+  beat a second before the minute turned was orphaned after a few seconds
+  of silence with a threshold of 1, and after 60 seconds with the default
+  2. `DurationInMs` of a repaired run uses `DATEDIFF_BIG`, which no longer
+  overflows for a run orphaned longer than 24 days.
+- A heartbeat does not retry a failed write (the next tick is the retry),
+  and the stop of the heartbeat waits at most 10 seconds for a beat in
+  progress; a transient-error burst on the repository neither silenced the
+  heartbeat of an alive run for minutes nor held the end of the run.
+- On MariaDB and MySQL every repository schema template reports `-32`
+  (`RepositorySchemaLockNotAcquired`) when `GET_LOCK()` does not answer
+  within 60 seconds, and writes neither the version row nor the
+  `MigratorMeta` row without the lock; before, the script went on
+  unserialised, and two first runs of one engine version could register
+  it twice.
+- On MariaDB and MySQL a repository whose first schema step lost its
+  connection after creating `MigratorMeta` is completed by the next command.
+  `Repository_CheckCreate` took every repository with a `MigratorMeta` table
+  and no version row for one of a RayMigrator before 0.17.0 and refused it;
+  it now does so only when `MigratorMeta` has rows.
+- A SQLite script that opens its own transaction (`BEGIN IMMEDIATE`, as
+  the repository schema steps do) and fails before `COMMIT` is rolled back
+  by the DAL. Microsoft.Data.Sqlite pools the connection, and a handle
+  returned with an open transaction kept the file's write lock, so every
+  later writer failed with "database is locked" until the process ended.
+  Two processes that start on an empty SQLite repository at the same time
+  no longer fail: both read the schema version before either applies a
+  step, and the second one failed on a column the first had added (SQLite
+  has no `ADD COLUMN IF NOT EXISTS`); a step that fails is now accepted
+  when a re-read of the version shows it applied.
+- The PostgreSQL, MySQL, MariaDB and SQLite DALs substitute template
+  parameters into the SQL text, because their providers cannot bind
+  parameters in the scripts the templates use. The substitution now scans
+  the text once and matches whole identifiers (`DalParameterSubstitution` in
+  `Raycoon.RayMigrator.Database.Common`): a value that itself contains
+  `@Name` is no longer substituted a second time, which corrupted the value
+  and, with a quote in the second value, broke out of the literal; and
+  `@Product` no longer touches `@ProductId`. The PostgreSQL DAL no longer
+  doubles backslashes, which stored `path\to` as `path\\to` because a
+  standard literal treats a backslash as an ordinary character, and it gives
+  every `DO $$` block a tag that is unique to the call, so a value that
+  contains `$$` can no longer end the block. This affects every free-text
+  value the repository stores, such as `MigrationLog.Message` and the
+  settings snapshot of a run.
 - `GetHistoryAsync` and `GetStatusAsync` read the runs of the requested
   environment only. `Repository_MigrationRun_Select` filtered by product
   alone, so the history listed the runs of every environment of the product

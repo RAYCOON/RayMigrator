@@ -15,13 +15,13 @@ public class SqliteTypeConventionsTests
     #region DAL-020: No AUTOINCREMENT
 
     [Fact]
-    public void Repository_CheckCreate_ContainsNoAutoincrement()
+    public void Repository_Upgrade1_ContainsNoAutoincrement()
     {
-        var content = ReadTemplate("Sqlite", "Repository_CheckCreate.sql");
+        var content = ReadTemplate("Sqlite", "Repository_Upgrade_1.sql");
 
         var pattern = new Regex(@"\bAUTOINCREMENT\b");
         pattern.IsMatch(content).Should().BeFalse(
-            "Repository_CheckCreate.sql must not contain the AUTOINCREMENT keyword after DAL-020; " +
+            "Repository_Upgrade_1.sql must not contain the AUTOINCREMENT keyword after DAL-020; " +
             "INTEGER PRIMARY KEY already provides rowid aliasing in SQLite without the overhead guarantee");
     }
 
@@ -59,9 +59,9 @@ public class SqliteTypeConventionsTests
     #region DAL-022: STRICT tables
 
     [Fact]
-    public void Repository_CheckCreate_AllCreateTableStatementsAreStrict()
+    public void Repository_Upgrade1_AllCreateTableStatementsAreStrict()
     {
-        var content = ReadTemplate("Sqlite", "Repository_CheckCreate.sql");
+        var content = ReadTemplate("Sqlite", "Repository_Upgrade_1.sql");
         var sqlOnly = StripBlockComments(content);
 
         var createTableRegex = new Regex(
@@ -69,12 +69,12 @@ public class SqliteTypeConventionsTests
             RegexOptions.IgnoreCase | RegexOptions.Singleline);
 
         var matches = createTableRegex.Matches(sqlOnly);
-        matches.Should().HaveCount(12,
-            "Repository_CheckCreate.sql must contain exactly 12 CREATE TABLE / CREATE TEMP TABLE statements after DAL-022");
+        matches.Should().HaveCount(11,
+            "Repository_Upgrade_1.sql must contain exactly 11 CREATE TABLE statements (the repository tables of schema version 1) after DAL-022");
 
         foreach (Match m in matches)
             m.Groups[1].Success.Should().BeTrue(
-                $"CREATE TABLE at position {m.Index} in Repository_CheckCreate.sql must be declared STRICT (DAL-022)");
+                $"CREATE TABLE at position {m.Index} in Repository_Upgrade_1.sql must be declared STRICT (DAL-022)");
     }
 
     [Fact]
@@ -134,9 +134,9 @@ public class SqliteTypeConventionsTests
     #region DAL-021: ISO-8601 datetime CHECK constraints
 
     [Fact]
-    public void Repository_CheckCreate_NotNullDatetimeColumns_HaveStrictCheck()
+    public void Repository_Upgrade1_NotNullDatetimeColumns_HaveStrictCheck()
     {
-        var content = ReadTemplate("Sqlite", "Repository_CheckCreate.sql");
+        var content = ReadTemplate("Sqlite", "Repository_Upgrade_1.sql");
 
         // Strict CHECK: datetime("X") IS NOT NULL AND datetime("X") = "X"
         // Expected >= 5 occurrences: MigratorMeta.CreatedAt, Product.CreatedAt,
@@ -146,13 +146,13 @@ public class SqliteTypeConventionsTests
             RegexOptions.IgnoreCase);
 
         strictPattern.Matches(content).Count.Should().BeGreaterThanOrEqualTo(5,
-            "DAL-021: Repository_CheckCreate.sql must carry strict-ISO-8601 CHECK on every NOT NULL datetime column");
+            "DAL-021: Repository_Upgrade_1.sql must carry strict-ISO-8601 CHECK on every NOT NULL datetime column");
     }
 
     [Fact]
-    public void Repository_CheckCreate_NullableDatetimeColumns_HaveNullTolerantCheck()
+    public void Repository_Upgrade1_NullableDatetimeColumns_HaveNullTolerantCheck()
     {
-        var content = ReadTemplate("Sqlite", "Repository_CheckCreate.sql");
+        var content = ReadTemplate("Sqlite", "Repository_Upgrade_1.sql");
 
         // Null-tolerant CHECK: "X" IS NULL OR (datetime("X") IS NOT NULL AND datetime("X") = "X")
         // Expected >= 5 occurrences: MigrationRun.FinishedAt, MigrationRecord.StartedAt/FinishedAt,
@@ -162,7 +162,7 @@ public class SqliteTypeConventionsTests
             RegexOptions.IgnoreCase);
 
         nullTolerantPattern.Matches(content).Count.Should().BeGreaterThanOrEqualTo(5,
-            "DAL-021: Repository_CheckCreate.sql must carry null-tolerant CHECK on every nullable datetime column");
+            "DAL-021: Repository_Upgrade_1.sql must carry null-tolerant CHECK on every nullable datetime column");
     }
 
     [Fact]
@@ -183,7 +183,7 @@ public class SqliteTypeConventionsTests
     {
         // Regression guard: every datetime column (TEXT column whose name ends in 'At') in the two
         // CheckCreate templates must carry a CHECK clause on the same column statement.
-        string[] templates = ["Repository_CheckCreate.sql", "DatabaseLogging_CheckCreate.sql"];
+        string[] templates = ["Repository_CheckCreate.sql", "Repository_Upgrade_1.sql", "DatabaseLogging_CheckCreate.sql"];
 
         foreach (var templateName in templates)
         {
@@ -213,6 +213,9 @@ public class SqliteTypeConventionsTests
     {
         new object[] { "DatabaseLogging_CheckCreate.sql" },
         new object[] { "Repository_CheckCreate.sql" },
+        new object[] { "Repository_Upgrade_1.sql" },
+        new object[] { "Repository_Upgrade_2.sql" },
+        new object[] { "Repository_MigratorMeta_CheckInsert.sql" },
         new object[] { "Repository_Environment_CheckInsert.sql" },
         new object[] { "Repository_MigrationRecord_FixOrphaned.sql" },
         new object[] { "Repository_MigrationRecord_Insert.sql" },
@@ -220,6 +223,7 @@ public class SqliteTypeConventionsTests
         new object[] { "Repository_MigrationRecord_UpdateHash.sql" },
         new object[] { "Repository_MigrationRecord_UpdateRollback.sql" },
         new object[] { "Repository_MigrationRun_FixOrphaned.sql" },
+        new object[] { "Repository_MigrationRun_Heartbeat.sql" },
         new object[] { "Repository_MigrationRun_Insert.sql" },
         new object[] { "Repository_MigrationRun_Update.sql" },
         new object[] { "Repository_Product_CheckInsert.sql" },

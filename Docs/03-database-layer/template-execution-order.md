@@ -27,7 +27,7 @@ This document describes the exact order in which SQL templates are executed when
 **Call site:** `DirectModePipeline.cs` (in Pipeline project) -> `DatabaseLogWriter.InitDatabaseLogger()`
 **Target database:** Logging database (from `DatabaseLogging` configuration section)
 
-This phase executes whenever the `DatabaseLogging` section is present in the configuration, regardless of run mode. If the section is omitted, the phase is skipped entirely.
+This phase executes unless the `DatabaseLogging` section says `Enabled: false`, regardless of run mode; without a section the log database is the repository (the defaults fill the section from `Repository`).
 
 ### Template 1: `DatabaseLogging_CheckCreate`
 
@@ -91,18 +91,19 @@ This template is **not executed immediately**. It is first used when the Serilog
 **Call site:** `MigrationService.MigrateUpAsync()` -> `TemplateExecutor.RepositoryCheckCreate()`
 **Target database:** Repository database (from `Repository` configuration section)
 
-### Template 3: `Repository_CheckCreate`
+### Template 3: `Repository_CheckCreate`, `Repository_Upgrade_{n}` and `Repository_MigratorMeta_CheckInsert`
 
-**File:** `DataAccessLayers/{DB}/Repository_CheckCreate.sql`
-**Purpose:** Checks if the repository exists and is complete. Creates the entire RayMigrator infrastructure on first run.
+**Files:** `DataAccessLayers/{DB}/Repository_CheckCreate.sql`, `Repository_Upgrade_{n}.sql`, `Repository_MigratorMeta_CheckInsert.sql`
+**Purpose:** Brings the repository to the schema version of the engine and registers the engine version (ADR-024). `TemplateExecutor.RepositoryCheckCreate` orchestrates the three templates:
 
-**SQL parameters:**
-- `@RepositoryDatabaseType` - The database type (e.g., `SqlServer`)
-- `@RayMigratorVersion` - The application version (e.g., `3.0.0`)
+1. `Repository_CheckCreate` (no parameters) creates the schema (SQL Server, PostgreSQL) and the `RepositorySchemaVersion` table when they are missing and returns `'schemaVersion,unversionedTables,message'`: the highest applied version (`0` = none) and `1` when the `MigratorMeta` table exists. Version `0` with existing tables marks a repository of a RayMigrator before 0.17.0, which is refused with `RepositorySchemaException`; a version above `RepositorySchema.CurrentVersion` is refused as well. Neither case writes anything.
+2. Every missing `Repository_Upgrade_{n}` from version + 1 to the target version runs in order (parameter `@RayMigratorVersion`, EventId `101`). Each step is idempotent per engine, serialised against a parallel start, returns its own version number and writes its row of `RepositorySchemaVersion`. A fresh repository runs every step from 1. A created or upgraded repository is logged at Information level.
+3. `Repository_MigratorMeta_CheckInsert` (parameters `@RayMigratorVersion`, `@RepositoryDatabaseType`, EventId `102`) registers the engine version in `MigratorMeta` and returns the `MigratorMetaId`, stored in `MigrationContext.MigrationState.MigratorMetaId`.
 
+**What schema step 1 (`Repository_Upgrade_1`) creates:**
 **What is created:**
 
-> **Note**: SQL Server wraps this in a transaction with `BEGIN TRY`/`BEGIN CATCH`. PostgreSQL uses a `DO $$` block. MariaDB and MySQL use `CREATE TABLE IF NOT EXISTS` with inline FK constraints, since DDL causes implicit commits and cannot be wrapped in a transaction; the master data is inserted only when the repository did not exist before the run (`WHERE @v_version_table_exists = 0`). No engine upgrades an existing repository in place.
+> **Note**: SQL Server runs the step in one transaction under `sp_getapplock`, PostgreSQL in one `DO $$` block under `pg_advisory_xact_lock`; both create the tables only when `MigratorMeta` does not exist. MariaDB and MySQL use `CREATE TABLE IF NOT EXISTS` with inline FK constraints and `INSERT IGNORE` for the master data under `GET_LOCK()`, since DDL causes implicit commits and cannot be wrapped in a transaction; SQLite uses `CREATE TABLE IF NOT EXISTS` and `INSERT OR IGNORE`. Every step is idempotent, so a rerun after a failure completes what is missing; on MariaDB and MySQL, where a step that lost its connection midway leaves committed tables behind, `Repository_CheckCreate` treats a repository as pre-0.17.0 only when `MigratorMeta` has rows and no version row exists, so an empty, half-created repository is completed and not refused. On MariaDB and MySQL every schema template reports `-32` when it could not acquire `GET_LOCK()` within 60 seconds, and writes neither the version row nor the `MigratorMeta` row without the lock.
 
 1. **Schema** (e.g., `[ray]`) if it does not exist (SQL Server/PostgreSQL only; MariaDB/MySQL uses the database itself)
 
@@ -171,9 +172,11 @@ This template is **not executed immediately**. It is first used when the Serilog
    | 50 | NotMigrated | Not deployed / rolled back |
    | 100 | Migrated | Successfully deployed |
 
-8. **MigratorMeta entry** with the current `RayMigratorVersion` and `RepositoryDatabaseType` (the first row of the table is the version that created the repository)
+8. **RepositorySchemaVersion row 1** with `AppliedAt` and the `RayMigratorVersion` that applied the step
 
-**Return value:** VersionId (positive integer), stored in `MigrationContext.MigrationState.MigratorMetaId`
+**What schema step 2 (`Repository_Upgrade_2`) adds:** the lookup table `MigrationRunSource` (Cli = 10, Ci = 20, Studio = 30) and the nullable run detail columns `MigrationOperationId`, `MigrationRunSourceId`, `InitiatedBy`, `InitiatedBySubject`, `Host`, `ErrorCode`, `ErrorMessage` and `LastHeartbeatAt` on `MigrationRun` with foreign keys to `MigrationOperation` and `MigrationRunSource`, plus version row 2.
+
+**Return values:** `Repository_CheckCreate` returns `'schemaVersion,unversionedTables,message'`; `Repository_Upgrade_{n}` returns `'n,message'`; `Repository_MigratorMeta_CheckInsert` returns the `MigratorMetaId` (positive integer, `-12` when several `MigratorMeta` rows match), stored in `MigrationContext.MigrationState.MigratorMetaId`
 
 ---
 
@@ -266,6 +269,9 @@ Called immediately after Product registration by every `MigrationService` entry 
 - `@FromReleaseVersion` - From `MigrationState.FromReleaseVersion`: the highest Migrated release of the product and environment when the run started, read right before the insert; `NULL` when nothing was migrated yet
 - `@ToReleaseVersion` - From console options `TargetReleaseVersion`
 - `@MigrationRunSettingsJson` - JSON snapshot of all RayMigrator settings at migration start
+- `@MigrationOperationId` - What the run does: 50=MigrateDown, 100=MigrateUp, 110=Baseline (schema version 2)
+- `@MigrationRunSourceId` - Where the run was started: 10=Cli, 20=Ci, 30=Studio; NULL when the host did not say
+- `@InitiatedBy`, `@InitiatedBySubject`, `@Host` - Who started the run where (the CLI binds the OS user and the machine name; Studio the signed-in user)
 
 **Logic:**
 1. Checks if an unfinished MigrationRun exists (`FinishedAt IS NULL`) for the same product/environment
@@ -315,7 +321,8 @@ These templates exist in the template cache but are only used during specific op
 | Template | When Used |
 |----------|-----------|
 | `Repository_Drop` | Explicit repository deletion |
-| `Repository_MigrationRun_Update` | After completion or error of a MigrationRun |
+| `Repository_MigrationRun_Heartbeat` | Every `Repository.HeartbeatIntervalInSeconds` while a migrate-up, migrate-down or baseline runs: refreshes `LastHeartbeatAt` of the open run row (its own connection, failures are warnings) |
+| `Repository_MigrationRun_Update` | After completion or error of a MigrationRun: stores the result, `FinishedAt`, `DurationInMs` and, since schema version 2, `@ErrorCode` and `@ErrorMessage` of the failure that decided a result other than Ok |
 | `Repository_MigrationRecord_Insert` | Per migration file during actual migration execution |
 | `Repository_MigrationRecord_Update` | Block progress or completion per file |
 | `Repository_MigrationRecord_UpdateRollback` | Update migration record with rollback (FileDown) metadata and progress |

@@ -1,0 +1,11 @@
+-- TODO: Implement for your database engine
+-- Purpose: Schema version 2 (ADR-024): adds the nullable run detail columns to MigrationRun (MigrationOperationId,
+--          MigrationRunSourceId, InitiatedBy, InitiatedBySubject, Host, ErrorCode, ErrorMessage, LastHeartbeatAt), the
+--          MigrationRunSource lookup table (Cli = 10, Ci = 20, Studio = 30) and version row 2. Must be idempotent.
+-- See the corresponding template in Database.SqlServer or Database.PostgreSQL for reference.
+-- Returns: 'code,message' where code equals the step number (2).
+--
+-- Parameters used in this template:
+-- {CFG:SchemaName} - The repository schema name
+-- {CFG:TableBaseName} - The table name prefix
+-- @RayMigratorVersion - The RayMigrator version applying the step

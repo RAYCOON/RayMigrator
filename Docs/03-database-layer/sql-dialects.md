@@ -616,12 +616,26 @@ END;
 
 ## Parameter Substitution
 
-All DALs except SQL Server use manual parameter substitution (replacing `@paramName` placeholders with formatted values) instead of ADO.NET parameterized queries. This is necessary because:
+All DALs except SQL Server substitute the `@paramName` placeholders of a template into the SQL text instead of binding ADO.NET parameters. This is necessary because:
 
 - **PostgreSQL**: `DO $$` anonymous blocks treat `@paramName` as literal text, not as parameterized query placeholders.
 - **MariaDB/MySQL**: Templates use session variables (`@v_count`, `@dummy`) alongside command parameters (`@ProductId`). Manual substitution prevents conflicts between session variables and command parameters.
 - **SQLite**: Multi-statement scripts where standard parameterized queries would not work across statement boundaries.
 - **SQL Server**: Uses native ADO.NET parameterized queries (`SqlParameter`) since T-SQL fully supports them.
+
+The four DALs share `DalParameterSubstitution.Substitute` (`Raycoon.RayMigrator.Database.Common`) and pass it their own literal formatter. The rules:
+
+- The text is scanned **once**. A placeholder is only matched in the template text, never inside a value that was substituted before it, so a value that contains `@Id` is stored as written.
+- A placeholder is matched as a **whole identifier** (`@` not preceded by an identifier character or another `@`, followed by `[A-Za-z_][A-Za-z0-9_]*`): `@Product` leaves `@ProductId` alone, `@@sql_mode` and `user@example` are not placeholders, and `@Id::text` is substituted.
+- Names are compared **case-sensitively**; an identifier that is not in the parameter list stays as it is, which is what keeps the MySQL and MariaDB session variables intact.
+
+Each DAL formats its own literals: `NULL` for a null value, a number as is, and a string in single quotes with every quote doubled. On top of that:
+
+- **PostgreSQL**: a backslash is an ordinary character in a standard literal (`standard_conforming_strings`, the default since PostgreSQL 9.1), so it is not escaped; booleans become `TRUE`/`FALSE`. The DAL replaces every `$$` of the template with a tag that is unique to the call (`$rm<32 hex>$`) before the values go in, so a value that contains `$$` cannot end the `DO` block. Templates must therefore delimit their `DO` blocks with `$$` and nothing else.
+- **MariaDB/MySQL**: a backslash is doubled, because the default `sql_mode` treats it as an escape character; booleans become `1`/`0`.
+- **SQLite**: booleans become `1`/`0`; a backslash has no meaning and is kept.
+
+The engine tests `ParameterRoundTripTests` (one class per engine) send a value with quotes, backslashes, `$$`, other placeholders, comment and statement markers and non-ASCII text through a parameter and expect it back unchanged.
 
 ## Naming Conventions per Engine
 
@@ -647,7 +661,7 @@ PostgreSQL, MariaDB, and MySQL all use **unquoted snake_case** for repository id
 | `RayMigratorVersion` | `raymigrator_version` |
 | `RayMigratorHostMode` | `raymigrator_host_mode` |
 
-The `RepositoryQueryHelper.ToSnakeCase` helper in the Testing project implements this exception via a sentinel pre-pass (`RayMigrator` → `Raymigrator` before mechanical splitting) and is covered by `P1_RepositoryQueryHelperToSnakeCaseTests`. The same `ToSnakeCase` logic is used when `RepositoryQueryHelper` formats table and column names for MariaDB and MySQL queries (DAL-018).
+`RepositoryNaming.ToSnakeCase` in the read model package `Raycoon.RayMigrator.Repository.ReadModel` (ADR-025) implements this exception via a sentinel pre-pass (`RayMigrator` → `Raymigrator` before mechanical splitting) and is covered by `P1_RepositoryReadModelTests`; `RepositoryQueryHelper.ToSnakeCase` in the Testing project delegates to it (covered by `P1_RepositoryQueryHelperToSnakeCaseTests`) when it formats table and column names for PostgreSQL, MariaDB and MySQL queries (DAL-017, DAL-018).
 
 **`TableBaseName` must be lowercase for PostgreSQL, MariaDB, and MySQL.** The `RayMigratorOptionsValidator` rejects any uppercase character in `Repository.TableBaseName` or `DatabaseLogging.TableBaseName` when `DatabaseType` is `"PostgreSQL"`, `"MariaDb"`, or `"MySql"`. Rationale: PostgreSQL folds unquoted identifiers to lowercase; the MariaDB/MySQL snake_case repository schema (DAL-018) is stored as lowercase; any uppercase prefix character would break the `information_schema.tables` existence checks in `Repository_CheckCreate` and `DatabaseLogging_CheckCreate`.
 

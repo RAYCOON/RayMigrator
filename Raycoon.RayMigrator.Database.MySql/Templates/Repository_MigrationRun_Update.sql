@@ -6,7 +6,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_MigrationRun_Update"
 DatabaseType   = "MySql"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2025-02-03.1"
+Version        = "2026-10-13.1"
 
 [Description]
 Function = """
@@ -28,6 +28,8 @@ TableBaseName = "Table name prefix from Repository configuration"
 [Parameters]
 MigrationRunId    = "INT | REQUIRED | The ID of the MigrationRun to update"
 MigrationRunResultId = "TINYINT UNSIGNED | REQUIRED | Final result: 10=Running, 90=Error, 100=Ok"
+ErrorCode         = "VARCHAR(100) | OPTIONAL | Engine error code of the failure that decided the result; NULL for Ok"
+ErrorMessage      = "TEXT | OPTIONAL | Message of that failure, cut to 4000 characters by the engine; NULL for Ok"
 
 [ReturnValues]
 # Format: SELECT 'code,message'
@@ -46,6 +48,8 @@ Note5 = "ResultCode catalog: see TemplateResultCode.cs in Shared project"
 UPDATE {CFG:TableBaseName}migration_run
 SET
     migration_run_result_id = @MigrationRunResultId,
+    error_code = @ErrorCode,
+    error_message = @ErrorMessage,
     finished_at = CURRENT_TIMESTAMP,
     duration_in_ms = TIMESTAMPDIFF(MICROSECOND, started_at, CURRENT_TIMESTAMP) / 1000
 WHERE id = @MigrationRunId;

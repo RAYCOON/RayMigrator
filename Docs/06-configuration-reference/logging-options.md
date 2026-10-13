@@ -4,22 +4,27 @@ RayMigrator supports both file/console logging (Serilog) and optional database l
 
 ## Database Logging
 
-Optional logging to a database for centralized log storage.
+Structured logging of every run into a database, so that RayMigrator Studio and operators can read what a run did next to its repository rows.
 
-Database logging is activated by the presence of the `DatabaseLogging` section in the configuration. If the section is omitted, database logging is disabled.
+Database logging is **on by default and goes into the repository**: without a `DatabaseLogging` section, or with one that leaves values out, the missing values come from `Repository` (database type, connection string, schema, table prefix) and `MinimumLevel` is `Information`. The log tables `MigrationLog` and `MigrationEvent` are created in the repository schema on the first run. `"DatabaseLogging": { "Enabled": false }` switches database logging off. A section with its own `DatabaseType` that differs from the repository's describes a separate log database and must name its own `ConnectionString`.
 
-> **Command restriction**: The DatabaseLogging sink (DB sink) only writes log entries for commands that change state: `migrate-up` / `migrate-down` in `Migrate` mode, `update-hash`, `baseline` and `fix` in `Migrate` mode. For `info`, `validate-hash`, `fix` in `Simulate` mode and `migrate-up` / `migrate-down` in `Validate` or `Simulate` mode the sink is silent — no connection to the logging database is opened and no log entries are written (`CommandProfile.WritesDatabaseLog`, #6). Console and file logging (Serilog) always writes for all commands.
+> **Command restriction**: The DatabaseLogging sink (DB sink) only writes log entries for commands that change state: `migrate-up` / `migrate-down` in `Migrate` mode, `update-hash`, `baseline` and `fix` in `Migrate` mode. For `info`, `validate-hash`, `fix` in `Simulate` mode and `migrate-up` / `migrate-down` in `Validate` or `Simulate` mode the sink is silent and no log entries are written (`CommandProfile.WritesDatabaseLog`, #6); the log tables themselves are created by `DatabaseLogging_CheckCreate` in every run mode as soon as database logging is enabled, which it is by default, so even `info` on a fresh repository creates `MigrationLog` and `MigrationEvent`. Console and file logging (Serilog) always writes for all commands.
 
 ### Properties
 
 | Property | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
-| `DatabaseType` | string | Yes | - | Database type (SqlServer, PostgreSQL, MariaDb, MySql, Sqlite) |
-| `ConnectionString` | string | Yes | - | Connection string |
-| `SchemaName` | string | Conditional | - | Schema for logging tables (required for SqlServer, PostgreSQL; ignored for MariaDb, MySql, SQLite) |
-| `TableBaseName` | string | No | - | Table prefix |
+| `Enabled` | bool | No | `true` | `false` switches database logging off |
+| `DatabaseType` | string | No | `Repository.DatabaseType` | Database type (SqlServer, PostgreSQL, MariaDb, MySql, Sqlite) |
+| `ConnectionString` | string | Conditional | `Repository.ConnectionString` | Connection string; required when `DatabaseType` differs from the repository's |
+| `SchemaName` | string | Conditional | `Repository.SchemaName` | Schema for logging tables (SqlServer, PostgreSQL; ignored for MariaDb, MySql, SQLite) |
+| `TableBaseName` | string | No | `Repository.TableBaseName` | Table prefix |
 | `MinimumLevel` | string | No | Information | Minimum log level |
 | `DbCommandTimeoutInSeconds` | int | No | 20 | Command timeout |
+
+> **SQLite**: the log rows are written on their own connection while a migration runs. When the repository file is also a target, every target block holds the file's write lock and the log writer waits in the busy timeout; give the repository its own file (as for the heartbeat, see [Repository options](repository-options.md)).
+
+The defaults from `Repository` apply only while `DatabaseType` is the repository's (left out or equal); `DatabaseLoggingDefaults` in `Raycoon.RayMigrator.Core.Configuration.Validation` fills the section before the data annotations and the rule catalog run, so a filled section is validated like a written one.
 
 ### Log Levels
 
@@ -36,6 +41,32 @@ Database logging is activated by the presence of the `DatabaseLogging` section i
 > **Note**: `DatabaseLogging.MinimumLevel` uses `Microsoft.Extensions.Logging.LogLevel` values (Trace, Debug, Information, Warning, Error, Critical, None). The `Serilog` section uses Serilog's own level names (Verbose, Debug, Information, Warning, Error, Fatal). These are different enum systems -- do not mix them.
 
 ### Example Configuration
+
+The default needs no section at all. To change only the level while the log stays in the repository:
+
+```json
+{
+  "RayMigrator": {
+    "DatabaseLogging": {
+      "MinimumLevel": "Debug"
+    }
+  }
+}
+```
+
+To switch database logging off:
+
+```json
+{
+  "RayMigrator": {
+    "DatabaseLogging": {
+      "Enabled": false
+    }
+  }
+}
+```
+
+A fully written section:
 
 ```json
 {
@@ -67,7 +98,9 @@ Database logging is activated by the presence of the `DatabaseLogging` section i
 }
 ```
 
-### Same Database as Repository
+### Same Database as Repository, Other Schema
+
+The default puts the log tables into the repository schema. To keep them in the repository database but in a schema of their own, name only the schema:
 
 ```json
 {
@@ -76,8 +109,6 @@ Database logging is activated by the presence of the `DatabaseLogging` section i
     "SchemaName": "migrations"
   },
   "DatabaseLogging": {
-    "DatabaseType": "SqlServer",
-    "ConnectionString": "{ENV:REPO_CONNECTION}",
     "SchemaName": "logs"
   }
 }
@@ -109,6 +140,8 @@ await host.StopAsync();
 ```
 
 `DatabaseLogWriter.Flush()` delegates to `DatabaseLoggerQueue.Flush()`, which calls `BlockingCollection.CompleteAdding()` and then waits for the background processing task to finish. After the host stops, `Log.CloseAndFlushAsync()` is called to flush all Serilog sinks (console, file, etc.).
+
+A host that runs several migrations in one process (RayMigrator Studio) calls `DatabaseLogWriter.FlushAsync(timeout)` at the end of a run instead: it waits until every queued entry is written and leaves the queue open for the next run.
 
 ## Serilog Configuration
 
@@ -286,7 +319,7 @@ Example output template using enriched properties:
 Serilog is configured early during startup, before the full DI container is built. The initialization sequence is:
 
 1. All configuration files (up to 4 levels) are loaded and merged into the `RayMigrator` configuration section, and `{ENV:...}` placeholders are replaced
-2. If a `DatabaseLogging` section exists, a `RayMigratorDatabaseSink` is created with the configured minimum level (deferred -- no writer yet)
+2. Unless the `DatabaseLogging` section says `Enabled: false`, a `RayMigratorDatabaseSink` is created with the configured minimum level, `Information` when none is written (deferred -- no writer yet)
 3. `LoggerConfiguration` reads from the `RayMigrator` section, registers enrichers, and optionally adds the database sink
 4. `Log.Logger` is set as the global Serilog logger
 5. The DI host is built with `.UseSerilog()` integration
@@ -349,7 +382,7 @@ At the `Verbose` (Trace) log level, the full resolved configuration is logged. W
 
 1. **Production**: Use `Warning` or `Error` for `MinimumLevel.Default`; use per-sink `restrictedToMinimumLevel` for file sinks that need more detail
 2. **Development**: Use `Debug` level
-3. **Database logging**: Separate database from repository when possible
+3. **Database logging**: The repository is the default home of the log; move it to a separate database when log growth or retention must not touch the repository
 4. **File logging**: Enable rolling with retention limit (`retainedFileCountLimit`)
 5. **Sensitive data**: Never enable `--reveal-sensitive-data` in production
 6. **Output templates**: Use `{Level:u4}` for consistent 4-character level names (INFO, DBUG, WARN, EROR, FATL); use enricher properties like `{MigrationRunId}` in file sinks for correlation

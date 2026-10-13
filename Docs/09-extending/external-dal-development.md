@@ -227,7 +227,7 @@ public class DalYourDb : DalBase, IDal
 
 All 21 template files must be present. `TemplateCache` loads templates from `DataAccessLayers/{Type}/` on the filesystem. Templates are delivered as `<Content>` items that propagate transitively through ProjectReference and as `contentFiles` in NuGet packages. `TemplateCache` validates completeness at startup and throws a `ConfigurationValidationException` listing any missing templates. Template files must not be empty -- if a template is not needed for your database type, add a SQL comment explaining why.
 
-The `Database.Example` project includes all 22 files as placeholders with TODO comments (21 required templates plus `Repository_MigrationRecordHistory_Archive.sql`). `TemplateCache` recognizes only the 21 files that correspond to `TemplateType` enum values; `Repository_MigrationRecordHistory_Archive.sql` is silently skipped during loading. Use `Database.SqlServer` or `Database.PostgreSQL` templates as reference implementations.
+The `Database.Example` project includes all 26 files as placeholders with TODO comments (25 required templates plus `Repository_MigrationRecordHistory_Archive.sql`). `TemplateCache` recognizes only the 25 files that correspond to `TemplateType` enum values; `Repository_MigrationRecordHistory_Archive.sql` is silently skipped during loading. Use `Database.SqlServer` or `Database.PostgreSQL` templates as reference implementations.
 
 ### Required Templates
 
@@ -235,7 +235,10 @@ The `Database.Example` project includes all 22 files as placeholders with TODO c
 |----------|---------|
 | `DatabaseLogging_CheckCreate.sql` | Create logging table if not exists |
 | `DatabaseLogging_Insert.sql` | Insert log entry |
-| `Repository_CheckCreate.sql` | Create all repository tables and their lookup master data (only when the repository is created; the "already exists" branch must not upgrade anything) |
+| `Repository_CheckCreate.sql` | Create the `RepositorySchemaVersion` table if missing and return `'schemaVersion,unversionedTables,message'` (ADR-024); creates nothing else |
+| `Repository_Upgrade_1.sql` | Schema step 1: create all repository tables, indexes, foreign keys and lookup master data and write version row 1; must be idempotent and return `'1,message'` |
+| `Repository_Upgrade_2.sql` | Schema step 2: add the `MigrationRunSource` lookup and the nullable run detail columns of `MigrationRun`, write version row 2; must be idempotent and return `'2,message'`. Every later schema version is a further `Repository_Upgrade_{n}.sql` |
+| `Repository_MigratorMeta_CheckInsert.sql` | Register the RayMigrator version in `MigratorMeta` if missing, return the `MigratorMetaId` (`-12` when several rows match) |
 | `Repository_Drop.sql` | Drop all repository tables and schema |
 | `Repository_Environment_CheckInsert.sql` | Insert environment if not exists, return EnvironmentId |
 | `Repository_MigrationRecord_FixOrphaned.sql` | Fix orphaned migration records |
@@ -247,6 +250,7 @@ The `Database.Example` project includes all 22 files as placeholders with TODO c
 | `Repository_MigrationRecord_UpdateHash.sql` | Update migration hash only |
 | `Repository_MigrationRecord_UpdateRollback.sql` | Update after rollback (includes inline MigrationRecordHistory insert) |
 | `Repository_MigrationRun_FixOrphaned.sql` | Fix orphaned run records |
+| `Repository_MigrationRun_Heartbeat.sql` | Refresh `LastHeartbeatAt` of a running MigrationRun while it is open; return `1` when updated, `0` when the run has finished |
 | `Repository_MigrationRun_Insert.sql` | Insert migration run record |
 | `Repository_MigrationRun_Select.sql` | Select the newest runs of a product and environment (`@ProductId`, `@EnvironmentId`, `@Limit`) |
 | `Repository_MigrationRun_SelectOrphaned.sql` | Select orphaned runs |
@@ -372,7 +376,10 @@ DataAccessLayers/YourDb/
 ├── DatabaseLogging_CheckCreate.sql
 ├── DatabaseLogging_Insert.sql
 ├── Repository_CheckCreate.sql
-├── ... (21 .sql files total)
+├── Repository_Upgrade_1.sql
+├── Repository_Upgrade_2.sql
+├── Repository_MigratorMeta_CheckInsert.sql
+├── ... (25 .sql files total)
 ├── TransientErrorCodes.txt   (optional: replaces the built-in transient error codes, ADR-022)
 ```
 

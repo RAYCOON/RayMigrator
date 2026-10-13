@@ -11,7 +11,7 @@ namespace Raycoon.RayMigrator.Tests.Unit;
 /// </summary>
 public class EnvironmentIdFkTests
 {
-    #region Repository_CheckCreate — EnvironmentId INT column presence
+    #region Repository_Upgrade_1 — EnvironmentId INT column presence
 
     [Theory]
     [InlineData("SqlServer")]
@@ -19,14 +19,14 @@ public class EnvironmentIdFkTests
     [InlineData("MariaDb")]
     [InlineData("MySql")]
     [InlineData("Sqlite")]
-    public void CheckCreate_MigrationRun_ContainsEnvironmentIdColumn(string engine)
+    public void Upgrade1_MigrationRun_ContainsEnvironmentIdColumn(string engine)
     {
-        var content = ReadTemplate(engine, "Repository_CheckCreate.sql");
+        var content = ReadTemplate(engine, "Repository_Upgrade_1.sql");
         var tableName = IsSnakeCaseEngine(engine) ? "migration_run" : "MigrationRun";
         var ddlBlock = ExtractTableDdl(content, tableName);
 
         ddlBlock.Should().NotBeEmpty(
-            $"{engine} Repository_CheckCreate.sql must define a {tableName} table");
+            $"{engine} Repository_Upgrade_1.sql must define a {tableName} table");
 
         var hasColumn = ContainsEnvironmentIdColumn(ddlBlock);
         hasColumn.Should().BeTrue(
@@ -39,14 +39,14 @@ public class EnvironmentIdFkTests
     [InlineData("MariaDb")]
     [InlineData("MySql")]
     [InlineData("Sqlite")]
-    public void CheckCreate_MigrationRecord_ContainsEnvironmentIdColumn(string engine)
+    public void Upgrade1_MigrationRecord_ContainsEnvironmentIdColumn(string engine)
     {
-        var content = ReadTemplate(engine, "Repository_CheckCreate.sql");
+        var content = ReadTemplate(engine, "Repository_Upgrade_1.sql");
         var tableName = IsSnakeCaseEngine(engine) ? "migration_record" : "MigrationRecord";
         var ddlBlock = ExtractTableDdl(content, tableName);
 
         ddlBlock.Should().NotBeEmpty(
-            $"{engine} Repository_CheckCreate.sql must define a {tableName} table");
+            $"{engine} Repository_Upgrade_1.sql must define a {tableName} table");
 
         var hasColumn = ContainsEnvironmentIdColumn(ddlBlock);
         hasColumn.Should().BeTrue(
@@ -59,14 +59,14 @@ public class EnvironmentIdFkTests
     [InlineData("MariaDb")]
     [InlineData("MySql")]
     [InlineData("Sqlite")]
-    public void CheckCreate_MigrationRecordHistory_ContainsEnvironmentIdColumn(string engine)
+    public void Upgrade1_MigrationRecordHistory_ContainsEnvironmentIdColumn(string engine)
     {
-        var content = ReadTemplate(engine, "Repository_CheckCreate.sql");
+        var content = ReadTemplate(engine, "Repository_Upgrade_1.sql");
         var tableName = IsSnakeCaseEngine(engine) ? "migration_record_history" : "MigrationRecordHistory";
         var ddlBlock = ExtractTableDdl(content, tableName);
 
         ddlBlock.Should().NotBeEmpty(
-            $"{engine} Repository_CheckCreate.sql must define a {tableName} table");
+            $"{engine} Repository_Upgrade_1.sql must define a {tableName} table");
 
         var hasColumn = ContainsEnvironmentIdColumn(ddlBlock);
         hasColumn.Should().BeTrue(
@@ -75,14 +75,14 @@ public class EnvironmentIdFkTests
 
     #endregion
 
-    #region Repository_CheckCreate — no standalone text Environment column
+    #region Repository_Upgrade_1 — no standalone text Environment column
 
     [Theory]
     [InlineData("SqlServer")]
     [InlineData("Sqlite")]
-    public void CheckCreate_PascalCaseEngines_NoTextEnvironmentColumn(string engine)
+    public void Upgrade1_PascalCaseEngines_NoTextEnvironmentColumn(string engine)
     {
-        var content = ReadTemplate(engine, "Repository_CheckCreate.sql");
+        var content = ReadTemplate(engine, "Repository_Upgrade_1.sql");
 
         // Matches: Environment NVARCHAR(...) or Environment nvarchar(...) as a column definition
         var hasTextEnvColumn = Regex.IsMatch(content, @"\bEnvironment\b\s+(NVARCHAR|nvarchar|VARCHAR|varchar|TEXT|text)\s*[\(\(]",
@@ -96,9 +96,9 @@ public class EnvironmentIdFkTests
     [InlineData("PostgreSQL")]
     [InlineData("MariaDb")]
     [InlineData("MySql")]
-    public void CheckCreate_SnakeCaseEngines_NoTextEnvironmentColumn(string engine)
+    public void Upgrade1_SnakeCaseEngines_NoTextEnvironmentColumn(string engine)
     {
-        var content = ReadTemplate(engine, "Repository_CheckCreate.sql");
+        var content = ReadTemplate(engine, "Repository_Upgrade_1.sql");
 
         // Matches: environment TEXT or environment varchar(...) as a column definition (not inside a table name or comment)
         // We look for the pattern within table DDL blocks, not in table names like "environment"
@@ -113,7 +113,7 @@ public class EnvironmentIdFkTests
 
     #endregion
 
-    #region Repository_CheckCreate — FK constraints for Environment
+    #region Repository_Upgrade_1 — FK constraints for Environment
 
     [Theory]
     [InlineData("SqlServer", "fk_MigrationRun_Environment")]
@@ -122,12 +122,12 @@ public class EnvironmentIdFkTests
     [InlineData("Sqlite", "fk_MigrationRun_Environment")]
     [InlineData("Sqlite", "fk_MigrationRecord_Environment")]
     [InlineData("Sqlite", "fk_MigrationRecordHistory_Environment")]
-    public void CheckCreate_PascalCaseEngines_ContainsEnvironmentFkConstraints(string engine, string constraintName)
+    public void Upgrade1_PascalCaseEngines_ContainsEnvironmentFkConstraints(string engine, string constraintName)
     {
-        var content = ReadTemplate(engine, "Repository_CheckCreate.sql");
+        var content = ReadTemplate(engine, "Repository_Upgrade_1.sql");
 
         content.Should().Contain(constraintName,
-            $"{engine} Repository_CheckCreate.sql must contain FK constraint '{constraintName}'");
+            $"{engine} Repository_Upgrade_1.sql must contain FK constraint '{constraintName}'");
     }
 
     [Theory]
@@ -140,12 +140,12 @@ public class EnvironmentIdFkTests
     [InlineData("MySql", "fk_migration_run_environment")]
     [InlineData("MySql", "fk_migration_record_environment")]
     [InlineData("MySql", "fk_migration_record_history_environment")]
-    public void CheckCreate_SnakeCaseEngines_ContainsEnvironmentFkConstraints(string engine, string constraintName)
+    public void Upgrade1_SnakeCaseEngines_ContainsEnvironmentFkConstraints(string engine, string constraintName)
     {
-        var content = ReadTemplate(engine, "Repository_CheckCreate.sql");
+        var content = ReadTemplate(engine, "Repository_Upgrade_1.sql");
 
         content.Should().Contain(constraintName,
-            $"{engine} Repository_CheckCreate.sql must contain FK constraint '{constraintName}'");
+            $"{engine} Repository_Upgrade_1.sql must contain FK constraint '{constraintName}'");
     }
 
     #endregion

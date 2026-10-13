@@ -269,36 +269,29 @@ public class DalPostgreSql : DalBase, IDal
     }
 
     /// <summary>
-    /// Substitutes @paramName placeholders with actual values in the SQL text.
-    /// Required for PostgreSQL because DO $$ blocks treat @paramName as literal text,
-    /// not as parameterized query placeholders.
+    /// Substitutes @paramName placeholders with literal values, because PostgreSQL cannot bind parameters
+    /// inside the DO blocks the templates use. The templates delimit their DO blocks with $$; before the values
+    /// go in, every $$ is replaced with a tag that is unique to this call, so a value that contains $$ cannot
+    /// end the block. See <see cref="DalParameterSubstitution"/> for the matching rules.
     /// </summary>
     internal static string SubstituteParameters(string sqlCode, DalParameterList dalParameterList)
     {
-        string result = sqlCode;
-
-        // Sort by name length descending to avoid partial matches (e.g., @ProductId before @Product)
-        var sortedParams = dalParameterList.GetAllParameters()
-            .OrderByDescending(p => p.Value.ParameterName.Length)
-            .ToList();
-
-        foreach (var param in sortedParams)
-        {
-            string placeholder = $"@{param.Value.ParameterName}";
-            string replacement = FormatParameterValue(param.Value);
-            result = result.Replace(placeholder, replacement);
-        }
-
-        return result;
+        string sql = sqlCode.Replace("$$", $"$rm{Guid.NewGuid():N}$");
+        return DalParameterSubstitution.Substitute(sql, dalParameterList, FormatParameterValue);
     }
 
+    /// <summary>
+    /// Formats a parameter as a PostgreSQL literal. A string becomes a standard literal with doubled quotes; a
+    /// backslash is an ordinary character in a standard literal (standard_conforming_strings, the default since
+    /// PostgreSQL 9.1), so it is not escaped.
+    /// </summary>
     internal static string FormatParameterValue(DalParameter param)
     {
         if (param.ParameterValue == null)
             return "NULL";
 
         if (param.ParameterType == typeof(string))
-            return "'" + param.ParameterValue.ToString()!.Replace("\\", "\\\\").Replace("'", "''") + "'";
+            return "'" + param.ParameterValue.ToString()!.Replace("'", "''") + "'";
 
         if (param.ParameterType == typeof(bool))
             return (bool)param.ParameterValue ? "TRUE" : "FALSE";

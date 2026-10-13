@@ -67,40 +67,155 @@ public class TemplateExecutor
     }
 
     /// <summary>
-    /// Create RayMigrator infrastructure for all TargetGroups.Repository.
+    /// Makes sure the repository exists in the schema version this run expects and registers the engine version
+    /// (ADR-024): <c>Repository_CheckCreate</c> creates the schema version table when it is missing and reports the
+    /// version the repository has; every missing <c>Repository_Upgrade_{n}</c> step up to
+    /// <see cref="MigrationContext.RepositorySchemaTargetVersion"/> runs in order, step 1 creating the tables of a
+    /// fresh repository; and <c>Repository_MigratorMeta_CheckInsert</c> yields the <c>MigratorMetaId</c> of this
+    /// engine version. A repository that has tables but no schema version was created by a RayMigrator before
+    /// 0.17.0 and is refused, as is one whose version is newer than the target.
     /// </summary>
+    /// <exception cref="RepositorySchemaException">The repository has no schema version but repository tables, or a
+    /// schema version newer than this engine supports.</exception>
     /// <exception cref="TemplateExecutionException"></exception>
     public void RepositoryCheckCreate()
     {
-        var templateType = TemplateType.Repository_CheckCreate;
         var eventId = MigrationEvent.TemplateExecutionRepositoryCheckCreate;
-        
-        _logger.LogDebug(eventId, "Check and create Repository if it does not exist...{MigrationContext}", _ctxAccessor.Current.Clone);
+        int targetVersion = _ctxAccessor.Current.RepositorySchemaTargetVersion;
+
+        _logger.LogDebug(eventId, "Checking the repository schema version (target version [{TargetVersion}])...{MigrationContext}", targetVersion, _ctxAccessor.Current.Clone);
+
+        var checkTemplate = _templateCache.GetRepositoryTemplate(TemplateType.Repository_CheckCreate, _repository);
+        var check = ExecuteScalarWithNegativeResultCodeException(checkTemplate, _repositoryDal, _repository.GetDalSettings(), null, _logger, eventId);
+
+        // Repository_CheckCreate returns 'schemaVersion,unversionedTables,message': the highest applied schema version (0 when
+        // none) and 1 when the MigratorMeta table exists, which with version 0 means a repository of a RayMigrator before 0.17.0.
+        int foundVersion = check.ResultCode;
+        bool unversionedTables = check.ResultCodes.Length > 1 && check.ResultCodes[1] == 1;
+        string schemaName = SensitiveDataMasker.Mask(_repository.SchemaName);
+
+        if (foundVersion == 0 && unversionedTables)
+        {
+            throw new RepositorySchemaException(
+                $"The repository (DatabaseType [{_repositoryDal.DatabaseType}], schema [{schemaName}]) has repository tables but no schema version: " +
+                "a RayMigrator before 0.17.0 created it, and repositories are not upgraded across that boundary. " +
+                "Drop the repository tables and let this version create them again.",
+                foundVersion, targetVersion);
+        }
+
+        if (foundVersion > targetVersion)
+        {
+            throw new RepositorySchemaException(
+                $"The repository (DatabaseType [{_repositoryDal.DatabaseType}], schema [{schemaName}]) has schema version [{foundVersion}], " +
+                $"but RayMigrator [{_ctxAccessor.Current.RayMigratorVersion}] supports version [{targetVersion}] at most. Use a RayMigrator that supports this repository.",
+                foundVersion, targetVersion);
+        }
+
+        for (int step = foundVersion + 1; step <= targetVersion; step++)
+        {
+            RepositoryUpgrade(step);
+        }
+
+        // An operator should see a created or upgraded repository without Debug logging: a first run creates the schema and
+        // the tables in a database that may belong to someone else (#27).
+        if (foundVersion == 0)
+        {
+            _logger.LogInformation(eventId,
+                "Repository created: DatabaseType [{DatabaseType}], schema [{SchemaName}], schema version [{SchemaVersion}].{MigrationContext}",
+                _repositoryDal.DatabaseType, schemaName, targetVersion, _ctxAccessor.Current.Clone);
+        }
+        else if (foundVersion < targetVersion)
+        {
+            _logger.LogInformation(eventId,
+                "Repository schema upgraded: DatabaseType [{DatabaseType}], schema [{SchemaName}], version [{FromVersion}] to [{ToVersion}].{MigrationContext}",
+                _repositoryDal.DatabaseType, schemaName, foundVersion, targetVersion, _ctxAccessor.Current.Clone);
+        }
+
+        _ctxAccessor.Current.MigrationState.MigratorMetaId = RepositoryMigratorMetaCheckInsert();
+    }
+
+    /// <summary>
+    /// Applies one schema step: <c>Repository_Upgrade_{step}</c> creates schema version <paramref name="step"/> on top of
+    /// the version before it and writes its row of the schema version table. The step is idempotent per engine and
+    /// serialised against a parallel start on the same repository.
+    /// </summary>
+    /// <exception cref="TemplateExecutionException"></exception>
+    /// <exception cref="TemplateResultException">The step did not return its own version as result code.</exception>
+    private void RepositoryUpgrade(int step)
+    {
+        var templateType = RepositorySchema.UpgradeTemplate(step);
+        var eventId = MigrationEvent.TemplateExecutionRepositoryUpgrade;
+
+        _logger.LogDebug(eventId, "Applying repository schema version [{SchemaVersion}] ({TemplateType})...{MigrationContext}", step, templateType, _ctxAccessor.Current.Clone);
 
         DalParameterList dalParameterList = new DalParameterList();
-        dalParameterList.AddParameter(new DalParameter("RepositoryDatabaseType", _repositoryDal.DatabaseType, typeof(string)));
         dalParameterList.AddParameter(new DalParameter("RayMigratorVersion", _ctxAccessor.Current.RayMigratorVersion, typeof(string)));
+
+        var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
+        TemplateResponse templateResponse;
+        try
+        {
+            templateResponse = ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId);
+        }
+        catch (TemplateExecutionException)
+        {
+            // Two processes that start on the same repository both read the version before either applies the step. The
+            // step is serialised and idempotent where the engine allows it; SQLite cannot make ALTER TABLE ADD COLUMN
+            // idempotent, so the second process fails on a column the first one added. The version row decides.
+            if (!StepAppliedMeanwhile(step))
+                throw;
+
+            _logger.LogDebug(eventId, "Repository schema version [{SchemaVersion}] was applied by a parallel start meanwhile; the step is skipped.{MigrationContext}", step, _ctxAccessor.Current.Clone);
+            return;
+        }
+
+        if (templateResponse.ResultCode != step)
+        {
+            throw new TemplateResultException(
+                $"Repository schema step [{step}] ({template}) returned result code [{templateResponse.ResultCode}] instead of its version. {templateResponse.ResultMessage}",
+                templateResponse.ResultCode);
+        }
+    }
+
+
+    /// <summary>
+    /// Whether the repository already has schema version <paramref name="step"/>, read through <c>Repository_CheckCreate</c>
+    /// after a failed step. A read that fails itself counts as "not applied", so the step's own exception surfaces.
+    /// </summary>
+    private bool StepAppliedMeanwhile(int step)
+    {
+        try
+        {
+            var checkTemplate = _templateCache.GetRepositoryTemplate(TemplateType.Repository_CheckCreate, _repository);
+            var check = ExecuteScalarWithNegativeResultCodeException(checkTemplate, _repositoryDal, _repository.GetDalSettings(), null, _logger, MigrationEvent.TemplateExecutionRepositoryCheckCreate);
+            return check.ResultCode >= step;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(MigrationEvent.TemplateExecutionRepositoryCheckCreate, "Could not re-read the repository schema version after a failed step: {Error}{MigrationContext}", ex.Message, _ctxAccessor.Current.Clone);
+            return false;
+        }
+    }
+    /// <summary>
+    /// Registers the engine version in <c>MigratorMeta</c> if it is not registered yet and returns the id of its row,
+    /// which every run of this engine version references as <c>MigratorMetaId</c>.
+    /// </summary>
+    /// <exception cref="TemplateExecutionException"></exception>
+    private int RepositoryMigratorMetaCheckInsert()
+    {
+        var templateType = TemplateType.Repository_MigratorMeta_CheckInsert;
+        var eventId = MigrationEvent.TemplateExecutionRepositoryMigratorMetaCheckInsert;
+
+        _logger.LogDebug(eventId, "Registering RayMigrator version [{RayMigratorVersion}] in the repository...{MigrationContext}", _ctxAccessor.Current.RayMigratorVersion, _ctxAccessor.Current.Clone);
+
+        DalParameterList dalParameterList = new DalParameterList();
+        dalParameterList.AddParameter(new DalParameter("RayMigratorVersion", _ctxAccessor.Current.RayMigratorVersion, typeof(string)));
+        dalParameterList.AddParameter(new DalParameter("RepositoryDatabaseType", _repositoryDal.DatabaseType, typeof(string)));
 
         var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
         var templateResponse = ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId);
 
-        _ctxAccessor.Current.MigrationState.MigratorMetaId = templateResponse.ResultCode;
-
-        // Repository_CheckCreate returns 'VersionId,RepositoryWasCreated,message'. The second code is 1 when this run
-        // created the schema and the repository tables, which an operator should see without Debug logging: a first
-        // run creates them in a database that may belong to someone else (#27). A customised template that still
-        // returns 'code,message' produces no Information line.
-        bool repositoryCreated = templateResponse.ResultCodes.Length > 1 && templateResponse.ResultCodes[1] == 1;
-        if (repositoryCreated)
-        {
-            _logger.LogInformation(eventId,
-                "Repository created: DatabaseType [{DatabaseType}], schema [{SchemaName}], VersionId [{VersionId}]. {ResultMessage}{MigrationContext}",
-                _repositoryDal.DatabaseType,
-                SensitiveDataMasker.Mask(_repository.SchemaName),
-                templateResponse.ResultCode,
-                templateResponse.ResultMessage,
-                _ctxAccessor.Current.Clone);
-        }
+        return templateResponse.ResultCode;
     }
 
     /// <summary>
@@ -221,6 +336,17 @@ public class TemplateExecutor
         dalParameterList.AddParameter(new DalParameter("ToReleaseVersion", _ctxAccessor.Current.RayMigratorConsoleOptions.TargetReleaseVersion, typeof(string)));
         dalParameterList.AddParameter(new DalParameter("MigrationRunSettingsJson", migrationRunSettingsJson, typeof(string)));
 
+        // Run details (schema version 2): what the run does and who started it where. The operation is the one the
+        // service set for the command; source and initiator come from the host, the host name from the machine when
+        // the host did not name one.
+        var consoleOptions = _ctxAccessor.Current.RayMigratorConsoleOptions;
+        var source = consoleOptions.Source is { } s && s != MigrationRunSource.Undefined ? (byte?)s : null;
+        dalParameterList.AddParameter(new DalParameter("MigrationOperationId", (byte)_ctxAccessor.Current.MigrationState.MigrationOperation, typeof(byte)));
+        dalParameterList.AddParameter(new DalParameter("MigrationRunSourceId", source, typeof(byte)));
+        dalParameterList.AddParameter(new DalParameter("InitiatedBy", Truncate(consoleOptions.InitiatedBy, 200), typeof(string)));
+        dalParameterList.AddParameter(new DalParameter("InitiatedBySubject", Truncate(consoleOptions.InitiatedBySubject, 200), typeof(string)));
+        dalParameterList.AddParameter(new DalParameter("Host", Truncate(consoleOptions.Host ?? RunInitiator.CurrentHost, 200), typeof(string)));
+
         var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
 
         try
@@ -236,11 +362,19 @@ public class TemplateExecutor
     }
 
     /// <summary>
-    /// Updates an existing MigrationRun with the final result status and completion time.
+    /// The longest error message stored in <c>MigrationRun.ErrorMessage</c>; longer messages are cut.
+    /// </summary>
+    public const int MaxErrorMessageLength = 4000;
+
+    /// <summary>
+    /// Updates an existing MigrationRun with the final result status, the completion time and, for a run that did
+    /// not end <see cref="MigrationRunResult.Ok"/>, the code and message of the error that decided the result.
     /// </summary>
     /// <param name="runResult">The final result of the migration run.</param>
+    /// <param name="errorCode">The engine error code of the failure (<c>TemplateResultCode</c>), or null.</param>
+    /// <param name="errorMessage">The message of the failure, cut to <see cref="MaxErrorMessageLength"/>, or null.</param>
     /// <exception cref="TemplateExecutionException"></exception>
-    public void RepositoryMigrationRunUpdate(MigrationRunResult runResult)
+    public void RepositoryMigrationRunUpdate(MigrationRunResult runResult, string? errorCode = null, string? errorMessage = null)
     {
         var templateType = TemplateType.Repository_MigrationRun_Update;
         var eventId = MigrationEvent.TemplateExecutionRepositoryMigrationRunUpdate;
@@ -258,11 +392,21 @@ public class TemplateExecutor
         DalParameterList dalParameterList = new DalParameterList();
         dalParameterList.AddParameter(new DalParameter("MigrationRunId", _ctxAccessor.Current.MigrationState.MigrationRunId, typeof(int)));
         dalParameterList.AddParameter(new DalParameter("MigrationRunResultId", (byte)runResult, typeof(byte)));
+        dalParameterList.AddParameter(new DalParameter("ErrorCode", Truncate(errorCode, 100), typeof(string)));
+        dalParameterList.AddParameter(new DalParameter("ErrorMessage", Truncate(errorMessage, MaxErrorMessageLength), typeof(string)));
 
         var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
         ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId);
 
         _ctxAccessor.Current.MigrationState.MigrationRunResult = runResult;
+    }
+
+    /// <summary>Cuts <paramref name="value"/> to <paramref name="maxLength"/> characters; null and empty stay null.</summary>
+    internal static string? Truncate(string? value, int maxLength)
+    {
+        if (string.IsNullOrEmpty(value))
+            return null;
+        return value.Length <= maxLength ? value : value[..maxLength];
     }
 
     /// <summary>
@@ -303,24 +447,74 @@ public class TemplateExecutor
     }
 
     /// <summary>
-    /// Marks a single orphaned MigrationRun as Error with FinishedAt set.
-    /// Used by the Fix command. Parameters are passed directly (not from MigrationContext).
+    /// Writes one heartbeat for the current run: sets <c>MigrationRun.LastHeartbeatAt</c> to now while the row is
+    /// still open (<c>FinishedAt IS NULL</c>).
     /// </summary>
-    /// <param name="migrationRunId">The ID of the orphaned MigrationRun to fix.</param>
+    /// <returns>True when the row was open and updated; false when the run has already finished.</returns>
     /// <exception cref="TemplateExecutionException"></exception>
-    public void RepositoryMigrationRunFixOrphaned(int migrationRunId)
+    public bool RepositoryMigrationRunHeartbeat()
     {
-        var templateType = TemplateType.Repository_MigrationRun_FixOrphaned;
-        var eventId = MigrationEvent.TemplateExecutionRepositoryMigrationRunFixOrphaned;
+        var templateType = TemplateType.Repository_MigrationRun_Heartbeat;
+        var eventId = MigrationEvent.TemplateExecutionRepositoryMigrationRunHeartbeat;
+        int migrationRunId = _ctxAccessor.Current.MigrationState.MigrationRunId;
 
-        _logger.LogDebug(eventId, "Fixing orphaned MigrationRun {MigrationRunId}{MigrationContext}",
-            migrationRunId, _ctxAccessor.Current.Clone);
+        if (migrationRunId < 1)
+        {
+            throw new RayMigratorInternalException($"Invalid MigrationRunId [{migrationRunId}] when writing a heartbeat.");
+        }
 
         DalParameterList dalParameterList = new DalParameterList();
         dalParameterList.AddParameter(new DalParameter("MigrationRunId", migrationRunId, typeof(int)));
 
+        // A beat is a liveness signal: it does not retry (the next tick is the retry), so a transient-error burst on the
+        // repository neither silences the heartbeat for minutes nor holds the end of the run.
+        var settings = _repository.GetDalSettings();
+        settings.MaxRetries = 0;
+
         var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
-        ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId);
+        var templateResponse = ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, settings, dalParameterList, null, eventId);
+
+        return templateResponse.ResultCode > 0;
+    }
+
+    /// <summary>
+    /// Marks a single orphaned MigrationRun as Error with FinishedAt set, provided its last heartbeat (or its
+    /// start, when it never wrote one) is at least <paramref name="thresholdMinutes"/> old; a run that is alive
+    /// is left open and reported as <c>-31</c>. Used by the Fix command and the auto-fix of a parallel start.
+    /// Parameters are passed directly (not from MigrationContext).
+    /// </summary>
+    /// <param name="migrationRunId">The ID of the orphaned MigrationRun to fix.</param>
+    /// <param name="thresholdMinutes">The minimum age of the last heartbeat in minutes; 0 closes the run regardless.</param>
+    /// <exception cref="TemplateExecutionException"></exception>
+    /// <returns>
+    /// True when the run was closed. False when the run is alive: its heartbeat is younger than
+    /// <paramref name="thresholdMinutes"/> (it beat between the orphan select and this call), the template answered
+    /// <c>-31</c> and the row is untouched; the caller must leave the run's records alone as well.
+    /// </returns>
+    public bool RepositoryMigrationRunFixOrphaned(int migrationRunId, int thresholdMinutes)
+    {
+        var templateType = TemplateType.Repository_MigrationRun_FixOrphaned;
+        var eventId = MigrationEvent.TemplateExecutionRepositoryMigrationRunFixOrphaned;
+
+        _logger.LogDebug(eventId, "Fixing orphaned MigrationRun {MigrationRunId} (heartbeat older than {ThresholdMinutes} minutes){MigrationContext}",
+            migrationRunId, thresholdMinutes, _ctxAccessor.Current.Clone);
+
+        DalParameterList dalParameterList = new DalParameterList();
+        dalParameterList.AddParameter(new DalParameter("MigrationRunId", migrationRunId, typeof(int)));
+        dalParameterList.AddParameter(new DalParameter("ThresholdMinutes", thresholdMinutes, typeof(int)));
+
+        var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
+        try
+        {
+            ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId);
+            return true;
+        }
+        catch (TemplateResultException ex) when (ex.ResultCode == TemplateResultCode.MigrationRunNotInRunningState)
+        {
+            _logger.LogInformation(eventId, "MigrationRun {MigrationRunId} wrote a heartbeat younger than {ThresholdMinutes} minutes meanwhile and stays open{MigrationContext}",
+                migrationRunId, thresholdMinutes, _ctxAccessor.Current.Clone);
+            return false;
+        }
     }
 
     /// <summary>

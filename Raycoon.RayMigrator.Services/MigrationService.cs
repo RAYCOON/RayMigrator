@@ -32,6 +32,9 @@ public class MigrationService : IMigrationService
     private readonly IServiceProvider _serviceProvider;
     private readonly ICliToolExecutor _cliToolExecutor;
 
+    /// <summary>The heartbeat of the run in progress, started after the run row exists and stopped when the run ends.</summary>
+    private MigrationRunHeartbeat? _runHeartbeat;
+
     /// <summary>Whether <see cref="ReportRunStarted"/> fired for the current operation; the wrapper resets it.</summary>
     private bool _runStartedReported;
 
@@ -329,7 +332,7 @@ public class MigrationService : IMigrationService
                                 runResult = MigrationRunResult.Recovered;
                             }
 
-                            await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(runResult));
+                            await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(runResult, errorMessage: lastErrorMessage));
                         }
 
                         return new MigrationOperationResult
@@ -360,7 +363,7 @@ public class MigrationService : IMigrationService
             var finalResult = failedMigrations > 0 ? MigrationRunResult.PartialSuccess : MigrationRunResult.Ok;
             if (request.RunMode.ShouldWriteRepository())
             {
-                await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(finalResult));
+                await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(finalResult, errorMessage: failedMigrations > 0 ? lastErrorMessage : null));
             }
 
             if (failedMigrations > 0)
@@ -419,7 +422,7 @@ public class MigrationService : IMigrationService
                 {
                     if (_ctxAccessor.Current.MigrationState.MigrationRunId > 0)
                     {
-                        await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(MigrationRunResult.Error));
+                        await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(MigrationRunResult.Error, ExtractErrorCode(ex)?.ToString(), ex.Message));
                     }
                 }
                 catch (Exception finalizeEx)
@@ -447,6 +450,10 @@ public class MigrationService : IMigrationService
                 MigrationResults = migrationResults,
                 Messages = new List<string> { $"Migration failed: {ex.Message}" }
             };
+        }
+        finally
+        {
+            await StopRunHeartbeatAsync();
         }
     }
 
@@ -1547,7 +1554,7 @@ public class MigrationService : IMigrationService
                 {
                     if (_ctxAccessor.Current.MigrationState.MigrationRunId > 0)
                     {
-                        await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(MigrationRunResult.Error));
+                        await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(MigrationRunResult.Error, ExtractErrorCode(ex)?.ToString(), ex.Message));
                     }
                 }
                 catch (Exception finalizeEx)
@@ -1571,6 +1578,10 @@ public class MigrationService : IMigrationService
                 ErrorCode = ExtractErrorCode(ex),
                 Messages = new List<string> { $"Rollback failed: {ex.Message}" }
             };
+        }
+        finally
+        {
+            await StopRunHeartbeatAsync();
         }
     }
 
@@ -1852,7 +1863,7 @@ public class MigrationService : IMigrationService
             {
                 if (_ctxAccessor.Current.MigrationState.MigrationRunId > 0)
                 {
-                    await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(MigrationRunResult.Error));
+                    await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(MigrationRunResult.Error, ExtractErrorCode(ex)?.ToString(), ex.Message));
                 }
             }
             catch (Exception finalizeEx)
@@ -1876,6 +1887,10 @@ public class MigrationService : IMigrationService
                 ErrorCode = ExtractErrorCode(ex),
                 Messages = new List<string> { $"Baseline failed: {ex.Message}" }
             };
+        }
+        finally
+        {
+            await StopRunHeartbeatAsync();
         }
     }
 
@@ -2977,7 +2992,9 @@ public class MigrationService : IMigrationService
                 ["TableBaseName"] = rayOpts.Repository?.TableBaseName,
                 ["DbCommandTimeoutInSeconds"] = rayOpts.Repository?.DbCommandTimeoutInSeconds,
                 ["DbCommandMaxRetries"] = rayOpts.Repository?.DbCommandMaxRetries,
-                ["DbCommandWaitTimeInMsBeforeRetry"] = rayOpts.Repository?.DbCommandWaitTimeInMsBeforeRetry
+                ["DbCommandWaitTimeInMsBeforeRetry"] = rayOpts.Repository?.DbCommandWaitTimeInMsBeforeRetry,
+                ["HeartbeatIntervalInSeconds"] = rayOpts.Repository?.HeartbeatIntervalInSeconds,
+                ["OrphanedRunThresholdInMinutes"] = rayOpts.Repository?.OrphanedRunThresholdInMinutes
             },
             ["ProductDefaults"] = new Dictionary<string, object?>
             {
@@ -3772,7 +3789,6 @@ public class MigrationService : IMigrationService
     /// Minimum age (in minutes) for an orphaned MigrationRun to be eligible for auto-fix.
     /// Runs newer than this threshold are assumed to be genuinely running and not auto-fixed.
     /// </summary>
-    internal const int AutoFixOrphanedRunsThresholdMinutes = 10;
 
     /// <summary>
     /// Resolves <c>MigrationState.ProductId</c> and <c>EnvironmentId</c> without writing to the repository.
@@ -3832,23 +3848,16 @@ public class MigrationService : IMigrationService
     }
 
     /// <summary>
-    /// Derives the <see cref="MigrationOperation"/> of a MigrationRun from the records it wrote. The MigrationRun
-    /// row has no operation column; every record of a run carries the operation the run was started with.
-    /// A run without records (nothing pending, validation failure before the first file) is reported as
-    /// <see cref="MigrationOperation.MigrateUp"/>.
-    /// </summary>
-    /// <summary>
     /// Summarizes the terminal transitions (<c>MigrationRecordHistory</c> rows) one run caused: the number of
     /// distinct records it touched, how many of them ended in the state the operation aims for (Migrated for
-    /// migrate-up and baseline, NotMigrated for migrate-down and error-recovery rollback), how many are Failed,
-    /// and the operation derived from the rows. The rows must be ordered by history id, so the last row of a
-    /// record is its final state within the run (#13).
+    /// migrate-up and baseline, NotMigrated for migrate-down), and how many are Failed. The operation comes from the
+    /// run row (<c>MigrationRun.MigrationOperationId</c>, schema version 2). The rows must be ordered by history id,
+    /// so the last row of a record is its final state within the run (#13).
     /// </summary>
-    internal static (int Total, int Successful, int Failed, MigrationOperation Operation) SummarizeRun(IEnumerable<MigrationRecord> historyRows)
+    internal static (int Total, int Successful, int Failed) SummarizeRun(IEnumerable<MigrationRecord> historyRows, MigrationOperation operation)
     {
         var rows = historyRows as IReadOnlyList<MigrationRecord> ?? historyRows.ToList();
         var finalStates = rows.GroupBy(r => r.Id).Select(g => g.Last()).ToList();
-        var operation = DeriveRunOperation(rows);
 
         // The target state depends on what the run set out to do: a migrate-up counts records that ended
         // Migrated (records its error recovery rolled back again are not successes), a migrate-down counts
@@ -3857,20 +3866,60 @@ public class MigrationService : IMigrationService
         int successful = finalStates.Count(r => r.MigrationStatusId == targetState);
         int failed = finalStates.Count(r => r.MigrationStatusId == MigrationStatus.Failed);
 
-        return (finalStates.Count, successful, failed, operation);
+        return (finalStates.Count, successful, failed);
     }
 
-    internal static MigrationOperation DeriveRunOperation(IEnumerable<MigrationRecord> runRecords)
+    /// <summary>A byte-valued enum column of a repository row, or null when the column is NULL or absent.</summary>
+    private static TEnum? ReadByteEnum<TEnum>(IReadOnlyDictionary<string, object?> row, string column) where TEnum : struct, Enum
     {
-        var records = runRecords as ICollection<MigrationRecord> ?? runRecords.ToList();
+        if (!row.TryGetValue(column, out var value) || value == null || value == DBNull.Value)
+            return null;
+        return (TEnum)Enum.ToObject(typeof(TEnum), Convert.ToByte(value));
+    }
 
-        if (records.Any(r => r.MigrationOperationId == MigrationOperation.Baseline))
-            return MigrationOperation.Baseline;
+    /// <summary>A text column of a repository row, or null when the column is NULL or absent.</summary>
+    private static string? ReadString(IReadOnlyDictionary<string, object?> row, string column)
+    {
+        return row.TryGetValue(column, out var value) && value != null && value != DBNull.Value ? Convert.ToString(value) : null;
+    }
 
-        if (records.Any(r => r.MigrationOperationId == MigrationOperation.MigrateDown))
-            return MigrationOperation.MigrateDown;
+    /// <summary>A date column of a repository row, or null when the column is NULL or absent.</summary>
+    private static DateTime? ReadDateTime(IReadOnlyDictionary<string, object?> row, string column)
+    {
+        return row.TryGetValue(column, out var value) && value != null && value != DBNull.Value ? Convert.ToDateTime(value) : null;
+    }
 
-        return MigrationOperation.MigrateUp;
+    /// <summary>
+    /// The age in minutes after which an open run counts as orphaned: <c>Repository.OrphanedRunThresholdInMinutes</c>.
+    /// </summary>
+    private int OrphanedRunThresholdMinutes => _ctxAccessor.Current.RayMigratorOptions.Repository?.OrphanedRunThresholdInMinutes ?? 2;
+
+    /// <summary>
+    /// Starts the heartbeat of the run row that was just inserted (<c>Repository.HeartbeatIntervalInSeconds</c>,
+    /// 0 = off). The beats run on their own connection and never end the run; the loop stops in
+    /// <see cref="StopRunHeartbeatAsync"/> when the run ends.
+    /// </summary>
+    private void StartRunHeartbeat()
+    {
+        int intervalSeconds = _ctxAccessor.Current.RayMigratorOptions.Repository?.HeartbeatIntervalInSeconds ?? 30;
+        if (intervalSeconds <= 0)
+            return;
+
+        int runId = _ctxAccessor.Current.MigrationState.MigrationRunId;
+        _runHeartbeat = new MigrationRunHeartbeat(runId, TimeSpan.FromSeconds(intervalSeconds), _templateExecutor.RepositoryMigrationRunHeartbeat, _logger);
+        _logger.LogDebug("Heartbeat of MigrationRun {MigrationRunId} started (every {IntervalSeconds} s)", runId, intervalSeconds);
+    }
+
+    /// <summary>Stops the heartbeat of the run in progress, if one runs. Safe to call more than once.</summary>
+    private async Task StopRunHeartbeatAsync()
+    {
+        var heartbeat = _runHeartbeat;
+        _runHeartbeat = null;
+        if (heartbeat == null)
+            return;
+
+        await heartbeat.DisposeAsync();
+        _logger.LogDebug("Heartbeat of MigrationRun {MigrationRunId} stopped after {Beats} beat(s)", _ctxAccessor.Current.MigrationState.MigrationRunId, heartbeat.Beats);
     }
 
     /// <summary>
@@ -3888,7 +3937,7 @@ public class MigrationService : IMigrationService
     /// <summary>
     /// Attempts to insert a MigrationRun, auto-fixing orphaned runs if a parallel-run lock is detected.
     /// When RepositoryMigrationRunInsert fails with MigrationAlreadyRunningException, this method
-    /// checks for orphaned runs older than AutoFixOrphanedRunsThresholdMinutes and fixes them
+    /// checks for open runs whose last heartbeat is older than Repository.OrphanedRunThresholdInMinutes and fixes them
     /// before retrying the insert once. If no orphaned runs are found, the original exception is rethrown.
     /// </summary>
     internal async Task RepositoryMigrationRunInsertWithAutoFix(string settingsJson)
@@ -3901,6 +3950,7 @@ public class MigrationService : IMigrationService
         try
         {
             await Task.Run(() => _templateExecutor.RepositoryMigrationRunInsert(settingsJson));
+            StartRunHeartbeat();
         }
         catch (MigrationAlreadyRunningException)
         {
@@ -3910,40 +3960,62 @@ public class MigrationService : IMigrationService
             var orphanedRows = await Task.Run(() =>
                 _templateExecutor.RepositoryMigrationRunSelectOrphaned(productId, environmentId));
 
+            int thresholdMinutes = OrphanedRunThresholdMinutes;
             var autoFixable = orphanedRows
-                .Where(r => Convert.ToDouble(r["MinutesRunning"]) >= AutoFixOrphanedRunsThresholdMinutes)
+                .Where(r => Convert.ToDouble(r["MinutesSinceHeartbeat"]) >= thresholdMinutes)
                 .ToList();
 
             if (autoFixable.Count == 0)
             {
                 _logger.LogError(
                     "Another migration is currently running for product {ProductId} with environment {Environment} ({EnvironmentId}). " +
-                    "No orphaned runs found older than {Threshold} minutes. Use 'Fix' command if the previous run has crashed.",
-                    productId, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, environmentId, AutoFixOrphanedRunsThresholdMinutes);
+                    "No orphaned run whose last heartbeat is older than {Threshold} minutes. Use 'Fix' command if the previous run has crashed.",
+                    productId, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, environmentId, thresholdMinutes);
                 throw;
             }
 
             _logger.LogWarning(
-                "Parallel migration detected but {Count} orphaned run(s) found older than {Threshold} minutes. Auto-fixing.",
-                autoFixable.Count, AutoFixOrphanedRunsThresholdMinutes);
+                "Parallel migration detected but {Count} orphaned run(s) found whose last heartbeat is older than {Threshold} minutes. Auto-fixing.",
+                autoFixable.Count, thresholdMinutes);
 
+            int fixedRuns = 0;
             foreach (var orphanRow in autoFixable)
             {
                 int orphanRunId = Convert.ToInt32(orphanRow["MigrationRunId"]);
                 double minutesRunning = Convert.ToDouble(orphanRow["MinutesRunning"]);
+                double minutesSinceHeartbeat = Convert.ToDouble(orphanRow["MinutesSinceHeartbeat"]);
+
+                // The run is closed first, because the fix refuses a run that wrote a heartbeat since the select; the
+                // records of a run that turns out to be alive must stay as they are.
+                bool closed = await Task.Run(() =>
+                    _templateExecutor.RepositoryMigrationRunFixOrphaned(orphanRunId, thresholdMinutes));
+                if (!closed)
+                {
+                    _logger.LogWarning("MigrationRun {RunId} wrote a heartbeat meanwhile and is alive; it is not fixed", orphanRunId);
+                    continue;
+                }
 
                 await Task.Run(() =>
                     _templateExecutor.RepositoryMigrationRecordFixOrphaned(orphanRunId, MigrationStatus.NotMigrated));
-                await Task.Run(() =>
-                    _templateExecutor.RepositoryMigrationRunFixOrphaned(orphanRunId));
+                fixedRuns++;
 
                 _logger.LogWarning(
-                    "Auto-fixed orphaned MigrationRun {RunId} (running for {Minutes:F0} minutes, marked as Error)",
-                    orphanRunId, minutesRunning);
+                    "Auto-fixed orphaned MigrationRun {RunId} (running for {Minutes:F0} minutes, last heartbeat {HeartbeatMinutes:F0} minutes ago, marked as Error)",
+                    orphanRunId, minutesRunning, minutesSinceHeartbeat);
+            }
+
+            if (fixedRuns == 0)
+            {
+                _logger.LogError(
+                    "Another migration is currently running for product {ProductId} with environment {Environment} ({EnvironmentId}): " +
+                    "every candidate wrote a heartbeat meanwhile.",
+                    productId, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, environmentId);
+                throw;
             }
 
             // Retry the insert after fixing orphaned runs
             await Task.Run(() => _templateExecutor.RepositoryMigrationRunInsert(settingsJson));
+            StartRunHeartbeat();
             _logger.LogInformation("MigrationRun created successfully after auto-fixing orphaned run(s)");
         }
     }
@@ -5383,8 +5455,11 @@ public class MigrationService : IMigrationService
                 string? fromRelease = row["FromReleaseVersion"] as string;
                 string? toRelease = row["ToReleaseVersion"] as string;
 
+                // Run details of schema version 2: the operation the run was started with, where and by whom it was
+                // started, and the error that decided its result. The run row carries them; the records say nothing.
+                var operation = ReadByteEnum<MigrationOperation>(row, "MigrationOperationId") ?? MigrationOperation.Undefined;
                 var runHistory = historyByRun.TryGetValue(runId, out var h) ? h : Array.Empty<MigrationRecord>();
-                var (totalMigrations, successfulMigrations, failedMigrations, operation) = SummarizeRun(runHistory);
+                var (totalMigrations, successfulMigrations, failedMigrations) = SummarizeRun(runHistory, operation);
 
                 runs.Add(new MigrationRunInfo
                 {
@@ -5399,7 +5474,14 @@ public class MigrationService : IMigrationService
                     TotalMigrations = totalMigrations,
                     SuccessfulMigrations = successfulMigrations,
                     FailedMigrations = failedMigrations,
-                    ToRelease = toRelease
+                    ToRelease = toRelease,
+                    Source = ReadByteEnum<MigrationRunSource>(row, "MigrationRunSourceId"),
+                    InitiatedBy = ReadString(row, "InitiatedBy"),
+                    InitiatedBySubject = ReadString(row, "InitiatedBySubject"),
+                    Host = ReadString(row, "Host"),
+                    ErrorCode = ReadString(row, "ErrorCode"),
+                    ErrorMessage = ReadString(row, "ErrorMessage"),
+                    LastHeartbeatAt = ReadDateTime(row, "LastHeartbeatAt")
                 });
             }
 
@@ -5472,22 +5554,26 @@ public class MigrationService : IMigrationService
                     StartedAt = Convert.ToDateTime(row["StartedAt"]),
                     MinutesRunning = Convert.ToDouble(row["MinutesRunning"]),
                     MigrationRunModeId = Convert.ToInt32(row["MigrationRunModeId"]),
+                    LastHeartbeatAt = ReadDateTime(row, "LastHeartbeatAt"),
+                    MinutesSinceHeartbeat = Convert.ToDouble(row["MinutesSinceHeartbeat"]),
+                    InitiatedBy = ReadString(row, "InitiatedBy"),
+                    Host = ReadString(row, "Host"),
                 });
             }
 
-            // --- Phase 3: Filter by OlderThanMinutes ---
+            // --- Phase 3: Filter by OlderThanMinutes (the age of the last heartbeat, or of the start without one) ---
             var filteredRuns = orphanedRuns
-                .Where(r => r.MinutesRunning >= request.OlderThanMinutes)
+                .Where(r => r.MinutesSinceHeartbeat >= request.OlderThanMinutes)
                 .ToList();
 
-            _logger.LogInformation("Found {Total} orphaned run(s), {Filtered} matching --older-than {Minutes} minutes",
+            _logger.LogInformation("Found {Total} open run(s), {Filtered} whose last heartbeat is older than --older-than {Minutes} minutes",
                 orphanedRuns.Count, filteredRuns.Count, request.OlderThanMinutes);
 
             // --- Phase 4: Log found orphans ---
             foreach (var run in filteredRuns)
             {
-                _logger.LogInformation("  Orphaned MigrationRun Id={RunId}, started at {StartedAt:yyyy-MM-dd HH:mm:ss} UTC, running for {Minutes:F0} minutes, RunMode={RunMode}",
-                    run.MigrationRunId, run.StartedAt, run.MinutesRunning, run.MigrationRunModeId);
+                _logger.LogInformation("  Orphaned MigrationRun Id={RunId}, started at {StartedAt:yyyy-MM-dd HH:mm:ss} UTC, running for {Minutes:F0} minutes, last heartbeat {HeartbeatMinutes:F0} minutes ago, RunMode={RunMode}",
+                    run.MigrationRunId, run.StartedAt, run.MinutesRunning, run.MinutesSinceHeartbeat, run.MigrationRunModeId);
             }
 
             // --- Phase 5: Fix unless simulating ---
@@ -5499,7 +5585,15 @@ public class MigrationService : IMigrationService
                     // Determine target status for orphaned migrations
                     var targetStatus = request.AssumedMigrationStatus;
 
-                    // Fix orphaned Migration entries first (before closing the run)
+                    // Close the run first (mark as Error, set FinishedAt); a run whose heartbeat is younger than
+                    // --older-than by now is alive and stays untouched, records included.
+                    bool closed = await Task.Run(() => _templateExecutor.RepositoryMigrationRunFixOrphaned(run.MigrationRunId, request.OlderThanMinutes));
+                    if (!closed)
+                    {
+                        _logger.LogInformation("  MigrationRun {RunId} wrote a heartbeat meanwhile and is alive; not fixed", run.MigrationRunId);
+                        continue;
+                    }
+
                     int migrationsFixed = await Task.Run(() =>
                         _templateExecutor.RepositoryMigrationRecordFixOrphaned(run.MigrationRunId, targetStatus));
 
@@ -5509,8 +5603,6 @@ public class MigrationService : IMigrationService
                             migrationsFixed, run.MigrationRunId, targetStatus);
                     }
 
-                    // Fix the MigrationRun itself (mark as Error, set FinishedAt)
-                    await Task.Run(() => _templateExecutor.RepositoryMigrationRunFixOrphaned(run.MigrationRunId));
                     run.WasFixed = true;
                     fixedCount++;
 

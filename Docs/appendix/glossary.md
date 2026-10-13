@@ -14,7 +14,7 @@ A CLI option (`--allow-out-of-order` / `-ooo`) for the `migrate-up` command that
 An exception thrown when RayMigrator encounters a fatal error during startup, before migration execution begins. Common causes include failure to create the host application, inability to initialize the DatabaseLogWriter, or DAL instance creation failures. Defined in `CustomExceptions.cs` in the Shared project.
 
 ### Auto-Fix Orphaned Runs
-An automatic recovery mechanism in `MigrationService` that detects and fixes orphaned migration runs when a new migration encounters a parallel-run conflict. Orphaned runs older than 10 minutes (`AutoFixOrphanedRunsThresholdMinutes`) are automatically marked as Error, allowing the new migration to proceed. For manual control, use the `fix` CLI command with the `--older-than` option.
+An automatic recovery mechanism in `MigrationService` that detects and fixes orphaned migration runs when a new migration encounters a parallel-run conflict. An open run whose last heartbeat (`MigrationRun.LastHeartbeatAt`, refreshed every `Repository.HeartbeatIntervalInSeconds`) is older than `Repository.OrphanedRunThresholdInMinutes` (default 2) is automatically marked as Error, allowing the new migration to proceed; a run with a fresh heartbeat is alive and blocks the start. For manual control, use the `fix` CLI command with the `--older-than` option.
 
 ### Atomic Shared Connection
 An automatic optimization that activates when the Repository and a migration Target share the same ConnectionString (same physical database). RayMigrator wraps all SQL blocks of a migration file and the corresponding repository status updates in a single database transaction, guaranteeing atomic commit or rollback. Guard conditions: `UseTransaction = true`, `MigrationErrorAction != Ignore`, same `DatabaseType`, and identical `ConnectionString`. When conditions are not met, the standard per-block-connection behavior applies. See [Atomic Shared Connection](../02-core-concepts/error-handling.md#atomic-shared-connection) and [Atomic Shared Connection Execution](../04-service-layer/migration-service.md#atomic-shared-connection-execution).
@@ -188,7 +188,7 @@ An exception thrown when a migration file cannot be parsed, for example due to i
 A class (`MigrationEvent`) defining structured `EventId` constants for logging throughout the migration lifecycle. Events are organized into categories:
 - **Unspecified** (0): UnspecifiedEvent
 - **Application Startup** (10-80): CommandLineParsing (10), EnvironmentVariableReplacement (20), CreateDatabaseLogger (31), ValidateRayMigratorOptions (40), CreateApplicationHost (50), InitializeDalSpecificProperties (60), ValidateConnectionStrings (70), RayMigratorServiceStart (80)
-- **Template Execution - Repository Operations** (100-121): TemplateExecutionRepositoryCheckCreate (100), TemplateExecutionRepositoryMigrationRunInsert (110), TemplateExecutionRepositoryMigrationRunUpdate (111), TemplateExecutionRepositoryMigrationRunSelectOrphaned (112), TemplateExecutionRepositoryMigrationRunFixOrphaned (113), TemplateExecutionRepositoryMigrationFixOrphaned (114), TemplateExecutionRepositoryProductCheckInsert (120), TemplateExecutionRepositoryEnvironmentCheckInsert (121)
+- **Template Execution - Repository Operations** (100-121): TemplateExecutionRepositoryCheckCreate (100), TemplateExecutionRepositoryUpgrade (101), TemplateExecutionRepositoryMigratorMetaCheckInsert (102), TemplateExecutionRepositoryMigrationRunInsert (110), TemplateExecutionRepositoryMigrationRunUpdate (111), TemplateExecutionRepositoryMigrationRunSelectOrphaned (112), TemplateExecutionRepositoryMigrationRunFixOrphaned (113), TemplateExecutionRepositoryMigrationFixOrphaned (114), TemplateExecutionRepositoryProductCheckInsert (120), TemplateExecutionRepositoryEnvironmentCheckInsert (121)
 - **Template Execution - Migration Operations** (130-136): TemplateExecutionRepositoryMigrationInsert (130), TemplateExecutionRepositoryMigrationUpdate (131), TemplateExecutionRepositoryMigrationGetInterrupted (132), TemplateExecutionRepositoryMigrationUpdateRollback (133), TemplateExecutionRepositoryMigrationSelect (134), TemplateExecutionRepositoryMigrationUpdateHash (135), TemplateExecutionRepositoryMigrationRunSelect (136)
 - **Application Shutdown** (1000): RayMigratorServiceShutdown
 
@@ -295,7 +295,7 @@ The unique identifier for a product, used in configuration and CLI commands.
 A directory name representing a version of migrations (e.g., "Release 1.0", "v2.0.0"). Migrations are organized by release.
 
 ### Repository
-The database structure that tracks migration state, history, and metadata. Contains 11 tables (`MigratorMeta`, `Product`, `Environment`, `MigrationRun`, `MigrationRunMeta`, `MigrationRecord`, `MigrationRecordHistory`, plus four lookups). See [Repository Schema](../03-database-layer/repository-schema.md).
+The database structure that tracks migration state, history, and metadata. Contains 13 tables (`RepositorySchemaVersion`, `MigratorMeta`, `Product`, `Environment`, `MigrationRun`, `MigrationRunMeta`, `MigrationRecord`, `MigrationRecordHistory`, plus five lookups); the schema is versioned and upgraded in numbered steps (ADR-024). See [Repository Schema](../03-database-layer/repository-schema.md).
 
 ### Rollback
 The process of reversing previously applied migrations using rollback files.
@@ -399,7 +399,7 @@ A SQL file with placeholders that gets processed and executed by RayMigrator. Us
 A static class (`TemplateResultCode`) defining all known `ResultCode` values returned by SQL templates and C# backend error codes. Convention: negative values are SQL template errors, positive values are C# backend errors, and 0 means no error. Reserved ranges:
 - `-1`: General/unclassified template error (legacy fallback)
 - `-2`: Migration already running (parallel run prevention, `Repository_MigrationRun_Insert`)
-- `-10..-19`: Repository health (`Repository_CheckCreate`)
+- `-10..-19`: Repository schema and engine version registration (`Repository_MigratorMeta_CheckInsert`)
 - `-20..-29`: Product table (`Repository_Product_CheckInsert`)
 - `-30..-39`: MigrationRun table (`Repository_MigrationRun_*`)
 - `-40..-49`: Migration record (`Repository_MigrationRecord_*`)
@@ -408,12 +408,11 @@ A static class (`TemplateResultCode`) defining all known `ResultCode` values ret
 Currently assigned codes:
 - **-1**: `GeneralError`
 - **-2**: `MigrationAlreadyRunning`
-- **-10**: `RepositoryIncomplete` (wrong table count)
-- **-11**: `RepositoryPartialWithoutVersionTable`
-- **-12**: `RepositoryMultipleVersionEntries`
+- **-12**: `RepositoryMultipleVersionEntries` (`-10` and `-11`, the table count checks of the former `Repository_CheckCreate`, are gone since ADR-024)
 - **-20**: `ProductNameEmpty` (Product name is NULL or empty)
 - **-30**: `MigrationRunNotFound`
 - **-31**: `MigrationRunNotInRunningState` (FixOrphaned)
+- **-32**: `RepositorySchemaLockNotAcquired` (MariaDB and MySQL schema templates: `GET_LOCK()` did not answer within 60 seconds)
 - **-40**: `MigrationNotFound`
 - **-50**: `EnvironmentNameEmpty` (Environment name is NULL or empty)
 - **1001**: `RequireRollbackFileValidationFailed`

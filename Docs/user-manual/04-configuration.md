@@ -472,7 +472,7 @@ Below is a complete `appsettings.json` for the BookStore tutorial with annotatio
     // "CliTools": [{ ... }]
     // See: Docs/06-configuration-reference/cli-tools-options.md
 
-    // --- DatabaseLogging: Optional persistent log storage ---
+    // --- DatabaseLogging: persistent log storage (default: the repository; omit the section to keep that) ---
     "DatabaseLogging": {
       "DatabaseType": "SqlServer",
       "ConnectionString": "{ENV:BOOKSTORE_LOG_CONNECTION}",

@@ -6,7 +6,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_MigrationRun_FixOrphaned"
 DatabaseType   = "MySql"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-02-12.1"
+Version        = "2026-10-13.1"
 
 [Description]
 Function = """
@@ -28,11 +28,12 @@ TableBaseName = "Table name prefix from Repository configuration"
 
 [Parameters]
 MigrationRunId = "INT | REQUIRED | The ID of the orphaned MigrationRun to fix"
+ThresholdMinutes = "INT | REQUIRED | Minimum age of the last heartbeat (or of the start without one) in minutes; 0 closes the run regardless"
 
 [ReturnValues]
 # Format: SELECT 'code,message'
 Success_Fixed     = "N (MigrationRunId),MigrationRun [N] marked as Error (orphaned run cleanup)"
-Error_-31_NotInRunning = "-31,MigrationRun [N] not found or not in Running state"
+Error_-31_NotInRunning = "-31,MigrationRun [N] not found or not in Running state or still alive"
 
 [ModificationNotes]
 Note1 = "SELECT result format: 'code,message' - DO NOT change this format"
@@ -47,11 +48,12 @@ SET migration_run_result_id = 90,
     duration_in_ms = TIMESTAMPDIFF(MICROSECOND, started_at, CURRENT_TIMESTAMP) / 1000
 WHERE id = @MigrationRunId
     AND migration_run_result_id = 10
-    AND finished_at IS NULL;
+    AND finished_at IS NULL
+    AND TIMESTAMPDIFF(MINUTE, COALESCE(last_heartbeat_at, started_at), CURRENT_TIMESTAMP) >= @ThresholdMinutes;
 
 SET @v_affected = ROW_COUNT();
 
 SELECT CASE WHEN @v_affected = 0
-    THEN CONCAT('-31,MigrationRun [', IFNULL(CAST(@MigrationRunId AS CHAR), 'NULL'), '] not found or not in Running state')
+    THEN CONCAT('-31,MigrationRun [', IFNULL(CAST(@MigrationRunId AS CHAR), 'NULL'), '] not found or not in Running state or still alive')
     ELSE CONCAT(CAST(@MigrationRunId AS CHAR), ',MigrationRun [', CAST(@MigrationRunId AS CHAR), '] marked as Error (orphaned run cleanup)')
 END;

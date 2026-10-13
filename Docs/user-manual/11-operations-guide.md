@@ -273,7 +273,7 @@ If two instances attempt to run simultaneously for the same product/environment:
 
 ## Database Logging
 
-Store migration logs directly in a database for centralized monitoring. Database logging is activated by the presence of the `DatabaseLogging` section within the `RayMigrator` configuration section:
+Migration logs land in the repository database by default; a `DatabaseLogging` section within the `RayMigrator` configuration section moves them to another database, changes the level, or switches them off (`"Enabled": false`):
 
 ```json
 {

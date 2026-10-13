@@ -6,7 +6,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_MigrationRun_Update"
 DatabaseType   = "PostgreSQL"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2025-02-03.1"
+Version        = "2026-10-13.1"
 
 [Description]
 Function = """
@@ -28,6 +28,8 @@ TableBaseName = "Table name prefix from Repository configuration (e.g., '' or 'R
 [Parameters]
 MigrationRunId    = "INT | REQUIRED | The ID of the MigrationRun to update"
 MigrationRunResultId = "SMALLINT | REQUIRED | Final result: 10=Running, 90=Error, 100=Ok"
+ErrorCode         = "VARCHAR(100) | OPTIONAL | Engine error code of the failure that decided the result; NULL for Ok"
+ErrorMessage      = "TEXT | OPTIONAL | Message of that failure, cut to 4000 characters by the engine; NULL for Ok"
 
 [ReturnValues]
 # Format: SELECT 'code,message'
@@ -58,6 +60,8 @@ BEGIN
     UPDATE {CFG:SchemaName}.{CFG:TableBaseName}migration_run
     SET
         migration_run_result_id = @MigrationRunResultId,
+        error_code = @ErrorCode,
+        error_message = @ErrorMessage,
         finished_at = NOW(),
         duration_in_ms = EXTRACT(EPOCH FROM (NOW() - started_at)) * 1000
     WHERE id = @MigrationRunId;

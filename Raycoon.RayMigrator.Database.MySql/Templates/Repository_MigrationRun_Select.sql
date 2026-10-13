@@ -6,7 +6,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_MigrationRun_Select"
 DatabaseType   = "MySql"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-10-12.1"
+Version        = "2026-10-13.1"
 
 [Description]
 Function = """
@@ -55,6 +55,14 @@ SELECT
     ,started_at              AS `StartedAt`
     ,finished_at             AS `FinishedAt`
     ,duration_in_ms          AS `DurationInMs`
+    ,migration_operation_id  AS `MigrationOperationId`
+    ,migration_run_source_id AS `MigrationRunSourceId`
+    ,initiated_by            AS `InitiatedBy`
+    ,initiated_by_subject    AS `InitiatedBySubject`
+    ,host                    AS `Host`
+    ,error_code              AS `ErrorCode`
+    ,error_message           AS `ErrorMessage`
+    ,last_heartbeat_at       AS `LastHeartbeatAt`
 FROM
     {CFG:TableBaseName}migration_run
 WHERE

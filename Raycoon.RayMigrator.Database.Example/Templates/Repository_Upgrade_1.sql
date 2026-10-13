@@ -1,0 +1,11 @@
+-- TODO: Implement for your database engine
+-- Purpose: Schema version 1 (ADR-024): creates the 11 repository tables (MigratorMeta, Product, Environment, MigrationRun,
+--          MigrationRunMeta, MigrationRecord, MigrationRecordHistory and the four lookup tables) with indexes, foreign keys
+--          and lookup master data, and writes row 1 of the RepositorySchemaVersion table. Must be idempotent.
+-- See the corresponding template in Database.SqlServer or Database.PostgreSQL for reference.
+-- Returns: 'code,message' where code equals the step number (1).
+--
+-- Parameters used in this template:
+-- {CFG:SchemaName} - The repository schema name
+-- {CFG:TableBaseName} - The table name prefix
+-- @RayMigratorVersion - The RayMigrator version applying the step

@@ -1,3 +1,5 @@
+using Microsoft.Extensions.DependencyInjection;
+using Raycoon.RayMigrator.Core.Configuration.Options;
 using AwesomeAssertions;
 using Raycoon.RayMigrator.Core;
 using Raycoon.RayMigrator.Core.Configuration;
@@ -24,11 +26,15 @@ public class ScenarioContext : IAsyncDisposable
     private readonly string _productAlias;
     private OperationResult? _lastResult;
     private string _environment = "Docker";
+    private readonly RunInitiatorValues? _initiator;
 
     /// <summary>
     /// The temporary working directory containing the copied migration files.
     /// </summary>
     public string WorkDirectory => _workDir;
+
+    /// <summary>The repository options the host runs with (database type, connection string, schema, table prefix).</summary>
+    public RepositoryOptions RepositoryOptions => _host.RayMigratorOptions.Repository!;
 
     /// <summary>
     /// Returns the host's migration service and binds the host's MigrationContext to the ambient
@@ -48,7 +54,8 @@ public class ScenarioContext : IAsyncDisposable
         EngineConfig engineConfig,
         string workDir,
         string configPath,
-        string productAlias)
+        string productAlias,
+        RunInitiatorValues? initiator = null)
     {
         _host = host;
         _queryHelper = queryHelper;
@@ -56,6 +63,17 @@ public class ScenarioContext : IAsyncDisposable
         _workDir = workDir;
         _configPath = configPath;
         _productAlias = productAlias;
+        _initiator = initiator;
+    }
+
+    /// <summary>
+    /// Pins the repository schema version the host's next command creates or upgrades to, so a test can create a
+    /// repository of an older version and then exercise the upgrade path of the next one (ADR-024). The pin lasts
+    /// until the host is rebuilt.
+    /// </summary>
+    public void PinRepositorySchemaVersion(int version)
+    {
+        _host.MigrationContext.RepositorySchemaTargetVersion = version;
     }
 
     /// <summary>
@@ -230,10 +248,24 @@ public class ScenarioContext : IAsyncDisposable
     /// Inserts a fake MigrationRun record with Running status and a StartedAt in the past,
     /// simulating an orphaned migration run.
     /// </summary>
-    public void InsertOrphanedMigrationRun(int minutesOld = 120)
+    /// <summary>Inserts an open run with exact UTC timestamps (second precision); see <see cref="RepositoryQueryHelper.InsertOpenMigrationRun"/>.</summary>
+    public void InsertOpenMigrationRun(DateTime startedAtUtc, DateTime? lastHeartbeatAtUtc)
     {
         int productId = _queryHelper.GetProductId(_productAlias);
-        _queryHelper.InsertOrphanedMigrationRun(productId, minutesOld, "Docker");
+        _queryHelper.InsertOpenMigrationRun(productId, startedAtUtc, lastHeartbeatAtUtc, "Docker");
+    }
+
+    /// <summary>
+    /// Closes an open run through the executor's orphan fix, as a parallel start and the fix command do; false when
+    /// the run is alive (heartbeat younger than <paramref name="thresholdMinutes"/>) and stays open.
+    /// </summary>
+    public bool FixOrphanedRun(int migrationRunId, int thresholdMinutes)
+        => _host.Services.GetRequiredService<TemplateExecutor>().RepositoryMigrationRunFixOrphaned(migrationRunId, thresholdMinutes);
+
+    public void InsertOrphanedMigrationRun(int minutesOld = 120, int? heartbeatMinutesOld = null)
+    {
+        int productId = _queryHelper.GetProductId(_productAlias);
+        _queryHelper.InsertOrphanedMigrationRun(productId, minutesOld, "Docker", heartbeatMinutesOld);
     }
 
     /// <summary>
@@ -264,7 +296,7 @@ public class ScenarioContext : IAsyncDisposable
         _environment = environment ?? "Docker";
         _host.Dispose();
         _host = new EngineTestHost();
-        _host.Build(_configPath, _productAlias, command, mode, toRelease, _environment);
+        _host.Build(_configPath, _productAlias, command, mode, toRelease, _environment, _initiator);
         if (_progressObserver != null)
         {
             _host.MigrationContext.ProgressObserver = _progressObserver;
@@ -442,6 +474,14 @@ public class ScenarioContext : IAsyncDisposable
         if (expected.ToReleaseVersion != null)
             run!.ToReleaseVersion.Should().Be(expected.ToReleaseVersion,
                 $"ToReleaseVersion mismatch at run index {runIndex}");
+
+        if (expected.MigrationOperationId.HasValue)
+            run!.MigrationOperationId.Should().Be(expected.MigrationOperationId.Value,
+                $"MigrationOperationId mismatch at run index {runIndex}");
+
+        if (expected.MigrationRunSourceId.HasValue)
+            run!.MigrationRunSourceId.Should().Be(expected.MigrationRunSourceId.Value,
+                $"MigrationRunSourceId mismatch at run index {runIndex}");
     }
 
     /// <summary>
@@ -593,6 +633,12 @@ public class ScenarioContext : IAsyncDisposable
     /// Gets the count of MigrationRun records in the repository.
     /// </summary>
     public int CountMigrationRuns() => _queryHelper.CountMigrationRuns();
+
+    /// <summary>Whether the run at the 1-based index wrote a heartbeat after its start (<c>LastHeartbeatAt &gt; StartedAt</c>).</summary>
+    public bool HeartbeatAdvanced(int runIndex) => _queryHelper.HeartbeatAdvanced(runIndex);
+
+    /// <summary>The stored timestamps of the run at the 1-based index as <c>StartedAt|LastHeartbeatAt|FinishedAt</c>, for assertion messages.</summary>
+    public string? GetMigrationRunTimestamps(int runIndex) => _queryHelper.GetMigrationRunTimestamps(runIndex);
 
     /// <summary>
     /// Gets the latest MigrationRunResultId from the repository.

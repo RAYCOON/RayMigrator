@@ -27,9 +27,11 @@ public static class SerilogFactory
 
         try
         {
-            // Read DatabaseLogging MinimumLevel early so the sink can be added to the initial logger
+            // Database logging is on unless the section says Enabled: false (it goes into the repository without a
+            // section). The sink is created before the options are bound, so it reads the section directly; the
+            // minimum level is read early so the sink can be added to the initial logger.
             var dbLoggingSection = rayMigratorConfigSection.GetSection("DatabaseLogging");
-            if (dbLoggingSection.Exists())
+            if (IsDatabaseLoggingEnabled(dbLoggingSection))
             {
                 LogEventLevel dbSinkMinimumLevel = LogEventLevel.Information;
                 var minLevelStr = dbLoggingSection["MinimumLevel"];
@@ -58,6 +60,18 @@ public static class SerilogFactory
         {
             throw new ApplicationStartupException("Could not create or use Serilog logger.", ex);
         }
+    }
+
+    /// <summary>
+    /// Whether the written <c>DatabaseLogging</c> section leaves database logging on: it does not exist, or its
+    /// <c>Enabled</c> value is not <c>false</c>.
+    /// </summary>
+    internal static bool IsDatabaseLoggingEnabled(IConfigurationSection dbLoggingSection)
+    {
+        if (!dbLoggingSection.Exists())
+            return true;
+        var enabled = dbLoggingSection["Enabled"];
+        return !(bool.TryParse(enabled, out var value) && !value);
     }
 
     /// <summary>
