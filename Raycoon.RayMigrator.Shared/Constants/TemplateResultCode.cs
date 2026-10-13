@@ -34,6 +34,12 @@ public static class TemplateResultCode
     /// <summary>MigrationRun not found or not in Running state (FixOrphaned).</summary>
     public const int MigrationRunNotInRunningState = -31;
 
+    /// <summary>
+    /// MariaDB and MySQL schema templates: the repository schema lock (<c>GET_LOCK()</c>) was not acquired within
+    /// 60 seconds; nothing was written (Repository_CheckCreate, Repository_Upgrade_{n}, Repository_MigratorMeta_CheckInsert).
+    /// </summary>
+    public const int RepositorySchemaLockNotAcquired = -32;
+
     // --- Repository_Migration (-40 to -49) ---
 
     /// <summary>Migration with given Id does not exist.</summary>
@@ -61,7 +67,7 @@ public static class TemplateResultCode
     [
         GeneralError, MigrationAlreadyRunning,
         RepositoryMultipleVersionEntries,
-        ProductNameEmpty, MigrationRunNotFound, MigrationRunNotInRunningState, MigrationNotFound,
+        ProductNameEmpty, MigrationRunNotFound, MigrationRunNotInRunningState, RepositorySchemaLockNotAcquired, MigrationNotFound,
         EnvironmentNameEmpty
     ];
 

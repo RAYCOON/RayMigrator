@@ -103,7 +103,7 @@ This template is **not executed immediately**. It is first used when the Serilog
 **What schema step 1 (`Repository_Upgrade_1`) creates:**
 **What is created:**
 
-> **Note**: SQL Server runs the step in one transaction under `sp_getapplock`, PostgreSQL in one `DO $$` block under `pg_advisory_xact_lock`; both create the tables only when `MigratorMeta` does not exist. MariaDB and MySQL use `CREATE TABLE IF NOT EXISTS` with inline FK constraints and `INSERT IGNORE` for the master data under `GET_LOCK()`, since DDL causes implicit commits and cannot be wrapped in a transaction; SQLite uses `CREATE TABLE IF NOT EXISTS` and `INSERT OR IGNORE`. Every step is idempotent, so a rerun after a failure completes what is missing.
+> **Note**: SQL Server runs the step in one transaction under `sp_getapplock`, PostgreSQL in one `DO $$` block under `pg_advisory_xact_lock`; both create the tables only when `MigratorMeta` does not exist. MariaDB and MySQL use `CREATE TABLE IF NOT EXISTS` with inline FK constraints and `INSERT IGNORE` for the master data under `GET_LOCK()`, since DDL causes implicit commits and cannot be wrapped in a transaction; SQLite uses `CREATE TABLE IF NOT EXISTS` and `INSERT OR IGNORE`. Every step is idempotent, so a rerun after a failure completes what is missing; on MariaDB and MySQL, where a step that lost its connection midway leaves committed tables behind, `Repository_CheckCreate` treats a repository as pre-0.17.0 only when `MigratorMeta` has rows and no version row exists, so an empty, half-created repository is completed and not refused. On MariaDB and MySQL every schema template reports `-32` when it could not acquire `GET_LOCK()` within 60 seconds, and writes neither the version row nor the `MigratorMeta` row without the lock.
 
 1. **Schema** (e.g., `[ray]`) if it does not exist (SQL Server/PostgreSQL only; MariaDB/MySQL uses the database itself)
 
@@ -269,6 +269,9 @@ Called immediately after Product registration by every `MigrationService` entry 
 - `@FromReleaseVersion` - From `MigrationState.FromReleaseVersion`: the highest Migrated release of the product and environment when the run started, read right before the insert; `NULL` when nothing was migrated yet
 - `@ToReleaseVersion` - From console options `TargetReleaseVersion`
 - `@MigrationRunSettingsJson` - JSON snapshot of all RayMigrator settings at migration start
+- `@MigrationOperationId` - What the run does: 50=MigrateDown, 100=MigrateUp, 110=Baseline (schema version 2)
+- `@MigrationRunSourceId` - Where the run was started: 10=Cli, 20=Ci, 30=Studio; NULL when the host did not say
+- `@InitiatedBy`, `@InitiatedBySubject`, `@Host` - Who started the run where (the CLI binds the OS user and the machine name; Studio the signed-in user)
 
 **Logic:**
 1. Checks if an unfinished MigrationRun exists (`FinishedAt IS NULL`) for the same product/environment
@@ -340,6 +343,3 @@ These templates exist in the template cache but are only used during specific op
 - [Logging Schema](logging-schema.md) - Logging table structures
 - [DAL Architecture](dal-architecture.md) - Database access layer
 - [Data Flow](../01-architecture/data-flow.md) - Overall data flow
-- `@MigrationOperationId` - What the run does: 50=MigrateDown, 100=MigrateUp, 110=Baseline (schema version 2)
-- `@MigrationRunSourceId` - Where the run was started: 10=Cli, 20=Ci, 30=Studio; NULL when the host did not say
-- `@InitiatedBy`, `@InitiatedBySubject`, `@Host` - Who started the run where (the CLI binds the OS user and the machine name; Studio the signed-in user)

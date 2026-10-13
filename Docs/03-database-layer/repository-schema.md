@@ -547,6 +547,8 @@ The two logging tables follow the same convention: `MigrationEvent` → `migrati
 
 `ReadModelContractTests` on all five engines read every table after a real migrate-up with the package's statements through the engine DAL and map every row; `RepositoryQueryHelper` of the Testing package takes its snake_case rule from the package.
 
+> **MySQL and MariaDB session time zone:** the timestamp columns are `TIMESTAMP`, which the server converts to the session time zone on read. The engine DAL runs every session in UTC (`SET time_zone = '+00:00'` after each open); a reader with its own connection (RayMigrator Studio, a script) must do the same, or `RepositoryRowMapper` labels local wall time as UTC and every heartbeat age is off by the server's offset.
+
 ## Schema versioning
 
 Since 0.17.0 the schema is versioned and upgraded in numbered steps (ADR-024):

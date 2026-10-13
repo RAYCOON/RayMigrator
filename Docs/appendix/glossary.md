@@ -412,6 +412,7 @@ Currently assigned codes:
 - **-20**: `ProductNameEmpty` (Product name is NULL or empty)
 - **-30**: `MigrationRunNotFound`
 - **-31**: `MigrationRunNotInRunningState` (FixOrphaned)
+- **-32**: `RepositorySchemaLockNotAcquired` (MariaDB and MySQL schema templates: `GET_LOCK()` did not answer within 60 seconds)
 - **-40**: `MigrationNotFound`
 - **-50**: `EnvironmentNameEmpty` (Environment name is NULL or empty)
 - **1001**: `RequireRollbackFileValidationFailed`

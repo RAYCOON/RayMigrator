@@ -41,9 +41,9 @@ SELECT
     [EnvironmentId],
     [StartedAt],
     [MigrationRunModeId],
-    DATEDIFF(MINUTE, [StartedAt], SYSUTCDATETIME()) AS MinutesRunning,
+    DATEDIFF_BIG(SECOND, [StartedAt], SYSUTCDATETIME()) / 60 AS MinutesRunning,
     [LastHeartbeatAt],
-    DATEDIFF(MINUTE, COALESCE([LastHeartbeatAt], [StartedAt]), SYSUTCDATETIME()) AS MinutesSinceHeartbeat,
+    DATEDIFF_BIG(SECOND, COALESCE([LastHeartbeatAt], [StartedAt]), SYSUTCDATETIME()) / 60 AS MinutesSinceHeartbeat,
     [InitiatedBy],
     [Host]
 FROM [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRun]

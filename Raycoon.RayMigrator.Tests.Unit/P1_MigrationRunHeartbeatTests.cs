@@ -65,6 +65,29 @@ public class MigrationRunHeartbeatTests
     }
 
     [Fact]
+    public async Task Heartbeat_Dispose_WithABeatThatHangs_ReturnsAfterTheStopTimeout()
+    {
+        var logger = new CapturingLogger<MigrationRunHeartbeat>();
+        var release = new ManualResetEventSlim(false);
+        var heartbeat = new MigrationRunHeartbeat(7, TimeSpan.FromMilliseconds(20), () => { release.Wait(); return true; }, logger, stopTimeout: TimeSpan.FromMilliseconds(200));
+        await Task.Delay(100, TestContext.Current.CancellationToken); // the first beat is now blocked inside the repository call
+
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        await heartbeat.DisposeAsync();
+        stopwatch.Stop();
+
+        stopwatch.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(2), "the stop waits for the stop timeout only, not for the beat");
+        logger.Entries.Should().Contain(e => e.LogLevel == LogLevel.Warning && e.Message.Contains("still in progress"));
+        release.Set();
+    }
+
+    [Fact]
+    public void Heartbeat_DefaultStopTimeout_IsTenSeconds()
+    {
+        MigrationRunHeartbeat.DefaultStopTimeout.Should().Be(TimeSpan.FromSeconds(10));
+    }
+
+    [Fact]
     public void Heartbeat_NonPositiveInterval_Throws()
     {
         var act = () => new MigrationRunHeartbeat(7, TimeSpan.Zero, () => true, new CapturingLogger<MigrationRunHeartbeat>());

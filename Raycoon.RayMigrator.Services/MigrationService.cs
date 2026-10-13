@@ -3978,20 +3978,39 @@ public class MigrationService : IMigrationService
                 "Parallel migration detected but {Count} orphaned run(s) found whose last heartbeat is older than {Threshold} minutes. Auto-fixing.",
                 autoFixable.Count, thresholdMinutes);
 
+            int fixedRuns = 0;
             foreach (var orphanRow in autoFixable)
             {
                 int orphanRunId = Convert.ToInt32(orphanRow["MigrationRunId"]);
                 double minutesRunning = Convert.ToDouble(orphanRow["MinutesRunning"]);
                 double minutesSinceHeartbeat = Convert.ToDouble(orphanRow["MinutesSinceHeartbeat"]);
 
+                // The run is closed first, because the fix refuses a run that wrote a heartbeat since the select; the
+                // records of a run that turns out to be alive must stay as they are.
+                bool closed = await Task.Run(() =>
+                    _templateExecutor.RepositoryMigrationRunFixOrphaned(orphanRunId, thresholdMinutes));
+                if (!closed)
+                {
+                    _logger.LogWarning("MigrationRun {RunId} wrote a heartbeat meanwhile and is alive; it is not fixed", orphanRunId);
+                    continue;
+                }
+
                 await Task.Run(() =>
                     _templateExecutor.RepositoryMigrationRecordFixOrphaned(orphanRunId, MigrationStatus.NotMigrated));
-                await Task.Run(() =>
-                    _templateExecutor.RepositoryMigrationRunFixOrphaned(orphanRunId, thresholdMinutes));
+                fixedRuns++;
 
                 _logger.LogWarning(
                     "Auto-fixed orphaned MigrationRun {RunId} (running for {Minutes:F0} minutes, last heartbeat {HeartbeatMinutes:F0} minutes ago, marked as Error)",
                     orphanRunId, minutesRunning, minutesSinceHeartbeat);
+            }
+
+            if (fixedRuns == 0)
+            {
+                _logger.LogError(
+                    "Another migration is currently running for product {ProductId} with environment {Environment} ({EnvironmentId}): " +
+                    "every candidate wrote a heartbeat meanwhile.",
+                    productId, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, environmentId);
+                throw;
             }
 
             // Retry the insert after fixing orphaned runs
@@ -5566,7 +5585,15 @@ public class MigrationService : IMigrationService
                     // Determine target status for orphaned migrations
                     var targetStatus = request.AssumedMigrationStatus;
 
-                    // Fix orphaned Migration entries first (before closing the run)
+                    // Close the run first (mark as Error, set FinishedAt); a run whose heartbeat is younger than
+                    // --older-than by now is alive and stays untouched, records included.
+                    bool closed = await Task.Run(() => _templateExecutor.RepositoryMigrationRunFixOrphaned(run.MigrationRunId, request.OlderThanMinutes));
+                    if (!closed)
+                    {
+                        _logger.LogInformation("  MigrationRun {RunId} wrote a heartbeat meanwhile and is alive; not fixed", run.MigrationRunId);
+                        continue;
+                    }
+
                     int migrationsFixed = await Task.Run(() =>
                         _templateExecutor.RepositoryMigrationRecordFixOrphaned(run.MigrationRunId, targetStatus));
 
@@ -5576,8 +5603,6 @@ public class MigrationService : IMigrationService
                             migrationsFixed, run.MigrationRunId, targetStatus);
                     }
 
-                    // Fix the MigrationRun itself (mark as Error, set FinishedAt)
-                    await Task.Run(() => _templateExecutor.RepositoryMigrationRunFixOrphaned(run.MigrationRunId, request.OlderThanMinutes));
                     run.WasFixed = true;
                     fixedCount++;
 

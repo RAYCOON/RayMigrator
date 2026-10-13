@@ -14,7 +14,11 @@ internal sealed class MigrationRunHeartbeat : IAsyncDisposable
     private readonly ILogger _logger;
     private readonly int _migrationRunId;
     private readonly CancellationTokenSource _stop = new();
+    private readonly TimeSpan _stopTimeout;
     private readonly Task _loop;
+
+    /// <summary>How long <see cref="DisposeAsync"/> waits for a beat in progress before it lets the run go on without it.</summary>
+    public static readonly TimeSpan DefaultStopTimeout = TimeSpan.FromSeconds(10);
 
     /// <summary>The number of beats that reached the repository.</summary>
     public int Beats { get; private set; }
@@ -26,10 +30,12 @@ internal sealed class MigrationRunHeartbeat : IAsyncDisposable
     /// <param name="interval">The time between two beats; must be positive.</param>
     /// <param name="beat">Writes one heartbeat and returns whether the run row was still open.</param>
     /// <param name="logger">Receives a warning for every failed beat.</param>
-    public MigrationRunHeartbeat(int migrationRunId, TimeSpan interval, Func<bool> beat, ILogger logger)
+    /// <param name="stopTimeout">How long the stop waits for a beat in progress; <see cref="DefaultStopTimeout"/> when null.</param>
+    public MigrationRunHeartbeat(int migrationRunId, TimeSpan interval, Func<bool> beat, ILogger logger, TimeSpan? stopTimeout = null)
     {
         if (interval <= TimeSpan.Zero)
             throw new ArgumentOutOfRangeException(nameof(interval), interval, "The heartbeat interval must be positive.");
+        _stopTimeout = stopTimeout ?? DefaultStopTimeout;
 
         _migrationRunId = migrationRunId;
         _beat = beat ?? throw new ArgumentNullException(nameof(beat));
@@ -61,11 +67,24 @@ internal sealed class MigrationRunHeartbeat : IAsyncDisposable
         }
     }
 
-    /// <summary>Stops the loop and waits for a beat in progress to finish.</summary>
+    /// <summary>
+    /// Stops the loop and waits up to the stop timeout for a beat in progress to finish. A beat that takes longer
+    /// (a repository that answers slowly) is left to finish on its own: the run's closing update does not wait for
+    /// a liveness signal, and a beat that lands after the run closed changes nothing (<c>FinishedAt IS NULL</c>).
+    /// </summary>
     public async ValueTask DisposeAsync()
     {
         if (!_stop.IsCancellationRequested)
             await _stop.CancelAsync();
+
+        var finished = await Task.WhenAny(_loop, Task.Delay(_stopTimeout));
+        if (finished != _loop)
+        {
+            _logger.LogWarning("Heartbeat of MigrationRun {MigrationRunId}: a beat is still in progress after {Seconds} s; the run goes on without waiting for it",
+                _migrationRunId, _stopTimeout.TotalSeconds);
+            return; // the loop ends when the beat returns and still needs the token source
+        }
+
         try
         {
             await _loop;
@@ -74,6 +93,7 @@ internal sealed class MigrationRunHeartbeat : IAsyncDisposable
         {
             // stopped
         }
+
         _stop.Dispose();
     }
 }

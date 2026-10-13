@@ -167,6 +167,7 @@ Known result codes (from `TemplateResultCode` in `Shared/Constants/`):
 | `-20` | `ProductNameEmpty` | Product name is NULL or empty |
 | `-30` | `MigrationRunNotFound` | MigrationRun with given Id does not exist |
 | `-31` | `MigrationRunNotInRunningState` | MigrationRun not in Running state |
+| `-32` | `RepositorySchemaLockNotAcquired` | MariaDB and MySQL: the repository schema lock (`GET_LOCK()`) was not acquired within 60 seconds |
 | `-40` | `MigrationNotFound` | Migration with given Id does not exist |
 | `-50` | `EnvironmentNameEmpty` | Environment name is NULL or empty |
 

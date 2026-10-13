@@ -167,6 +167,35 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ### Fixed
 
+- A parallel start and the `fix` command close an orphaned run before they
+  rewrite its records, and a run that wrote a heartbeat between the orphan
+  select and the fix (`-31`) is left alone, records included; a start that
+  finds every candidate alive fails with `MigrationAlreadyRunningException`
+  as documented instead of a template result error. On PostgreSQL
+  `Repository_MigrationRun_FixOrphaned` reports the alive run with
+  `RAISE NOTICE` instead of `RAISE EXCEPTION`, so the engine reads the
+  `-31` as a result code like on the other engines.
+- SQL Server measures the heartbeat age in elapsed seconds, as the other
+  engines do. `DATEDIFF(MINUTE)` counted minute boundaries, so a run that
+  beat a second before the minute turned was orphaned after a few seconds
+  of silence with a threshold of 1, and after 60 seconds with the default
+  2. `DurationInMs` of a repaired run uses `DATEDIFF_BIG`, which no longer
+  overflows for a run orphaned longer than 24 days.
+- A heartbeat does not retry a failed write (the next tick is the retry),
+  and the stop of the heartbeat waits at most 10 seconds for a beat in
+  progress; a transient-error burst on the repository neither silenced the
+  heartbeat of an alive run for minutes nor held the end of the run.
+- On MariaDB and MySQL every repository schema template reports `-32`
+  (`RepositorySchemaLockNotAcquired`) when `GET_LOCK()` does not answer
+  within 60 seconds, and writes neither the version row nor the
+  `MigratorMeta` row without the lock; before, the script went on
+  unserialised, and two first runs of one engine version could register
+  it twice.
+- On MariaDB and MySQL a repository whose first schema step lost its
+  connection after creating `MigratorMeta` is completed by the next command.
+  `Repository_CheckCreate` took every repository with a `MigratorMeta` table
+  and no version row for one of a RayMigrator before 0.17.0 and refused it;
+  it now does so only when `MigratorMeta` has rows.
 - A SQLite script that opens its own transaction (`BEGIN IMMEDIATE`, as
   the repository schema steps do) and fails before `COMMIT` is rolled back
   by the DAL. Microsoft.Data.Sqlite pools the connection, and a handle

@@ -89,4 +89,52 @@ public class MariaDbHeartbeatTests : MariaDbTestBase
         run.LastHeartbeatAt.Should().NotBeNull();
         run.WasFixed.Should().BeTrue();
     }
+
+    [Fact]
+    public async Task FixOrphaned_AliveRun_IsNotClosed()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+
+        await using var ctx = await CreateScenario().BuildAsync();
+        await ctx.MigrateUpAsync();
+        ctx.AssertSuccess(true);
+
+        // An open run whose heartbeat is fresh: the orphan select of a parallel start would not list it, but a run can
+        // beat between that select and the fix. The fix must leave it open (-31 → false) instead of failing the start.
+        ctx.InsertOrphanedMigrationRun(minutesOld: 120, heartbeatMinutesOld: 0);
+        int runId = ctx.GetMigrationRun(2)!.Id;
+
+        ctx.FixOrphanedRun(runId, thresholdMinutes: 2).Should().BeFalse("the heartbeat is younger than the threshold");
+        ctx.GetLatestRunResultId().Should().Be((int)MigrationRunResult.Running, "an alive run stays open");
+
+        ctx.FixOrphanedRun(runId, thresholdMinutes: 0).Should().BeTrue("with threshold 0 every open run counts as orphaned");
+        ctx.GetLatestRunResultId().Should().Be((int)MigrationRunResult.Error);
+    }
+
+    [Fact]
+    public async Task OpenRun_WithHeartbeatYoungerThanTheThreshold_IsAliveAcrossAMinuteBoundary()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+
+        await using var ctx = await CreateScenario()
+            .WithRepositoryHeartbeat(intervalSeconds: 30, orphanedRunThresholdMinutes: 1)
+            .BuildAsync();
+        await ctx.MigrateUpAsync();
+        ctx.AssertSuccess(true);
+
+        // The heartbeat lies one second before the current minute began: a minute boundary separates it from now, but
+        // less than a minute has elapsed. Counting boundaries (SQL Server's DATEDIFF(MINUTE)) would call the run
+        // orphaned; elapsed time must not. Wait out the end of a minute so that the probe stays inside the same one.
+        if (DateTime.UtcNow.Second > 40)
+            await Task.Delay(TimeSpan.FromSeconds(61 - DateTime.UtcNow.Second), TestContext.Current.CancellationToken);
+        var now = DateTime.UtcNow;
+        var minuteStart = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, 0, DateTimeKind.Utc);
+        ctx.InsertOpenMigrationRun(startedAtUtc: minuteStart.AddMinutes(-10), lastHeartbeatAtUtc: minuteStart.AddSeconds(-1));
+
+        var result = await ctx.MigrateUpAsync();
+
+        result.Success.Should().BeFalse("the heartbeat is younger than the threshold of one minute, whatever minute boundary lies in between");
+        result.ErrorCode.Should().Be(-2);
+        ctx.CountMigrationRuns().Should().Be(2, "the inserted run stays open");
+    }
 }

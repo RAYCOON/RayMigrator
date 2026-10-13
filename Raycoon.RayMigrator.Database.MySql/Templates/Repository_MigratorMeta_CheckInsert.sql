@@ -34,6 +34,7 @@ RepositoryDatabaseType = "VARCHAR(100) | REQUIRED | The database type for the re
 # Format: SELECT 'code,message'
 Success_N         = "N (MigratorMetaId),RayMigrator version [X] is registered with MigratorMetaId [N]"
 Success_N_New     = "N (MigratorMetaId),RayMigrator version [X] registered with new MigratorMetaId [N]"
+Error_-32_Lock    = "-32,RayMigrator could not acquire the repository lock within 60 seconds"
 Error_-12_Multi   = "-12,Multiple [migrator_meta]-entries found for RayMigratorVersion [...] RepositoryDatabaseType [...]."
 
 [ModificationNotes]
@@ -64,13 +65,15 @@ SET @v_number_of_rows = (
 INSERT INTO {CFG:TableBaseName}migrator_meta (raymigrator_version, repository_database_type, created_at)
 SELECT @RayMigratorVersion, @RepositoryDatabaseType, CURRENT_TIMESTAMP
 FROM DUAL
-WHERE @v_number_of_rows = 0;
+WHERE @v_number_of_rows = 0 AND IFNULL(@v_lock_acquired, 0) = 1;
 
 SET @v_final_version_id = IF(@v_version_id IS NOT NULL, @v_version_id, LAST_INSERT_ID());
 
 DO RELEASE_LOCK(@v_lock_name);
 
 SELECT CASE
+    WHEN IFNULL(@v_lock_acquired, 0) <> 1 THEN
+        '-32,RayMigrator could not acquire the repository lock within 60 seconds'
     WHEN @v_number_of_rows > 1 THEN
         CONCAT('-12,Multiple [migrator_meta]-entries found for RayMigratorVersion [', IFNULL(@RayMigratorVersion, 'NULL'), '] RepositoryDatabaseType [', IFNULL(@RepositoryDatabaseType, 'NULL'), '].')
     WHEN @v_number_of_rows = 1 THEN

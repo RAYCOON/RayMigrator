@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Raycoon.RayMigrator.Core.Configuration.Options;
 using AwesomeAssertions;
 using Raycoon.RayMigrator.Core;
@@ -247,6 +248,20 @@ public class ScenarioContext : IAsyncDisposable
     /// Inserts a fake MigrationRun record with Running status and a StartedAt in the past,
     /// simulating an orphaned migration run.
     /// </summary>
+    /// <summary>Inserts an open run with exact UTC timestamps (second precision); see <see cref="RepositoryQueryHelper.InsertOpenMigrationRun"/>.</summary>
+    public void InsertOpenMigrationRun(DateTime startedAtUtc, DateTime? lastHeartbeatAtUtc)
+    {
+        int productId = _queryHelper.GetProductId(_productAlias);
+        _queryHelper.InsertOpenMigrationRun(productId, startedAtUtc, lastHeartbeatAtUtc, "Docker");
+    }
+
+    /// <summary>
+    /// Closes an open run through the executor's orphan fix, as a parallel start and the fix command do; false when
+    /// the run is alive (heartbeat younger than <paramref name="thresholdMinutes"/>) and stays open.
+    /// </summary>
+    public bool FixOrphanedRun(int migrationRunId, int thresholdMinutes)
+        => _host.Services.GetRequiredService<TemplateExecutor>().RepositoryMigrationRunFixOrphaned(migrationRunId, thresholdMinutes);
+
     public void InsertOrphanedMigrationRun(int minutesOld = 120, int? heartbeatMinutesOld = null)
     {
         int productId = _queryHelper.GetProductId(_productAlias);

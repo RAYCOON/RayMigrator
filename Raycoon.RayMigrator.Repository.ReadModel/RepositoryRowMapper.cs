@@ -5,7 +5,8 @@ namespace Raycoon.RayMigrator.Repository.ReadModel;
 
 /// <summary>
 /// Builds a row record from one result row of an ADO.NET reader, given as the column values by column name as the
-/// provider reports them. The mapper looks every constructor parameter up under its engine column name (case does
+/// provider reports them. On MySQL and MariaDB the reader's session must run in UTC (<c>SET time_zone = '+00:00'</c>);
+/// see <see cref="ToUtc"/>. The mapper looks every constructor parameter up under its engine column name (case does
 /// not matter) and converts the provider's value to the parameter type: integers of any width to the declared one,
 /// lookup ids to their enums, SQLite text and unspecified-kind timestamps to UTC <see cref="DateTime"/>, 0/1 to
 /// bool, <see cref="DBNull"/> to null.
@@ -117,7 +118,10 @@ public static class RepositoryRowMapper
 
     /// <summary>
     /// The repository stores UTC timestamps on every engine. A value without a kind (SQL Server datetime2, MySQL
-    /// and MariaDB datetime) is UTC, a local one is converted, SQLite text is parsed as UTC.
+    /// and MariaDB timestamp) is UTC, a local one is converted, SQLite text is parsed as UTC. The MySQL and MariaDB
+    /// columns are <c>TIMESTAMP</c>, which the server converts to the session time zone on read: a reader's session
+    /// must run in UTC (<c>SET time_zone = '+00:00'</c>, as the engine DAL does after every open), or every
+    /// timestamp is off by the session's offset.
     /// </summary>
     internal static DateTime ToUtc(object raw) => raw switch
     {

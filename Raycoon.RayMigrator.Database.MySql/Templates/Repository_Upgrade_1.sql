@@ -32,6 +32,7 @@ RayMigratorVersion = "VARCHAR(100) | REQUIRED | The RayMigrator version applying
 [ReturnValues]
 # Format: SELECT 'code,message'
 Success_1  = "1,RayMigrator repository schema version [1] applied: 11 tables with master data"
+Error_-32  = "-32,RayMigrator could not acquire the repository schema lock within 60 seconds"
 
 [ModificationNotes]
 Note1 = "SELECT result format: 'code,message' - DO NOT change this format; the code must equal the step number"
@@ -234,9 +235,12 @@ INSERT IGNORE INTO {CFG:TableBaseName}migration_status (id, name, description) V
     (50, 'NotMigrated', 'Not deployed / rolled back'),
     (100, 'Migrated', 'Successfully deployed');
 
+-- The version row is written only under the lock: a run that could not acquire it reports -32 and leaves no claim.
 INSERT IGNORE INTO {CFG:TableBaseName}repository_schema_version (version, applied_at, raymigrator_version)
-VALUES (1, CURRENT_TIMESTAMP, @RayMigratorVersion);
+SELECT 1, CURRENT_TIMESTAMP, @RayMigratorVersion FROM DUAL WHERE IFNULL(@v_lock_acquired, 0) = 1;
 
 DO RELEASE_LOCK(@v_lock_name);
 
-SELECT '1,RayMigrator repository schema version [1] applied: 11 tables with master data';
+SELECT IF(IFNULL(@v_lock_acquired, 0) = 1,
+    '1,RayMigrator repository schema version [1] applied: 11 tables with master data',
+    '-32,RayMigrator could not acquire the repository schema lock within 60 seconds');

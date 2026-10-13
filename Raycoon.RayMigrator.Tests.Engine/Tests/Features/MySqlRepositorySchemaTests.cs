@@ -1,3 +1,4 @@
+using Raycoon.RayMigrator.Shared.Exceptions;
 using Raycoon.RayMigrator.Core.Configuration.Enums;
 using Raycoon.RayMigrator.Core.Templates;
 using Raycoon.RayMigrator.Tests.Engine.Fixtures;
@@ -101,5 +102,40 @@ public class MySqlRepositorySchemaTests : MySqlTestBase
 
         first.CountRepoRows("RepositorySchemaVersion").Should().Be(RepositorySchema.CurrentVersion);
         first.CountRepoRows("MigratorMeta").Should().Be(1);
+    }
+
+    [Fact]
+    public async Task CheckCreate_HalfCreatedRepository_IsCompletedNotRefused()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+
+        await using var ctx = await CreateScenario().BuildAsync(MigrationCommand.Info, MigrationRunMode.Migrate);
+        await ctx.InfoAsync();
+        ctx.CountRepoRows("RepositorySchemaVersion").Should().Be(RepositorySchema.CurrentVersion);
+
+        // DDL commits implicitly on this engine: a step 1 that lost its connection after creating migrator_meta leaves
+        // the table behind, empty, and no version row. That is not a pre-0.17.0 repository; the next command completes it.
+        ctx.ExecuteOnConnection(Fixture.EngineConfig.ConnectionString, "DELETE FROM migrator_meta");
+        ctx.ExecuteOnConnection(Fixture.EngineConfig.ConnectionString, "DELETE FROM repository_schema_version");
+
+        await ctx.InfoAsync();
+
+        ctx.CountRepoRows("RepositorySchemaVersion").Should().Be(RepositorySchema.CurrentVersion, "every step ran again");
+        ctx.CountRepoRows("MigratorMeta").Should().Be(1, "the engine version is registered again");
+    }
+
+    [Fact]
+    public async Task CheckCreate_RepositoryWithEngineRowsButNoVersionRow_IsRefusedAsPre017()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+
+        await using var ctx = await CreateScenario().BuildAsync(MigrationCommand.Info, MigrationRunMode.Migrate);
+        await ctx.InfoAsync();
+
+        ctx.ExecuteOnConnection(Fixture.EngineConfig.ConnectionString, "DELETE FROM repository_schema_version");
+
+        var act = () => ctx.InfoAsync();
+
+        await act.Should().ThrowAsync<RepositorySchemaException>("migrator_meta has rows and no version row exists");
     }
 }

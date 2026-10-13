@@ -466,8 +466,13 @@ public class TemplateExecutor
         DalParameterList dalParameterList = new DalParameterList();
         dalParameterList.AddParameter(new DalParameter("MigrationRunId", migrationRunId, typeof(int)));
 
+        // A beat is a liveness signal: it does not retry (the next tick is the retry), so a transient-error burst on the
+        // repository neither silences the heartbeat for minutes nor holds the end of the run.
+        var settings = _repository.GetDalSettings();
+        settings.MaxRetries = 0;
+
         var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
-        var templateResponse = ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, null, eventId);
+        var templateResponse = ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, settings, dalParameterList, null, eventId);
 
         return templateResponse.ResultCode > 0;
     }
@@ -481,7 +486,12 @@ public class TemplateExecutor
     /// <param name="migrationRunId">The ID of the orphaned MigrationRun to fix.</param>
     /// <param name="thresholdMinutes">The minimum age of the last heartbeat in minutes; 0 closes the run regardless.</param>
     /// <exception cref="TemplateExecutionException"></exception>
-    public void RepositoryMigrationRunFixOrphaned(int migrationRunId, int thresholdMinutes)
+    /// <returns>
+    /// True when the run was closed. False when the run is alive: its heartbeat is younger than
+    /// <paramref name="thresholdMinutes"/> (it beat between the orphan select and this call), the template answered
+    /// <c>-31</c> and the row is untouched; the caller must leave the run's records alone as well.
+    /// </returns>
+    public bool RepositoryMigrationRunFixOrphaned(int migrationRunId, int thresholdMinutes)
     {
         var templateType = TemplateType.Repository_MigrationRun_FixOrphaned;
         var eventId = MigrationEvent.TemplateExecutionRepositoryMigrationRunFixOrphaned;
@@ -494,7 +504,17 @@ public class TemplateExecutor
         dalParameterList.AddParameter(new DalParameter("ThresholdMinutes", thresholdMinutes, typeof(int)));
 
         var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
-        ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId);
+        try
+        {
+            ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId);
+            return true;
+        }
+        catch (TemplateResultException ex) when (ex.ResultCode == TemplateResultCode.MigrationRunNotInRunningState)
+        {
+            _logger.LogInformation(eventId, "MigrationRun {MigrationRunId} wrote a heartbeat younger than {ThresholdMinutes} minutes meanwhile and stays open{MigrationContext}",
+                migrationRunId, thresholdMinutes, _ctxAccessor.Current.Clone);
+            return false;
+        }
     }
 
     /// <summary>

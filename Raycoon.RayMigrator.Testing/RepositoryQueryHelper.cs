@@ -508,35 +508,62 @@ public class RepositoryQueryHelper
     /// </summary>
     public void InsertOrphanedMigrationRun(int productId, int minutesOld, string environment = "Docker", int? heartbeatMinutesOld = null)
     {
+        // A run of an engine before the heartbeat never wrote LastHeartbeatAt (NULL); a run with a heartbeat carries its age.
+        string heartbeatSql = heartbeatMinutesOld.HasValue ? MinutesAgoSql(heartbeatMinutesOld.Value) : "NULL";
+        InsertRunningMigrationRun(productId, environment, MinutesAgoSql(minutesOld), heartbeatSql);
+    }
+
+    /// <summary>
+    /// Inserts an open MigrationRun (Running) with exact UTC timestamps, for tests that probe the heartbeat age
+    /// arithmetic of an engine at a minute boundary. Second precision: SQLite stores <c>YYYY-MM-DD HH:MM:SS</c>.
+    /// </summary>
+    public void InsertOpenMigrationRun(int productId, DateTime startedAtUtc, DateTime? lastHeartbeatAtUtc, string environment = "Docker")
+    {
+        string heartbeatSql = lastHeartbeatAtUtc.HasValue ? TimestampSql(lastHeartbeatAtUtc.Value) : "NULL";
+        InsertRunningMigrationRun(productId, environment, TimestampSql(startedAtUtc), heartbeatSql);
+    }
+
+    private void InsertRunningMigrationRun(int productId, string environment, string startedAtSql, string heartbeatSql)
+    {
         int environmentId = EnsureEnvironmentExists(environment);
         if (!DalFactory.TryGetDal(_databaseType, _repositoryConnectionString, out IDal? dal))
             throw new InvalidOperationException($"Could not create DAL for {_databaseType}");
 
         string qualifiedTable = GetQualifiedTableName("MigrationRun");
-        string timestampSql = MinutesAgoSql(minutesOld);
-        // A run of an engine before the heartbeat never wrote LastHeartbeatAt (NULL); a run with a heartbeat carries its age.
-        string heartbeatSql = heartbeatMinutesOld.HasValue ? MinutesAgoSql(heartbeatMinutesOld.Value) : "NULL";
-
         string sql = _databaseType switch
         {
             "SqlServer" =>
                 $"INSERT INTO {qualifiedTable} ([MigratorMetaId], [ProductId], [EnvironmentId], [MigrationRunModeId], [MigrationRunResultId], [StartedAt], [LastHeartbeatAt]) " +
-                $"VALUES (1, {productId}, {environmentId}, 100, 10, {timestampSql}, {heartbeatSql})",
+                $"VALUES (1, {productId}, {environmentId}, 100, 10, {startedAtSql}, {heartbeatSql})",
             // DAL-017: PostgreSQL columns are unquoted snake_case.
             "PostgreSQL" =>
                 $"INSERT INTO {qualifiedTable} (migrator_meta_id, product_id, environment_id, migration_run_mode_id, migration_run_result_id, started_at, last_heartbeat_at) " +
-                $"VALUES (1, {productId}, {environmentId}, 100, 10, {timestampSql}, {heartbeatSql})",
+                $"VALUES (1, {productId}, {environmentId}, 100, 10, {startedAtSql}, {heartbeatSql})",
             // DAL-018: MariaDB/MySQL columns are snake_case.
             "MariaDb" or "MySql" =>
                 $"INSERT INTO {qualifiedTable} (migrator_meta_id, product_id, environment_id, migration_run_mode_id, migration_run_result_id, started_at, last_heartbeat_at) " +
-                $"VALUES (1, {productId}, {environmentId}, 100, 10, {timestampSql}, {heartbeatSql})",
+                $"VALUES (1, {productId}, {environmentId}, 100, 10, {startedAtSql}, {heartbeatSql})",
             "Sqlite" =>
                 $"INSERT INTO {qualifiedTable} (MigratorMetaId, ProductId, EnvironmentId, MigrationRunModeId, MigrationRunResultId, StartedAt, LastHeartbeatAt) " +
-                $"VALUES (1, {productId}, {environmentId}, 100, 10, {timestampSql}, {heartbeatSql})",
+                $"VALUES (1, {productId}, {environmentId}, 100, 10, {startedAtSql}, {heartbeatSql})",
             _ => throw new NotSupportedException($"Unsupported database type: {_databaseType}")
         };
 
         dal!.ExecuteScalarAsync(sql, QuerySettings, null).GetAwaiter().GetResult();
+    }
+
+    /// <summary>A UTC timestamp literal with second precision, in the dialect of the engine (the MySQL session runs in UTC).</summary>
+    private string TimestampSql(DateTime utc)
+    {
+        string text = utc.ToString("yyyy-MM-dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture);
+        return _databaseType switch
+        {
+            "SqlServer" => $"CONVERT(datetime2(3), '{text.Replace(' ', 'T')}', 126)",
+            "PostgreSQL" => $"TIMESTAMPTZ '{text}+00'",
+            "MariaDb" or "MySql" => $"TIMESTAMP '{text}'",
+            "Sqlite" => $"'{text}'",
+            _ => throw new NotSupportedException($"Unsupported database type: {_databaseType}")
+        };
     }
 
     /// <summary>A UTC timestamp <paramref name="minutesAgo"/> minutes in the past, in the dialect of the engine.</summary>

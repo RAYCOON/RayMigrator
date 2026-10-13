@@ -50,11 +50,11 @@ UPDATE [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRun]
 SET
     [MigrationRunResultId] = 90,
     [FinishedAt] = SYSUTCDATETIME(),
-    [DurationInMs] = DATEDIFF(MILLISECOND, [StartedAt], SYSUTCDATETIME())
+    [DurationInMs] = DATEDIFF_BIG(MILLISECOND, [StartedAt], SYSUTCDATETIME())
 WHERE [Id] = @MigrationRunId
     AND [MigrationRunResultId] = 10
     AND [FinishedAt] IS NULL
-    AND DATEDIFF(MINUTE, COALESCE([LastHeartbeatAt], [StartedAt]), SYSUTCDATETIME()) >= @ThresholdMinutes;
+    AND DATEDIFF_BIG(SECOND, COALESCE([LastHeartbeatAt], [StartedAt]), SYSUTCDATETIME()) >= CAST(@ThresholdMinutes AS BIGINT) * 60;
 
 IF @@ROWCOUNT = 0
     SELECT '-31,MigrationRun [' + COALESCE(CAST(@MigrationRunId AS VARCHAR(10)), 'NULL') + '] not found or not in Running state or still alive';
