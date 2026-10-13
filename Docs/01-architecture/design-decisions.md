@@ -79,14 +79,13 @@ All four files are searched in the directory specified by `--config-dir` (or the
 - `{ENV:VariableName}` - Environment variables
 - `@ParameterName` - SQL parameters (parameterized queries)
 
-### TemplateCache with Deferred Validation
+### TemplateCache without options
 
-**Decision**: `TemplateCache` accepts a `validateConfiguration` parameter (default `true`). When set to `false`, template loading occurs without validating that configured `DatabaseType` values have matching templates.
+**Decision**: `TemplateCache` takes no options. It loads every template at construction, and the host calls `ValidateConfigurationAgainstTemplateCache(options)` for each configuration it runs.
 
 **Rationale**:
-- **Flexibility**: When Products and Repository configuration are loaded from an alternative source, they may not be available at `TemplateCache` construction time. The cache loads all available templates at startup but defers validation until `ValidateConfigurationAgainstTemplateCache(options)` is called explicitly after configuration is loaded.
-- **Reusability**: The same `TemplateCache` class works for different configuration modes without branching logic.
-- **Public validation method**: `ValidateConfigurationAgainstTemplateCache(options)` and `GetAvailableDatabaseTypes()` are public, allowing external callers to validate on demand.
+- **One cache, many configurations**: A host that runs one configuration per request (RayMigrator Studio) builds the cache once per process; a constructor bound to one options object would tie the cache to the first configuration.
+- **Explicit validation**: The CLI pipeline validates once after the options are bound; a host validates whenever a configuration enters. `GetAvailableDatabaseTypes()` stays public for diagnostics.
 
 ## MigrationContext Pattern
 

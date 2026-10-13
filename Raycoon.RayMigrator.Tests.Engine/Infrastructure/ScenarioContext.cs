@@ -2,6 +2,7 @@ using AwesomeAssertions;
 using Raycoon.RayMigrator.Core;
 using Raycoon.RayMigrator.Core.Configuration;
 using Raycoon.RayMigrator.Core.Configuration.Enums;
+using Raycoon.RayMigrator.Core.Progress;
 using Raycoon.RayMigrator.Services.Abstractions;
 using Raycoon.RayMigrator.Testing;
 
@@ -15,6 +16,7 @@ namespace Raycoon.RayMigrator.Tests.Engine.Infrastructure;
 public class ScenarioContext : IAsyncDisposable
 {
     private EngineTestHost _host;
+    private IMigrationProgressObserver? _progressObserver;
     private readonly RepositoryQueryHelper _queryHelper;
     private readonly EngineConfig _engineConfig;
     private readonly string _workDir;
@@ -123,6 +125,8 @@ public class ScenarioContext : IAsyncDisposable
     public async Task<BaselineResult> BaselineAsync(string? toRelease = null, string[]? targetGroupAliases = null,
         string[]? targetGroupMigrationOrder = null, bool revealSensitiveData = false)
     {
+        await AlignHostRunModeAsync(MigrationCommand.Baseline, null, toRelease);
+
         using var maskScope = SensitiveDataMasker.BeginScope(revealSensitiveData);
         SensitiveDataMasker.RegisterSensitiveData(_host.RayMigratorOptions);
 
@@ -243,6 +247,15 @@ public class ScenarioContext : IAsyncDisposable
     public Core.Configuration.Options.RayMigratorConsoleOptions HostConsoleOptions => _host.MigrationContext.RayMigratorConsoleOptions;
 
     /// <summary>
+    /// Sets the progress observer of the host's context, and of every context a later rebuild creates.
+    /// </summary>
+    public void UseProgressObserver(IMigrationProgressObserver observer)
+    {
+        _progressObserver = observer;
+        _host.MigrationContext.ProgressObserver = observer;
+    }
+
+    /// <summary>
     /// Rebuilds the DI container for a different command/mode without cleaning databases.
     /// Used for multi-step test scenarios (e.g., Migrate-Up then Migrate-Down).
     /// </summary>
@@ -252,6 +265,11 @@ public class ScenarioContext : IAsyncDisposable
         _host.Dispose();
         _host = new EngineTestHost();
         _host.Build(_configPath, _productAlias, command, mode, toRelease, _environment);
+        if (_progressObserver != null)
+        {
+            _host.MigrationContext.ProgressObserver = _progressObserver;
+        }
+
         return Task.CompletedTask;
     }
 
@@ -266,9 +284,12 @@ public class ScenarioContext : IAsyncDisposable
         var hostOptions = HostConsoleOptions;
         var effective = runMode ?? hostOptions.RunMode;
 
-        if (effective != hostOptions.RunMode || hostOptions.Command != command)
+        // The context also stamps the target release into the run row and the engine refuses a request whose
+        // target release differs from it, so a different release rebuilds the host too.
+        if (effective != hostOptions.RunMode || hostOptions.Command != command
+            || !string.Equals(toRelease, hostOptions.TargetReleaseVersion, StringComparison.Ordinal))
         {
-            await RebuildForAsync(command, effective, toRelease ?? hostOptions.TargetReleaseVersion, _environment);
+            await RebuildForAsync(command, effective, toRelease, _environment);
         }
 
         return effective;
@@ -491,6 +512,11 @@ public class ScenarioContext : IAsyncDisposable
     /// Gets the MigrationRunSettingsJson from the latest MigrationRunMeta entry.
     /// </summary>
     public string? GetMigrationRunSettingsJson() => _queryHelper.GetLatestMigrationRunSettingsJson();
+
+    /// <summary>
+    /// Returns the MigrationRun row by index (1-based, oldest first), or null when there is no such run.
+    /// </summary>
+    public MigrationRunRecordDto? GetMigrationRun(int runIndex) => _queryHelper.GetMigrationRunByIndex(runIndex);
 
     /// <summary>
     /// Gets the FileUpConfigJson for a Migration record matching the given filename.

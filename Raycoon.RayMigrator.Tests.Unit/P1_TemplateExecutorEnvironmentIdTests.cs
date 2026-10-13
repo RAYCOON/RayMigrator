@@ -2,7 +2,6 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using AwesomeAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
 using NSubstitute;
 using Raycoon.RayMigrator.Core;
 using Raycoon.RayMigrator.Core.Configuration.Enums;
@@ -39,7 +38,8 @@ public class TemplateExecutorEnvironmentIdTests
         int productId = TestProductId,
         MigrationRunMode runMode = MigrationRunMode.Migrate,
         string scalarResult = "1,ok",
-        List<Dictionary<string, object?>>? readerRows = null)
+        List<Dictionary<string, object?>>? readerRows = null,
+        Action<MigrationContext>? configureContext = null)
     {
         var dal = Substitute.For<IDal>();
         DalParameterList? captured = null;
@@ -59,7 +59,8 @@ public class TemplateExecutorEnvironmentIdTests
            });
 
         var ctx = BuildContext(environmentId, productId, runMode);
-        var templateCache = BuildRealTemplateCache(ctx.RayMigratorOptions);
+        configureContext?.Invoke(ctx);
+        var templateCache = BuildRealTemplateCache();
 
         // TemplateExecutor has a public constructor
         var accessor = new SingletonMigrationContextAccessor { Current = ctx };
@@ -172,12 +173,11 @@ public class TemplateExecutorEnvironmentIdTests
 
     /// <summary>
     /// Builds a real TemplateCache from the DataAccessLayers in the test output directory.
-    /// validateConfiguration=false so we don't need all products/targets to have matching templates.
+    /// The cache is not validated against the options, so not every product needs matching templates.
     /// </summary>
-    private static TemplateCache BuildRealTemplateCache(RayMigratorOptions options)
+    private static TemplateCache BuildRealTemplateCache()
     {
-        var opts = Options.Create(options);
-        return new TemplateCache(opts, false, NullLogger<TemplateCache>.Instance, validateConfiguration: false);
+        return new TemplateCache(false, NullLogger<TemplateCache>.Instance);
     }
 
     /// <summary>
@@ -212,6 +212,31 @@ public class TemplateExecutorEnvironmentIdTests
         param!.ParameterType.Should().Be(typeof(int),
             "EnvironmentId must be bound as int (not string)");
         param.ParameterValue.Should().Be(TestEnvironmentId);
+    }
+
+    [Fact]
+    public void RepositoryMigrationRunInsert_PassesTheReleaseTheRunStartsFrom()
+    {
+        var (executor, _, getCapture) = CreateExecutor(configureContext: ctx => ctx.MigrationState.FromReleaseVersion = "Release_1.0");
+
+        InvokeAndCapture(executor, e => e.RepositoryMigrationRunInsert("{}"), getCapture);
+
+        var captured = getCapture()!;
+        captured.TryGetValue("FromReleaseVersion", out var param).Should().BeTrue();
+        param!.ParameterValue.Should().Be("Release_1.0", "the run row records the highest Migrated release when the run started");
+    }
+
+    [Fact]
+    public void RepositoryMigrationRunInsert_FirstRun_PassesNullFromReleaseVersion()
+    {
+        var (executor, _, getCapture) = CreateExecutor();
+
+        InvokeAndCapture(executor, e => e.RepositoryMigrationRunInsert("{}"), getCapture);
+
+        var captured = getCapture()!;
+        captured.TryGetValue("FromReleaseVersion", out var param).Should().BeTrue();
+        param!.ParameterValue.Should().BeNull("nothing was migrated before a first run; the DAL binds null as DB NULL");
+        param.ParameterType.Should().Be(typeof(string));
     }
 
     [Fact]

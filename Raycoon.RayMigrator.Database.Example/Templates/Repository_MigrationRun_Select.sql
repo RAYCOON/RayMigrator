@@ -1,8 +1,10 @@
 -- TODO: Implement for your database engine
--- Purpose: Selects the current migration run for a product
+-- Purpose: Selects the newest migration runs of a product and environment (history and status)
 -- See the corresponding template in Database.SqlServer or Database.PostgreSQL for reference.
 --
 -- Parameters used in this template:
 -- {CFG:SchemaName} - The repository schema name
 -- {CFG:TableBaseName} - The table name prefix
--- @ParameterName - SQL parameters (see reference implementations)
+-- @ProductId - The product to query
+-- @EnvironmentId - The environment to query; runs of other environments are not returned
+-- @Limit - Maximum number of runs, newest first

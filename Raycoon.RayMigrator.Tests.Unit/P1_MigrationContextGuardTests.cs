@@ -1,6 +1,10 @@
 using AwesomeAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using Raycoon.RayMigrator.Core;
+using Raycoon.RayMigrator.Core.Configuration;
 using Raycoon.RayMigrator.Core.Configuration.Enums;
+using Raycoon.RayMigrator.Core.Configuration.Options;
+using Raycoon.RayMigrator.Services;
 using Raycoon.RayMigrator.Shared.Exceptions;
 using Raycoon.RayMigrator.Tests.Unit.Helpers;
 
@@ -58,9 +62,16 @@ public class MigrationContextGuardTests
     [InlineData(MigrationCommand.MigrateUp, MigrationRunMode.Simulate)]
     public void Factory_StampsTheRequestedCommand(MigrationCommand command, MigrationRunMode runMode)
     {
+        using var maskerScope = SensitiveDataMasker.BeginScope(revealSensitiveData: false);
         var options = ProfileTestContext.CreateOptions("Data Source=:memory:");
 
-        var ctx = new MigrationContextFactory().Create(options, ProfileTestContext.ProductAlias, "Docker", command, runMode, "0.0.0-test", targetReleaseVersion: "1.0");
+        var consoleOptions = new RayMigratorConsoleOptions
+        {
+            Command = command, Product = ProfileTestContext.ProductAlias, Environment = "Docker", RunMode = runMode,
+            TargetReleaseVersion = "1.0", ShowStartupInfo = false, RevealSensitiveData = false
+        };
+
+        var ctx = CreateFactory().CreateFromValidatedOptions(options, consoleOptions);
 
         ctx.RayMigratorConsoleOptions.Command.Should().Be(command, "a programmatic MigrateDown must not be recorded as MigrateUp");
         ctx.RayMigratorConsoleOptions.RunMode.Should().Be(runMode);
@@ -71,10 +82,20 @@ public class MigrationContextGuardTests
     [Fact]
     public void Factory_WithCommandNone_Throws()
     {
+        using var maskerScope = SensitiveDataMasker.BeginScope(revealSensitiveData: false);
         var options = ProfileTestContext.CreateOptions("Data Source=:memory:");
 
-        var act = () => new MigrationContextFactory().Create(options, ProfileTestContext.ProductAlias, "Docker", MigrationCommand.None, MigrationRunMode.Migrate, "0.0.0-test");
+        var consoleOptions = new RayMigratorConsoleOptions
+        {
+            Command = MigrationCommand.None, Product = ProfileTestContext.ProductAlias, Environment = "Docker",
+            RunMode = MigrationRunMode.Migrate, ShowStartupInfo = false, RevealSensitiveData = false
+        };
+
+        var act = () => CreateFactory().CreateFromValidatedOptions(options, consoleOptions);
 
         act.Should().Throw<ConfigurationValidationException>();
     }
+
+    private static MigrationContextFactory CreateFactory()
+        => new(new SingletonMigrationContextAccessor(), NullLogger<MigrationContextFactory>.Instance);
 }

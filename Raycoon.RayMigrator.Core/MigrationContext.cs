@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using Raycoon.RayMigrator.Core.Configuration.Enums;
 using Raycoon.RayMigrator.Core.Configuration.Options;
+using Raycoon.RayMigrator.Core.Configuration.Validation;
+using Raycoon.RayMigrator.Core.Progress;
 using Raycoon.RayMigrator.Database.Common;
 using Raycoon.RayMigrator.Shared.Exceptions;
 
@@ -38,7 +40,7 @@ public class MigrationContext
         RayMigratorConsoleOptions = rayMigratorConsoleOptions;
         RayMigratorVersion = rayMigratorVersion;
 
-        ProductTargetGroupOptionsEnumerable = RayMigratorOptions.Products!.First(p => p.Alias == RayMigratorConsoleOptions.Product).TargetGroups;
+        ProductTargetGroupOptionsEnumerable = ProductAliasGuard.GetProduct(RayMigratorOptions, RayMigratorConsoleOptions.Product).TargetGroups;
 
         // Create or set MigrationState
         if (migrationState == null)
@@ -59,6 +61,7 @@ public class MigrationContext
                 FileOrderId = migrationState.FileOrderId,
                 FileBlockId = migrationState.FileBlockId,
                 FileBlocksCommitted = migrationState.FileBlocksCommitted,
+                FromReleaseVersion = migrationState.FromReleaseVersion,
                 MigrationRunResult = migrationState.MigrationRunResult,
                 MigrationOperation = migrationState.MigrationOperation,
                 TargetGroupAlias = migrationState.TargetGroupAlias,
@@ -106,6 +109,13 @@ public class MigrationContext
     /// Dictionary containing DAL-specific properties for parsing migration scripts, etc.
     /// </summary>
     public ConcurrentDictionary<string, DalSpecificProperties> DalSpecificPropertiesDictionary { get; set; } = new();
+
+    /// <summary>
+    /// Receives the lifecycle events of the run (run, files on targets, SQL blocks). A host sets it before it
+    /// calls the service; the default ignores every event. Not copied by <see cref="Clone"/>, which exists for
+    /// logging only.
+    /// </summary>
+    public IMigrationProgressObserver ProgressObserver { get; set; } = NullMigrationProgressObserver.Instance;
 
     /// <summary>
     /// Getting a deep copy regarding MigrationState for logging purposes.

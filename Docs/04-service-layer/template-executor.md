@@ -266,24 +266,20 @@ Additionally, `RepositoryMigrationRunInsert` catches `TemplateResultException` w
 
 > **Note**: The file lives in the Infrastructure project but uses the `Raycoon.RayMigrator.Core.Templates` namespace.
 
-The `TemplateCache` is eagerly initialized at construction time (not lazy-loaded). It loads all SQL templates from the `DataAccessLayers/{Type}/` filesystem directories, replaces `{ENV:*}` placeholders, and validates that all required templates exist for each configured database type.
+The `TemplateCache` is eagerly initialized at construction time (not lazy-loaded). It loads all SQL templates from the `DataAccessLayers/{Type}/` filesystem directories, replaces `{ENV:*}` placeholders, and checks that every template type exists for each loaded database type. It does not depend on a configuration: a host builds one cache per process and calls `ValidateConfigurationAgainstTemplateCache(options)` for each configuration it runs, which checks that the repository and every target group name a database type with templates. The CLI pipeline does that right after building the cache.
 
 **Constructor**:
 
 ```csharp
-public TemplateCache(
-    IOptions<RayMigratorOptions>? options,
-    bool revealSensitiveData,
-    ILogger<TemplateCache> logger,
-    bool validateConfiguration = true)
+public TemplateCache(bool revealSensitiveData, ILogger<TemplateCache> logger)
 ```
 
-- `options` is nullable. When null (or when `validateConfiguration` is false), configuration validation is deferred. This supports ManagedLocal mode where Products/Repository config is not yet known at startup.
-- When `validateConfiguration` is true and `options` is non-null, the constructor calls `ValidateConfigurationAgainstTemplateCache(options)` to ensure all configured `DatabaseType` values have matching DAL templates.
+- The constructor loads the templates of every DAL folder; it knows no configuration.
+- The host calls `ValidateConfigurationAgainstTemplateCache(options)` for each configuration it runs (the CLI pipeline once, after the options are bound) to ensure all configured `DatabaseType` values have matching DAL templates.
 
 **Key public methods**:
 
-- `ValidateConfigurationAgainstTemplateCache(RayMigratorOptions options)` -- Validates that the Repository and all TargetGroup `DatabaseType` values have matching templates in the cache. Can be called on-demand when configuration becomes available (e.g., loaded from Admin-DB).
+- `ValidateConfigurationAgainstTemplateCache(RayMigratorOptions options)` -- Validates that the Repository and all TargetGroup `DatabaseType` values have matching templates in the cache. The CLI pipeline calls it once after the options are bound; a host calls it for every configuration it runs.
 - `GetAvailableDatabaseTypes()` -- Returns the list of all discovered DAL database type names (loaded from `DataAccessLayers/` subdirectories).
 - `GetRepositoryTemplate<T>(TemplateType, T) where T : RepositoryOptions` -- Returns a template with `{CFG:*}` placeholders replaced using the passed `RepositoryOptions` property class. The database type is inferred from `T.DatabaseType`. Throws `ConfigurationValidationException` if unreplaced `{CFG:*}` placeholders remain.
 - `GetTemplate<T>(string databaseType, TemplateType, T)` -- Same as above but for non-repository templates, requiring an explicit `databaseType` parameter.

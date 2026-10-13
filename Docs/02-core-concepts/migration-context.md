@@ -156,71 +156,82 @@ public class AsyncLocalMigrationContextAccessor : IMigrationContextAccessor
 
 ### `IMigrationContextFactory` / `MigrationContextFactory`
 
-Factory for creating `MigrationContext` instances. CLI creates one at startup; API creates one per request. The `command` is stamped into the MigrationRun settings snapshot and drives the command's side effects (`CommandProfile`), so it must be the command that is actually executed (#6). `runMode` is only a choice for `MigrateUp` / `MigrateDown`; pass `MigrationRunMode.Migrate` for every other command.
+The factory is the entry point of every host for one run, the CLI pipeline included. The interface lives in `Core`, the implementation in `Services` (it needs `DalFactory`) and is registered by `AddRayMigratorServices`. The console options carry the command, product, environment, run mode, target release and flags; the `command` is stamped into the MigrationRun settings snapshot and drives the command's side effects (`CommandProfile`), so it must be the command that is actually executed (#6). `runMode` is only a choice for `MigrateUp` / `MigrateDown`; pass `MigrationRunMode.Migrate` for every other command.
 
 ```csharp
 public interface IMigrationContextFactory
 {
-    MigrationContext Create(
-        RayMigratorOptions options, string product, string environment,
-        MigrationCommand command, MigrationRunMode runMode, string version,
-        string? targetReleaseVersion = null, bool revealSensitiveData = false);
-}
+    // Options a host built in memory: prepared with RayMigratorOptionsPreparer first
+    MigrationContext Create(RayMigratorOptions options, RayMigratorConsoleOptions consoleOptions);
 
-public class MigrationContextFactory : IMigrationContextFactory
-{
-    public MigrationContext Create(
-        RayMigratorOptions options, string product, string environment,
-        MigrationCommand command, MigrationRunMode runMode, string version,
-        string? targetReleaseVersion = null, bool revealSensitiveData = false)
-    {
-        var consoleOptions = new RayMigratorConsoleOptions
-        {
-            Command = command,
-            Product = product,
-            Environment = environment,
-            RunMode = runMode,
-            TargetReleaseVersion = targetReleaseVersion,
-            ShowStartupInfo = false,
-            RevealSensitiveData = revealSensitiveData,
-        };
-        return new MigrationContext(options, consoleOptions, version);
-    }
+    // Options the options framework already bound, merged and validated (the CLI pipeline)
+    MigrationContext CreateFromValidatedOptions(RayMigratorOptions options, RayMigratorConsoleOptions consoleOptions);
 }
 ```
 
+Both methods do the same work after the preparation step:
+
+1. Build the context. An unknown product alias throws a `ConfigurationValidationException` whose message names a near miss or the configured aliases (`ProductAliasGuard`).
+2. Fill `DalSpecificPropertiesDictionary` for the repository, every target of the product and the database logging, and check the schema names against the DAL capabilities. A host that skipped this step fell back to the SQL Server block delimiter `GO` for every engine.
+3. Register the configuration's secrets with `SensitiveDataMasker` and make the context current: `IMigrationContextAccessor.Current` and `MigrationLoggingContext.Current` of the calling async flow.
+
+`Create` additionally runs `RayMigratorOptionsPreparer.Prepare`, which gives in-memory options what options bound from `appsettings*.json` always got: `{ENV:VARIABLE}` placeholders are resolved in every string of the options graph (a missing variable is an error that names the variable and the path), the product defaults are merged down, every enum-typed value is probed, the data annotations run and write their documented defaults into null properties, and the rule catalog is applied. Preparing an object twice is harmless.
+
+### Hosting the engine in-process
+
+A host (RayMigrator Studio, an integration test) runs one operation per context. The sequence per run is:
+
+1. Build the options object, or load it from a store, and the `RayMigratorConsoleOptions` of the operation.
+2. Open the masking scope for the async flow of the run: `using var scope = SensitiveDataMasker.BeginScope(revealSensitiveData);`. Without an active scope or global initialization the masker is off and the MigrationRun settings snapshot stores connection strings unmasked.
+3. `factory.Create(options, consoleOptions)`. The returned context is current for the calling async flow; set `context.ProgressObserver` before the operation if the host wants progress events.
+4. Optionally `ConnectionValidator.ValidateTargetConnections(context, logger)`: it opens the connections the command's profile needs and fails fast with a clear message.
+5. Call the operation on a scoped `IMigrationService`. The request must agree with the context: `MigrateUpAsync`, `MigrateDownAsync` and `BaselineAsync` refuse a request whose run mode, target release or environment differs from the console options of the context (#6, #17).
+6. Dispose the scope. The next run gets a fresh scope, a fresh context and a fresh `TemplateExecutor` (it caches the repository of the first context it sees, so it is registered as scoped).
+
+Per process, not per run: one `TemplateCache` (`new TemplateCache(revealSensitiveData, logger)`, then `ValidateConfigurationAgainstTemplateCache(options)` for each configuration the host runs), the `DatabaseLogWriter` and its Serilog sink when database logging is wanted, and the Serilog logger with `MigrationContextEnricher`, which reads `MigrationLoggingContext.Current` and stamps every event with run, release, target group, target, file and block.
+
+Process-global state a host shares between runs: `SensitiveDataMasker` (per-flow scopes isolate runs; `Initialize` sets the global mode the CLI uses), `MigrationLoggingContext` and `AsyncLocalMigrationContextAccessor` (both `AsyncLocal`, isolated per async flow), `DalFactory` (type map and DAL instances per database type and connection string, safe to share). The repository lock allows one run per product and environment; runs of different combinations may execute in parallel in separate scopes and async flows. `DirectModePipeline` stays CLI-only: it replaces the static `Log.Logger`, writes to the console and returns an exit code.
+
+### `ProgressObserver`
+
+`MigrationContext.ProgressObserver` receives the lifecycle events of the run through `IMigrationProgressObserver` (namespace `Raycoon.RayMigrator.Core.Progress`): `RunStartedEvent` after the run row exists (with its id), `FileStartedEvent` and `FileCompletedEvent` for every file on every target (migration, rollback and baseline, with the record id and a `FileOutcome`), `BlockCompletedEvent` for every executed SQL block, and `RunCompletedEvent` with the result. The engine raises them synchronously on the thread of the run; an observer that throws is logged and the run continues. The default `NullMigrationProgressObserver` ignores everything, and the CLI sets none. See [Migration Service: Progress events](../04-service-layer/migration-service.md#progress-events).
+
 ### `RayMigratorHostMode`
 
-Enum controlling DI registration behavior:
+Enum controlling which accessor `AddRayMigratorServices` registers. Both accessors are singletons: the CLI holds one context for the whole process, and the API accessor isolates runs per async flow through a static `AsyncLocal`, so a scoped registration would isolate nothing.
 
 ```csharp
 public enum RayMigratorHostMode
 {
     Cli,  // SingletonMigrationContextAccessor
-    Api   // AsyncLocalMigrationContextAccessor (Scoped)
+    Api   // AsyncLocalMigrationContextAccessor (per async flow)
 }
 ```
 
 ### API-Mode Lifecycle
 
-> **Note**: The API hosting mode is implemented in **RayMigrator Studio** (a separate repository). The classes `AsyncLocalMigrationContextAccessor`, `MigrationContextFactory`, and `RayMigratorHostMode` are part of the Engine's Core NuGet contract and are consumed by Studio. The Engine itself always uses `RayMigratorHostMode.Cli` (singleton accessor). The following diagram illustrates the per-request lifecycle as implemented in Studio.
+> **Note**: The API hosting mode is implemented in **RayMigrator Studio** (a separate repository). `AsyncLocalMigrationContextAccessor`, `IMigrationContextFactory` and `RayMigratorHostMode` are part of the Engine's NuGet contract and are consumed by Studio. The Engine itself always uses `RayMigratorHostMode.Cli` (singleton accessor). The following diagram illustrates the per-run lifecycle as a host implements it.
 
 ```mermaid
 sequenceDiagram
-    participant Client
-    participant Endpoint as API Endpoint
+    participant Host
     participant Factory as MigrationContextFactory
     participant Accessor as AsyncLocalMigrationContextAccessor
     participant Svc as MigrationService
+    participant Observer as IMigrationProgressObserver
 
-    Client->>Endpoint: POST /api/v1/migrations/up
-    Endpoint->>Factory: Create(options, product, env, command, ...)
-    Factory-->>Endpoint: new MigrationContext
-    Endpoint->>Accessor: accessor.Current = ctx
+    Host->>Host: SensitiveDataMasker.BeginScope(...)
+    Host->>Factory: Create(options, consoleOptions)
+    Factory->>Factory: RayMigratorOptionsPreparer.Prepare, DAL properties, schema names
+    Factory->>Accessor: Current = ctx (and MigrationLoggingContext.Current)
+    Factory-->>Host: ctx
+    Host->>Host: ctx.ProgressObserver = observer
 
-    Endpoint->>Svc: MigrateUpAsync(request)
-    Svc->>Accessor: _ctxAccessor.Current (reads per-request context)
-    Svc-->>Endpoint: MigrationOperationResult
+    Host->>Svc: MigrateUpAsync(request)
+    Svc->>Accessor: _ctxAccessor.Current (reads the context of this async flow)
+    Svc->>Observer: OnRunStarted, OnFileStarted, OnBlockCompleted, OnFileCompleted, ...
+    Svc-->>Host: MigrationOperationResult (MigrationRunId, per-file results)
+    Svc->>Observer: OnRunCompleted
 ```
 
 ## Lifecycle
@@ -404,6 +415,7 @@ The `MigrationContext` is designed for single-threaded execution within its scop
 2. **Validate context early** in service methods
 3. **Update state at boundaries** (before/after each operation)
 4. **Never modify RayMigratorOptions directly** after context creation
+5. **One context per operation** in a host; set `ProgressObserver` before the call, not during it
 
 ## Related Documentation
 

@@ -127,7 +127,7 @@ Services created per operation:
 
 ### Options Pattern
 
-Configuration sections are bound to strongly-typed options classes with DataAnnotations validation:
+Configuration sections are bound to strongly-typed options classes with DataAnnotations validation. The binding is the CLI pipeline's way of loading and validating the files; the services never consume `IOptions<RayMigratorOptions>`. They read the configuration of the current run from `MigrationContext.RayMigratorOptions`, which the context factory receives from the pipeline (`CreateFromValidatedOptions`) or prepares itself for a host that built the options in memory (`Create`, see [MigrationContext](../02-core-concepts/migration-context.md#hosting-the-engine-in-process)).
 
 ```csharp
 // Registration with validation (JSON mode)
@@ -364,30 +364,22 @@ public class TemplateExecutor
 }
 ```
 
-### TemplateCache (Decoupled from MigrationContext)
+### TemplateCache (Decoupled from MigrationContext and from the options)
 
 ```csharp
 public class TemplateCache
 {
-    private readonly RayMigratorOptions? _options;
     private readonly bool _revealSensitiveData;
     private readonly ILogger _logger;
 
-    public TemplateCache(
-        IOptions<RayMigratorOptions>? options,
-        bool revealSensitiveData,
-        ILogger<TemplateCache> logger,
-        bool validateConfiguration = true)
+    public TemplateCache(bool revealSensitiveData, ILogger<TemplateCache> logger)
     {
-        _options = options?.Value;
         _revealSensitiveData = revealSensitiveData;
         _logger = logger;
         Initialize();
-        if (validateConfiguration && _options != null)
-            ValidateConfigurationAgainstTemplateCache(_options);
     }
 
-    /// Can be called on-demand when Products/Repository config becomes available
+    /// Called by the host for every configuration it runs; the CLI pipeline calls it once after the options are bound
     public void ValidateConfigurationAgainstTemplateCache(RayMigratorOptions options) { ... }
 
     /// Gets all available DAL names (e.g. "SqlServer", "PostgreSQL", "MariaDb", "MySql")

@@ -151,16 +151,16 @@ All request types are in `Models/Requests.cs`, all result types are in `Models/R
 | Result DTO | Purpose |
 |-----|---------|
 | `OperationResult` | Abstract base class (Success, ErrorMessage, ErrorCode, Messages, ExecutedAt, Duration). `ErrorCode` is `int?`: negative = SQL template ResultCode, positive = C# backend ErrorCode, null = unclassified. |
-| `MigrationOperationResult` | Result of migration up/down (extends `OperationResult`). Adds `RunId` (Guid), `ProductAlias`, `Environment`, `Operation`, `Result`, `TotalMigrations`, `SuccessfulMigrations`, `FailedMigrations`, `CurrentRelease`, `MigrationResults` (List<MigrationFileResult>). |
-| `MigrationFileResult` | Result of a single migration file execution (FileName, ReleaseVersion, TargetGroup, Success, ErrorMessage, ExecutedAt, Duration). |
+| `MigrationOperationResult` | Result of migration up/down (extends `OperationResult`). Adds `MigrationRunId` (the repository run row, 0 without one), `ProductAlias`, `Environment`, `Operation`, `Result`, `TotalMigrations`, `SuccessfulMigrations`, `FailedMigrations`, `CurrentRelease`, `MigrationResults` (List<MigrationFileResult>). |
+| `MigrationFileResult` | Result of a single migration file execution (FileName, ReleaseVersion, TargetGroup, TargetAlias (null when the entry summarizes all targets of the group), MigrationRecordId, Success, ErrorMessage, ExecutedAt, Duration). |
 | `ValidationResult` | Result of hash validation (TotalFiles, ValidFiles, InvalidFiles, MissingFiles, Issues). |
 | `HashValidationIssue` | Individual hash validation issue (FileName, IssueType, ExpectedHash, ActualHash, Details). |
 | `HashUpdateResult` | Result of hash update (UpdatedFiles, NewFiles, RemovedFiles, UpdatedFileNames). |
-| `BaselineResult` | Result of baseline operation (TargetReleaseVersion, BaselinedFiles). |
-| `MigrationStatusInfo` | Current migration status for a product (CurrentRelease, LastMigrationDate, TotalMigrationsExecuted, PendingMigrations, LastRunResult, TargetGroups). |
+| `BaselineResult` | Result of baseline operation (Environment, MigrationRunId, TargetReleaseVersion, BaselinedFiles). |
+| `MigrationStatusInfo` | Current migration status for a product and environment (Environment, CurrentRelease, LastMigrationDate, TotalMigrationsExecuted, PendingMigrations, LastRunResult, TargetGroups). |
 | `TargetGroupStatus` | Status of a target group (Alias, DatabaseType, CurrentRelease, ExecutedMigrations, LastMigrationDate, Targets). |
-| `MigrationHistory` | Migration run history (Runs: List<MigrationRunInfo>). |
-| `MigrationRunInfo` | Information about a migration run (MigrationRunId, RunId, StartedAt, CompletedAt, Operation, Result, RunMode, InitiatedBy, TotalMigrations, SuccessfulMigrations, FailedMigrations, ToRelease). |
+| `MigrationHistory` | Migration run history of a product and environment (Environment, Runs: List<MigrationRunInfo>). |
+| `MigrationRunInfo` | Information about a migration run (MigrationRunId, Environment, StartedAt, CompletedAt, Operation, Result, RunMode, TotalMigrations, SuccessfulMigrations, FailedMigrations, FromRelease, ToRelease). |
 | `FixIssuesResult` | Result of Fix command (WasSimulated, OrphanedRunsFound, OrphanedRunsFixed, OrphanedRuns: List<OrphanedRunInfo>). |
 | `OrphanedRunInfo` | Information about an orphaned MigrationRun entry (MigrationRunId, Environment, EnvironmentId, StartedAt, MinutesRunning, MigrationRunModeId, WasFixed). |
 

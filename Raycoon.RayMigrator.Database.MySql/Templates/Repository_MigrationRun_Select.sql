@@ -6,7 +6,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_MigrationRun_Select"
 DatabaseType   = "MySql"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-04-18.1"
+Version        = "2026-10-12.1"
 
 [Description]
 Function = """
@@ -28,6 +28,7 @@ TableBaseName = "Table name prefix from Repository configuration"
 
 [Parameters]
 ProductId = "INT | REQUIRED | The product ID to query MigrationRuns for"
+EnvironmentId = "INT | REQUIRED | The environment ID to query MigrationRuns for"
 Limit     = "INT | REQUIRED | Maximum number of records to return"
 
 [ReturnValues]
@@ -58,6 +59,7 @@ FROM
     {CFG:TableBaseName}migration_run
 WHERE
     product_id = @ProductId
+    AND environment_id = @EnvironmentId
 ORDER BY
     started_at DESC, id DESC
 LIMIT @Limit;

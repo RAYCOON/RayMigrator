@@ -155,8 +155,8 @@ Reference files are cited so that a rule can be checked against real code.
 ## 12. Dependency injection
 
 - Engine services are registered in `Services/ServiceCollectionExtensions.AddRayMigratorServices` and in `Pipeline/DirectModePipeline` (options, post-configure, validators, singletons). Add new registrations next to their peers; do not create a second composition root.
-- Lifetimes: stateless services `Singleton`, per-run services `Scoped` (`IMigrationService`, `RayMigratorService`), `Transient` only for `IPostConfigureOptions`. In CLI mode the context accessor is a singleton; in API mode it is scoped (`AsyncLocal`).
-- Options are consumed through `IOptions<RayMigratorOptions>`; `IOptionsMonitor` and `IOptionsSnapshot` are not used.
+- Lifetimes: stateless services `Singleton`, per-run services `Scoped` (`IMigrationService`, `RayMigratorService`, `TemplateExecutor`), `Transient` only for `IPostConfigureOptions`. The context accessor is a singleton in both host modes; the API accessor isolates per async flow through its `AsyncLocal`.
+- Services read the configuration of the current run from `MigrationContext.RayMigratorOptions`. `IOptions<RayMigratorOptions>` is bound only in the CLI composition root to validate the files; `IOptionsMonitor` and `IOptionsSnapshot` are not used. A host creates its context through `IMigrationContextFactory`, never with `new MigrationContext(...)`.
 - DAL plugins are not in the container. They are discovered by `DalFactory` through `[DatabaseType("SqlServer")]`.
 - The wizard registers its services as `Scoped` in `ConfigWizard.Web/Program.cs`.
 

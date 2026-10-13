@@ -1,5 +1,9 @@
+using System.Collections;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Configuration;
+using Raycoon.RayMigrator.Core.Configuration.Options;
+using Raycoon.RayMigrator.Shared.Constants;
 using Raycoon.RayMigrator.Core.Configuration.Validation;
 
 namespace Raycoon.RayMigrator.Core.Configuration.Replacer;
@@ -45,6 +49,126 @@ public static class EnvironmentVariableReplacer
         }
         
         return replacedEnvironmentVariables;
+    }
+
+    /// <summary>
+    /// Replaces the <c>{ENV:VARIABLE}</c> placeholders in every string value of an options object in place:
+    /// string properties, string arrays and string dictionaries, recursively through the nested options classes
+    /// and their lists. The paths in the result follow the configuration keys (<c>RayMigrator:Products:0:TargetGroups:1:Targets:0:ConnectionString</c>).
+    /// A placeholder whose variable is not set is replaced by an empty string and reported with a null
+    /// <see cref="EnvironmentVariableWithMetadata.EnvironmentVariableValue"/>; the caller decides whether that is an error.
+    /// </summary>
+    public static List<EnvironmentVariableWithMetadata> ReplaceWithEnvironmentVariables(RayMigratorOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        var replaced = new List<EnvironmentVariableWithMetadata>();
+        ReplaceInObject(options, InternalConstants.RayMigratorSectionName, replaced);
+        return replaced;
+    }
+
+    private static void ReplaceInObject(object target, string path, List<EnvironmentVariableWithMetadata> replaced)
+    {
+        foreach (var property in target.GetType().GetProperties(BindingFlags.Public | BindingFlags.Instance))
+        {
+            if (!property.CanRead || !property.CanWrite || property.GetIndexParameters().Length > 0)
+            {
+                continue;
+            }
+
+            string propertyPath = $"{path}:{property.Name}";
+
+            if (property.PropertyType == typeof(string))
+            {
+                var value = (string?)property.GetValue(target);
+                if (TryReplaceValue(value, propertyPath, replaced, out var replacedValue))
+                {
+                    property.SetValue(target, replacedValue);
+                }
+
+                continue;
+            }
+
+            if (property.PropertyType == typeof(string[]))
+            {
+                var array = (string[]?)property.GetValue(target);
+                for (int i = 0; array != null && i < array.Length; i++)
+                {
+                    if (TryReplaceValue(array[i], $"{propertyPath}:{i}", replaced, out var replacedValue))
+                    {
+                        array[i] = replacedValue!;
+                    }
+                }
+
+                continue;
+            }
+
+            if (typeof(IDictionary<string, string>).IsAssignableFrom(property.PropertyType))
+            {
+                var dictionary = (IDictionary<string, string>?)property.GetValue(target);
+                foreach (var key in dictionary?.Keys.ToList() ?? [])
+                {
+                    if (TryReplaceValue(dictionary![key], $"{propertyPath}:{key}", replaced, out var replacedValue))
+                    {
+                        dictionary[key] = replacedValue!;
+                    }
+                }
+
+                continue;
+            }
+
+            if (IsOptionsClass(property.PropertyType))
+            {
+                var nested = property.GetValue(target);
+                if (nested != null)
+                {
+                    ReplaceInObject(nested, propertyPath, replaced);
+                }
+
+                continue;
+            }
+
+            if (property.GetValue(target) is IEnumerable list && property.PropertyType != typeof(string))
+            {
+                int index = 0;
+                foreach (var item in list)
+                {
+                    if (item != null && IsOptionsClass(item.GetType()))
+                    {
+                        ReplaceInObject(item, $"{propertyPath}:{index}", replaced);
+                    }
+
+                    index++;
+                }
+            }
+        }
+    }
+
+    private static bool IsOptionsClass(Type type)
+        => type.IsClass && type.Namespace == typeof(RayMigratorOptions).Namespace;
+
+    private static bool TryReplaceValue(string? value, string path, List<EnvironmentVariableWithMetadata> replaced, out string? replacedValue)
+    {
+        if (!TryReplaceStringContainingEnvironmentVariableReferences(value, out replacedValue, out var variableReplacements))
+        {
+            return false;
+        }
+
+        int separator = path.LastIndexOf(':');
+        foreach (var variableReplacement in variableReplacements)
+        {
+            replaced.Add(new EnvironmentVariableWithMetadata
+            {
+                Path = path,
+                ConfigurationKey = separator < 0 ? path : path[(separator + 1)..],
+                ConfigurationValue = value,
+                ConfigurationValueReplaced = variableReplacement.ReplacedValue,
+                EnvironmentVariableName = variableReplacement.VariableName,
+                EnvironmentVariableValue = variableReplacement.VariableValue
+            });
+        }
+
+        return true;
     }
 
     /// <summary>

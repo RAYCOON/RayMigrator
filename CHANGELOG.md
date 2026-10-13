@@ -7,8 +7,91 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ## [Unreleased]
 
+### Added
+
+- Typed progress events for hosts. `MigrationContext.ProgressObserver` takes an
+  `IMigrationProgressObserver` (namespace `Raycoon.RayMigrator.Core.Progress`)
+  that receives `RunStartedEvent` (after the run row exists, with its id),
+  `FileStartedEvent` and `FileCompletedEvent` for every file on every target
+  (migration, rollback and baseline, with the record id and a `FileOutcome`),
+  `BlockCompletedEvent` for every executed SQL block, and `RunCompletedEvent`
+  with the result. Every completion follows a start for the same file and
+  target; a rollback without a rollback file reports `Skipped`; the block
+  events of the atomic path follow the commit; and `FromRelease` is reported
+  in Simulate and Validate as well. A host shows progress without parsing
+  log text. An observer that throws is logged and the run continues. The
+  default observer ignores every event; the CLI does not use them.
+- `BaselineResult.BaselinedRecords` counts the records a baseline wrote, one
+  per file and target that was pending, also when the baseline failed midway.
+  `BaselinedFiles` keeps counting files per release and target group.
+
+### Changed
+
+- `IMigrationContextFactory` is the entry point of a host for one run, the CLI
+  pipeline included. `Create` prepares options a host built in memory with the
+  new `RayMigratorOptionsPreparer`, which gives them what options bound from
+  the `appsettings*.json` files always got: `{ENV:VARIABLE}` placeholders are
+  resolved in every string of the options graph (a missing variable is an
+  error that names the variable and the path), the product defaults are
+  merged down, every enum-typed value is checked, the data annotations run
+  and write their documented defaults into null properties, and the rule
+  catalog is applied. `CreateFromValidatedOptions` skips the preparation for
+  options the options framework already validated. Both fill the
+  `DalSpecificPropertiesDictionary` for the repository, the product's targets
+  and the database logging, check the schema names, and make the context
+  current (`IMigrationContextAccessor` and `MigrationLoggingContext`). A host
+  that built the context itself got none of this: pre-built options kept null
+  timeouts that later failed with an `InvalidOperationException`, every
+  engine used the SQL Server block delimiter `GO`, and the Serilog enricher
+  saw no run properties. The factory now lives in `Raycoon.RayMigrator.Services`,
+  takes the accessor and a logger, and no longer takes a version argument (the
+  engine knows its own). The accessor is a singleton in both host modes; the
+  API accessor isolates per async flow through its `AsyncLocal` anyway.
+  `ProductAliasGuard` explains an unknown product alias with the same message
+  the CLI showed, now also for hosts. The preparer checks connection strings
+  that contain placeholders as they were written, so a credential a
+  placeholder supplies is not reported as hardcoded (#30).
+- The result contracts of `IMigrationService` name the repository run and the
+  target. `MigrationOperationResult`, `BaselineResult` and `MigrationRunInfo`
+  carry `MigrationRunId`, the id of the run row (0 when the run mode writes no
+  row); the random `RunId` Guid that was never stored is gone, as is the
+  `InitiatedBy` placeholder that nothing ever filled. `MigrationFileResult`
+  carries `TargetAlias` and `MigrationRecordId` wherever the entry belongs to
+  one target (TargetByTarget order, failures, rollbacks). `MigrationRunInfo`
+  carries `Environment` and `FromRelease`; `MigrationHistory`,
+  `MigrationStatusInfo` and `BaselineResult` carry `Environment`.
+- `MigrateUpAsync`, `MigrateDownAsync` and `BaselineAsync` refuse a request
+  whose `TargetReleaseVersion` or `Environment` differs from the
+  `MigrationContext`, like the run-mode check does: the run row stamps the
+  target release and the environment from the context, so a host that let
+  them diverge recorded a release the run never aimed at, or ran one
+  environment's files against another environment's rows. The settings
+  snapshot of a migrate-up run records the `AllowOutOfOrder` value of the
+  request, which is the value the run used.
+- `MigrationService` reads the configuration of the current run from its
+  `MigrationContext` instead of from `IOptions<RayMigratorOptions>`, and
+  `TemplateCache` no longer takes the options: a host builds the cache once
+  per process and calls `ValidateConfigurationAgainstTemplateCache` for each
+  configuration it runs. A host that creates one context per run from
+  pre-built options (RayMigrator Studio) can now execute migrations; before,
+  the service read the products and the CLI tools from the options registered
+  in the container, so a context built from other options failed with
+  "Sequence contains no matching element". The CLI behaves as before. Breaking
+  for hosts that construct `MigrationService` or `TemplateCache` themselves.
+
 ### Fixed
 
+- `GetHistoryAsync` and `GetStatusAsync` read the runs of the requested
+  environment only. `Repository_MigrationRun_Select` filtered by product
+  alone, so the history listed the runs of every environment of the product
+  (with zero counts, because the record history is per environment) and the
+  status reported the last run of whichever environment ran last. The
+  template takes `@EnvironmentId` in all five engines.
+- `MigrationRun.FromReleaseVersion` holds the release the run started from:
+  the highest Migrated release of the product and environment, read right
+  before the run row is inserted, or `NULL` for a first run. Every run row
+  stored the literal text `FromReleaseVersion` before, because the parameter
+  was bound to its own name instead of a value.
 - `RULE_7_3` (hardcoded credential) no longer fires for a connection string
   that supplies its credential through an `{ENV:VARIABLE}` placeholder. The
   CLI ran the rule catalog on the resolved values, so a placeholder resolving

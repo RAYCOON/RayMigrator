@@ -167,11 +167,12 @@ public class MigrationHistoryModelTests
     {
         var run = new MigrationRunInfo();
 
-        run.RunId.Should().Be(Guid.Empty);
+        run.MigrationRunId.Should().Be(0);
+        run.Environment.Should().BeEmpty();
         run.TotalMigrations.Should().Be(0);
         run.SuccessfulMigrations.Should().Be(0);
         run.FailedMigrations.Should().Be(0);
-        run.InitiatedBy.Should().BeNull();
+        run.FromRelease.Should().BeNull();
         run.CompletedAt.Should().BeNull();
         run.ToRelease.Should().BeNull();
     }

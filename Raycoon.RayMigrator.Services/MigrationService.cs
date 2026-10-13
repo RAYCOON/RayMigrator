@@ -3,7 +3,6 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Raycoon.RayMigrator.Core;
 using Raycoon.RayMigrator.Core.Configuration;
 using Raycoon.RayMigrator.Core.Configuration.Enums;
@@ -11,6 +10,7 @@ using Raycoon.RayMigrator.Core.Configuration.Options;
 using Raycoon.RayMigrator.Core.Configuration.Replacer;
 using Raycoon.RayMigrator.Core.Extensions;
 using Raycoon.RayMigrator.Core.Models;
+using Raycoon.RayMigrator.Core.Progress;
 using Raycoon.RayMigrator.Database;
 using Raycoon.RayMigrator.Database.Common;
 using Raycoon.RayMigrator.Infrastructure;
@@ -27,22 +27,22 @@ namespace Raycoon.RayMigrator.Services;
 public class MigrationService : IMigrationService
 {
     private readonly ILogger<MigrationService> _logger;
-    private readonly IOptions<RayMigratorOptions> _options;
     private readonly TemplateExecutor _templateExecutor;
     private readonly IMigrationContextAccessor _ctxAccessor;
     private readonly IServiceProvider _serviceProvider;
     private readonly ICliToolExecutor _cliToolExecutor;
 
+    /// <summary>Whether <see cref="ReportRunStarted"/> fired for the current operation; the wrapper resets it.</summary>
+    private bool _runStartedReported;
+
     public MigrationService(
         ILogger<MigrationService> logger,
-        IOptions<RayMigratorOptions> options,
         TemplateExecutor templateExecutor,
         IMigrationContextAccessor ctxAccessor,
         IServiceProvider serviceProvider,
         ICliToolExecutor cliToolExecutor)
     {
         _logger = logger;
-        _options = options;
         _templateExecutor = templateExecutor;
         _ctxAccessor = ctxAccessor;
         _serviceProvider = serviceProvider;
@@ -53,8 +53,29 @@ public class MigrationService : IMigrationService
 
     public async Task<MigrationOperationResult> MigrateUpAsync(MigrateUpRequest request)
     {
+        _runStartedReported = false;
+        var runStart = DateTime.UtcNow;
+        MigrationOperationResult result;
+        try
+        {
+            result = await MigrateUpCoreAsync(request);
+        }
+        catch (Exception ex)
+        {
+            ReportRunCompleted(MigrationCommand.MigrateUp, request.RunMode, request.TargetReleaseVersion,
+                false, null, 0, 0, 0, DateTime.UtcNow - runStart, ex.Message);
+            throw;
+        }
+
+        ReportRunCompleted(MigrationCommand.MigrateUp, request.RunMode, request.TargetReleaseVersion,
+            result.Success, result.Result, result.TotalMigrations, result.SuccessfulMigrations, result.FailedMigrations,
+            result.Duration, result.ErrorMessage);
+        return result;
+    }
+
+    private async Task<MigrationOperationResult> MigrateUpCoreAsync(MigrateUpRequest request)
+    {
         var startTime = DateTime.UtcNow;
-        var runId = Guid.NewGuid();
         var migrationResults = new List<MigrationFileResult>();
         int successfulMigrations = 0;
         int failedMigrations = 0;
@@ -71,6 +92,8 @@ public class MigrationService : IMigrationService
                     $"Product mismatch: context has {_ctxAccessor.Current.RayMigratorConsoleOptions.Product} but request has {request.ProductAlias}");
             }
             EnsureRequestRunModeMatchesContext(request.RunMode);
+            EnsureRequestTargetReleaseMatchesContext(request.TargetReleaseVersion);
+            EnsureRequestEnvironmentMatchesContext(request.Environment);
 
             // --- Phase 1: Initialization ---
             _ctxAccessor.Current.MigrationState.MigrationRunResult = MigrationRunResult.Running;
@@ -95,13 +118,14 @@ public class MigrationService : IMigrationService
                 }
 
                 // Create migration run with settings snapshot (auto-fixes orphaned runs if needed)
-                var settingsJson = BuildMigrationRunSettingsJson(_ctxAccessor.Current);
+                // The request decides AllowOutOfOrder, so the snapshot records its value
+                var settingsJson = BuildMigrationRunSettingsJson(_ctxAccessor.Current, request.AllowOutOfOrder);
                 _logger.LogTrace("MigrationRun settings snapshot:\n{SettingsJson}", settingsJson);
                 await RepositoryMigrationRunInsertWithAutoFix(settingsJson);
             }
 
             // --- Phase 2: File Discovery & Preparation ---
-            var productOptions = _options.Value.Products!.First(p => p.Alias == request.ProductAlias);
+            var productOptions = _ctxAccessor.Current.RayMigratorOptions.Products!.First(p => p.Alias == request.ProductAlias);
             var migrationFiles = DiscoverAndPrepareMigrationFiles(productOptions, request.Environment);
 
             if (migrationFiles.Count == 0)
@@ -114,7 +138,7 @@ public class MigrationService : IMigrationService
                 return new MigrationOperationResult
                 {
                     Success = true,
-                    RunId = runId,
+                    MigrationRunId = _ctxAccessor.Current.MigrationState.MigrationRunId,
                     ProductAlias = request.ProductAlias,
                     Environment = request.Environment,
                     Operation = MigrationOperation.MigrateUp,
@@ -162,6 +186,14 @@ public class MigrationService : IMigrationService
                 filesToMigrate = migrationFiles; // Validate: process all files
             }
 
+            // A run mode that writes no run row has no FromReleaseVersion yet; it comes from the records read above
+            if (!request.RunMode.ShouldWriteRepository())
+            {
+                _ctxAccessor.Current.MigrationState.FromReleaseVersion = GetHighestMigratedRelease(existingRecords);
+            }
+
+            ReportRunStarted(MigrationCommand.MigrateUp, request.RunMode, request.TargetReleaseVersion);
+
             // Filter by target release if specified
             filesToMigrate = FilterByTargetRelease(filesToMigrate, request.TargetReleaseVersion);
 
@@ -175,11 +207,7 @@ public class MigrationService : IMigrationService
             {
                 if (!request.AllowOutOfOrder)
                 {
-                    string highestMigratedRelease = existingRecords
-                        .Where(r => r.MigrationStatusId == MigrationStatus.Migrated)
-                        .OrderByDescending(r => r.ReleaseVersion, StringComparer.OrdinalIgnoreCase)
-                        .Select(r => r.ReleaseVersion)
-                        .First();
+                    string highestMigratedRelease = GetHighestMigratedRelease(existingRecords)!;
 
                     _logger.LogError(
                         "Out-of-order migrations detected but --allow-out-of-order not specified. {Count} file(s) from releases before '{HighestRelease}' not applied. Aborting.",
@@ -209,7 +237,7 @@ public class MigrationService : IMigrationService
                 return new MigrationOperationResult
                 {
                     Success = true,
-                    RunId = runId,
+                    MigrationRunId = _ctxAccessor.Current.MigrationState.MigrationRunId,
                     ProductAlias = request.ProductAlias,
                     Environment = request.Environment,
                     Operation = MigrationOperation.MigrateUp,
@@ -307,7 +335,7 @@ public class MigrationService : IMigrationService
                         return new MigrationOperationResult
                         {
                             Success = false,
-                            RunId = runId,
+                            MigrationRunId = _ctxAccessor.Current.MigrationState.MigrationRunId,
                             ProductAlias = request.ProductAlias,
                             Environment = request.Environment,
                             Operation = MigrationOperation.MigrateUp,
@@ -344,7 +372,7 @@ public class MigrationService : IMigrationService
                 return new MigrationOperationResult
                 {
                     Success = false,
-                    RunId = runId,
+                    MigrationRunId = _ctxAccessor.Current.MigrationState.MigrationRunId,
                     ProductAlias = request.ProductAlias,
                     Environment = request.Environment,
                     Operation = MigrationOperation.MigrateUp,
@@ -366,7 +394,7 @@ public class MigrationService : IMigrationService
             return new MigrationOperationResult
             {
                 Success = true,
-                RunId = runId,
+                MigrationRunId = _ctxAccessor.Current.MigrationState.MigrationRunId,
                 ProductAlias = request.ProductAlias,
                 Environment = request.Environment,
                 Operation = MigrationOperation.MigrateUp,
@@ -405,7 +433,7 @@ public class MigrationService : IMigrationService
             return new MigrationOperationResult
             {
                 Success = false,
-                RunId = runId,
+                MigrationRunId = _ctxAccessor.Current.MigrationState.MigrationRunId,
                 ProductAlias = request.ProductAlias,
                 Environment = request.Environment,
                 Operation = MigrationOperation.MigrateUp,
@@ -448,6 +476,12 @@ public class MigrationService : IMigrationService
             var errorAction = file.MigrationErrorActionOverride ?? productOptions.MigrationErrorActionEnum;
             bool ignoreErrors = errorAction == MigrationErrorAction.Ignore;
 
+            // The target and record the loop below is working on. The catch reads them instead of MigrationState,
+            // which is assigned after the record insert and would still name the previous pair before it.
+            string currentTargetAlias = string.Empty;
+            int currentRecordId = 0;
+            var targetStartTime = fileStartTime;
+
             try
             {
                 bool fileHadBlockFailures = false;
@@ -461,6 +495,10 @@ public class MigrationService : IMigrationService
                         continue;
                     }
 
+                    currentTargetAlias = targetOptions.Alias!;
+                    currentRecordId = 0;
+                    targetStartTime = DateTime.UtcNow;
+
                     // OPT-1: Check if a previous run completed all blocks but wasn't finalized
                     if (request.RunMode.ShouldWriteRepository())
                     {
@@ -468,6 +506,8 @@ public class MigrationService : IMigrationService
                         if (finalizedId > 0)
                         {
                             successfullyMigratedRecords.Add((file, finalizedId, targetOptions.Alias!));
+                            ReportFileStarted(MigrationOperation.MigrateUp, file, targetOptions.Alias!, finalizedId, file.FileUpBlocksTotal, targetStartTime);
+                            ReportFileCompleted(MigrationOperation.MigrateUp, file, targetOptions.Alias!, finalizedId, FileOutcome.Recovered, targetStartTime);
                             _logger.LogInformation(
                                 "Migration recovered | Product: {Product} | Env: {Environment} | Release: {Release} | TargetGroup: {TargetGroup} | Target: {Target} | File: {Filename} | MigrationRecordId: {MigrationRecordId} (finalized from previous incomplete run)",
                                 productOptions.Alias, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, file.ReleaseVersion, targetGroupOptions.Alias, targetOptions.Alias, file.Filename, finalizedId);
@@ -504,6 +544,7 @@ public class MigrationService : IMigrationService
                             migrationRecordId = existingMigrationRecordId;
                     }
 
+                    currentRecordId = migrationRecordId;
                     _ctxAccessor.Current.MigrationState.MigrationRecordId = migrationRecordId;
                     _ctxAccessor.Current.MigrationState.ReleaseVersionFromFileNameWithPath = file.ReleaseVersion;
                     _ctxAccessor.Current.MigrationState.FilenameWithRelativePath = file.FilenameWithRelativePath;
@@ -520,6 +561,8 @@ public class MigrationService : IMigrationService
                     int succeededBlocks, failedBlocks;
                     bool atomicCommitCompleted;
                     string? resolvedCliAlias = ResolveUseCliToolAlias(file, targetOptions);
+                    ReportFileStarted(MigrationOperation.MigrateUp, file, targetOptions.Alias!, migrationRecordId, startFromBlock, targetStartTime,
+                        blocksTotal: resolvedCliAlias != null ? 1 : file.FileUpBlocksTotal);
                     if (resolvedCliAlias != null)
                     {
                         var cliTool = GetCliToolByAlias(resolvedCliAlias);
@@ -537,6 +580,8 @@ public class MigrationService : IMigrationService
 
                     if (failedBlocks > 0)
                     {
+                        ReportFileCompleted(MigrationOperation.MigrateUp, file, targetOptions.Alias!, migrationRecordId, FileOutcome.FailedIgnored, targetStartTime,
+                            $"{failedBlocks}/{file.FileUpBlocksTotal} block(s) failed");
                         // Block-level failures with Ignore: mark as Failed, skip remaining targets for this file
                         fileHadBlockFailures = true;
 
@@ -563,6 +608,8 @@ public class MigrationService : IMigrationService
                     }
 
                     successfullyMigratedRecords.Add((file, migrationRecordId, targetOptions.Alias!));
+                    ReportFileCompleted(MigrationOperation.MigrateUp, file, targetOptions.Alias!, migrationRecordId,
+                        request.RunMode.ShouldExecuteSql() ? FileOutcome.Migrated : FileOutcome.Simulated, targetStartTime);
 
                     _logger.LogInformation(
                         "Migration successful | Product: {Product} | Env: {Environment} | Release: {Release} | TargetGroup: {TargetGroup} | Target: {Target} | File: {Filename} | MigrationRecordId: {MigrationRecordId} | SqlBlocks: {SqlBlocksTotal}",
@@ -598,16 +645,19 @@ public class MigrationService : IMigrationService
             }
             catch (Exception ex)
             {
+                ReportFileCompleted(MigrationOperation.MigrateUp, file, currentTargetAlias, currentRecordId,
+                    ignoreErrors ? FileOutcome.FailedIgnored : FileOutcome.Failed, targetStartTime, ex.Message);
                 _logger.LogError(ex,
                     "Migration FAILED | Product: {Product} | Env: {Environment} | Release: {Release} | TargetGroup: {TargetGroup} | Target: {Target} | File: {Filename} | MigrationRecordId: {MigrationRecordId} | SqlBlock: {SqlBlock}/{SqlBlocksTotal}",
-                    productOptions.Alias, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, file.ReleaseVersion, targetGroupOptions.Alias, _ctxAccessor.Current.MigrationState.TargetAlias, file.Filename, _ctxAccessor.Current.MigrationState.MigrationRecordId, _ctxAccessor.Current.MigrationState.FileBlockId, file.FileUpBlocksTotal);
+                    productOptions.Alias, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, file.ReleaseVersion, targetGroupOptions.Alias, currentTargetAlias, file.Filename, currentRecordId, _ctxAccessor.Current.MigrationState.FileBlockId, file.FileUpBlocksTotal);
 
                 try
                 {
-                    if (request.RunMode.ShouldWriteRepository())
+                    // A failure before the record insert has no record to mark
+                    if (request.RunMode.ShouldWriteRepository() && currentRecordId > 0)
                     {
                         await Task.Run(() => _templateExecutor.RepositoryMigrationUpdate(
-                            _ctxAccessor.Current.MigrationState.MigrationRecordId, MigrationStatus.Failed,
+                            currentRecordId, MigrationStatus.Failed,
                             ignoreErrors ? file.FileUpBlocksTotal : _ctxAccessor.Current.MigrationState.FileBlocksCommitted));
                     }
                 }
@@ -615,7 +665,7 @@ public class MigrationService : IMigrationService
                 {
                     _logger.LogWarning(updateEx,
                         "Failed to update migration record {MigrationRecordId} ({Filename}) for error state",
-                        _ctxAccessor.Current.MigrationState.MigrationRecordId, file.Filename);
+                        currentRecordId, file.Filename);
                 }
 
                 if (ignoreErrors)
@@ -623,7 +673,7 @@ public class MigrationService : IMigrationService
                     // Ignore: log warning, mark as Failed, continue to next file
                     _logger.LogWarning(
                         "MigrationErrorAction=Ignore: Exception in {Filename} on target {Target}. Continuing with next file.",
-                        file.Filename, _ctxAccessor.Current.MigrationState.TargetAlias);
+                        file.Filename, currentTargetAlias);
 
                     result.FailCount++;
                     migrationResults.Add(new MigrationFileResult
@@ -631,6 +681,8 @@ public class MigrationService : IMigrationService
                         FileName = file.Filename,
                         ReleaseVersion = file.ReleaseVersion,
                         TargetGroup = file.TargetGroupAlias,
+                        TargetAlias = currentTargetAlias,
+                        MigrationRecordId = currentRecordId,
                         Success = false,
                         ErrorMessage = ex.Message,
                         ExecutedAt = fileStartTime,
@@ -643,7 +695,7 @@ public class MigrationService : IMigrationService
                 result.FailCount++;
                 result.Success = false;
                 result.FailedFile = file;
-                result.FailedMigrationRecordId = _ctxAccessor.Current.MigrationState.MigrationRecordId;
+                result.FailedMigrationRecordId = currentRecordId;
                 result.ErrorMessage = ex.Message;
 
                 migrationResults.Add(new MigrationFileResult
@@ -651,6 +703,8 @@ public class MigrationService : IMigrationService
                     FileName = file.Filename,
                     ReleaseVersion = file.ReleaseVersion,
                     TargetGroup = file.TargetGroupAlias,
+                    TargetAlias = currentTargetAlias,
+                    MigrationRecordId = currentRecordId,
                     Success = false,
                     ErrorMessage = ex.Message,
                     ExecutedAt = fileStartTime,
@@ -695,6 +749,9 @@ public class MigrationService : IMigrationService
                 var errorAction = file.MigrationErrorActionOverride ?? productOptions.MigrationErrorActionEnum;
                 bool ignoreErrors = errorAction == MigrationErrorAction.Ignore;
 
+                // The record this pair is working on; MigrationState would still name the previous pair before the insert.
+                int currentRecordId = 0;
+
                 try
                 {
                     // OPT-1: Check if a previous run completed all blocks but wasn't finalized
@@ -704,6 +761,8 @@ public class MigrationService : IMigrationService
                         if (finalizedId > 0)
                         {
                             successfullyMigratedRecords.Add((file, finalizedId, targetOptions.Alias!));
+                            ReportFileStarted(MigrationOperation.MigrateUp, file, targetOptions.Alias!, finalizedId, file.FileUpBlocksTotal, fileStartTime);
+                            ReportFileCompleted(MigrationOperation.MigrateUp, file, targetOptions.Alias!, finalizedId, FileOutcome.Recovered, fileStartTime);
                             _logger.LogInformation(
                                 "Migration recovered | Product: {Product} | Env: {Environment} | Release: {Release} | TargetGroup: {TargetGroup} | Target: {Target} | File: {Filename} | MigrationRecordId: {MigrationRecordId} (finalized from previous incomplete run)",
                                 productOptions.Alias, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, file.ReleaseVersion, targetGroupOptions.Alias, targetOptions.Alias, file.Filename, finalizedId);
@@ -714,6 +773,8 @@ public class MigrationService : IMigrationService
                                 FileName = file.Filename,
                                 ReleaseVersion = file.ReleaseVersion,
                                 TargetGroup = file.TargetGroupAlias,
+                                TargetAlias = targetOptions.Alias,
+                                MigrationRecordId = finalizedId,
                                 Success = true,
                                 ExecutedAt = fileStartTime,
                                 Duration = DateTime.UtcNow - fileStartTime
@@ -751,6 +812,7 @@ public class MigrationService : IMigrationService
                             migrationRecordId = existingMigrationRecordId;
                     }
 
+                    currentRecordId = migrationRecordId;
                     _ctxAccessor.Current.MigrationState.MigrationRecordId = migrationRecordId;
                     _ctxAccessor.Current.MigrationState.ReleaseVersionFromFileNameWithPath = file.ReleaseVersion;
                     _ctxAccessor.Current.MigrationState.FilenameWithRelativePath = file.FilenameWithRelativePath;
@@ -767,6 +829,8 @@ public class MigrationService : IMigrationService
                     int succeededBlocks, failedBlocks;
                     bool atomicCommitCompleted;
                     string? resolvedCliAlias = ResolveUseCliToolAlias(file, targetOptions);
+                    ReportFileStarted(MigrationOperation.MigrateUp, file, targetOptions.Alias!, migrationRecordId, startFromBlock, fileStartTime,
+                        blocksTotal: resolvedCliAlias != null ? 1 : file.FileUpBlocksTotal);
                     if (resolvedCliAlias != null)
                     {
                         var cliTool = GetCliToolByAlias(resolvedCliAlias);
@@ -784,6 +848,8 @@ public class MigrationService : IMigrationService
 
                     if (failedBlocks > 0)
                     {
+                        ReportFileCompleted(MigrationOperation.MigrateUp, file, targetOptions.Alias!, migrationRecordId, FileOutcome.FailedIgnored, fileStartTime,
+                            $"{failedBlocks}/{file.FileUpBlocksTotal} block(s) failed");
                         // Block-level failures with Ignore: mark as Failed, continue to next file
                         _logger.LogWarning(
                             "MigrationErrorAction=Ignore: {FailedBlocks}/{TotalBlocks} block(s) failed in {Filename} on target {Target}. Continuing with next file.",
@@ -804,6 +870,8 @@ public class MigrationService : IMigrationService
                             FileName = file.Filename,
                             ReleaseVersion = file.ReleaseVersion,
                             TargetGroup = file.TargetGroupAlias,
+                            TargetAlias = targetOptions.Alias,
+                            MigrationRecordId = migrationRecordId,
                             Success = false,
                             ErrorMessage = $"MigrationErrorAction=Ignore: One or more SQL blocks failed in {file.Filename}",
                             ExecutedAt = fileStartTime,
@@ -819,6 +887,8 @@ public class MigrationService : IMigrationService
                     }
 
                     successfullyMigratedRecords.Add((file, migrationRecordId, targetOptions.Alias!));
+                    ReportFileCompleted(MigrationOperation.MigrateUp, file, targetOptions.Alias!, migrationRecordId,
+                        request.RunMode.ShouldExecuteSql() ? FileOutcome.Migrated : FileOutcome.Simulated, fileStartTime);
 
                     _logger.LogInformation(
                         "Migration successful | Product: {Product} | Env: {Environment} | Release: {Release} | TargetGroup: {TargetGroup} | Target: {Target} | File: {Filename} | MigrationRecordId: {MigrationRecordId} | SqlBlocks: {SqlBlocksTotal}",
@@ -830,6 +900,8 @@ public class MigrationService : IMigrationService
                         FileName = file.Filename,
                         ReleaseVersion = file.ReleaseVersion,
                         TargetGroup = file.TargetGroupAlias,
+                        TargetAlias = targetOptions.Alias,
+                        MigrationRecordId = migrationRecordId,
                         Success = true,
                         ExecutedAt = fileStartTime,
                         Duration = DateTime.UtcNow - fileStartTime
@@ -837,16 +909,19 @@ public class MigrationService : IMigrationService
                 }
                 catch (Exception ex)
                 {
+                    ReportFileCompleted(MigrationOperation.MigrateUp, file, targetOptions.Alias!, currentRecordId,
+                        ignoreErrors ? FileOutcome.FailedIgnored : FileOutcome.Failed, fileStartTime, ex.Message);
                     _logger.LogError(ex,
                         "Migration FAILED | Product: {Product} | Env: {Environment} | Release: {Release} | TargetGroup: {TargetGroup} | Target: {Target} | File: {Filename} | MigrationRecordId: {MigrationRecordId} | SqlBlock: {SqlBlock}/{SqlBlocksTotal}",
-                        productOptions.Alias, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, file.ReleaseVersion, targetGroupOptions.Alias, targetOptions.Alias, file.Filename, _ctxAccessor.Current.MigrationState.MigrationRecordId, _ctxAccessor.Current.MigrationState.FileBlockId, file.FileUpBlocksTotal);
+                        productOptions.Alias, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, file.ReleaseVersion, targetGroupOptions.Alias, targetOptions.Alias, file.Filename, currentRecordId, _ctxAccessor.Current.MigrationState.FileBlockId, file.FileUpBlocksTotal);
 
                     try
                     {
-                        if (request.RunMode.ShouldWriteRepository())
+                        // A failure before the record insert has no record to mark
+                        if (request.RunMode.ShouldWriteRepository() && currentRecordId > 0)
                         {
                             await Task.Run(() => _templateExecutor.RepositoryMigrationUpdate(
-                                _ctxAccessor.Current.MigrationState.MigrationRecordId, MigrationStatus.Failed,
+                                currentRecordId, MigrationStatus.Failed,
                                 ignoreErrors ? file.FileUpBlocksTotal : _ctxAccessor.Current.MigrationState.FileBlocksCommitted));
                         }
                     }
@@ -854,7 +929,7 @@ public class MigrationService : IMigrationService
                     {
                         _logger.LogWarning(updateEx,
                             "Failed to update migration record {MigrationRecordId} ({Filename}) for error state",
-                            _ctxAccessor.Current.MigrationState.MigrationRecordId, file.Filename);
+                            currentRecordId, file.Filename);
                     }
 
                     if (ignoreErrors)
@@ -870,6 +945,8 @@ public class MigrationService : IMigrationService
                             FileName = file.Filename,
                             ReleaseVersion = file.ReleaseVersion,
                             TargetGroup = file.TargetGroupAlias,
+                            TargetAlias = targetOptions.Alias,
+                            MigrationRecordId = currentRecordId,
                             Success = false,
                             ErrorMessage = ex.Message,
                             ExecutedAt = fileStartTime,
@@ -882,7 +959,7 @@ public class MigrationService : IMigrationService
                     result.FailCount++;
                     result.Success = false;
                     result.FailedFile = file;
-                    result.FailedMigrationRecordId = _ctxAccessor.Current.MigrationState.MigrationRecordId;
+                    result.FailedMigrationRecordId = currentRecordId;
                     result.ErrorMessage = ex.Message;
 
                     migrationResults.Add(new MigrationFileResult
@@ -890,6 +967,8 @@ public class MigrationService : IMigrationService
                         FileName = file.Filename,
                         ReleaseVersion = file.ReleaseVersion,
                         TargetGroup = file.TargetGroupAlias,
+                        TargetAlias = targetOptions.Alias,
+                        MigrationRecordId = currentRecordId,
                         Success = false,
                         ErrorMessage = ex.Message,
                         ExecutedAt = fileStartTime,
@@ -903,6 +982,89 @@ public class MigrationService : IMigrationService
 
         return result;
     }
+
+    #region Progress events
+
+    private static MigrationOperation RollbackOperation(bool isErrorRecovery)
+        => isErrorRecovery ? MigrationOperation.Rollback : MigrationOperation.MigrateDown;
+
+    /// <summary>
+    /// Hands an event to the observer of the current context. An observer must not throw; one that does is logged
+    /// and the run continues, because a broken progress display must never abort a migration.
+    /// </summary>
+    private void Report(string eventName, Action<IMigrationProgressObserver> report)
+    {
+        try
+        {
+            report(_ctxAccessor.Current.ProgressObserver);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "The progress observer threw on {Event}; the run continues", eventName);
+        }
+    }
+
+    /// <summary>
+    /// Raised once per operation, after the run row exists so that its id is known. The wrapper of each operation
+    /// calls it again before <see cref="ReportRunCompleted"/>, which covers an operation that ended before the row
+    /// was inserted (Validate mode, a failure during initialization).
+    /// </summary>
+    private void ReportRunStarted(MigrationCommand command, MigrationRunMode runMode, string? targetRelease)
+    {
+        if (_runStartedReported)
+        {
+            return;
+        }
+
+        _runStartedReported = true;
+        var ctx = _ctxAccessor.Current;
+        Report(nameof(IMigrationProgressObserver.OnRunStarted), o => o.OnRunStarted(new RunStartedEvent(
+            ctx.RayMigratorConsoleOptions.Product, ctx.RayMigratorConsoleOptions.Environment, command, runMode,
+            ctx.MigrationState.MigrationRunId, ctx.MigrationState.FromReleaseVersion, targetRelease, DateTime.UtcNow)));
+    }
+
+    private void ReportRunCompleted(
+        MigrationCommand command, MigrationRunMode runMode, string? targetRelease,
+        bool success, MigrationRunResult? result, int totalFiles, int succeededFiles, int failedFiles,
+        TimeSpan duration, string? errorMessage)
+    {
+        ReportRunStarted(command, runMode, targetRelease);
+        var ctx = _ctxAccessor.Current;
+        Report(nameof(IMigrationProgressObserver.OnRunCompleted), o => o.OnRunCompleted(new RunCompletedEvent(
+            ctx.RayMigratorConsoleOptions.Product, ctx.RayMigratorConsoleOptions.Environment, command,
+            ctx.MigrationState.MigrationRunId, success, result, totalFiles, succeededFiles, failedFiles, duration, errorMessage)));
+    }
+
+    private void ReportFileStarted(
+        MigrationOperation operation, MigrationFileInfo file, string targetAlias, int migrationRecordId, int resumeFromBlock, DateTime startedAtUtc,
+        int? blocksTotal = null)
+        => ReportFileStarted(operation, file.ReleaseVersion, file.TargetGroupAlias, targetAlias, file.Filename, file.FileOrderId, migrationRecordId,
+            blocksTotal ?? file.FileUpBlocksTotal, resumeFromBlock, startedAtUtc);
+
+    private void ReportFileStarted(
+        MigrationOperation operation, string releaseVersion, string targetGroupAlias, string targetAlias, string fileName,
+        int fileOrderId, int migrationRecordId, int blocksTotal, int resumeFromBlock, DateTime startedAtUtc)
+        => Report(nameof(IMigrationProgressObserver.OnFileStarted), o => o.OnFileStarted(new FileStartedEvent(
+            operation, releaseVersion, targetGroupAlias, targetAlias, fileName, fileOrderId, migrationRecordId, Math.Max(blocksTotal, 1), resumeFromBlock, startedAtUtc)));
+
+    private void ReportFileCompleted(MigrationOperation operation, MigrationFileInfo file, string targetAlias, int migrationRecordId, FileOutcome outcome, DateTime startedAtUtc, string? errorMessage = null)
+        => ReportFileCompleted(operation, file.ReleaseVersion, file.TargetGroupAlias, targetAlias, file.Filename, migrationRecordId, outcome, startedAtUtc, errorMessage);
+
+    private void ReportFileCompleted(
+        MigrationOperation operation, string releaseVersion, string targetGroupAlias, string targetAlias, string fileName,
+        int migrationRecordId, FileOutcome outcome, DateTime startedAtUtc, string? errorMessage)
+        => Report(nameof(IMigrationProgressObserver.OnFileCompleted), o => o.OnFileCompleted(new FileCompletedEvent(
+            operation, releaseVersion, targetGroupAlias, targetAlias, fileName, migrationRecordId, outcome, DateTime.UtcNow - startedAtUtc, errorMessage)));
+
+    private void ReportBlockCompleted(MigrationOperation operation, MigrationFileInfo file, string targetAlias, int migrationRecordId, int blockNumber, bool success, string? errorMessage = null)
+        => Report(nameof(IMigrationProgressObserver.OnBlockCompleted), o => o.OnBlockCompleted(new BlockCompletedEvent(
+            operation, file.ReleaseVersion, file.TargetGroupAlias, targetAlias, file.Filename, migrationRecordId, blockNumber, file.FileUpBlocksTotal, success, errorMessage)));
+
+    private void ReportBlockCompleted(MigrationOperation operation, MigrationRecord record, int blocksTotal, int blockNumber, bool success, string? errorMessage)
+        => Report(nameof(IMigrationProgressObserver.OnBlockCompleted), o => o.OnBlockCompleted(new BlockCompletedEvent(
+            operation, record.ReleaseVersion, record.TargetGroupAlias, record.TargetAlias, record.Filename, record.Id, blockNumber, blocksTotal, success, errorMessage)));
+
+    #endregion Progress events
 
     /// <summary>
     /// The execution path reads the run mode from the request, while every repository stamp and the
@@ -925,6 +1087,40 @@ public class MigrationService : IMigrationService
             throw new InvalidOperationException(
                 $"RunMode mismatch: context has {contextRunMode} but request has {requestRunMode}. " +
                 "Build the MigrationContext for the run mode the request is executed with.");
+        }
+    }
+
+    /// <summary>
+    /// The repository ids, the run row and the settings snapshot take the environment from the
+    /// <see cref="MigrationContext"/>, while file discovery and the environment-specific migsettings take it from the
+    /// request. A host that let them diverge would run one environment's files against another environment's rows.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The request environment differs from the context.</exception>
+    private void EnsureRequestEnvironmentMatchesContext(string requestEnvironment)
+    {
+        string? contextEnvironment = _ctxAccessor.Current.RayMigratorConsoleOptions.Environment;
+        if (!string.Equals(requestEnvironment, contextEnvironment, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"Environment mismatch: the MigrationContext was built for [{contextEnvironment}] but the request names [{requestEnvironment}]. " +
+                "Build the context for the environment the request is executed with.");
+        }
+    }
+
+    /// <summary>
+    /// The run row stamps <c>ToReleaseVersion</c> from the <see cref="MigrationContext"/>, while the execution path
+    /// reads the target release from the request. The CLI fills both from the same option; a programmatic caller
+    /// could let them diverge and stamp a release the run never aimed at.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The request target release differs from the context.</exception>
+    private void EnsureRequestTargetReleaseMatchesContext(string? requestTargetRelease)
+    {
+        var contextTargetRelease = _ctxAccessor.Current.RayMigratorConsoleOptions.TargetReleaseVersion;
+        if (!string.Equals(requestTargetRelease, contextTargetRelease, StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                $"TargetReleaseVersion mismatch: context has [{contextTargetRelease ?? "null"}] but request has [{requestTargetRelease ?? "null"}]. " +
+                "Build the MigrationContext for the target release the request is executed with.");
         }
     }
 
@@ -1099,8 +1295,29 @@ public class MigrationService : IMigrationService
 
     public async Task<MigrationOperationResult> MigrateDownAsync(MigrateDownRequest request)
     {
+        _runStartedReported = false;
+        var runStart = DateTime.UtcNow;
+        MigrationOperationResult result;
+        try
+        {
+            result = await MigrateDownCoreAsync(request);
+        }
+        catch (Exception ex)
+        {
+            ReportRunCompleted(MigrationCommand.MigrateDown, request.RunMode, request.TargetReleaseVersion,
+                false, null, 0, 0, 0, DateTime.UtcNow - runStart, ex.Message);
+            throw;
+        }
+
+        ReportRunCompleted(MigrationCommand.MigrateDown, request.RunMode, request.TargetReleaseVersion,
+            result.Success, result.Result, result.TotalMigrations, result.SuccessfulMigrations, result.FailedMigrations,
+            result.Duration, result.ErrorMessage);
+        return result;
+    }
+
+    private async Task<MigrationOperationResult> MigrateDownCoreAsync(MigrateDownRequest request)
+    {
         var startTime = DateTime.UtcNow;
-        var runId = Guid.NewGuid();
 
         try
         {
@@ -1114,11 +1331,13 @@ public class MigrationService : IMigrationService
                     $"Product mismatch: context has {_ctxAccessor.Current.RayMigratorConsoleOptions.Product} but request has {request.ProductAlias}");
             }
             EnsureRequestRunModeMatchesContext(request.RunMode);
+            EnsureRequestTargetReleaseMatchesContext(request.TargetReleaseVersion);
+            EnsureRequestEnvironmentMatchesContext(request.Environment);
 
             // --- Validate mode: validate rollback file existence and parseability ---
             if (!request.RunMode.ShouldReadRepository())
             {
-                var productOpts = _options.Value.Products!.First(p => p.Alias == request.ProductAlias);
+                var productOpts = _ctxAccessor.Current.RayMigratorOptions.Products!.First(p => p.Alias == request.ProductAlias);
                 var allFiles = DiscoverAndPrepareMigrationFiles(productOpts, request.Environment);
 
                 // Filter files in releases AFTER target (same logic as normal rollback)
@@ -1157,7 +1376,7 @@ public class MigrationService : IMigrationService
                 return new MigrationOperationResult
                 {
                     Success = warnings.Count == 0,
-                    RunId = runId,
+                    MigrationRunId = _ctxAccessor.Current.MigrationState.MigrationRunId,
                     ProductAlias = request.ProductAlias,
                     Environment = request.Environment,
                     Operation = MigrationOperation.MigrateDown,
@@ -1172,7 +1391,7 @@ public class MigrationService : IMigrationService
 
             // Validate target group aliases early (before any repository operations)
             {
-                var productOptsForValidation = _options.Value.Products!.First(p => p.Alias == request.ProductAlias);
+                var productOptsForValidation = _ctxAccessor.Current.RayMigratorOptions.Products!.First(p => p.Alias == request.ProductAlias);
                 ValidateTargetGroupAliases(request.TargetGroupAliases, productOptsForValidation.TargetGroups!);
             }
 
@@ -1218,7 +1437,7 @@ public class MigrationService : IMigrationService
                 return new MigrationOperationResult
                 {
                     Success = true,
-                    RunId = runId,
+                    MigrationRunId = _ctxAccessor.Current.MigrationState.MigrationRunId,
                     ProductAlias = request.ProductAlias,
                     Environment = request.Environment,
                     Operation = MigrationOperation.MigrateDown,
@@ -1254,7 +1473,7 @@ public class MigrationService : IMigrationService
                 return new MigrationOperationResult
                 {
                     Success = true,
-                    RunId = runId,
+                    MigrationRunId = _ctxAccessor.Current.MigrationState.MigrationRunId,
                     ProductAlias = request.ProductAlias,
                     Environment = request.Environment,
                     Operation = MigrationOperation.MigrateDown,
@@ -1267,8 +1486,15 @@ public class MigrationService : IMigrationService
             _logger.LogInformation("Rolling back {Count} migration(s) for product {Product} to release {Release}",
                 migrationsToRollback.Count, request.ProductAlias, request.TargetReleaseVersion);
 
+            if (!request.RunMode.ShouldWriteRepository())
+            {
+                _ctxAccessor.Current.MigrationState.FromReleaseVersion = GetHighestMigratedRelease(existingRecords);
+            }
+
+            ReportRunStarted(MigrationCommand.MigrateDown, request.RunMode, request.TargetReleaseVersion);
+
             // --- Phase 3: Execute rollbacks ---
-            var productOptions = _options.Value.Products!.First(p => p.Alias == request.ProductAlias);
+            var productOptions = _ctxAccessor.Current.RayMigratorOptions.Products!.First(p => p.Alias == request.ProductAlias);
 
             // The atomic shared-connection path changes what a failed rollback leaves behind; name the targets it applies to (#27).
             if (request.RunMode.ShouldExecuteSql())
@@ -1297,7 +1523,7 @@ public class MigrationService : IMigrationService
             return new MigrationOperationResult
             {
                 Success = rollbackResult.AllSuccessful,
-                RunId = runId,
+                MigrationRunId = _ctxAccessor.Current.MigrationState.MigrationRunId,
                 ProductAlias = request.ProductAlias,
                 Environment = request.Environment,
                 Operation = MigrationOperation.MigrateDown,
@@ -1335,7 +1561,7 @@ public class MigrationService : IMigrationService
             return new MigrationOperationResult
             {
                 Success = false,
-                RunId = runId,
+                MigrationRunId = _ctxAccessor.Current.MigrationState.MigrationRunId,
                 ProductAlias = request.ProductAlias,
                 Environment = request.Environment,
                 Operation = MigrationOperation.MigrateDown,
@@ -1354,7 +1580,32 @@ public class MigrationService : IMigrationService
 
     public async Task<BaselineResult> BaselineAsync(BaselineRequest request)
     {
+        _runStartedReported = false;
+        var runStart = DateTime.UtcNow;
+        BaselineResult result;
+        try
+        {
+            result = await BaselineCoreAsync(request);
+        }
+        catch (Exception ex)
+        {
+            ReportRunCompleted(MigrationCommand.Baseline, MigrationRunMode.Migrate, request.TargetReleaseVersion,
+                false, null, 0, 0, 0, DateTime.UtcNow - runStart, ex.Message);
+            throw;
+        }
+
+        ReportRunCompleted(MigrationCommand.Baseline, MigrationRunMode.Migrate, request.TargetReleaseVersion,
+            result.Success, null, result.BaselinedRecords, result.BaselinedRecords, 0, result.Duration, result.ErrorMessage);
+        return result;
+    }
+
+    private async Task<BaselineResult> BaselineCoreAsync(BaselineRequest request)
+    {
         var startTime = DateTime.UtcNow;
+        int baselinedCount = 0;
+        int baselinedRecords = 0;
+        // The file and target whose record is being written, so that a failure completes the file it started
+        (MigrationFileInfo MigrationFile, string TargetAlias, int RecordId, DateTime StartedAt)? baselineInProgress = null;
 
         try
         {
@@ -1371,6 +1622,9 @@ public class MigrationService : IMigrationService
                     $"Product mismatch: context has {_ctxAccessor.Current.RayMigratorConsoleOptions.Product} but request has {request.ProductAlias}");
             }
 
+            EnsureRequestTargetReleaseMatchesContext(request.TargetReleaseVersion);
+            EnsureRequestEnvironmentMatchesContext(request.Environment);
+
             // --- Phase 1: Initialization ---
             await InitializeRepositoryAsync();
 
@@ -1384,9 +1638,10 @@ public class MigrationService : IMigrationService
             var settingsJson = BuildMigrationRunSettingsJson(_ctxAccessor.Current);
             _logger.LogTrace("MigrationRun settings snapshot:\n{SettingsJson}", settingsJson);
             await RepositoryMigrationRunInsertWithAutoFix(settingsJson);
+            ReportRunStarted(MigrationCommand.Baseline, MigrationRunMode.Migrate, request.TargetReleaseVersion);
 
             // --- Phase 2: File Discovery ---
-            var productOptions = _options.Value.Products!.First(p => p.Alias == request.ProductAlias);
+            var productOptions = _ctxAccessor.Current.RayMigratorOptions.Products!.First(p => p.Alias == request.ProductAlias);
             var migrationFiles = DiscoverAndPrepareMigrationFiles(productOptions, request.Environment);
 
             if (migrationFiles.Count == 0)
@@ -1397,6 +1652,8 @@ public class MigrationService : IMigrationService
                 {
                     Success = true,
                     ProductAlias = request.ProductAlias,
+                    Environment = request.Environment,
+                    MigrationRunId = _ctxAccessor.Current.MigrationState.MigrationRunId,
                     TargetReleaseVersion = request.TargetReleaseVersion,
                     BaselinedFiles = 0,
                     Duration = DateTime.UtcNow - startTime,
@@ -1418,6 +1675,8 @@ public class MigrationService : IMigrationService
                 {
                     Success = true,
                     ProductAlias = request.ProductAlias,
+                    Environment = request.Environment,
+                    MigrationRunId = _ctxAccessor.Current.MigrationState.MigrationRunId,
                     TargetReleaseVersion = request.TargetReleaseVersion,
                     BaselinedFiles = 0,
                     Duration = DateTime.UtcNow - startTime,
@@ -1437,6 +1696,8 @@ public class MigrationService : IMigrationService
                 {
                     Success = true,
                     ProductAlias = request.ProductAlias,
+                    Environment = request.Environment,
+                    MigrationRunId = _ctxAccessor.Current.MigrationState.MigrationRunId,
                     TargetReleaseVersion = request.TargetReleaseVersion,
                     BaselinedFiles = 0,
                     Duration = DateTime.UtcNow - startTime,
@@ -1448,7 +1709,6 @@ public class MigrationService : IMigrationService
                 filesToBaseline.Count, releaseLabel);
 
             // --- Phase 4: Record each file as migrated (without executing SQL) ---
-            int baselinedCount = 0;
 
             // Release-based ordering: Release → TargetGroup → Targets
             var baselineOrderedReleases = filesToBaseline
@@ -1517,6 +1777,8 @@ public class MigrationService : IMigrationService
                     return;
                 }
 
+                var baselineStart = DateTime.UtcNow;
+
                 // Validate CLI tool alias if set (no execution, but ensures config is correct for future rollbacks)
                 string? cliAlias = ResolveUseCliToolAlias(file, targetOptions);
                 if (cliAlias != null)
@@ -1547,8 +1809,14 @@ public class MigrationService : IMigrationService
                 if (existingMigrationRecordId > 0)
                     migrationRecordId = existingMigrationRecordId;
 
+                baselineInProgress = (file, targetOptions.Alias!, migrationRecordId, baselineStart);
+                ReportFileStarted(MigrationOperation.Baseline, file, targetOptions.Alias!, migrationRecordId, 0, baselineStart);
+
                 await Task.Run(() => _templateExecutor.RepositoryMigrationUpdate(
                     migrationRecordId, MigrationStatus.Migrated, file.FileUpBlocksTotal));
+                baselinedRecords++;
+                baselineInProgress = null;
+                ReportFileCompleted(MigrationOperation.Baseline, file, targetOptions.Alias!, migrationRecordId, FileOutcome.Baselined, baselineStart);
 
                 _logger.LogDebug("Baselined: {Filename} (Release: {Release}, Target: {Target})",
                     file.Filename, file.ReleaseVersion, targetOptions.Alias);
@@ -1561,8 +1829,11 @@ public class MigrationService : IMigrationService
             {
                 Success = true,
                 ProductAlias = request.ProductAlias,
+                Environment = request.Environment,
+                MigrationRunId = _ctxAccessor.Current.MigrationState.MigrationRunId,
                 TargetReleaseVersion = request.TargetReleaseVersion,
                 BaselinedFiles = baselinedCount,
+                BaselinedRecords = baselinedRecords,
                 Duration = DateTime.UtcNow - startTime,
                 Messages = new List<string> { $"Successfully baselined {baselinedCount} migration file(s)" }
             };
@@ -1570,6 +1841,12 @@ public class MigrationService : IMigrationService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error during Baseline for product {Product}", request.ProductAlias);
+
+            if (baselineInProgress is { } inProgress)
+            {
+                ReportFileCompleted(MigrationOperation.Baseline, inProgress.MigrationFile, inProgress.TargetAlias, inProgress.RecordId,
+                    FileOutcome.Failed, inProgress.StartedAt, ex.Message);
+            }
 
             try
             {
@@ -1589,7 +1866,11 @@ public class MigrationService : IMigrationService
             {
                 Success = false,
                 ProductAlias = request.ProductAlias,
+                Environment = request.Environment,
+                MigrationRunId = _ctxAccessor.Current.MigrationState.MigrationRunId,
                 TargetReleaseVersion = request.TargetReleaseVersion,
+                BaselinedFiles = baselinedCount,
+                BaselinedRecords = baselinedRecords,
                 Duration = DateTime.UtcNow - startTime,
                 ErrorMessage = ex.Message,
                 ErrorCode = ExtractErrorCode(ex),
@@ -1632,6 +1913,28 @@ public class MigrationService : IMigrationService
         foreach (var record in migrationsToRollback)
         {
             var fileStartTime = DateTime.UtcNow;
+            bool fileStartReported = false;
+
+            // Raised once per record, before its completion. The execution path reports the parsed rollback file;
+            // the paths that end before the file is parsed report what the repository recorded for the record.
+            void ReportRollbackFileStarted(int blocksTotal, int resumeFromBlock)
+            {
+                if (fileStartReported)
+                {
+                    return;
+                }
+
+                fileStartReported = true;
+                ReportFileStarted(RollbackOperation(isErrorRecovery), record.ReleaseVersion, record.TargetGroupAlias, record.TargetAlias,
+                    record.Filename, record.FileOrderId, record.Id, blocksTotal, resumeFromBlock, fileStartTime);
+            }
+
+            void ReportRollbackFileCompleted(FileOutcome outcome, string? errorMessage)
+            {
+                ReportRollbackFileStarted(record.FileDownBlocksTotal ?? record.FileUpBlocksTotal, record.FileDownBlocksMigrated ?? 0);
+                ReportFileCompleted(RollbackOperation(isErrorRecovery), record.ReleaseVersion, record.TargetGroupAlias, record.TargetAlias,
+                    record.Filename, record.Id, outcome, fileStartTime, errorMessage);
+            }
 
             try
             {
@@ -1665,7 +1968,9 @@ public class MigrationService : IMigrationService
                                 record.Id, MigrationStatus.Failed, record.FileUpBlocksMigrated));
                         }
 
-                        result.AddFailure(record.Filename, $"Required rollback file not found: {rollbackFilename}");
+                        ReportRollbackFileCompleted(FileOutcome.RollbackFailed, $"Required rollback file not found: {rollbackFilename}");
+
+                        result.AddFailure(record.Filename, $"Required rollback file not found: {rollbackFilename}", record.TargetAlias, record.Id);
                         result.ErrorMessage = $"Rollback chain aborted: required rollback file missing for {record.Filename}";
                         return result;
                     }
@@ -1687,6 +1992,7 @@ public class MigrationService : IMigrationService
                                     "Rollback stopped (StopRollbackOnMissingRollbackFile=true) | Product: {Product} | Env: {Environment} | Release: {Release} | TargetGroup: {TargetGroup} | Target: {Target} | File: {Filename} | MigrationRecordId: {MigrationRecordId} | Searched: {RollbackPath}",
                                     productOptions.Alias, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, record.ReleaseVersion, record.TargetGroupAlias, record.TargetAlias, record.Filename, record.Id, rollbackRelativePath);
 
+                                ReportRollbackFileCompleted(FileOutcome.Skipped, $"Rollback stopped: rollback file not found: {rollbackFilename}");
                                 result.AddWarning(record.Filename, $"Rollback stopped: rollback file not found: {rollbackFilename}");
                                 return result;
                             }
@@ -1698,6 +2004,7 @@ public class MigrationService : IMigrationService
                     }
 
                     // Don't update status — keep original (Migrated for successful migrations, Failed for failed ones)
+                    ReportRollbackFileCompleted(FileOutcome.Skipped, $"Rollback file not found: {rollbackFilename}");
                     result.AddWarning(record.Filename, $"Rollback file not found: {rollbackFilename}");
                     result.SuccessCount++;
                     continue;
@@ -1743,6 +2050,8 @@ public class MigrationService : IMigrationService
                         rollbackFileInfo.FileUpBlocksTotal,
                         rollbackFileInfo.FileUpConfigJson));
                 }
+
+                ReportRollbackFileStarted(rollbackFileInfo.FileUpBlocksTotal, record.FileDownBlocksMigrated ?? 0);
 
                 // Execute rollback SQL blocks
                 bool fileHadBlockError = false;
@@ -1811,7 +2120,7 @@ public class MigrationService : IMigrationService
                             try
                             {
                                 await ExecuteRollbackBlocksAtomic(
-                                    rollbackFileInfo, targetDal!, dalSettings, record, runMode, rollbackStartBlock);
+                                    rollbackFileInfo, targetDal!, dalSettings, record, runMode, rollbackStartBlock, RollbackOperation(isErrorRecovery));
                                 atomicRollbackDone = true;
                             }
                             catch (Exception blockEx)
@@ -1835,7 +2144,9 @@ public class MigrationService : IMigrationService
                                         rollbackFileInfo.FileUpConfigJson));
                                 }
 
-                                result.AddFailure(record.Filename, $"Atomic rollback failed: {blockEx.Message}");
+                                ReportRollbackFileCompleted(FileOutcome.RollbackFailed, $"Atomic rollback failed: {blockEx.Message}");
+
+                                result.AddFailure(record.Filename, $"Atomic rollback failed: {blockEx.Message}", record.TargetAlias, record.Id);
                                 result.ErrorMessage = $"Rollback chain aborted: atomic rollback of {record.Filename} failed";
 
                                 return result;
@@ -1870,6 +2181,7 @@ public class MigrationService : IMigrationService
                                         blockIndex + 1,
                                         rollbackFileInfo.FileUpBlocksTotal,
                                         rollbackFileInfo.FileUpConfigJson));
+                                    ReportBlockCompleted(RollbackOperation(isErrorRecovery), record, rollbackFileInfo.FileUpBlocksTotal, blockIndex + 1, true, null);
                                 }
                                 catch (Exception blockEx)
                                 {
@@ -1890,7 +2202,9 @@ public class MigrationService : IMigrationService
                                             rollbackFileInfo.FileUpBlocksTotal,
                                             rollbackFileInfo.FileUpConfigJson));
 
-                                        result.AddFailure(record.Filename, $"Rollback block {blockIndex + 1} failed: {blockEx.Message}");
+                                        ReportRollbackFileCompleted(FileOutcome.RollbackFailed, $"Rollback block {blockIndex + 1} failed: {blockEx.Message}");
+
+                                        result.AddFailure(record.Filename, $"Rollback block {blockIndex + 1} failed: {blockEx.Message}", record.TargetAlias, record.Id);
                                         result.ErrorMessage = $"Rollback chain aborted: block {blockIndex + 1} of {record.Filename} failed";
 
                                         // Abort the entire rollback chain
@@ -1902,6 +2216,7 @@ public class MigrationService : IMigrationService
                                         "Rollback block {Block}/{Total} failed for migration {MigrationRecordId} ({Filename}). RollbackErrorAction=Ignore — skipping block, continuing rollback.",
                                         blockIndex + 1, rollbackFileInfo.FileUpBlocksTotal, record.Id, record.Filename);
 
+                                    ReportBlockCompleted(RollbackOperation(isErrorRecovery), record, rollbackFileInfo.FileUpBlocksTotal, blockIndex + 1, false, blockEx.Message);
                                     fileHadBlockError = true;
                                 }
                             }
@@ -1952,11 +2267,16 @@ public class MigrationService : IMigrationService
                     result.SuccessCount++;
                 }
 
+                ReportRollbackFileCompleted(fileHadBlockError ? FileOutcome.RollbackFailed : FileOutcome.RolledBack,
+                    fileHadBlockError ? "Rollback completed with errors (some blocks failed, RollbackErrorAction=Ignore)" : null);
+
                 result.FileResults.Add(new MigrationFileResult
                 {
                     FileName = record.Filename,
                     ReleaseVersion = record.ReleaseVersion,
                     TargetGroup = record.TargetGroupAlias,
+                    TargetAlias = record.TargetAlias,
+                    MigrationRecordId = record.Id,
                     Success = !fileHadBlockError,
                     ExecutedAt = fileStartTime,
                     Duration = DateTime.UtcNow - fileStartTime
@@ -1973,7 +2293,9 @@ public class MigrationService : IMigrationService
                     "CRITICAL: Rollback failed for migration {MigrationRecordId} ({Filename}). Rollback chain ABORTED.",
                     record.Id, record.Filename);
 
-                result.AddFailure(record.Filename, ex.Message);
+                ReportRollbackFileCompleted(FileOutcome.RollbackFailed, ex.Message);
+
+                result.AddFailure(record.Filename, ex.Message, record.TargetAlias, record.Id);
                 result.ErrorMessage = $"Rollback chain aborted at {record.Filename}: {ex.Message}";
 
                 // Abort the entire rollback chain
@@ -2376,7 +2698,7 @@ public class MigrationService : IMigrationService
 
         // Extract release version and target group from path (moved up — needed for ShouldSkipBlockSplitting)
         relativePath.GetReleaseVersionAndTargetGroupAlias(
-            _options.Value, _ctxAccessor.Current.RayMigratorConsoleOptions.Product,
+            _ctxAccessor.Current.RayMigratorOptions, _ctxAccessor.Current.RayMigratorConsoleOptions.Product,
             out string releaseVersion, out string targetGroupAlias);
 
         // Skip block splitting when CLI tool execution is configured.
@@ -2625,7 +2947,7 @@ public class MigrationService : IMigrationService
     /// Builds a JSON snapshot of all RayMigrator settings at migration start.
     /// Connection strings are masked via SensitiveDataMasker.Mask() (respects RevealSensitiveData).
     /// </summary>
-    internal static string BuildMigrationRunSettingsJson(MigrationContext ctx)
+    internal static string BuildMigrationRunSettingsJson(MigrationContext ctx, bool? allowOutOfOrder = null)
     {
         var consoleOpts = ctx.RayMigratorConsoleOptions;
         var rayOpts = ctx.RayMigratorOptions;
@@ -2644,7 +2966,7 @@ public class MigrationService : IMigrationService
                 ["HashValidationScope"] = consoleOpts.HashValidationScope?.ToString(),
                 ["ShowStartupInfo"] = consoleOpts.ShowStartupInfo,
                 ["RevealSensitiveData"] = consoleOpts.RevealSensitiveData,
-                ["AllowOutOfOrder"] = consoleOpts.AllowOutOfOrder,
+                ["AllowOutOfOrder"] = allowOutOfOrder ?? consoleOpts.AllowOutOfOrder,
                 ["FixScope"] = consoleOpts.FixScope?.ToString()
             },
             ["Repository"] = new Dictionary<string, object?>
@@ -2763,7 +3085,7 @@ public class MigrationService : IMigrationService
         try
         {
             relativePath.GetReleaseVersionAndTargetGroupAlias(
-                _options.Value, _ctxAccessor.Current.RayMigratorConsoleOptions.Product,
+                _ctxAccessor.Current.RayMigratorOptions, _ctxAccessor.Current.RayMigratorConsoleOptions.Product,
                 out _, out string targetGroupAlias);
 
             var targetGroup = productOptions.TargetGroups!
@@ -2804,7 +3126,7 @@ public class MigrationService : IMigrationService
     /// </summary>
     private CliToolOptions GetCliToolByAlias(string alias)
     {
-        var cliTools = _options.Value.CliTools;
+        var cliTools = _ctxAccessor.Current.RayMigratorOptions.CliTools;
         if (cliTools == null || cliTools.Count == 0)
         {
             throw new ConfigurationValidationException(
@@ -2887,7 +3209,7 @@ public class MigrationService : IMigrationService
         string? fileContent = null;
         if (cliToolOptions.InputModeEnum == CliToolInputMode.Stdin)
         {
-            var productOptions = _options.Value.Products!.First(p => p.Alias == _ctxAccessor.Current.RayMigratorConsoleOptions.Product);
+            var productOptions = _ctxAccessor.Current.RayMigratorOptions.Products!.First(p => p.Alias == _ctxAccessor.Current.RayMigratorConsoleOptions.Product);
             fileContent = ReadMigrationText(file.FullPath, GetFileEncoding(productOptions.MigrationFilesEncoding),
                 productOptions.MigrationFilesEncoding ?? "UTF-8", file.FilenameWithRelativePath,
                 $"Check MigrationFilesEncoding for product [{productOptions.Alias}] or re-save the file in the configured encoding.");
@@ -2975,6 +3297,7 @@ public class MigrationService : IMigrationService
                 }
 
                 succeededBlocks++;
+                ReportBlockCompleted(MigrationOperation.MigrateUp, file, targetOptions.Alias!, migrationRecordId, i + 1, success: true);
             }
             return (succeededBlocks, failedBlocks, false);
         }
@@ -3014,6 +3337,8 @@ public class MigrationService : IMigrationService
             string sqlBlock = ReplaceEnvironmentVariablesInSqlBlock(
                 file.SqlBlocks[blockIndex], file.Filename, blockIndex + 1, file.FileUpBlocksTotal);
             _ctxAccessor.Current.MigrationState.FileBlockId = blockIndex + 1;
+            bool blockSucceeded = true;
+            string? blockError = null;
 
             _logger.LogDebug("Executing block {Block}/{Total} from {Filename} against target {Target}",
                 blockIndex + 1, file.FileUpBlocksTotal, file.Filename, targetOptions.Alias);
@@ -3033,6 +3358,8 @@ public class MigrationService : IMigrationService
                 catch (Exception blockEx)
                 {
                     failedBlocks++;
+                    blockSucceeded = false;
+                    blockError = blockEx.Message;
                     _logger.LogWarning(blockEx,
                         "MigrationErrorAction=Ignore: Block {Block}/{Total} from {Filename} failed on target {Target}. Continuing with next block.",
                         blockIndex + 1, file.FileUpBlocksTotal, file.Filename, targetOptions.Alias);
@@ -3048,6 +3375,7 @@ public class MigrationService : IMigrationService
             // Update block progress in repository
             await Task.Run(() => _templateExecutor.RepositoryMigrationUpdate(
                 migrationRecordId, MigrationStatus.Executing, blockIndex + 1));
+            ReportBlockCompleted(MigrationOperation.MigrateUp, file, targetOptions.Alias!, migrationRecordId, blockIndex + 1, blockSucceeded, blockError);
         }
 
         return (succeededBlocks, failedBlocks, false);
@@ -3081,6 +3409,8 @@ public class MigrationService : IMigrationService
         while (true)
         {
             int succeededBlocks = 0;
+            // Block events are raised after the commit: a transient error rolls the whole batch back and retries it.
+            var committedBlocks = new List<int>();
 
             await using var connection = targetDal.CreateConnection();
             await connection.OpenAsync();
@@ -3110,6 +3440,7 @@ public class MigrationService : IMigrationService
                     _templateExecutor.RepositoryMigrationUpdate(
                         migrationRecordId, MigrationStatus.Executing, blockIndex + 1,
                         connection, transaction, repoTimeout);
+                    committedBlocks.Add(blockIndex + 1);
                 }
 
                 // Final status update INSIDE the transaction (this is what closes the atomicity gap)
@@ -3122,6 +3453,11 @@ public class MigrationService : IMigrationService
 
                 await transaction.CommitAsync();
                 _ctxAccessor.Current.MigrationState.FileBlocksCommitted = file.FileUpBlocksTotal;
+                foreach (int blockNumber in committedBlocks)
+                {
+                    ReportBlockCompleted(MigrationOperation.MigrateUp, file, _ctxAccessor.Current.MigrationState.TargetAlias, migrationRecordId, blockNumber, success: true);
+                }
+
                 return (succeededBlocks, 0, true);
             }
             catch (Exception ex)
@@ -3155,7 +3491,8 @@ public class MigrationService : IMigrationService
         DalSettings dalSettings,
         MigrationRecord record,
         MigrationRunMode runMode,
-        int rollbackStartBlock)
+        int rollbackStartBlock,
+        MigrationOperation operation)
     {
         int repoTimeout = (int)_ctxAccessor.Current.RayMigratorOptions.Repository!.DbCommandTimeoutInSeconds!;
         int maxRetries = dalSettings.MaxRetries;
@@ -3167,6 +3504,9 @@ public class MigrationService : IMigrationService
 
         while (true)
         {
+            // Block events are raised after the commit: a transient error rolls the whole batch back and retries it.
+            var committedBlocks = new List<int>();
+
             await using var connection = targetDal.CreateConnection();
             await connection.OpenAsync();
             await using var transaction = await connection.BeginTransactionAsync();
@@ -3201,6 +3541,7 @@ public class MigrationService : IMigrationService
                         rollbackFileInfo.FileUpBlocksTotal,
                         rollbackFileInfo.FileUpConfigJson,
                         connection, transaction, repoTimeout);
+                    committedBlocks.Add(blockIndex + 1);
                 }
 
                 // Final status update INSIDE the transaction (this is what closes the atomicity gap)
@@ -3219,6 +3560,11 @@ public class MigrationService : IMigrationService
                 }
 
                 await transaction.CommitAsync();
+                foreach (int blockNumber in committedBlocks)
+                {
+                    ReportBlockCompleted(operation, record, rollbackFileInfo.FileUpBlocksTotal, blockNumber, true, null);
+                }
+
                 return;
             }
             catch (Exception ex)
@@ -3528,6 +3874,18 @@ public class MigrationService : IMigrationService
     }
 
     /// <summary>
+    /// The highest release (ordinal, case-insensitive) among the Migrated records, or null when none is migrated.
+    /// This is the "current release" of a product and environment: the Info command reports it, the out-of-order
+    /// check quotes it, and every run stamps it into <c>MigrationRun.FromReleaseVersion</c>.
+    /// </summary>
+    internal static string? GetHighestMigratedRelease(IEnumerable<MigrationRecord> records)
+        => records
+            .Where(r => r.MigrationStatusId == MigrationStatus.Migrated)
+            .OrderByDescending(r => r.ReleaseVersion, StringComparer.OrdinalIgnoreCase)
+            .Select(r => r.ReleaseVersion)
+            .FirstOrDefault();
+
+    /// <summary>
     /// Attempts to insert a MigrationRun, auto-fixing orphaned runs if a parallel-run lock is detected.
     /// When RepositoryMigrationRunInsert fails with MigrationAlreadyRunningException, this method
     /// checks for orphaned runs older than AutoFixOrphanedRunsThresholdMinutes and fixes them
@@ -3535,6 +3893,11 @@ public class MigrationService : IMigrationService
     /// </summary>
     internal async Task RepositoryMigrationRunInsertWithAutoFix(string settingsJson)
     {
+        // The release the run starts from: a dedicated read, because the run row is also the run lock and the
+        // reads that drive the run itself must happen after it.
+        var recordsBeforeRun = await Task.Run(() => _templateExecutor.RepositoryMigrationSelect());
+        _ctxAccessor.Current.MigrationState.FromReleaseVersion = GetHighestMigratedRelease(recordsBeforeRun);
+
         try
         {
             await Task.Run(() => _templateExecutor.RepositoryMigrationRunInsert(settingsJson));
@@ -4579,7 +4942,7 @@ public class MigrationService : IMigrationService
             bool repositoryHasProduct = await InitializeRepositoryAsync();
 
             // --- Phase 2: File Discovery ---
-            var productOptions = _options.Value.Products!.First(p => p.Alias == request.ProductAlias);
+            var productOptions = _ctxAccessor.Current.RayMigratorOptions.Products!.First(p => p.Alias == request.ProductAlias);
             var migrationFiles = DiscoverAndPrepareMigrationFiles(
                 productOptions, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment);
 
@@ -4758,7 +5121,7 @@ public class MigrationService : IMigrationService
             await InitializeRepositoryAsync();
 
             // --- Phase 2: File Discovery ---
-            var productOptions = _options.Value.Products!.First(p => p.Alias == request.ProductAlias);
+            var productOptions = _ctxAccessor.Current.RayMigratorOptions.Products!.First(p => p.Alias == request.ProductAlias);
             var migrationFiles = DiscoverAndPrepareMigrationFiles(
                 productOptions, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment);
 
@@ -4883,7 +5246,7 @@ public class MigrationService : IMigrationService
                 : new List<MigrationRecord>();
 
             // --- Phase 3: File discovery ---
-            var productOptions = _options.Value.Products!.First(p => p.Alias == productAlias);
+            var productOptions = _ctxAccessor.Current.RayMigratorOptions.Products!.First(p => p.Alias == productAlias);
             var migrationFiles = DiscoverAndPrepareMigrationFiles(
                 productOptions, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment);
 
@@ -4893,10 +5256,7 @@ public class MigrationService : IMigrationService
                 .ToList();
 
             // Determine current release (highest release version among migrated records)
-            string currentRelease = migratedRecords
-                .OrderByDescending(r => r.ReleaseVersion, StringComparer.OrdinalIgnoreCase)
-                .Select(r => r.ReleaseVersion)
-                .FirstOrDefault() ?? "None";
+            string currentRelease = GetHighestMigratedRelease(existingRecords) ?? "None";
 
             // Count pending migrations: (file, target) pairs that are not yet successfully migrated.
             // Evaluated per target like migrate-up does, so a target that failed while another
@@ -4968,6 +5328,7 @@ public class MigrationService : IMigrationService
             return new MigrationStatusInfo
             {
                 ProductAlias = productAlias,
+                Environment = _ctxAccessor.Current.RayMigratorConsoleOptions.Environment,
                 CurrentRelease = currentRelease,
                 LastMigrationDate = lastMigrationDate,
                 TotalMigrationsExecuted = migratedRecords.Count,
@@ -5019,7 +5380,8 @@ public class MigrationService : IMigrationService
                 DateTime? finishedAt = row["FinishedAt"] != null && row["FinishedAt"] != DBNull.Value
                     ? Convert.ToDateTime(row["FinishedAt"])
                     : null;
-                string? toRelease = row["ToReleaseVersion"]?.ToString();
+                string? fromRelease = row["FromReleaseVersion"] as string;
+                string? toRelease = row["ToReleaseVersion"] as string;
 
                 var runHistory = historyByRun.TryGetValue(runId, out var h) ? h : Array.Empty<MigrationRecord>();
                 var (totalMigrations, successfulMigrations, failedMigrations, operation) = SummarizeRun(runHistory);
@@ -5027,7 +5389,8 @@ public class MigrationService : IMigrationService
                 runs.Add(new MigrationRunInfo
                 {
                     MigrationRunId = runId,
-                    RunId = Guid.Empty, // MigrationRun uses INT Id, not Guid
+                    Environment = _ctxAccessor.Current.RayMigratorConsoleOptions.Environment,
+                    FromRelease = fromRelease,
                     StartedAt = startedAt,
                     CompletedAt = finishedAt,
                     Operation = operation,
@@ -5046,6 +5409,7 @@ public class MigrationService : IMigrationService
             return new MigrationHistory
             {
                 ProductAlias = productAlias,
+                Environment = _ctxAccessor.Current.RayMigratorConsoleOptions.Environment,
                 Runs = runs
             };
         }
@@ -5277,13 +5641,15 @@ public class MigrationService : IMigrationService
             Messages.Add($"WARNING [{filename}]: {message}");
         }
 
-        public void AddFailure(string filename, string message)
+        public void AddFailure(string filename, string message, string? targetAlias = null, int migrationRecordId = 0)
         {
             FailCount++;
             Messages.Add($"ERROR [{filename}]: {message}");
             FileResults.Add(new MigrationFileResult
             {
                 FileName = filename,
+                TargetAlias = targetAlias,
+                MigrationRecordId = migrationRecordId,
                 Success = false,
                 ErrorMessage = message,
                 ExecutedAt = DateTime.UtcNow

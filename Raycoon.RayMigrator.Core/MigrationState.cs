@@ -33,6 +33,12 @@ public class MigrationState
     /// </summary>
     public int FileBlocksCommitted { get; set; }
 
+    /// <summary>
+    /// The highest release (ordinal, case-insensitive) among the Migrated records of the product and environment
+    /// when the run started, or null when nothing was migrated yet. Stamped into <c>MigrationRun.FromReleaseVersion</c>.
+    /// </summary>
+    public string? FromReleaseVersion { get; set; }
+
     // Migration Process: Step / Result
     public MigrationRunResult MigrationRunResult { get; set; }
     public MigrationOperation MigrationOperation { get; set; }

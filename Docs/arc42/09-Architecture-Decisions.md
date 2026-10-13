@@ -33,6 +33,7 @@ followed the same day by the commit tagged `v0.10.3`; a decision already present
 | ADR-020 | Error handling strategies with rollback files and run results | Accepted (refined 0.13.0, 0.14.0) | <= 0.10.3 | [Rollback Strategies](08-Crosscutting-Concepts.md#rollback-strategies) |
 | ADR-021 | Configuration arrays merge by alias in every application | Accepted (0.15.0, #23) | 2026-09-23 | [Configuration Inheritance with Validation](08-Crosscutting-Concepts.md#configuration-inheritance-with-validation) |
 | ADR-022 | Transient error codes ship as an editable file per DAL folder | Accepted (0.16.0, #24) | 2026-10-10 | [Retry on Transient Errors](08-Crosscutting-Concepts.md#retry-on-transient-errors), [DAL Abstraction and plugin discovery](08-Crosscutting-Concepts.md#dal-abstraction-and-plugin-discovery) |
+| ADR-023 | The context factory is the hosting seam: one prepared, activated context per run, and typed progress events | Accepted (unreleased) | 2026-10-12 | [Dependency injection and the context pattern](08-Crosscutting-Concepts.md#dependency-injection-and-the-context-pattern) |
 
 ## ADRs
 
@@ -124,7 +125,7 @@ a rebuild.
 `TemplateType` (21 besides `Undefined`), loaded by `TemplateCache` at startup and executed by `TemplateExecutor`. Every template
 returns one scalar `ResultCode,ResultMessage`; negative codes map to the `TemplateResultCode` catalog and raise
 `TemplateResultException`. Placeholders are `{ENV:*}` (once, at load), `{CFG:*}` (per call, `SchemaName` and `TableBaseName` only)
-and `@Parameter` bindings; `TemplateCache` checks completeness at startup; `validateConfiguration = false` only skips the check that every configured `DatabaseType` has a template folder.
+and `@Parameter` bindings; `TemplateCache` checks completeness at startup, and `ValidateConfigurationAgainstTemplateCache` checks per configuration that every configured `DatabaseType` has a template folder.
 
 **Consequences.** Positive: no ORM, engine specific locking primitives (`UPDLOCK, HOLDLOCK`, `pg_advisory_xact_lock`, `GET_LOCK`)
 live in SQL where they belong, and a DBA can customize a template. Negative: 21 templates times five engines to keep in sync, a
@@ -466,3 +467,15 @@ the file with the built-in list (rejected, because a built-in code could then ne
 
 - [Solution Strategy](04-Solution-Strategy.md), [Crosscutting Concepts](08-Crosscutting-Concepts.md), [Risks and Technical Debt](11-Risks-and-Technical-Debt.md)
 - [Design decisions](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/01-architecture/design-decisions.md), [Architectural patterns](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/01-architecture/patterns.md), [Changelog](https://github.com/RAYCOON/RayMigrator/blob/main/CHANGELOG.md), [License change dates](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/license-change-dates.md)
+
+### ADR-023: The context factory is the hosting seam: one prepared, activated context per run, and typed progress events
+
+**Context.** RayMigrator Studio hosts the engine in one long-running process and runs one migration per request with options it builds in memory. Until 0.16.0 the engine was hostable only on paper: `MigrationService` read the products and the CLI tools from `IOptions<RayMigratorOptions>` while the repository settings came from the `MigrationContext`, so a context built from other options failed with "Sequence contains no matching element"; `IMigrationContextFactory` existed but no production code used it, and the pipeline and the engine test host repeated the post-build steps (DAL properties, schema names, logging context) by hand; pre-built options skipped the defaults merge, the data annotations and the rule catalog, so null timeouts failed later with an `InvalidOperationException`; and the only progress signal was log text without event ids.
+
+**Decision.** `IMigrationContextFactory` (implemented in `Services`, registered by `AddRayMigratorServices`) is the entry point of every host for one run. `Create` prepares in-memory options with `RayMigratorOptionsPreparer` (placeholders, defaults, enum probe, data annotations, rule catalog) and `CreateFromValidatedOptions` skips the preparation for the CLI; both fill the DAL properties, check the schema names, register the secrets with the masker and make the context current for the calling async flow. `MigrationService` reads everything from the context; `TemplateCache` takes no options and is validated per configuration. The run operations raise typed events through `MigrationContext.ProgressObserver` (`IMigrationProgressObserver`: run, file on target, block, with ids and outcomes), and refuse a request whose run mode or target release differs from the context. The result DTOs name the repository run (`MigrationRunId`) and the target; history and status are per environment. The accessor is a singleton in both host modes.
+
+**Consequences.** Positive: a host runs the engine with one factory call per run and no options registration; the CLI and a host take the same path, so the engine test host lost its duplicated steps; progress is observable without parsing log text; a run row records the release it started from. Negative: breaking changes to the service constructor, the factory signature, `TemplateCache`, the result DTOs and the `Repository_MigrationRun_Select` template (allowed by ADR-016); `DirectModePipeline` remains CLI-shaped (static `Log.Logger`, console output, exit code) and is not the host path; the observer is called synchronously on the thread of the run, so a slow observer slows the run.
+
+**Alternatives considered.** Keeping `IOptions` and registering one container per configuration in the host (rejected: every run would build a container, and the two option sources could still diverge). Reporting progress through a Serilog sink only (rejected: the per-file message has no event id and changes with the wording). Raising the run-started event before the run row exists (rejected: a host needs the run id to correlate the live run with the repository).
+
+**References.** `Raycoon.RayMigrator.Core/IMigrationContextFactory.cs`, `Raycoon.RayMigrator.Services/MigrationContextFactory.cs`, `Raycoon.RayMigrator.Core/Configuration/Validation/RayMigratorOptionsPreparer.cs`, `Raycoon.RayMigrator.Core/Progress/`, [MigrationContext: Hosting the engine in-process](../02-core-concepts/migration-context.md#hosting-the-engine-in-process), `CHANGELOG.md` (Unreleased).

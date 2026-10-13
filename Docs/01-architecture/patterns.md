@@ -178,15 +178,14 @@ public class TemplateExecutor
 }
 ```
 
-The `TemplateCache` (in `Raycoon.RayMigrator.Core.Templates`) loads and caches all SQL templates at startup. It supports deferred validation via the `validateConfiguration` parameter, which is set to `false` when Products configuration is not yet available at cache initialization:
+The `TemplateCache` (in `Raycoon.RayMigrator.Core.Templates`) loads and caches all SQL templates once per process. It takes no options: the host validates each configuration it runs against the cache explicitly, so one cache serves many configurations:
 
 ```csharp
 public class TemplateCache
 {
-    public TemplateCache(IOptions<RayMigratorOptions>? options, bool revealSensitiveData,
-        ILogger<TemplateCache> logger, bool validateConfiguration = true) { /* ... */ }
+    public TemplateCache(bool revealSensitiveData, ILogger<TemplateCache> logger) { /* ... */ }
 
-    // Called on-demand when configuration becomes available
+    // Called by the host for every configuration it runs (the CLI pipeline once, after the options are bound)
     public void ValidateConfigurationAgainstTemplateCache(RayMigratorOptions options) { /* ... */ }
 
     // Returns all loaded DAL types (e.g. "SqlServer", "PostgreSQL", "MariaDb", "MySql", "Sqlite")
@@ -515,7 +514,7 @@ public abstract class OperationResult
 
 public class MigrationOperationResult : OperationResult
 {
-    public Guid RunId { get; set; }
+    public int MigrationRunId { get; set; }   // MigrationRun.Id; 0 when the run mode writes no run row
     public string ProductAlias { get; set; } = string.Empty;
     public string Environment { get; set; } = string.Empty;
     public MigrationOperation Operation { get; set; }

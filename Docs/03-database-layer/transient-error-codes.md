@@ -36,7 +36,7 @@ Every DAL retries a database command when the provider reports an error it class
 - **Missing file.** The DAL keeps its built-in list (`DalBase.DefaultTransientErrorCodes`). Delete the file to return to the defaults.
 - **Empty file.** An existing file without codes means that no database error is retried; RayMigrator logs a Warning at start.
 - **When it is read.** `DalFactory` reads the file once when it creates the DAL instance, i.e. at application start. A change needs a restart.
-- **Logging.** `DirectModePipeline` logs the source once per DatabaseType: Information when the file was loaded (the full path only with `--reveal-sensitive-data`), Debug for the built-in list, Warning when the effective list is empty.
+- **Logging.** `MigrationContextFactory` logs the source once per DatabaseType when it fills the DAL properties of a context: Information when the file was loaded (the full path only with `--reveal-sensitive-data`), Debug for the built-in list, Warning when the effective list is empty.
 - **Upgrades.** Every publish or upgrade overwrites `DataAccessLayers/`, so edits must be re-applied after an update, exactly like edited SQL templates.
 
 ## Built-in lists

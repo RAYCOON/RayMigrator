@@ -217,7 +217,7 @@ public class TemplateExecutor
         dalParameterList.AddParameter(new DalParameter("MigrationRunModeId", (byte) _ctxAccessor.Current.RayMigratorConsoleOptions.RunMode, typeof(byte)));
         dalParameterList.AddParameter(new DalParameter("MigratorMetaId", _ctxAccessor.Current.MigrationState.MigratorMetaId, typeof(int)));
         dalParameterList.AddParameter(new DalParameter("MigrationRunResultId", (byte) _ctxAccessor.Current.MigrationState.MigrationRunResult, typeof(byte)));
-        dalParameterList.AddParameter(new DalParameter("FromReleaseVersion", "FromReleaseVersion", typeof(string)));
+        dalParameterList.AddParameter(new DalParameter("FromReleaseVersion", _ctxAccessor.Current.MigrationState.FromReleaseVersion, typeof(string)));
         dalParameterList.AddParameter(new DalParameter("ToReleaseVersion", _ctxAccessor.Current.RayMigratorConsoleOptions.TargetReleaseVersion, typeof(string)));
         dalParameterList.AddParameter(new DalParameter("MigrationRunSettingsJson", migrationRunSettingsJson, typeof(string)));
 
@@ -774,11 +774,12 @@ public class TemplateExecutor
         var templateType = TemplateType.Repository_MigrationRun_Select;
         var eventId = MigrationEvent.TemplateExecutionRepositoryMigrationRunSelect;
 
-        _logger.LogDebug(eventId, "Selecting MigrationRun records for product {ProductId} with limit {Limit}{MigrationContext}",
-            _ctxAccessor.Current.MigrationState.ProductId, limit, _ctxAccessor.Current.Clone);
+        _logger.LogDebug(eventId, "Selecting MigrationRun records for product {ProductId} and environment {EnvironmentId} with limit {Limit}{MigrationContext}",
+            _ctxAccessor.Current.MigrationState.ProductId, _ctxAccessor.Current.MigrationState.EnvironmentId, limit, _ctxAccessor.Current.Clone);
 
         DalParameterList dalParameterList = new DalParameterList();
         dalParameterList.AddParameter(new DalParameter("ProductId", _ctxAccessor.Current.MigrationState.ProductId, typeof(int)));
+        dalParameterList.AddParameter(new DalParameter("EnvironmentId", _ctxAccessor.Current.MigrationState.EnvironmentId, typeof(int)));
         dalParameterList.AddParameter(new DalParameter("Limit", limit, typeof(int)));
 
         var template = _templateCache.GetRepositoryTemplate(templateType, _repository);

@@ -232,4 +232,23 @@ public class MigrationRunMetaTests : PostgreSqlTestBase
         }
     }
 
+    [Fact]
+    public async Task FromReleaseVersion_IsTheHighestMigratedReleaseWhenTheRunStarted()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        await using var ctx = await CreateScenario().BuildAsync();
+
+        // The run row stamps ToReleaseVersion from the context, so the host is rebuilt for each target release.
+        await ctx.RebuildForAsync(MigrationCommand.MigrateUp, MigrationRunMode.Migrate, "Release_2.0");
+        await ctx.MigrateUpAsync("Release_2.0");
+        ctx.AssertSuccess(true);
+        await ctx.RebuildForAsync(MigrationCommand.MigrateUp, MigrationRunMode.Migrate);
+        await ctx.MigrateUpAsync();
+        ctx.AssertSuccess(true);
+
+        ctx.AssertRunCount(2);
+        ctx.GetMigrationRun(1)!.FromReleaseVersion.Should().BeNull("nothing was migrated before the first run");
+        ctx.AssertMigrationRun(1, new MigrationRunExpectation { ToReleaseVersion = "Release_2.0" });
+        ctx.AssertMigrationRun(2, new MigrationRunExpectation { FromReleaseVersion = "Release_2.0" });
+    }
 }

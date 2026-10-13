@@ -26,7 +26,11 @@ public abstract class OperationResult
 /// </summary>
 public class MigrationOperationResult : OperationResult
 {
-    public Guid RunId { get; set; }
+    /// <summary>
+    /// The repository id of the run row (<c>MigrationRun.Id</c>), or 0 when the run mode writes no run row
+    /// (Simulate, Validate) or the run failed before the row was inserted.
+    /// </summary>
+    public int MigrationRunId { get; set; }
     public string ProductAlias { get; set; } = string.Empty;
     public string Environment { get; set; } = string.Empty;
     public MigrationOperation Operation { get; set; }
@@ -46,6 +50,17 @@ public class MigrationFileResult
     public string FileName { get; set; } = string.Empty;
     public string ReleaseVersion { get; set; } = string.Empty;
     public string TargetGroup { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The target the entry belongs to. Null when the entry summarizes all targets of the group, which is how
+    /// FileByFile order reports a file that succeeded (one entry per file); TargetByTarget order, failures and
+    /// rollbacks report the target.
+    /// </summary>
+    public string? TargetAlias { get; set; }
+
+    /// <summary>The repository record of the file on the target, or 0 when none exists or applies.</summary>
+    public int MigrationRecordId { get; set; }
+
     public bool Success { get; set; }
     public string? ErrorMessage { get; set; }
     public DateTime ExecutedAt { get; set; }
@@ -98,8 +113,16 @@ public class HashUpdateResult : OperationResult
 public class BaselineResult : OperationResult
 {
     public string ProductAlias { get; set; } = string.Empty;
+    public string Environment { get; set; } = string.Empty;
+
+    /// <summary>The repository id of the run row (<c>MigrationRun.Id</c>), or 0 when the run failed before it was inserted.</summary>
+    public int MigrationRunId { get; set; }
     public string? TargetReleaseVersion { get; set; }
+    /// <summary>Files recorded per release and target group, whether or not every target still needed them.</summary>
     public int BaselinedFiles { get; set; }
+
+    /// <summary>Records written: one per file and target that was pending. Also set when the baseline failed midway.</summary>
+    public int BaselinedRecords { get; set; }
 }
 
 /// <summary>
@@ -108,6 +131,7 @@ public class BaselineResult : OperationResult
 public class MigrationStatusInfo
 {
     public string ProductAlias { get; set; } = string.Empty;
+    public string Environment { get; set; } = string.Empty;
     public string CurrentRelease { get; set; } = string.Empty;
     public DateTime? LastMigrationDate { get; set; }
     public int TotalMigrationsExecuted { get; set; }
@@ -135,6 +159,7 @@ public class TargetGroupStatus
 public class MigrationHistory
 {
     public string ProductAlias { get; set; } = string.Empty;
+    public string Environment { get; set; } = string.Empty;
     public List<MigrationRunInfo> Runs { get; set; } = new List<MigrationRunInfo>();
 }
 
@@ -143,17 +168,20 @@ public class MigrationHistory
 /// </summary>
 public class MigrationRunInfo
 {
+    /// <summary>The repository id of the run row (<c>MigrationRun.Id</c>).</summary>
     public int MigrationRunId { get; set; }
-    public Guid RunId { get; set; }
+    public string Environment { get; set; } = string.Empty;
     public DateTime StartedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
     public MigrationOperation Operation { get; set; }
     public MigrationRunResult Result { get; set; }
     public MigrationRunMode RunMode { get; set; }
-    public string? InitiatedBy { get; set; }
     public int TotalMigrations { get; set; }
     public int SuccessfulMigrations { get; set; }
     public int FailedMigrations { get; set; }
+
+    /// <summary>The highest Migrated release when the run started; null for a first run.</summary>
+    public string? FromRelease { get; set; }
     public string? ToRelease { get; set; }
 }
 
