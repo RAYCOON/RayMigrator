@@ -173,6 +173,7 @@ Raycoon.RayMigrator.Tests.Unit/
 ├── P1_DalFactoryTests.cs
 ├── P1_DalIsTransientTests.cs
 ├── P1_DalParameterEscapingTests.cs
+├── P1_DalParameterSubstitutionTests.cs
 ├── P1_DalShippedTransientErrorCodesTests.cs
 ├── P1_DalSqlServerKilledSessionTests.cs
 ├── P1_DalSqliteForeignKeysTests.cs
@@ -279,7 +280,8 @@ Raycoon.RayMigrator.Tests.Unit/
 | `P1_DalCreateConnectionTests` | `DalCreateConnectionTests` | `DAL.CreateConnection` — each DAL returns the correct concrete ADO.NET connection type in a closed/unopened state; `DalExample` stubs throw `NotImplementedException` |
 | `P1_DalFactoryTests` | `DalFactoryTests` | `DalFactory` discovery, caching by connection string, error handling for unknown types, and `RegisteredDalTypes`/`ScanAssemblyForDals` |
 | `P1_DalIsTransientTests` | `DalIsTransientTests` | `DalBase.IsTransient` base implementation: `TimeoutException`, non-transient exceptions (including `OperationCanceledException`), and recursive inner-exception traversal |
-| `P1_DalParameterEscapingTests` | `DalParameterEscapingTests` | DAL parameter escaping for SQL injection prevention |
+| `P1_DalParameterEscapingTests` | `DalParameterEscapingTests` | `FormatParameterValue` of the PostgreSQL, MariaDB and MySQL DALs (quotes doubled; backslash kept on PostgreSQL, doubled on MariaDB/MySQL; booleans) and their `SubstituteParameters`, including the per-call `$rm…$` tag the PostgreSQL DAL gives every `DO $$` block |
+| `P1_DalParameterSubstitutionTests` | `DalParameterSubstitutionTests` | `DalParameterSubstitution.Substitute`, the single-pass substitution the four textual DALs share: a value containing another placeholder is not substituted again, whole-identifier matching (`@Product` vs `@ProductId`, `@@var`, `user@host`), case-sensitive names, session variables untouched |
 | `P1_DalShippedTransientErrorCodesTests` | `DalShippedTransientErrorCodesTests` | Drift guard: the `TransientErrorCodes.txt` each DAL ships in `DataAccessLayers/{Type}/` equals the built-in list of its `DalBase` subclass (ADR-022) |
 | `P1_DalSqlServerKilledSessionTests` | `DalSqlServerKilledSessionTests` | SQL Server classification of a killed pooled session: 4021 and 596 are transient and clear the connection pool (`RequiresPoolClear`), permanent login errors are not |
 | `P1_DalSqliteForeignKeysTests` | `DalSqliteForeignKeysTests` | `DalSqlite.EnsureForeignKeysEnabled` connection-string transformation (DAL-001): appends `Foreign Keys=True` when missing, preserves explicit values |

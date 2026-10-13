@@ -81,6 +81,20 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ### Fixed
 
+- The PostgreSQL, MySQL, MariaDB and SQLite DALs substitute template
+  parameters into the SQL text, because their providers cannot bind
+  parameters in the scripts the templates use. The substitution now scans
+  the text once and matches whole identifiers (`DalParameterSubstitution` in
+  `Raycoon.RayMigrator.Database.Common`): a value that itself contains
+  `@Name` is no longer substituted a second time, which corrupted the value
+  and, with a quote in the second value, broke out of the literal; and
+  `@Product` no longer touches `@ProductId`. The PostgreSQL DAL no longer
+  doubles backslashes, which stored `path\to` as `path\\to` because a
+  standard literal treats a backslash as an ordinary character, and it gives
+  every `DO $$` block a tag that is unique to the call, so a value that
+  contains `$$` can no longer end the block. This affects every free-text
+  value the repository stores, such as `MigrationLog.Message` and the
+  settings snapshot of a run.
 - `GetHistoryAsync` and `GetStatusAsync` read the runs of the requested
   environment only. `Repository_MigrationRun_Select` filtered by product
   alone, so the history listed the runs of every environment of the product

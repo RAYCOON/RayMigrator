@@ -287,28 +287,14 @@ public class DalMariaDb : DalBase, IDal
     }
 
     /// <summary>
-    /// Substitutes @paramName placeholders with actual values in the SQL text.
-    /// Required because MariaDB templates use session variables (@v_count, @dummy) alongside
-    /// command parameters (@ProductId, @Name). Manual substitution of command parameters
-    /// ensures they don't conflict with session variables.
+    /// Substitutes @paramName placeholders with literal values. The MariaDB templates use session variables
+    /// (@v_count, @dummy) next to command parameters (@ProductId, @Name), so the parameters cannot be bound
+    /// through the provider; the substitution leaves every identifier that is not a parameter alone.
+    /// See <see cref="DalParameterSubstitution"/> for the matching rules.
     /// </summary>
     internal static string SubstituteParameters(string sqlCode, DalParameterList dalParameterList)
     {
-        string result = sqlCode;
-
-        // Sort by name length descending to avoid partial matches (e.g., @ProductId before @Product)
-        var sortedParams = dalParameterList.GetAllParameters()
-            .OrderByDescending(p => p.Value.ParameterName.Length)
-            .ToList();
-
-        foreach (var param in sortedParams)
-        {
-            string placeholder = $"@{param.Value.ParameterName}";
-            string replacement = FormatParameterValue(param.Value);
-            result = result.Replace(placeholder, replacement);
-        }
-
-        return result;
+        return DalParameterSubstitution.Substitute(sqlCode, dalParameterList, FormatParameterValue);
     }
 
     internal static string FormatParameterValue(DalParameter param)
