@@ -722,7 +722,7 @@ public class RayMigratorOptionsValidatorTests
 
         // Assert
         report.Warnings.Should().Contain(w => w.Code == RuleIds.RULE_7_3,
-            because: "without the section as written the bound values are all the validator has (engine tests, Admin-DB mode)");
+            because: "without the section as written the bound values are all the validator has (engine tests, in-memory hosts)");
     }
 
     [Fact]

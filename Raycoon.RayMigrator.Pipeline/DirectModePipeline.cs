@@ -24,7 +24,7 @@ using Raycoon.RayMigrator.Core.Logging;
 namespace Raycoon.RayMigrator.Pipeline;
 
 /// <summary>
-/// Unified execution pipeline for Direct mode (both Standalone/JSON and Managed/Admin-DB).
+/// Execution pipeline of the CLI after the options have been loaded from the appsettings hierarchy.
 /// Handles the complete lifecycle after options have been loaded:
 /// Serilog creation, DI host build, DatabaseLogWriter init, DAL properties,
 /// connection validation, migration service execution, and shutdown.
@@ -78,12 +78,6 @@ public static class DirectModePipeline
             serilogLogger.Information("RayMigrator starting up in {ModeName}, environment [{Environment}] (from {EnvironmentOrigin})",
                 sourceResult.ModeName, environment, environmentOrigin);
 
-            if (sourceResult.PreBuiltOptions != null)
-            {
-                serilogLogger.Information("Configuration loaded from Admin-DB for Product [{Product}] Environment [{Environment}]",
-                    consoleOptions.Product, environment);
-            }
-
             #endregion Create Serilog logger
 
 
@@ -110,7 +104,7 @@ public static class DirectModePipeline
             {
                 var hostBuilder = Host.CreateDefaultBuilder(args);
 
-                // JSON mode: add configuration to the host builder
+                // Add the loaded configuration to the host builder
                 if (sourceResult.HostConfiguration != null)
                 {
                     hostBuilder.ConfigureAppConfiguration((context, builder) =>
@@ -123,32 +117,19 @@ public static class DirectModePipeline
                     .UseSerilog()
                     .ConfigureServices((context, services) =>
                     {
-                        // Register RayMigratorOptions differently based on source
-                        if (sourceResult.PreBuiltOptions != null)
-                        {
-                            // Admin-DB mode: IValidateOptions is NOT invoked here — pre-built Options from
-                            // AdminDbOptionsSource are trusted. If future Studio needs validation, run
-                            // RayMigratorOptionsValidator.Validate(null, preBuilt) explicitly at that layer.
-                            // Enum-typed values are the exception: the *Enum getters throw on an unparseable
-                            // value (#3), so report those at startup instead of mid-run on first use.
-                            ProductDefaultsPostConfigureOptions.EnsureEnumValuesAreParsable(sourceResult.PreBuiltOptions);
-                            services.AddSingleton(Options.Create(sourceResult.PreBuiltOptions));
-                        }
-                        else
-                        {
-                            // JSON mode: bind from configuration section with validation
-                            services.AddOptions<RayMigratorOptions>()
-                                .Configure(options => sourceResult.RayMigratorConfigSection.Bind(options))
-                                .ValidateDataAnnotations()
-                                .ValidateOnStart();
+                        // Bind the options from the configuration section with validation
+                        services.AddOptions<RayMigratorOptions>()
+                            .Configure(options => sourceResult.RayMigratorConfigSection.Bind(options))
+                            .ValidateDataAnnotations()
+                            .ValidateOnStart();
 
-                            services.AddTransient<IPostConfigureOptions<RayMigratorOptions>, ProductDefaultsPostConfigureOptions>();
+                        services.AddTransient<IPostConfigureOptions<RayMigratorOptions>, ProductDefaultsPostConfigureOptions>();
 
-                            // The validator reads the connection strings from the section as written, so that
-                            // RULE_7_3 sees the {ENV:...} placeholder and not the resolved credential (#30).
-                            services.AddSingleton<IValidateOptions<RayMigratorOptions>>(
-                                new RayMigratorOptionsValidator(sourceResult.RayMigratorConfigSectionAsWritten));
-                        }
+                        // The validator reads the connection strings from the section as written, so that
+                        // RULE_7_3 sees the {ENV:...} placeholder and not the resolved credential (#30).
+                        services.AddSingleton<IValidateOptions<RayMigratorOptions>>(
+                            new RayMigratorOptionsValidator(sourceResult.RayMigratorConfigSectionAsWritten));
+
 
                         services.AddSingleton(consoleOptions);
 
@@ -324,7 +305,7 @@ public static class DirectModePipeline
     /// loaded. The files of the hierarchy that were not found are named only when no loaded file carries a
     /// <c>RayMigrator</c> section at all, because then a wrong product or environment name is the likely cause; they
     /// are optional layers that are absent in most setups, so naming them for a merely missing <c>Serilog</c> section
-    /// blamed the wrong thing (#31). A source without file diagnostics (Admin-DB mode) gets the bootstrap message.
+    /// blamed the wrong thing (#31). A source without file diagnostics gets the bootstrap message.
     /// </summary>
     internal static string BuildMissingSerilogSectionMessage(
         bool hasRayMigratorSection,

@@ -110,7 +110,7 @@ public class MissingSerilogSectionMessageTests
             hasRayMigratorSection: true, configFileDiagnostics: null, "BookStore", "Workshop");
 
         // Assert
-        message.Should().Contain("bootstrap configuration", because: "Admin-DB mode has no file hierarchy to report");
+        message.Should().Contain("bootstrap configuration", because: "a source without file diagnostics gets the bootstrap message");
         message.Should().NotContain("[BookStore]");
     }
 

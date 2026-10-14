@@ -295,7 +295,6 @@ Configuration is validated at startup:
 
 ## Related Documentation
 
-- [Bootstrap Options](bootstrap-options.md) - Bootstrap options and Serilog initialization
 - [Configuration System](../02-core-concepts/configuration-system.md) - Options classes hierarchy and loading sequence diagram
 - [Repository Options](repository-options.md)
 - [Product Options](product-options.md)

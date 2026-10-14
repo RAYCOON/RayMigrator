@@ -87,7 +87,6 @@ Complete configuration documentation.
 - [cli-tools-options.md](06-configuration-reference/cli-tools-options.md) - CLI tools for external migration execution
 - [logging-options.md](06-configuration-reference/logging-options.md) - Logging configuration
 - [environment-variables.md](06-configuration-reference/environment-variables.md) - {ENV:} placeholders
-- [bootstrap-options.md](06-configuration-reference/bootstrap-options.md) - Bootstrap configuration (two-phase loading, Serilog initialization)
 - [settings-inheritance-overview.md](06-configuration-reference/settings-inheritance-overview.md) - Complete settings map across all 4 layers with inheritance chains
 
 ### [07-migration-files/](07-migration-files/)

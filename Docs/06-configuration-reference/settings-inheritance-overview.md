@@ -609,4 +609,3 @@ Environments = ["Docker", "Development"]
 - **Configuration system concepts**: [configuration-system.md](../02-core-concepts/configuration-system.md)
 - **Error handling**: [error-handling.md](../02-core-concepts/error-handling.md)
 - **Execution modes**: [execution-modes.md](../02-core-concepts/execution-modes.md)
-- **Bootstrap options**: [bootstrap-options.md](bootstrap-options.md)

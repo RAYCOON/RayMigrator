@@ -100,7 +100,7 @@ public class ProductDefaultsPostConfigureOptions : IPostConfigureOptions<RayMigr
 
     /// <summary>
     /// Merges ProductDefaults into Products, TargetGroups and Targets where explicit values are not set.
-    /// This static method can be called directly by AdminOptionsProvider after building RayMigratorOptions from Admin-DB.
+    /// This static method can be called directly by a host that builds RayMigratorOptions in memory.
     /// </summary>
     /// <param name="options">The RayMigratorOptions to merge defaults into.</param>
     public static void MergeDefaults(RayMigratorOptions options)

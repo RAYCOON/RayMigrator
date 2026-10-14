@@ -57,6 +57,13 @@ RayMigrator follows Semantic Versioning where applicable.
   by 0.17.0 keeps its names and keeps working. New rule RULE_4_4 (Error):
   `TableBaseName` has at most 16 characters, so that the longest prefixed
   index name fits the identifier limit of PostgreSQL, MySQL and MariaDB.
+- **Breaking (API):** the Admin-DB bootstrap contract is gone:
+  `RayMigratorBootstrapOptions`, `AdminDbOptions` and `OperatingMode` left
+  `Raycoon.RayMigrator.Core`, `OptionsSourceResult.PreBuiltOptions` and the
+  pre-built branch of `DirectModePipeline` are removed. Nothing read them:
+  the engine always loaded the appsettings hierarchy, and RayMigrator Studio
+  builds its options in memory and runs them through
+  `IMigrationContextFactory` (ADR-023).
 - **Breaking (API):** `ContextHelpProvider`, `JsonPathRegistry` and the help
   records left `Raycoon.RayMigrator.ConfigWizard.Core` for the Shared package
   (`ContextHelpProvider` is now `ConfigurationHelp`); the unread
