@@ -1,10 +1,9 @@
-using Raycoon.RayMigrator.ConfigWizard.Core.Models;
-
-namespace Raycoon.RayMigrator.ConfigWizard.Core.Services;
+namespace Raycoon.RayMigrator.Shared.Configuration.Help;
 
 /// <summary>
-/// Language-independent registry of JSON configuration paths for wizard field keys.
-/// All paths are relative to the RayMigrator root section.
+/// Language-independent registry of the configuration paths behind the field help keys of
+/// <see cref="ConfigurationHelp"/>. All paths are relative to the <c>RayMigrator</c> root section; alias-keyed
+/// arrays appear as <c>[]</c>. The reverse lookup finds the help key of a path.
 /// </summary>
 public static class JsonPathRegistry
 {
@@ -18,6 +17,8 @@ public static class JsonPathRegistry
         ["Repository_Timeout"] = new("Repository.DbCommandTimeoutInSeconds"),
         ["Repository_MaxRetries"] = new("Repository.DbCommandMaxRetries"),
         ["Repository_Wait"] = new("Repository.DbCommandWaitTimeInMsBeforeRetry"),
+        ["Repository_HeartbeatIntervalInSeconds"] = new("Repository.HeartbeatIntervalInSeconds"),
+        ["Repository_OrphanedRunThresholdInMinutes"] = new("Repository.OrphanedRunThresholdInMinutes"),
 
         // ── DatabaseLogging (no inheritance) ─────────────────────
         ["DatabaseLogging_Enable"] = new("DatabaseLogging"),
@@ -118,9 +119,28 @@ public static class JsonPathRegistry
         // have no JSON path — intentionally not registered.
     };
 
+    private static readonly Dictionary<string, string> KeysByPath = Registry
+        .ToDictionary(entry => entry.Value.ConfigPath, entry => entry.Key, StringComparer.OrdinalIgnoreCase);
+
     /// <summary>
     /// Returns path metadata for a field key, or null if the field has no JSON path.
     /// </summary>
     public static JsonPathInfo? GetPathInfo(string fieldKey) =>
         Registry.GetValueOrDefault(fieldKey);
+
+    /// <summary>
+    /// Finds the field help key of a configuration path (case-insensitive), for example
+    /// <c>Products[].TargetGroups[].Targets[].ConnectionString</c> yields <c>Target_ConnectionString</c>.
+    /// </summary>
+    public static bool TryGetFieldKey(string configPath, out string fieldKey)
+    {
+        if (!string.IsNullOrWhiteSpace(configPath) && KeysByPath.TryGetValue(configPath, out var key))
+        {
+            fieldKey = key;
+            return true;
+        }
+
+        fieldKey = string.Empty;
+        return false;
+    }
 }

@@ -61,9 +61,7 @@ A separate **ConfigWizard.Core unit test project** (`Raycoon.RayMigrator.Tests.U
 | `ConfigurationScaffolderTests.cs` | Migration directory scaffold generation |
 | `ConfigurationSerializerTests.cs` / `ConfigurationSerializerAdditionalTests.cs` | JSON load/save round-trips |
 | `ConfigurationValidatorTests.cs` / `ConfigurationValidatorProductTests.cs` / `ConfigurationValidatorCrossFieldTests.cs` | Validation rules including cross-field structural rules (duplicate aliases, semantic contradictions, CLI tool constraints, default cascade completeness) |
-| `ContextHelpProviderTests.cs` | Context-sensitive help text |
 | `DefaultsPromoterTests.cs` / `DefaultsPromoterAdditionalTests.cs` / `DefaultsPromoterAcrossModelsTests.cs` | Defaults promotion logic, including cross-model promotion via `PromoteAcrossModels` |
-| `JsonPathRegistryTests.cs` | `JsonPathRegistry` path info lookups (config path, inheritance relationships) |
 | `PromotionEndToEndTests.cs` | End-to-end scenarios verifying the interaction between `DefaultsPromoter` (promotion) and diff-based serialization (`ConfigurationSerializer.ToJson(model, baseModel)`) across all hierarchy levels, including `StopRollbackOnMissingRollbackFile` at both product and target-group level |
 | `EnvFileGeneratorTests.cs` / `EnvFileGeneratorAdditionalTests.cs` | example.env generation |
 | `EnvironmentSkeletonGeneratorTests.cs` / `EnvironmentSkeletonGeneratorAdditionalTests.cs` | Environment skeleton files |
@@ -260,6 +258,8 @@ Raycoon.RayMigrator.Tests.Unit/
 | `P0_ConfigDirTests` | `ConfigDirTests` | `--config-dir` CLI option and `JsonOptionsSource` configDir parameter: null/empty/whitespace fallback to CWD, non-existent directory validation, file resolution from custom directory, `{ENV:VAR}` resolution, `CommandLineConfiguration` parsing with `--config-dir` and `-cd` aliases across all commands |
 | `P0_ConfigurationFileChainTests` | `ConfigurationFileChainTests` | `ConfigurationFileChain` (Shared): the four hierarchy file names in merge order, `TryClassify` round trip, product versus environment for single-segment names, rejection of unrelated names (#23) |
 | `P0_ConfigurationJsonMergerTests` | `ConfigurationJsonMergerTests` | `ConfigurationJsonMerger` (Shared): alias-keyed arrays merge by alias (case-insensitive, nested, base order kept, new aliases appended, omitted elements kept), other arrays replaced, explicit null, key casing, four-file precedence, arguments untouched, comments and trailing commas (#23) |
+| `P0_ConfigurationHelpTests` | `ConfigurationHelpTests` | `ConfigurationHelp` (Shared): every section and field help key resolves in English and German, unknown keys yield null, `JsonPath` attached |
+| `P0_JsonPathRegistryTests` | `JsonPathRegistryTests` | `JsonPathRegistry` (Shared): config path and inheritance metadata per field key, every non-concept help key registered, reverse lookup of a path |
 | `P0_ConfigurationJsonDiffTests` | `ConfigurationJsonDiffTests` | `ConfigurationJsonDiff` (Shared): `Diff` yields the smallest document that merges back to the target, `TryCommon` the part all documents agree on, both alias-aware; round trip over the golden merge cases (#23 Part B) |
 | `P0_EnvironmentVariableReplacerTests` | `EnvironmentVariableReplacerTests` | `{ENV:VAR}` placeholder replacement in configuration values |
 | `P0_FileClassificationTests` | `FileClassificationTests` | Migration file discovery, rollback file matching, environment/target filtering |

@@ -142,9 +142,9 @@ List<EffectiveConfigEntry> GetEffectiveTargetConfig(
 
 `EffectiveConfigEntry` (in `Raycoon.RayMigrator.ConfigWizard.Core.Models`) has read-only `Property`, `Value`, and `Source` string members and a public constructor that takes all three.
 
-## ContextHelpProvider (Core)
+## ConfigurationHelp (Shared)
 
-`ContextHelpProvider` (static, Core) provides multilingual help text via `.resx` resource files and returns `SectionHelp?` and `FieldHelp?` records (from `HelpModels.cs`). It accepts an optional `CultureInfo` parameter to select the language (defaults to `CultureInfo.CurrentUICulture`).
+`ConfigurationHelp` (static, `Raycoon.RayMigrator.Shared.Configuration.Help`; until 0.17.0 `ContextHelpProvider` in Core) provides multilingual help text via the `.resx` resource files of the Shared package (`Configuration/Help/FieldHelp*.resx`, `SectionHelp*.resx`) and returns `SectionHelp?` and `FieldHelp?` records of the same namespace. The texts describe the engine options, so they live next to the hierarchy and merge code that the engine, the wizard and RayMigrator Studio share. It accepts an optional `CultureInfo` parameter to select the language (defaults to `CultureInfo.CurrentUICulture`).
 
 ```csharp
 SectionHelp? GetSectionHelp(string sectionKey, CultureInfo? culture = null)
@@ -167,7 +167,7 @@ public record FieldHelp(
 );
 ```
 
-`JsonPathInfo` is also defined in `HelpModels.cs`:
+`JsonPathInfo` is defined in the same namespace:
 
 ```csharp
 public record JsonPathInfo(
@@ -183,7 +183,7 @@ Section keys include: `Welcome`, `Root`, `Repository`, `DatabaseLogging`, `Produ
 
 Field keys follow the pattern `"Section_FieldName"` (underscore separator). The full list of defined keys:
 
-Repository: `"Repository_DatabaseType"`, `"Repository_ConnectionString"`, `"Repository_SchemaName"`, `"Repository_TableBaseName"`, `"Repository_Timeout"`, `"Repository_MaxRetries"`, `"Repository_Wait"`
+Repository: `"Repository_DatabaseType"`, `"Repository_ConnectionString"`, `"Repository_SchemaName"`, `"Repository_TableBaseName"`, `"Repository_Timeout"`, `"Repository_MaxRetries"`, `"Repository_Wait"`, `"Repository_HeartbeatIntervalInSeconds"`, `"Repository_OrphanedRunThresholdInMinutes"`
 
 DatabaseLogging: `"DatabaseLogging_Enable"`, `"DatabaseLogging_DatabaseType"`, `"DatabaseLogging_ConnectionString"`, `"DatabaseLogging_SchemaName"`, `"DatabaseLogging_MinimumLevel"`, `"DatabaseLogging_Timeout"`, `"DatabaseLogging_TableBaseName"`
 
@@ -201,12 +201,13 @@ Serilog: `"Serilog_MinimumLevel"`, `"Serilog_SinkName"`, `"Serilog_OverrideSourc
 
 Concept: `"Concept_Environment"`, `"Concept_TargetGroup"`, `"Concept_Target"`
 
-## JsonPathRegistry (Core)
+## JsonPathRegistry (Shared)
 
-`JsonPathRegistry` (static, Core) maps field help keys to their corresponding JSON configuration paths. It is used internally by `ContextHelpProvider.GetFieldHelp` to populate the `JsonPath` field of the returned `FieldHelp` record, enabling the wizard UI to display the exact JSON configuration path for each field in help dialogs.
+`JsonPathRegistry` (static, `Raycoon.RayMigrator.Shared.Configuration.Help`) maps field help keys to their corresponding JSON configuration paths. It is used internally by `ConfigurationHelp.GetFieldHelp` to populate the `JsonPath` field of the returned `FieldHelp` record, enabling the wizard UI to display the exact JSON configuration path for each field in help dialogs.
 
 ```csharp
 JsonPathInfo? GetPathInfo(string fieldKey)
+bool TryGetFieldKey(string configPath, out string fieldKey)   // reverse lookup, case-insensitive
 ```
 
 Returns `null` for concept-only help keys (`Concept_Environment`, `Concept_TargetGroup`, `Concept_Target`) that have no corresponding JSON path. All other registered field keys return a `JsonPathInfo` with `ConfigPath` (relative to the `RayMigrator` root section), and optionally `InheritedByPaths` (paths that inherit from this field) or `InheritedFromPath` (the parent path this field inherits from).
@@ -480,7 +481,7 @@ Task DownloadFileAsync(string fileName, string contentType, byte[] content)
 MarkupString Highlight(string json)
 ```
 
-**`LocalizationService`** (`Raycoon.RayMigrator.ConfigWizard.Web.Services`) manages UI language selection (English/German). It wraps Core's `ContextHelpProvider` to provide localized section and field help and persists the selected language in browser `localStorage`. Supported languages: `"en"` (English) and `"de"` (Deutsch).
+**`LocalizationService`** (`Raycoon.RayMigrator.ConfigWizard.Web.Services`) manages UI language selection (English/German). It wraps the shared `ConfigurationHelp` to provide localized section and field help and persists the selected language in browser `localStorage`. Supported languages: `"en"` (English) and `"de"` (Deutsch).
 
 **`WizardMudLocalizer`** (`Raycoon.RayMigrator.ConfigWizard.Web.Services`) is a custom `MudLocalizer` subclass that translates MudBlazor component strings (e.g. Stepper Previous/Next/Complete/Skip/Reset buttons) using the wizard's `LocalizationService`. It maps MudBlazor localization keys like `MudStepper_Previous`, `MudStepper_Next`, `MudStepper_Complete`, `MudStepper_Skip`, `MudStepper_Reset` to the corresponding wizard translation keys (`Common.Back`, `Common.Next`, `Phase2.GoToOverview`, `Summary.Restart`, etc.). Registered via `AddTransient<MudLocalizer, WizardMudLocalizer>()` in `Program.cs`.
 

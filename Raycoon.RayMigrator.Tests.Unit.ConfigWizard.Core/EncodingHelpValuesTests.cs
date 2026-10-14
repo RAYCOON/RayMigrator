@@ -14,7 +14,7 @@ public class EncodingHelpValuesTests
 {
     private static IEnumerable<string> AdvertisedValues(CultureInfo culture)
     {
-        var help = ContextHelpProvider.GetFieldHelp("ProductDefaults_MigrationFilesEncoding", culture);
+        var help = ConfigurationHelp.GetFieldHelp("ProductDefaults_MigrationFilesEncoding", culture);
         help.Should().NotBeNull();
         help!.ValidValues.Should().NotBeNullOrWhiteSpace();
         return help.ValidValues!.Split('|').Select(v => v.Trim()).Where(v => v.Length > 0);

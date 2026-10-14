@@ -59,6 +59,12 @@ Useful when sharing a schema between multiple RayMigrator instances.</value></da
   <data name="Repository_Wait_Title" xml:space="preserve"><value>Repository - Wait</value></data>
   <data name="Repository_Wait_Description" xml:space="preserve"><value>Wait time in milliseconds before retrying a failed repository operation. Default: 250.</value></data>
   <data name="Repository_Wait_DefaultValue" xml:space="preserve"><value>250</value></data>
+  <data name="Repository_HeartbeatIntervalInSeconds_Title" xml:space="preserve"><value>Repository - Heartbeat Interval</value></data>
+  <data name="Repository_HeartbeatIntervalInSeconds_Description" xml:space="preserve"><value>How often a running migrate-up, migrate-down or baseline refreshes MigrationRun.LastHeartbeatAt, in seconds. The heartbeat tells other processes that the run is alive; a run whose heartbeat is older than OrphanedRunThresholdInMinutes is treated as orphaned. 0 switches the heartbeat off. Default: 30.</value></data>
+  <data name="Repository_HeartbeatIntervalInSeconds_DefaultValue" xml:space="preserve"><value>30</value></data>
+  <data name="Repository_OrphanedRunThresholdInMinutes_Title" xml:space="preserve"><value>Repository - Orphaned Run Threshold</value></data>
+  <data name="Repository_OrphanedRunThresholdInMinutes_Description" xml:space="preserve"><value>How many minutes after its last heartbeat an open run counts as orphaned: a parallel start then closes it as Error and takes the run lock, and the fix command uses the same age unless --older-than says otherwise. A run that never wrote a heartbeat is measured from its start. Default: 2.</value></data>
+  <data name="Repository_OrphanedRunThresholdInMinutes_DefaultValue" xml:space="preserve"><value>2</value></data>
 
   <!-- DatabaseLogging -->
   <data name="DatabaseLogging_Enable_Title" xml:space="preserve"><value>Database Logging - Enable</value></data>

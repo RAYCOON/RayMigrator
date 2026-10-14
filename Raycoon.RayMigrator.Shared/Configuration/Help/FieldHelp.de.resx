@@ -59,6 +59,12 @@ Nuetzlich wenn mehrere RayMigrator-Instanzen ein Schema teilen.</value></data>
   <data name="Repository_Wait_Title" xml:space="preserve"><value>Repository - Wartezeit</value></data>
   <data name="Repository_Wait_Description" xml:space="preserve"><value>Wartezeit in Millisekunden vor dem erneuten Versuch einer fehlgeschlagenen Repository-Operation. Standard: 250.</value></data>
   <data name="Repository_Wait_DefaultValue" xml:space="preserve"><value>250</value></data>
+  <data name="Repository_HeartbeatIntervalInSeconds_Title" xml:space="preserve"><value>Repository - Heartbeat-Intervall</value></data>
+  <data name="Repository_HeartbeatIntervalInSeconds_Description" xml:space="preserve"><value>Wie oft ein laufendes migrate-up, migrate-down oder baseline MigrationRun.LastHeartbeatAt erneuert, in Sekunden. Der Heartbeat zeigt anderen Prozessen, dass der Lauf lebt; ein Lauf, dessen Heartbeat aelter als OrphanedRunThresholdInMinutes ist, gilt als verwaist. 0 schaltet den Heartbeat ab. Standard: 30.</value></data>
+  <data name="Repository_HeartbeatIntervalInSeconds_DefaultValue" xml:space="preserve"><value>30</value></data>
+  <data name="Repository_OrphanedRunThresholdInMinutes_Title" xml:space="preserve"><value>Repository - Schwelle fuer verwaiste Laeufe</value></data>
+  <data name="Repository_OrphanedRunThresholdInMinutes_Description" xml:space="preserve"><value>Wie viele Minuten nach dem letzten Heartbeat ein offener Lauf als verwaist gilt: ein paralleler Start schliesst ihn dann als Error und uebernimmt die Lauf-Sperre, und das Kommando fix verwendet dasselbe Alter, sofern --older-than nichts anderes sagt. Ein Lauf ohne Heartbeat wird ab seinem Start gemessen. Standard: 2.</value></data>
+  <data name="Repository_OrphanedRunThresholdInMinutes_DefaultValue" xml:space="preserve"><value>2</value></data>
 
   <!-- DatabaseLogging -->
   <data name="DatabaseLogging_Enable_Title" xml:space="preserve"><value>Datenbank-Protokollierung - Aktivieren</value></data>
@@ -113,6 +119,7 @@ Ignore: Rollback-Fehler protokollieren und mit dem Rollback weiterer Dateien for
   <data name="ProductDefaults_MigrationFilesExtension_Description" xml:space="preserve"><value>Dateierweiterung fuer Migrationsskripte. Standard: sql.</value></data>
   <data name="ProductDefaults_MigrationFilesExtension_DefaultValue" xml:space="preserve"><value>sql</value></data>
   <data name="ProductDefaults_MigrationFilesExtension_ValidValues" xml:space="preserve"><value>Beliebige Dateierweiterung ohne Punkt (z.B. sql, ddl, migration)</value></data>
+  <data name="ProductDefaults_MigrationFilesExtension_Examples" xml:space="preserve"><value>sql (Standard fuer alle Datenbanktypen)</value></data>
   <data name="ProductDefaults_RollbackFilesPreExtension_Title" xml:space="preserve"><value>Produkt-Standardwerte - Rollback-Vorerweiterung</value></data>
   <data name="ProductDefaults_RollbackFilesPreExtension_Description" xml:space="preserve"><value>Vorerweiterung fuer Rollback-Skriptdateien. Beispiel: 001_CreateUsers.rollback.sql. Standard: rollback.</value></data>
   <data name="ProductDefaults_RollbackFilesPreExtension_DefaultValue" xml:space="preserve"><value>rollback</value></data>

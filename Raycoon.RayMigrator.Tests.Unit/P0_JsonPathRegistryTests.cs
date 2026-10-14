@@ -1,5 +1,11 @@
-namespace Raycoon.RayMigrator.Tests.Unit.ConfigWizard.Core;
+using AwesomeAssertions;
+using Raycoon.RayMigrator.Shared.Configuration.Help;
 
+namespace Raycoon.RayMigrator.Tests.Unit;
+
+/// <summary>
+/// P0: every field help key has a configuration path, and a path leads back to its key.
+/// </summary>
 public class JsonPathRegistryTests
 {
     [Fact]
@@ -83,7 +89,7 @@ public class JsonPathRegistryTests
     [Fact]
     public void GetPathInfo_AllContextHelpFieldKeysExceptConceptsAreRegistered()
     {
-        var allFieldKeys = ContextHelpProvider.GetAllFieldKeys();
+        var allFieldKeys = ConfigurationHelp.GetAllFieldKeys();
         var conceptKeys = allFieldKeys.Where(k => k.StartsWith("Concept_")).ToList();
         var nonConceptKeys = allFieldKeys.Except(conceptKeys).ToList();
 
@@ -98,5 +104,24 @@ public class JsonPathRegistryTests
             JsonPathRegistry.GetPathInfo(key).Should().BeNull(
                 because: $"concept key '{key}' has no JSON path");
         }
+    }
+
+    [Theory]
+    [InlineData("Repository.DatabaseType", "Repository_DatabaseType")]
+    [InlineData("products[].targetgroups[].targets[].connectionstring", "Target_ConnectionString")]
+    [InlineData("Repository.HeartbeatIntervalInSeconds", "Repository_HeartbeatIntervalInSeconds")]
+    public void TryGetFieldKey_RegisteredPath_ReturnsTheKey(string path, string expectedKey)
+    {
+        JsonPathRegistry.TryGetFieldKey(path, out var key).Should().BeTrue();
+        key.Should().Be(expectedKey);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("Repository.Unknown")]
+    public void TryGetFieldKey_UnknownPath_ReturnsFalse(string path)
+    {
+        JsonPathRegistry.TryGetFieldKey(path, out var key).Should().BeFalse();
+        key.Should().BeEmpty();
     }
 }

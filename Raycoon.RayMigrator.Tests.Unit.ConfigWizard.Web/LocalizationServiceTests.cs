@@ -205,7 +205,7 @@ public class LocalizationServiceTests
     {
         var svc = new LocalizationService();
 
-        // "Repository" is a known section in ContextHelpProvider
+        // "Repository" is a known section in ConfigurationHelp
         var help = svc.GetSectionHelp("Repository");
 
         help.Should().NotBeNull();
@@ -226,7 +226,7 @@ public class LocalizationServiceTests
     {
         var svc = new LocalizationService();
 
-        // ContextHelpProvider uses underscore-separated keys, e.g. "Repository_DatabaseType"
+        // ConfigurationHelp uses underscore-separated keys, e.g. "Repository_DatabaseType"
         var help = svc.GetFieldHelp("Repository_DatabaseType");
 
         help.Should().NotBeNull();
@@ -251,8 +251,8 @@ public class LocalizationServiceTests
         var help = svc.GetSectionHelp("Repository");
 
         // Just verify it doesn't throw and may return a result
-        // (content depends on ContextHelpProvider DE translations)
-        // We do not assert the exact text — that's tested in ContextHelpProvider tests
+        // (content depends on ConfigurationHelp DE translations)
+        // We do not assert the exact text — that's tested in ConfigurationHelp tests
     }
 
     // ── All EN keys are defined ───────────────────────────────────

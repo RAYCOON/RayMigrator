@@ -7,6 +7,29 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ## [Unreleased]
 
+### Added
+
+- `Raycoon.RayMigrator.Shared` carries the help texts of the configuration:
+  `ConfigurationHelp` (section and field help in English and German from
+  `Configuration/Help/*.resx`), `JsonPathRegistry` (field key to
+  configuration path, now with the reverse lookup `TryGetFieldKey`) and the
+  records `FieldHelp`, `SectionHelp` and `JsonPathInfo`, all in the namespace
+  `Raycoon.RayMigrator.Shared.Configuration.Help`. New field help for
+  `Repository.HeartbeatIntervalInSeconds` and
+  `Repository.OrphanedRunThresholdInMinutes`. RayMigrator Studio reads the
+  texts from the package; the Config Wizard keeps using them.
+- `RayMigratorOptionsValidator.GetReport` is public: a host gets the full
+  rule-catalog report (code, severity, path and message of every warning and
+  error) of prepared options instead of one failure string.
+
+### Changed
+
+- **Breaking (API):** `ContextHelpProvider`, `JsonPathRegistry` and the help
+  records left `Raycoon.RayMigrator.ConfigWizard.Core` for the Shared package
+  (`ContextHelpProvider` is now `ConfigurationHelp`); the unread
+  `ValidationMessages*.resx` resources are gone. The wizard projects are not
+  packaged, so no NuGet consumer is affected.
+
 ## [0.17.0] — 2026-10-13
 
 ### Added

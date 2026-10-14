@@ -1,8 +1,13 @@
 using System.Globalization;
+using AwesomeAssertions;
+using Raycoon.RayMigrator.Shared.Configuration.Help;
 
-namespace Raycoon.RayMigrator.Tests.Unit.ConfigWizard.Core;
+namespace Raycoon.RayMigrator.Tests.Unit;
 
-public class ContextHelpProviderTests
+/// <summary>
+/// P0: the help texts of the configuration (English and German) are complete for every declared key.
+/// </summary>
+public class ConfigurationHelpTests
 {
     [Theory]
     [InlineData("Welcome")]
@@ -20,7 +25,7 @@ public class ContextHelpProviderTests
     [InlineData("Targets")]
     public void GetSectionHelp_AllKeys_ReturnNonNull_English(string key)
     {
-        var help = ContextHelpProvider.GetSectionHelp(key, CultureInfo.InvariantCulture);
+        var help = ConfigurationHelp.GetSectionHelp(key, CultureInfo.InvariantCulture);
         help.Should().NotBeNull();
         help!.Title.Should().NotBeNullOrWhiteSpace();
         help.Description.Should().NotBeNullOrWhiteSpace();
@@ -32,8 +37,8 @@ public class ContextHelpProviderTests
     [InlineData("CliTools")]
     public void GetSectionHelp_GermanLocale_ReturnsDifferentText(string key)
     {
-        var enHelp = ContextHelpProvider.GetSectionHelp(key, CultureInfo.InvariantCulture);
-        var deHelp = ContextHelpProvider.GetSectionHelp(key, new CultureInfo("de"));
+        var enHelp = ConfigurationHelp.GetSectionHelp(key, CultureInfo.InvariantCulture);
+        var deHelp = ConfigurationHelp.GetSectionHelp(key, new CultureInfo("de"));
 
         deHelp.Should().NotBeNull();
         deHelp!.Title.Should().NotBeNullOrWhiteSpace();
@@ -45,26 +50,26 @@ public class ContextHelpProviderTests
     [Fact]
     public void GetSectionHelp_UnknownKey_ReturnsNull()
     {
-        var help = ContextHelpProvider.GetSectionHelp("NonExistentSection");
+        var help = ConfigurationHelp.GetSectionHelp("NonExistentSection");
         help.Should().BeNull();
     }
 
     [Fact]
     public void GetAllSectionKeys_Returns13Keys()
     {
-        ContextHelpProvider.GetAllSectionKeys().Should().HaveCount(13);
+        ConfigurationHelp.GetAllSectionKeys().Should().HaveCount(13);
     }
 
     [Fact]
     public void GetAllFieldKeys_ReturnsAtLeast40Keys()
     {
-        ContextHelpProvider.GetAllFieldKeys().Count.Should().BeGreaterThanOrEqualTo(40);
+        ConfigurationHelp.GetAllFieldKeys().Count.Should().BeGreaterThanOrEqualTo(40);
     }
 
     [Fact]
     public void GetFieldHelp_RepositoryDatabaseType_ReturnsNonNull()
     {
-        var help = ContextHelpProvider.GetFieldHelp("Repository_DatabaseType", CultureInfo.InvariantCulture);
+        var help = ConfigurationHelp.GetFieldHelp("Repository_DatabaseType", CultureInfo.InvariantCulture);
         help.Should().NotBeNull();
         help!.Title.Should().NotBeNullOrWhiteSpace();
     }
@@ -72,7 +77,7 @@ public class ContextHelpProviderTests
     [Fact]
     public void GetFieldHelp_CliToolAlias_ReturnsNonNull()
     {
-        var help = ContextHelpProvider.GetFieldHelp("CliTool_Alias", CultureInfo.InvariantCulture);
+        var help = ConfigurationHelp.GetFieldHelp("CliTool_Alias", CultureInfo.InvariantCulture);
         help.Should().NotBeNull();
         help!.Title.Should().Contain("CLI Tool");
     }
@@ -80,21 +85,21 @@ public class ContextHelpProviderTests
     [Fact]
     public void GetFieldHelp_TargetUseCliToolAlias_ReturnsNonNull()
     {
-        var help = ContextHelpProvider.GetFieldHelp("Target_UseCliToolAlias", CultureInfo.InvariantCulture);
+        var help = ConfigurationHelp.GetFieldHelp("Target_UseCliToolAlias", CultureInfo.InvariantCulture);
         help.Should().NotBeNull();
     }
 
     [Fact]
     public void GetFieldHelp_UnknownKey_ReturnsNull()
     {
-        var help = ContextHelpProvider.GetFieldHelp("NonExistent_Field");
+        var help = ConfigurationHelp.GetFieldHelp("NonExistent_Field");
         help.Should().BeNull();
     }
 
     [Fact]
     public void GetFieldHelp_RepositoryDatabaseType_HasJsonPath()
     {
-        var help = ContextHelpProvider.GetFieldHelp("Repository_DatabaseType", CultureInfo.InvariantCulture);
+        var help = ConfigurationHelp.GetFieldHelp("Repository_DatabaseType", CultureInfo.InvariantCulture);
 
         help.Should().NotBeNull();
         help!.JsonPath.Should().NotBeNull();
@@ -104,7 +109,7 @@ public class ContextHelpProviderTests
     [Fact]
     public void GetFieldHelp_FieldWithoutRegisteredPath_HasNullJsonPath()
     {
-        var help = ContextHelpProvider.GetFieldHelp("Concept_Environment", CultureInfo.InvariantCulture);
+        var help = ConfigurationHelp.GetFieldHelp("Concept_Environment", CultureInfo.InvariantCulture);
 
         help.Should().NotBeNull();
         help!.JsonPath.Should().BeNull();
@@ -113,9 +118,9 @@ public class ContextHelpProviderTests
     [Fact]
     public void GetFieldHelp_AllDeclaredKeys_ReturnNonNull()
     {
-        foreach (var key in ContextHelpProvider.GetAllFieldKeys())
+        foreach (var key in ConfigurationHelp.GetAllFieldKeys())
         {
-            var help = ContextHelpProvider.GetFieldHelp(key, CultureInfo.InvariantCulture);
+            var help = ConfigurationHelp.GetFieldHelp(key, CultureInfo.InvariantCulture);
             help.Should().NotBeNull($"Field help for key '{key}' should be defined in the resource file");
         }
     }
@@ -124,9 +129,9 @@ public class ContextHelpProviderTests
     public void GetFieldHelp_AllDeclaredKeys_ReturnNonNull_German()
     {
         var culture = new CultureInfo("de");
-        foreach (var key in ContextHelpProvider.GetAllFieldKeys())
+        foreach (var key in ConfigurationHelp.GetAllFieldKeys())
         {
-            var help = ContextHelpProvider.GetFieldHelp(key, culture);
+            var help = ConfigurationHelp.GetFieldHelp(key, culture);
             help.Should().NotBeNull($"German field help for key '{key}' should be defined in FieldHelp.de.resx");
             help!.Title.Should().NotBeNullOrWhiteSpace($"German title for key '{key}' should not be empty");
             help.Description.Should().NotBeNullOrWhiteSpace($"German description for key '{key}' should not be empty");
