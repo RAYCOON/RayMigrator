@@ -35,6 +35,14 @@ RayMigrator follows Semantic Versioning where applicable.
   `TemplateExecutor.RepositoryCheckCreate` runs them with the values of the
   current context as before. A host that managed repositories through a
   synthetic product can drop it.
+- The testing package handles repositories with a table prefix:
+  `DatabaseCleanupHelper.CleanDatabase` and `CleanAllDatabases` take the
+  `tableBaseName` as an optional last parameter and name the repository
+  tables through `RepositoryNaming` in FK-safe drop order (SQL Server also
+  drops the foreign keys and tables another prefix left in the schema), and
+  `RepositoryQueryHelper` takes the prefix as an optional constructor
+  parameter and applies it to every repository table. The engine tests'
+  `ScenarioBuilder` has `WithTableBaseName`.
 
 ### Changed
 
