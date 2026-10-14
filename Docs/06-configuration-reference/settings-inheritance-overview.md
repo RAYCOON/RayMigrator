@@ -108,7 +108,7 @@ These settings are configured exclusively in `appsettings.json` files.
 | `Repository.DatabaseType` | string | *(required)* | `SqlServer`, `PostgreSQL`, `MariaDb`, `MySql`, or `Sqlite` |
 | `Repository.ConnectionString` | string | *(required)* | Repository database connection |
 | `Repository.SchemaName` | string | Conditional (`"ray"` by convention) | Schema for repository tables (required for SqlServer, PostgreSQL; ignored for MariaDb, MySql, SQLite). Defaults to `"ray"` when scaffolded by the ConfigWizard. |
-| `Repository.TableBaseName` | string | `null` | Base name for repository tables |
+| `Repository.TableBaseName` | string | `null` | Base name for repository tables (max 16 chars) |
 | `Repository.DbCommandTimeoutInSeconds` | int | `60` | Command timeout |
 | `Repository.DbCommandMaxRetries` | int | `100` | Maximum retry attempts |
 | `Repository.DbCommandWaitTimeInMsBeforeRetry` | int | `250` | Wait before retry (ms) |
@@ -135,7 +135,7 @@ See [CLI Tools Options](cli-tools-options.md).
 | `DatabaseLogging.DatabaseType` | string | `null` | Database type for log storage |
 | `DatabaseLogging.ConnectionString` | string | `null` | Logging database connection |
 | `DatabaseLogging.SchemaName` | string | `null` | Schema for logging tables |
-| `DatabaseLogging.TableBaseName` | string | `null` | Base name for logging tables |
+| `DatabaseLogging.TableBaseName` | string | `null` | Base name for logging tables (max 16 chars) |
 | `DatabaseLogging.MinimumLevel` | string | `Information` | Minimum log level |
 | `DatabaseLogging.DbCommandTimeoutInSeconds` | int | `20` | Command timeout |
 

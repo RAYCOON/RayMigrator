@@ -6,7 +6,7 @@ Guide for developing custom RayMigrator database providers in an external reposi
 
 RayMigrator's plugin architecture allows developing database providers (DALs) outside the main repository. Your DAL is built as a standalone .NET class library that references `Database.Common` and `Shared` via NuGet packages.
 
-The `Database.Example` project in the main repository serves as a skeleton template. It contains placeholder implementations for all required methods and 22 SQL template files (the 21 required by the engine plus `Repository_MigrationRecordHistory_Archive.sql`, which is an extra placeholder for archive operations). The recommended workflow is to copy (or fork) this project and replace "Example" with your database type name throughout.
+The `Database.Example` project in the main repository serves as a skeleton template. It contains placeholder implementations for all required methods and 26 SQL template files (the 25 required by the engine plus `Repository_MigrationRecordHistory_Archive.sql`, which is an extra placeholder for archive operations). The recommended workflow is to copy (or fork) this project and replace "Example" with your database type name throughout.
 
 > **License note**: The `Raycoon.RayMigrator.Database.Example` directory is licensed under the **MIT License** (see `Raycoon.RayMigrator.Database.Example/LICENSE.md`), separately from the rest of RayMigrator (which is BUSL-1.1 with Additional Use Grant). You may freely copy the Example skeleton as a starting point for your own DAL plugin. The plugin source code you write from there is your own, under whatever license you choose. **Running** your plugin inside a RayMigrator process is a use of the Licensed Work and is governed by `LICENSE.md` — for this version that use is free of charge, whatever the size or nature of your organization.
 
@@ -65,8 +65,8 @@ Then reference them in your external project:
 ```xml
 <ItemGroup>
     <!-- Version = RayMigratorVersion in Directory.Build.props of the release you build against (0.18.0 on develop; 0.17.0 is the latest published package) -->
-    <PackageReference Include="Raycoon.RayMigrator.Database.Common" Version="0.15.0" />
-    <PackageReference Include="Raycoon.RayMigrator.Shared" Version="0.15.0" />
+    <PackageReference Include="Raycoon.RayMigrator.Database.Common" Version="0.17.0" />
+    <PackageReference Include="Raycoon.RayMigrator.Shared" Version="0.17.0" />
     <PackageReference Include="YourDb.AdoNetDriver" Version="..." />
 </ItemGroup>
 ```
@@ -225,7 +225,7 @@ public class DalYourDb : DalBase, IDal
 
 ## Template Contract
 
-All 21 template files must be present. `TemplateCache` loads templates from `DataAccessLayers/{Type}/` on the filesystem. Templates are delivered as `<Content>` items that propagate transitively through ProjectReference and as `contentFiles` in NuGet packages. `TemplateCache` validates completeness at startup and throws a `ConfigurationValidationException` listing any missing templates. Template files must not be empty -- if a template is not needed for your database type, add a SQL comment explaining why.
+All 25 template files must be present. `TemplateCache` loads templates from `DataAccessLayers/{Type}/` on the filesystem. Templates are delivered as `<Content>` items that propagate transitively through ProjectReference and as `contentFiles` in NuGet packages. `TemplateCache` validates completeness at startup and throws a `ConfigurationValidationException` listing any missing templates. Template files must not be empty -- if a template is not needed for your database type, add a SQL comment explaining why.
 
 The `Database.Example` project includes all 26 files as placeholders with TODO comments (25 required templates plus `Repository_MigrationRecordHistory_Archive.sql`). `TemplateCache` recognizes only the 25 files that correspond to `TemplateType` enum values; `Repository_MigrationRecordHistory_Archive.sql` is silently skipped during loading. Use `Database.SqlServer` or `Database.PostgreSQL` templates as reference implementations.
 
@@ -236,7 +236,7 @@ The `Database.Example` project includes all 26 files as placeholders with TODO c
 | `DatabaseLogging_CheckCreate.sql` | Create logging table if not exists |
 | `DatabaseLogging_Insert.sql` | Insert log entry |
 | `Repository_CheckCreate.sql` | Create the `RepositorySchemaVersion` table if missing and return `'schemaVersion,unversionedTables,message'` (ADR-024); creates nothing else |
-| `Repository_Upgrade_1.sql` | Schema step 1: create all repository tables, indexes, foreign keys and lookup master data and write version row 1; must be idempotent and return `'1,message'` |
+| `Repository_Upgrade_1.sql` | Schema step 1: create all repository tables, indexes, foreign keys and lookup master data and write version row 1; must be idempotent and return `'1,message'`. Every key, foreign key and index name carries `{CFG:TableBaseName}` after its `pk_`, `fk_`, `ix_` or `uix_` (see [Template Placeholders](#template-placeholders)) |
 | `Repository_Upgrade_2.sql` | Schema step 2: add the `MigrationRunSource` lookup and the nullable run detail columns of `MigrationRun`, write version row 2; must be idempotent and return `'2,message'`. Every later schema version is a further `Repository_Upgrade_{n}.sql` |
 | `Repository_MigratorMeta_CheckInsert.sql` | Register the RayMigrator version in `MigratorMeta` if missing, return the `MigratorMetaId` (`-12` when several rows match) |
 | `Repository_Drop.sql` | Drop all repository tables and schema |
@@ -268,6 +268,8 @@ The `Database.Example` project includes all 26 files as placeholders with TODO c
 - `@ParameterName` -- SQL parameters (bound via `DalParameterList`)
 
 Placeholders are replaced at runtime by `TemplateCache.GetTemplate<T>()` using reflection-based property matching. Any unreplaced `{CFG:...}` placeholder after substitution causes a `ConfigurationValidationException`.
+
+The table prefix `{CFG:TableBaseName}` belongs in every constraint and index name of the repository and log tables, not only in the table names: `pk_{CFG:TableBaseName}MigrationRun`, `fk_{CFG:TableBaseName}MigrationRun_Product`, `ix_{CFG:TableBaseName}MigrationRecordHistory`, `uix_{CFG:TableBaseName}Product_NameLower` (in your engine's casing), and a guard that checks for a constraint looks for the prefixed name. Two repositories with different prefixes can then share one database or schema. The prefix has at most 16 characters (RULE_4_4); make sure the longest name fits your engine's identifier limit.
 
 ### Result Convention
 
@@ -397,9 +399,9 @@ After deployment, verify your DAL is discovered:
 
 1. Start RayMigrator with logging at Debug level
 2. `TemplateCache` logs each discovered DAL: `DataAccessLayer [YourDb] found`
-3. `TemplateCache` validates that all 21 templates are present for each discovered DAL
+3. `TemplateCache` validates that all 25 templates are present for each discovered DAL
 4. `ValidateConfigurationAgainstTemplateCache` verifies that configured `DatabaseType` values (in Repository and TargetGroups) match available DALs
-5. `DirectModePipeline` logs the source of the transient error codes per DatabaseType: Debug for the built-in list, Information when a `TransientErrorCodes.txt` was loaded
+5. `MigrationContextFactory` logs the source of the transient error codes per DatabaseType: Debug for the built-in list, Information when a `TransientErrorCodes.txt` was loaded
 6. Use your database type in configuration:
 
 ```json

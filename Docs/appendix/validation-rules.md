@@ -93,6 +93,6 @@ These run **outside** the shared catalog because they rely on APIs that are unav
    - `Raycoon.RayMigrator.Validation.Helpers.CliToolPlaceholderExtractor` — for placeholder extraction (WASM-safe, shared).
    - `Raycoon.RayMigrator.ConfigWizard.Core.Services.WizardCliToolParameterResolver` — for wizard-side preset fallback.
 
-## Admin-DB / Studio configs (out of scope)
+## Options built in memory
 
-The `PreBuiltOptions` branch in `DirectModePipeline` (used by RayMigrator-Studio) does **not** invoke `IValidateOptions<RayMigratorOptions>`. If future Studio code needs validation, call `RayMigratorOptionsValidator.Validate(null, preBuiltOptions)` explicitly at the Studio boundary.
+A host that builds `RayMigratorOptions` in memory (RayMigrator Studio, a test) runs the same catalog: `IMigrationContextFactory.Create` prepares the options with `RayMigratorOptionsPreparer`, which fails with a `ConfigurationValidationException` listing every error with its rule code (see [Configuration System — Validation](../02-core-concepts/configuration-system.md#validation)). `RayMigratorOptionsValidator.GetReport(options, sectionAsWritten)` returns the full `ValidationReport` of prepared options, warnings and errors with code, severity and path, for a host that shows the findings instead of refusing the options.

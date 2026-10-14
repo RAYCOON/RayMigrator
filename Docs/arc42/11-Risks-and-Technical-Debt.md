@@ -92,8 +92,9 @@ as deliberate scope boundaries and are not tracked as open risks:
   detected until a migration file fails on it.
 - Rollback depends on the rollback files the author wrote and on the engine's
   transaction capabilities; there is no automatic inverse of a migration.
-- Only `OperatingMode.Standalone` is executed by the engine; managed modes are
-  the domain of RayMigrator Studio.
+- No managed service: the CLI reads its configuration from the
+  `appsettings*.json` hierarchy only; RayMigrator Studio hosts the engine
+  packages in its own process.
 
 ## 11.3 Technical Debt
 
@@ -132,7 +133,7 @@ listed so that readers of older documentation know which findings are closed.
 | TD-C-06 | The release archive ships no `appsettings*.json` (`CopyToPublishDirectory=Never`). | `Raycoon.RayMigrator.Console/Raycoon.RayMigrator.Console.csproj` | First contact with the binary yields exit code `4` (no `Serilog` node) until the user creates files from the Config Wizard or the documentation examples | Ship an `appsettings.example.json` next to the binary or print the wizard URL in the exit `4` message |
 | TD-C-07 | The run lock predicate is product, environment and open run; the engine level serialization differs: `pg_advisory_xact_lock` keyed by product only on PostgreSQL, `GET_LOCK` named by product and environment on MariaDB and MySQL. | `Repository_MigrationRun_Insert.sql` in `Raycoon.RayMigrator.Database.PostgreSQL/Templates` and `.MariaDb/Templates`, `.MySql/Templates` | Behavior is correct (the row check runs inside the lock) but runs of different environments of one product serialize on PostgreSQL; the asymmetry is undocumented and easy to break during template edits | Key the PostgreSQL advisory lock by product and environment; add a unit test that compares the lock names across templates |
 | TD-C-08 | `MigrationRecoveryException` and `DatabaseTransientException` are declared and documented in `Docs/02-core-concepts/resilience.md` but never thrown; `DatabaseParameterException` is thrown by `DalSqlServer` only. | `Raycoon.RayMigrator.Shared/Exceptions/CustomExceptions.cs`; `Raycoon.RayMigrator.Database.SqlServer/DalSqlServer.cs` | Consumers may catch types that cannot occur; the other four DALs report parameter errors differently | Remove the unused types or throw them consistently in `DalBase` |
-| TD-C-09 | `Raycoon.RayMigrator.Database.Example/Templates` contains 22 files including `Repository_MigrationRecordHistory_Archive.sql`, which has no `TemplateType` member; the five shipped DALs carry 21. | `Raycoon.RayMigrator.Database.Example/Templates` | Plugin developers copy a template that `TemplateCache` never loads | Delete the file or add the archive feature to `TemplateType` and all five DALs |
+| TD-C-09 | `Raycoon.RayMigrator.Database.Example/Templates` contains 26 files including `Repository_MigrationRecordHistory_Archive.sql`, which has no `TemplateType` member; the five shipped DALs carry 25. | `Raycoon.RayMigrator.Database.Example/Templates` | Plugin developers copy a template that `TemplateCache` never loads | Delete the file or add the archive feature to `TemplateType` and all five DALs |
 
 ### Database access layer audit
 
@@ -192,7 +193,7 @@ The verification status per quality scenario is kept in
 
 These are pointers to where open work is recorded, not commitments.
 
-- [Open features](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/appendix/open-features.md) lists three items that are not implemented: `--force-restart` / `--skip` options for recovery orchestration (F3, otherwise implemented), an Oracle DAL (F11, to be built as an external plugin on `Raycoon.RayMigrator.Database.Example`), and the managed operating modes `ManagedLocal` / `ManagedRemote` (F12), which live in the separate RayMigrator Studio product; the engine reads only `Standalone`.
+- [Open features](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/appendix/open-features.md) lists two items that are not implemented: `--force-restart` / `--skip` options for recovery orchestration (F3, otherwise implemented) and an Oracle DAL (F11, to be built as an external plugin on `Raycoon.RayMigrator.Database.Example`).
 - The public [issue tracker](https://github.com/RAYCOON/RayMigrator/issues) is the live list. The issues referenced in `CHANGELOG.md` for 0.13.0 and 0.14.0 (#6, #9, #11 to #19, #21, #22) closed the enum, schema and compatibility cleanup; the tracker held no open issues when this chapter was last revised.
 - `CHANGELOG.md` keeps an `[Unreleased]` section that is empty right after a release; `RayMigratorVersion` in `Directory.Build.props` names the version being worked towards (see [Architecture Constraints 2.2](02-Architecture-Constraints.md#22-organizational-constraints)).
 - The DAL audit master list keeps a dated progress log and is the place where template changes that require a repository recreate are announced before they reach `CHANGELOG.md`.

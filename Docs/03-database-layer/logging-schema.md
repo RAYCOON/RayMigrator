@@ -85,11 +85,14 @@ The `MigrationEvent` table is the catalogue of the `EventId`s RayMigrator logs w
 | 70 | ValidateConnectionStrings | Connection validation |
 | 80 | RayMigratorServiceStart | Service startup |
 | 100 | TemplateExecutionRepositoryCheckCreate | Repository check/create |
+| 101 | TemplateExecutionRepositoryUpgrade | Repository schema step (`Repository_Upgrade_{n}`) |
+| 102 | TemplateExecutionRepositoryMigratorMetaCheckInsert | Engine version registration in `MigratorMeta` |
 | 110 | TemplateExecutionRepositoryMigrationRunInsert | MigrationRun insert |
 | 111 | TemplateExecutionRepositoryMigrationRunUpdate | MigrationRun update |
 | 112 | TemplateExecutionRepositoryMigrationRunSelectOrphaned | Select orphaned runs |
 | 113 | TemplateExecutionRepositoryMigrationRunFixOrphaned | Fix orphaned migration runs |
 | 114 | TemplateExecutionRepositoryMigrationFixOrphaned | Fix orphaned migration records |
+| 115 | TemplateExecutionRepositoryMigrationRunHeartbeat | MigrationRun heartbeat |
 | 120 | TemplateExecutionRepositoryProductCheckInsert | Product check/insert |
 | 121 | TemplateExecutionRepositoryEnvironmentCheckInsert | Environment check/insert |
 | 122 | TemplateExecutionRepositoryProductSelect | Product lookup (read-only commands) |
@@ -141,7 +144,7 @@ Database logging is on by default and goes into the repository: without a `Datab
 | `DatabaseType` | string | Yes | - | Database type (SqlServer, PostgreSQL, MariaDb, MySql, Sqlite) |
 | `ConnectionString` | string | Yes | - | Database connection string |
 | `SchemaName` | string | No | - | Schema for logging tables |
-| `TableBaseName` | string | No | - | Table name prefix |
+| `TableBaseName` | string | No | - | Table name prefix; at most 16 characters (RULE_4_4) |
 | `MinimumLevel` | string | No | Information | Minimum log level |
 | `DbCommandTimeoutInSeconds` | int | No | 20 | Command timeout |
 
@@ -154,7 +157,7 @@ Two SQL templates implement database logging, available for each supported datab
 
 ### DatabaseLogging_CheckCreate.sql
 
-The `DatabaseLogging_CheckCreate.sql` template creates the logging infrastructure:
+The `DatabaseLogging_CheckCreate.sql` template creates the logging infrastructure. SQL Server names the keys `pk_{CFG:TableBaseName}MigrationEvent` and `pk_{CFG:TableBaseName}MigrationLog`, PostgreSQL `pk_{CFG:TableBaseName}migration_event` and `pk_{CFG:TableBaseName}migration_log`; MariaDB, MySQL and SQLite leave them unnamed. The prefix keeps the log tables of two configurations with different prefixes in one schema apart; a log database created before 0.18.0 keeps its unprefixed key names (`pk_MigrationEvent` and `pk_Log` on SQL Server).
 
 ```sql
 -- Check if tables exist
@@ -166,14 +169,15 @@ BEGIN
 
     -- Create MigrationEvent table
     CREATE TABLE [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationEvent] (
-        Id INT NOT NULL PRIMARY KEY,
-        Name VARCHAR(100) NOT NULL,
-        Description NVARCHAR(1000) NULL
+        Id INT NOT NULL,
+        Name NVARCHAR(100) NOT NULL,
+        Description NVARCHAR(1000) NULL,
+        CONSTRAINT pk_{CFG:TableBaseName}MigrationEvent PRIMARY KEY (Id)
     );
 
     -- Create MigrationLog table
     CREATE TABLE [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationLog] (
-        Id BIGINT IDENTITY(1,1) PRIMARY KEY,
+        Id BIGINT IDENTITY(1,1) NOT NULL,
         LogLevelId TINYINT NOT NULL,
         MigrationEventId INT NULL,
         RunModeId TINYINT NULL,
@@ -188,7 +192,8 @@ BEGIN
         FileOrderId INT NULL,
         FileBlockId INT NULL,
         Message NVARCHAR(MAX) NULL,
-        CreatedAt DATETIME2(3) DEFAULT SYSUTCDATETIME() NOT NULL
+        CreatedAt DATETIME2(3) DEFAULT SYSUTCDATETIME() NOT NULL,
+        CONSTRAINT pk_{CFG:TableBaseName}MigrationLog PRIMARY KEY (Id)
     );
 
     -- Insert event master data

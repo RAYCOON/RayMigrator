@@ -29,7 +29,7 @@ MySQL and MariaDB share a common ancestor and most SQL syntax, but they are two 
 
 **Rationale**
 
-- **Volume is manageable.** Each engine has 21 SQL template files under 300 lines each. The maintenance cost of duplicated files is measurable but bounded, and considerably cheaper than the readability cost of inline placeholders for every dialect-specific token.
+- **Volume is manageable.** Each engine has 25 SQL template files under 300 lines each. The maintenance cost of duplicated files is measurable but bounded, and considerably cheaper than the readability cost of inline placeholders for every dialect-specific token.
 - **Templates stay idiomatic.** Readers see native MySQL SQL or native MariaDB SQL — no `{ENGINE:Var}` placeholders obscuring which dialect is actually running.
 - **Divergence is expected to grow.** JSON path expressions, window-function variants, vector types, and dialect-specific optimizer hints are all areas where MySQL 8+ and MariaDB 10.10+ have already moved apart. A placeholder-shared file scales poorly into that future.
 - **Per-engine CI catches regressions.** `dotnet test Raycoon.RayMigrator.Tests.Engine/ --filter "Database=MySql"` runs only the MySQL engine; the equivalent MariaDB filter runs the MariaDB engine. A template change that breaks one engine is caught before merge.
@@ -663,7 +663,7 @@ PostgreSQL, MariaDB, and MySQL all use **unquoted snake_case** for repository id
 
 `RepositoryNaming.ToSnakeCase` in the read model package `Raycoon.RayMigrator.Repository.ReadModel` (ADR-025) implements this exception via a sentinel pre-pass (`RayMigrator` → `Raymigrator` before mechanical splitting) and is covered by `P1_RepositoryReadModelTests`; `RepositoryQueryHelper.ToSnakeCase` in the Testing project delegates to it (covered by `P1_RepositoryQueryHelperToSnakeCaseTests`) when it formats table and column names for PostgreSQL, MariaDB and MySQL queries (DAL-017, DAL-018).
 
-**Index and constraint names carry the table prefix on every engine.** `ix_`, `uix_`, `pk_` and `fk_` names all start with `{CFG:TableBaseName}` (since 0.18.0 the keys as well), so two repositories with different prefixes can share a database or schema; the prefix has at most 16 characters (RULE_4_4), which keeps the longest name within the 63 characters PostgreSQL allows.
+**Index and constraint names carry the table prefix on every engine.** `ix_`, `uix_`, `pk_` and `fk_` names all start with `{CFG:TableBaseName}` (since 0.18.0 the keys as well), so two repositories with different prefixes can share a database or schema; the prefix has at most 16 characters (RULE_4_4), which keeps the longest name within the 63 characters PostgreSQL allows. MySQL, MariaDB and SQLite leave the primary keys unnamed, so only SQL Server and PostgreSQL have `pk_` names.
 
 **`TableBaseName` must be lowercase for PostgreSQL, MariaDB, and MySQL.** The `RayMigratorOptionsValidator` rejects any uppercase character in `Repository.TableBaseName` or `DatabaseLogging.TableBaseName` when `DatabaseType` is `"PostgreSQL"`, `"MariaDb"`, or `"MySql"`. Rationale: PostgreSQL folds unquoted identifiers to lowercase; the MariaDB/MySQL snake_case repository schema (DAL-018) is stored as lowercase; any uppercase prefix character would break the `information_schema.tables` existence checks in `Repository_CheckCreate` and `DatabaseLogging_CheckCreate`.
 

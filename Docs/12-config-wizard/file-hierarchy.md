@@ -72,7 +72,7 @@ The Overview page's Export button calls `ZipExportService.ExportAsync`, which bu
 
 ### Round-Trip Safety
 
-The wizard preserves unknown JSON keys. If your `appsettings.json` contains `AdminDb`, `ApiUrl`, or any other section not recognized by the wizard, those keys are preserved when the file is saved. The Web wizard manages 6 sections: `Repository`, `DatabaseLogging`, `ProductDefaults`, `Products`, `Serilog`, and `CliTools`.
+The wizard preserves unknown JSON keys. If your `appsettings.json` contains `ApiUrl` or any other key not recognized by the wizard, those keys are preserved when the file is saved. The Web wizard manages 6 sections: `Repository`, `DatabaseLogging`, `ProductDefaults`, `Products`, `Serilog`, and `CliTools`.
 
 ## Scoped Editing
 

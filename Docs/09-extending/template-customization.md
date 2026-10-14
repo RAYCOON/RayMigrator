@@ -22,6 +22,9 @@ Raycoon.RayMigrator.Database.SqlServer/
     ├── DatabaseLogging_CheckCreate.sql
     ├── DatabaseLogging_Insert.sql
     ├── Repository_CheckCreate.sql
+    ├── Repository_Upgrade_1.sql
+    ├── Repository_Upgrade_2.sql
+    ├── Repository_MigratorMeta_CheckInsert.sql
     ├── Repository_Drop.sql
     ├── Repository_Environment_CheckInsert.sql
     ├── Repository_Environment_Select.sql
@@ -34,6 +37,7 @@ Raycoon.RayMigrator.Database.SqlServer/
     ├── Repository_MigrationRecord_UpdateHash.sql
     ├── Repository_MigrationRecord_UpdateRollback.sql
     ├── Repository_MigrationRun_FixOrphaned.sql
+    ├── Repository_MigrationRun_Heartbeat.sql
     ├── Repository_MigrationRun_Insert.sql
     ├── Repository_MigrationRun_Select.sql
     ├── Repository_MigrationRun_SelectOrphaned.sql
@@ -42,7 +46,7 @@ Raycoon.RayMigrator.Database.SqlServer/
     └── Repository_Product_Select.sql
 ```
 
-Each DAL (SqlServer, PostgreSQL, MariaDb, MySql, Sqlite) has the same 21 template files with database-specific SQL. Template file names correspond to `TemplateType` enum values. `TemplateCache` loads templates from `DataAccessLayers/{Type}/` on the filesystem at startup.
+Each DAL (SqlServer, PostgreSQL, MariaDb, MySql, Sqlite) has the same 25 template files with database-specific SQL. Template file names correspond to `TemplateType` enum values. `TemplateCache` loads templates from `DataAccessLayers/{Type}/` on the filesystem at startup.
 
 ## Template TOML Headers
 
@@ -191,7 +195,7 @@ When customizing these templates, preserve the inline `INSERT INTO MigrationReco
 
 ### Schema Creation Template
 
-The schema is versioned (ADR-024): `Repository_CheckCreate.sql` creates only the `RepositorySchemaVersion` table and reports the version, and the schema step `Repository_Upgrade_1.sql` creates all 11 repository tables (MigratorMeta, Product, Environment, MigrationRun, MigrationRunMeta, MigrationRecord, MigrationRecordHistory, MigrationRunMode, MigrationOperation, MigrationRunResult, MigrationStatus) with their master data. A customised step must stay idempotent and return its own version number; a later version is a new `Repository_Upgrade_{n}` template, never a change to an existing step. Here is the MigrationRecord table excerpt (SQL Server):
+The schema is versioned (ADR-024): `Repository_CheckCreate.sql` creates only the `RepositorySchemaVersion` table and reports the version, and the schema step `Repository_Upgrade_1.sql` creates all 11 repository tables (MigratorMeta, Product, Environment, MigrationRun, MigrationRunMeta, MigrationRecord, MigrationRecordHistory, MigrationRunMode, MigrationOperation, MigrationRunResult, MigrationStatus) with their master data. A customised step must stay idempotent and return its own version number; a later version is a new `Repository_Upgrade_{n}` template, never a change to an existing step. Every key, foreign key and index name carries the `{CFG:TableBaseName}` prefix (`pk_{CFG:TableBaseName}MigrationRecord` below), so that repositories with different prefixes can share a schema; keep it in the names you add. Here is the MigrationRecord table excerpt (SQL Server):
 
 ```sql
 -- Repository_Upgrade_1.sql (excerpt: MigrationRecord table)
@@ -352,15 +356,16 @@ To add post-processing, you would modify `TemplateCache` to apply transformation
 
 ```csharp
 // Hypothetical extension — not currently implemented
+// Runs on the loaded SQL Server templates, before {CFG:*} is replaced, so the key names still read pk_{CFG:TableBaseName}...
 public string Process(string template)
 {
-    if (template.Contains("CREATE TABLE"))
+    if (template.Contains("PRIMARY KEY"))
     {
         template = template.Replace(
-            "CONSTRAINT [PK_",
+            "CONSTRAINT pk_{CFG:TableBaseName}",
             "[AuditCreatedBy] NVARCHAR(100) NULL,\n" +
             "[AuditModifiedBy] NVARCHAR(100) NULL,\n" +
-            "CONSTRAINT [PK_");
+            "CONSTRAINT pk_{CFG:TableBaseName}");
     }
     return template;
 }
@@ -447,16 +452,19 @@ public class TemplateExecutor
         IMigrationContextAccessor ctxAccessor) { ... }
 
     // Repository infrastructure
-    public void RepositoryCheckCreate() { ... }
+    public void RepositoryCheckCreate() { ... }   // schema steps through RepositorySchemaExecutor
     public void RepositoryProductCheckInsert() { ... }
     public void RepositoryEnvironmentCheckInsert() { ... }
+    public bool RepositoryProductSelect() { ... }
+    public bool RepositoryEnvironmentSelect() { ... }
 
     // MigrationRun operations
     public void RepositoryMigrationRunInsert(string migrationRunSettingsJson) { ... }
-    public void RepositoryMigrationRunUpdate(MigrationRunResult runResult) { ... }
+    public void RepositoryMigrationRunUpdate(MigrationRunResult runResult, string? errorCode = null, string? errorMessage = null) { ... }
+    public bool RepositoryMigrationRunHeartbeat() { ... }
     public List<Dictionary<string, object?>> RepositoryMigrationRunSelect(int limit) { ... }
     public List<Dictionary<string, object?>> RepositoryMigrationRunSelectOrphaned(int productId, int environmentId) { ... }
-    public void RepositoryMigrationRunFixOrphaned(int migrationRunId) { ... }
+    public bool RepositoryMigrationRunFixOrphaned(int migrationRunId, int thresholdMinutes) { ... }
 
     // Migration operations
     public int RepositoryMigrationInsert(int existingMigrationRecordId, string filename, string releaseVersion,
@@ -464,6 +472,7 @@ public class TemplateExecutor
         string? fileUpConfigHash, string fileUpBlocksHash, int fileUpBlocksTotal,
         string? fileUpConfigJson, bool migrateDownFileExists) { ... }   // Returns MigrationRecordId
     public List<MigrationRecord> RepositoryMigrationSelect() { ... }   // always reads Migrate-mode records
+    public List<MigrationRecord> RepositoryMigrationRecordHistorySelect() { ... }
     public InterruptedMigrationInfo? RepositoryMigrationGetInterrupted() { ... }
     public int RepositoryMigrationRecordFixOrphaned(int migrationRunId, MigrationStatus status) { ... }
     public void RepositoryMigrationUpdateHash(int migrationRecordId, string fileUpHash,
@@ -533,7 +542,7 @@ public class TemplateCache
 }
 ```
 
-The constructor loads the templates only. `ValidateConfigurationAgainstTemplateCache(options)` checks that the Repository, the DatabaseLogging and every TargetGroup `DatabaseType` of a configuration has templates; the CLI pipeline calls it once after the options are bound, a host for every configuration it runs.
+The constructor loads the templates only. `ValidateConfigurationAgainstTemplateCache(options)` checks that the Repository and every TargetGroup `DatabaseType` of a configuration has templates; the CLI pipeline calls it once after the options are bound, a host for every configuration it runs.
 
 ## Testing Custom Templates
 
@@ -574,9 +583,9 @@ public void CustomTemplate_CreatesRepositoryTables()
 
 ## Best Practices
 
-### 1. No In-Place Upgrades
+### 1. Schema Changes Are New Steps
 
-RayMigrator does not upgrade existing repositories or log databases in place. A template change that alters the schema or the lookup master data ships in a new RayMigrator version and existing repositories are dropped and recreated. There is no schema version constant to maintain: `MigratorMeta.RayMigratorVersion` records the RayMigrator version that used the repository, and its first row is the version that created it. Bump the `Version` header of the changed template file (file revision) and do not add `ALTER TABLE` guards or master-data back-fill blocks to the "already exists" branch of `Repository_CheckCreate` or `DatabaseLogging_CheckCreate`: master data is written only when the tables are created.
+The repository is upgraded in place in numbered steps (ADR-024): a change to its schema or its lookup master data is a new `Repository_Upgrade_{n}.sql` in every DAL plus a bump of `RepositorySchema.CurrentVersion`, not a change to an existing step, and the next command (or a host through `IRepositorySchemaService.Ensure`) applies the missing steps. `RepositorySchemaVersion` records the applied versions; `MigratorMeta.RayMigratorVersion` only lists the RayMigrator versions that used the repository. `Repository_CheckCreate` creates nothing but the schema and the version table. The log database is not upgraded in place: do not add `ALTER TABLE` guards or master-data back-fill blocks to the "already exists" branch of `DatabaseLogging_CheckCreate`, whose master data is written only when the tables are created. Bump the `Version` header of every changed template file (file revision).
 
 ### 2. Use Idempotent Scripts
 
@@ -598,7 +607,7 @@ Follow the existing TOML header convention (see [Template TOML Headers](#templat
 RayMigrator SQL Template (CUSTOMIZED)
 ================================================================================
 [RayMigratorTemplate]
-TemplateType   = "Repository_CheckCreate"
+TemplateType   = "Repository_Upgrade_1"
 DatabaseType   = "SqlServer"
 Author         = "Your Organization"
 Version        = "2025-06-15.1"

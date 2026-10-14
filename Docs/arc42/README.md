@@ -75,7 +75,7 @@ The wiki has a flat namespace. Do not create subfolders. The file name (without
 | block | A unit of SQL inside a migration file executed as one statement batch. |
 | DAL / DAL plugin | Database access layer implementation for one engine (`Raycoon.RayMigrator.Database.*`). |
 | template | SQL template used to create and maintain the repository schema per engine. |
-| execution mode | Operating mode, migration order and run mode. Check `Docs/02-core-concepts/execution-modes.md` for the exact enum names before writing. |
+| execution mode | Migration order and run mode. Check `Docs/02-core-concepts/execution-modes.md` for the exact enum names before writing. |
 | Config Wizard | The web application `Raycoon.RayMigrator.ConfigWizard.Web` that generates configuration files. |
 | engine | A database engine: SQL Server, PostgreSQL, MariaDB, MySQL, SQLite (always this order, these spellings). |
 

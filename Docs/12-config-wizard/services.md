@@ -1,6 +1,6 @@
 # Config-Wizard Services Reference
 
-All service classes are in `Raycoon.RayMigrator.ConfigWizard.Core.Services` (shared Core library) or `Raycoon.RayMigrator.ConfigWizard.Web.Services` (Web wizard). Core services are IO-free and can be unit-tested independently.
+All service classes are in `Raycoon.RayMigrator.ConfigWizard.Core.Services` (shared Core library) or `Raycoon.RayMigrator.ConfigWizard.Web.Services` (Web wizard), except `ConfigurationHelp` and `JsonPathRegistry`, which live in `Raycoon.RayMigrator.Shared.Configuration.Help`. Core services are IO-free and can be unit-tested independently.
 
 ## ConfigurationSerializer
 
@@ -19,7 +19,7 @@ string ToJson(ConfigurationModel model, ConfigurationModel? baseModel = null, bo
 bool IsEmptyDiff(string json)
 ```
 
-**Round-trip safety**: `LoadFromJson` stores a deep clone of the full parsed document in `model.PreservedDocument`. When `ToJson` is called, it starts from the preserved document and only replaces the managed sections. The Core serializer manages 6 sections: `Repository`, `DatabaseLogging`, `ProductDefaults`, `Products`, `Serilog`, and `CliTools`. Unknown keys at the `RayMigrator` level (e.g. `AdminDb`, `ApiUrl`) are preserved unchanged.
+**Round-trip safety**: `LoadFromJson` stores a deep clone of the full parsed document in `model.PreservedDocument`. When `ToJson` is called, it starts from the preserved document and only replaces the managed sections. The Core serializer manages 6 sections: `Repository`, `DatabaseLogging`, `ProductDefaults`, `Products`, `Serilog`, and `CliTools`. Unknown keys at the `RayMigrator` level (e.g. `ApiUrl`) are preserved unchanged.
 
 **Parsing behavior**: The serializer reads `OverridableValue<T>` properties by checking whether the key is present in the JSON node. If present, `IsOverridden = true` and `Value` is set. If absent, the value stays at its default `IsOverridden = false` state.
 

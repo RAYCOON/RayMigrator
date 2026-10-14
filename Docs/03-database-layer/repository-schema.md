@@ -446,6 +446,10 @@ CREATE INDEX ix_migration_run_environment_id          ON migration_run (environm
 CREATE INDEX ix_migration_run_migration_run_mode_id   ON migration_run (migration_run_mode_id);
 CREATE INDEX ix_migration_run_migration_run_result_id ON migration_run (migration_run_result_id);
 
+-- migration_run FK columns of schema version 2 (Repository_Upgrade_2)
+CREATE INDEX ix_migration_run_migration_operation_id  ON migration_run (migration_operation_id);
+CREATE INDEX ix_migration_run_migration_run_source_id ON migration_run (migration_run_source_id);
+
 -- migration_record FK columns
 CREATE INDEX ix_migration_record_product_id              ON migration_record (product_id);
 CREATE INDEX ix_migration_record_environment_id          ON migration_record (environment_id);
@@ -455,11 +459,11 @@ CREATE INDEX ix_migration_record_migration_operation_id  ON migration_record (mi
 CREATE INDEX ix_migration_record_migration_status_id     ON migration_record (migration_status_id);
 ```
 
-Actual index names in the template use the `{CFG:TableBaseName}` prefix, e.g. `ix_{CFG:TableBaseName}migration_run_product_id`, and so do the primary key and foreign key names since 0.18.0 (`pk_{CFG:TableBaseName}migration_run`, `fk_{CFG:TableBaseName}migration_run_product`): constraint names are scoped per schema on SQL Server, per schema for the index behind a primary key on PostgreSQL and per database on MySQL and MariaDB, and the prefix keeps two repositories in one place apart. The prefix has at most 16 characters (RULE_4_4) so that the longest name fits the identifier limits. SQL Server does not auto-index FK columns either; that is a candidate for a future work item (see DAL-007 and related tickets).
+Actual index names in the template use the `{CFG:TableBaseName}` prefix, e.g. `ix_{CFG:TableBaseName}migration_run_product_id`, and so do the primary key and foreign key names since 0.18.0 (`pk_{CFG:TableBaseName}migration_run`, `fk_{CFG:TableBaseName}migration_run_product`): constraint names are scoped per schema on SQL Server, per schema for the index behind a primary key on PostgreSQL and per database on MySQL and MariaDB, and the prefix keeps two repositories in one place apart. The prefix has at most 16 characters (RULE_4_4) so that the longest name fits the identifier limits. A repository created by 0.17.0 keeps its unprefixed key names. SQL Server does not auto-index FK columns either; that is a candidate for a future work item (see DAL-007 and related tickets).
 
 ## Foreign Keys
 
-All 15 foreign keys use `NO ACTION` referential behavior (no cascade on delete or update). The logical FK declarations below use SQL Server / canonical names without the prefix; the templates write `fk_{CFG:TableBaseName}...`. On PostgreSQL, MariaDB, and MySQL, each FK uses snake_case constraint names (e.g., `fk_migration_run_product` instead of `fk_MigrationRun_Product`); on PostgreSQL each FK is additionally declared with an explicit `ON DELETE NO ACTION ON UPDATE NO ACTION` clause; on MariaDB/MySQL the default `NO ACTION` is implicit.
+All 17 foreign keys (15 from schema step 1, 2 from step 2) use `NO ACTION` referential behavior (no cascade on delete or update). The logical FK declarations below use SQL Server / canonical names without the prefix; the templates write `fk_{CFG:TableBaseName}...`, and the guards of `Repository_Upgrade_2` on SQL Server and PostgreSQL look for the prefixed names. On PostgreSQL, MariaDB, and MySQL, each FK uses snake_case constraint names (e.g., `fk_migration_run_product` instead of `fk_MigrationRun_Product`); on PostgreSQL each FK is additionally declared with an explicit `ON DELETE NO ACTION ON UPDATE NO ACTION` clause; on MariaDB/MySQL the default `NO ACTION` is implicit. On SQLite, step 2 declares its two references on the added columns without a constraint name.
 
 ```sql
 -- MigrationRecord table
@@ -504,6 +508,12 @@ ALTER TABLE MigrationRun ADD CONSTRAINT fk_MigrationRun_MigratorMeta
 -- MigrationRunMeta table
 ALTER TABLE MigrationRunMeta ADD CONSTRAINT fk_MigrationRunMeta_MigrationRun
     FOREIGN KEY (MigrationRunId) REFERENCES MigrationRun(Id);
+
+-- MigrationRun table, schema version 2 (Repository_Upgrade_2)
+ALTER TABLE MigrationRun ADD CONSTRAINT fk_MigrationRun_MigrationOperation
+    FOREIGN KEY (MigrationOperationId) REFERENCES MigrationOperation(Id);
+ALTER TABLE MigrationRun ADD CONSTRAINT fk_MigrationRun_MigrationRunSource
+    FOREIGN KEY (MigrationRunSourceId) REFERENCES MigrationRunSource(Id);
 ```
 
 > **Note on MigrationLog:** The `MigrationLog` table also has an `EnvironmentId` column but carries **no FK** to the `Environment` table. This matches the existing precedent for `ProductId` in the logging schema — the logging database may be separate from the repository, so FK enforcement would require cross-database references. Pass `null` when `EnvironmentId` is zero or unknown.
@@ -554,8 +564,10 @@ The two logging tables follow the same convention: `MigrationEvent` → `migrati
 Since 0.17.0 the schema is versioned and upgraded in numbered steps (ADR-024):
 
 1. `Repository_CheckCreate` creates the schema (SQL Server, PostgreSQL) and the `RepositorySchemaVersion` table if they are missing and returns `'schemaVersion,unversionedTables,message'`: the highest applied version (`0` when none) and `1` when the `MigratorMeta` table exists.
-2. `TemplateExecutor.RepositoryCheckCreate` compares the version with the target of the run (`RepositorySchema.CurrentVersion`, unless an engine test pins an older version through `MigrationContext.RepositorySchemaTargetVersion`) and executes every missing `Repository_Upgrade_{n}` in order. Each step creates its version on top of the one before, returns its own number and writes its row of `RepositorySchemaVersion`. Step 1 creates the 11 tables of this page with their master data, so a fresh repository runs every step from 1 and the steps are the single source of the schema.
+2. `RepositorySchemaExecutor` compares the version with the target version and executes every missing `Repository_Upgrade_{n}` in order. For a run, `TemplateExecutor.RepositoryCheckCreate` passes the target of the context (`MigrationContext.RepositorySchemaTargetVersion`: `RepositorySchema.CurrentVersion`, unless an engine test pins an older version). Each step creates its version on top of the one before, returns its own number and writes its row of `RepositorySchemaVersion`. Step 1 creates the 11 tables of this page with their master data, so a fresh repository runs every step from 1 and the steps are the single source of the schema.
 3. `Repository_MigratorMeta_CheckInsert` registers the engine version in `MigratorMeta` and returns the `MigratorMetaId` every run row references.
+
+A host that manages repositories runs the same steps without a product, an environment or a run: `IRepositorySchemaService.Ensure(RepositoryOptions)` (registered by `AddRayMigratorServices`) validates the repository options, executes the steps up to `RepositorySchema.CurrentVersion` through `RepositorySchemaExecutor` and returns the versions before and after and the `MigratorMetaId` (see [MigrationContext](../02-core-concepts/migration-context.md#creating-or-upgrading-a-repository-without-a-run)).
 
 Every step is idempotent per engine: SQL Server runs it in one transaction with `sp_getapplock`, PostgreSQL in one `DO` block with `pg_advisory_xact_lock`, SQLite in one `BEGIN IMMEDIATE` transaction (`CREATE TABLE IF NOT EXISTS`, `INSERT OR IGNORE`), MySQL and MariaDB statement by statement (`CREATE TABLE IF NOT EXISTS`, `INSERT IGNORE`) under `GET_LOCK()`, because their DDL commits implicitly. `Repository_CheckCreate` takes the same lock (or waits in the SQLite busy timeout), so a check that runs while another process applies a step never sees the tables without their version row. A parallel start on an empty repository therefore creates it once. Both processes may still read version 0 before either applies a step; a step that fails on what the other process already did (SQLite has no `ADD COLUMN IF NOT EXISTS`) is accepted when a re-read of the version shows it applied, and the DAL rolls back the failed script's own `BEGIN IMMEDIATE` so that a pooled connection does not keep the write lock.
 

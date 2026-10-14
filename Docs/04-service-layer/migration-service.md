@@ -20,6 +20,8 @@ public interface IMigrationService
 }
 ```
 
+`Raycoon.RayMigrator.Services.Abstractions` has a second service, `IRepositorySchemaService`, for hosts that create or upgrade a repository without a run: `RepositorySchemaResult Ensure(RepositoryOptions repository)` runs the schema steps of ADR-024 from the repository options alone, without a product, an environment or a `MigrationContext` (see [MigrationContext](../02-core-concepts/migration-context.md#creating-or-upgrading-a-repository-without-a-run)). Within a run, `MigrationService` runs the same steps through `TemplateExecutor.RepositoryCheckCreate`.
+
 ## Request Types
 
 ### MigrateUpRequest
@@ -503,8 +505,8 @@ sequenceDiagram
     Note over Svc: Phase 1: Initialization<br/>(state always set; repo ops only when ShouldWriteRepository)
     Svc->>Svc: Set MigrationRunResult=Running, MigrationOperation=MigrateUp
     Svc->>Tmpl: RepositoryCheckCreate()
-    Tmpl->>Repo: Create/verify repository
-    Repo-->>Tmpl: VersionId
+    Tmpl->>Repo: Schema steps via RepositorySchemaExecutor:<br/>Repository_CheckCreate, missing Repository_Upgrade_n,<br/>Repository_MigratorMeta_CheckInsert
+    Repo-->>Tmpl: MigratorMetaId
 
     Svc->>Tmpl: RepositoryProductCheckInsert()
     Tmpl->>Repo: Ensure product exists
@@ -1417,6 +1419,7 @@ public static IServiceCollection AddRayMigratorServices(
         services.AddSingleton<IMigrationContextAccessor, AsyncLocalMigrationContextAccessor>();
 
     services.AddSingleton<IMigrationContextFactory, MigrationContextFactory>();
+    services.AddSingleton<IRepositorySchemaService, RepositorySchemaService>();
 
     return services;
 }
@@ -1425,6 +1428,7 @@ public static IServiceCollection AddRayMigratorServices(
 - **CLI mode** (`RayMigratorHostMode.Cli`): `SingletonMigrationContextAccessor`, one context for the whole process.
 - **API mode** (`RayMigratorHostMode.Api`): `AsyncLocalMigrationContextAccessor`, one context per async flow through a static `AsyncLocal<T>`. It is a singleton too; a scoped registration would isolate nothing and would make the singleton factory a captive dependency.
 - `IMigrationContextFactory` is a singleton that takes the accessor and a logger; it is the entry point of a host for one run (see [MigrationContext](../02-core-concepts/migration-context.md#hosting-the-engine-in-process)).
+- `IRepositorySchemaService` / `RepositorySchemaService` is a singleton that takes the host's `TemplateCache` and a logger; `Ensure(RepositoryOptions)` creates or upgrades a repository without a run and returns `RepositorySchemaResult` (`DatabaseType`, `VersionBefore`, `VersionAfter`, `MigratorMetaId`, `Created`, `Upgraded`).
 - `ICliToolExecutor` / `CliToolExecutor` is registered as scoped for external SQL tool execution.
 - Not registered here and supplied by the host: `TemplateCache` (one per process), `TemplateExecutor` (scoped per run), `DatabaseLogWriter`, logging.
 

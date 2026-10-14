@@ -68,10 +68,10 @@ controls transaction use and overrides error handling per file.
 - **Not an undo for arbitrary failures.** Rollback relies on the rollback
   files you provide and on the engine's transaction capabilities. On MariaDB
   and MySQL, DDL commits implicitly.
-- **Not a managed service.** The engine runs standalone with JSON
-  configuration. The `OperatingMode` enum (`Standalone`, `ManagedLocal`,
-  `ManagedRemote`) exists only as a contract for the separate RayMigrator
-  Studio product and is not read by the engine.
+- **Not a managed service.** The CLI runs standalone with JSON
+  configuration, one run per process. The separate RayMigrator Studio product
+  hosts the engine packages in its own process and passes options it builds
+  in memory to `IMigrationContextFactory`; the CLI never talks to it.
 - **Not yet an Oracle (or other engine) migrator.** Only the five engines
   above ship in the repository; further engines are the domain of DAL plugins.
 

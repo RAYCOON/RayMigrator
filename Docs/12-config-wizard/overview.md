@@ -2,7 +2,7 @@
 
 The **RayMigrator Config-Wizard** ecosystem eliminates the need to hand-edit JSON configuration files. It consists of two projects:
 
-- **`Raycoon.RayMigrator.ConfigWizard.Core`** — shared domain library (models, services, validation adapters). Zero NuGet dependencies; one project reference to the WASM-safe `Raycoon.RayMigrator.Validation` shared rule catalog. Targets `net10.0`, `net9.0`, and `net8.0`. Used by the Web wizard and independently unit-tested.
+- **`Raycoon.RayMigrator.ConfigWizard.Core`** — shared domain library (models, services, validation adapters). Zero NuGet dependencies; project references to the WASM-safe `Raycoon.RayMigrator.Validation` shared rule catalog and to `Raycoon.RayMigrator.Shared` (file roles, alias merge, configuration help texts). Targets `net10.0`, `net9.0`, and `net8.0`. Used by the Web wizard and independently unit-tested.
 - **`Raycoon.RayMigrator.ConfigWizard.Web`** — Blazor WASM standalone wizard. Targets `net10.0`. Uses MudBlazor 9. Supports English and German (DE/EN). All validation runs client-side (no server required).
 
 ## Purpose

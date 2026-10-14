@@ -105,7 +105,7 @@ A deployment context such as Development, Staging, or Production. Each environme
 A predicate-based class in `Raycoon.RayMigrator.Core.Configuration.Options` that evaluates process exit codes against a whitelist of expressions parsed from `CliToolOptions.SuccessExitCodes`. Supported expression forms: `"0"` (single integer), `"1..5"` (closed range, inclusive), `"10.."` (open-ended up, >= 10), `"..-1"` (open-ended down, <= -1). `IsMatch(int exitCode)` returns true if any predicate matches. The default instance accepts only exit code 0. `TryParse(string[]?, out ExitCodeMatcher, out string?)` builds a matcher from a string array and returns false with an error message if any expression is invalid. `ToString()` returns a human-readable representation such as `[0, 1..5]`.
 
 ### Environment Resolver
-A static utility class (`EnvironmentResolver`) that takes the target environment from the `--environment` / `-env` CLI argument and cross-checks it against the `DOTNET_ENVIRONMENT` environment variable. If both are set to different values, it reports a conflict and terminates (exit code 2). If the argument is blank, it reports an error and terminates (exit code 3); the variable never replaces the argument. Shared between CLI modes. Defined in `EnvironmentResolver.cs` in the Core project.
+A static utility class (`EnvironmentResolver`) that takes the target environment from the `--environment` / `-env` CLI argument and cross-checks it against the `DOTNET_ENVIRONMENT` environment variable. If both are set to different values, it reports a conflict and terminates (exit code 2). If the argument is blank, it reports an error and terminates (exit code 3); the variable never replaces the argument. Defined in `EnvironmentResolver.cs` in the Core project.
 
 ### Exclusive Run
 A migration run that holds exclusive access to migrate a product in an environment. Only one migration process can run for a given product and environment at any time, enforced at the database level by `Repository_MigrationRun_Insert` (an unfinished run blocks a new one); runs of the same product in different environments may overlap.
@@ -255,12 +255,6 @@ An exception thrown when a feature is planned but not yet implemented. Carries a
 
 ## O
 
-### Operating Mode
-The mode in which RayMigrator runs, determined by bootstrap configuration (`OperatingMode` enum; the Engine has no CLI option or configuration key for it and always runs Standalone, the managed modes live in RayMigrator Studio):
-- **Standalone**: All configuration loaded from JSON files (appsettings.json hierarchy). No Admin-DB, no API server. This is the default mode used by RayMigrator Engine.
-- **ManagedLocal**: Configuration loaded from a local Admin-DB. Products, Environments, Targets, and Repository config come from the Admin-DB. Serilog configuration still read from appsettings.json. Implemented in RayMigrator Studio.
-- **ManagedRemote**: CLI operates as a Thin Client, sending HTTP requests to a remote RayMigrator API server instead of accessing databases directly. Implemented in RayMigrator Studio.
-
 ### Options Pattern
 A design pattern for accessing strongly-typed configuration through dependency injection.
 
@@ -273,7 +267,7 @@ A MigrationRun that remains in "Running" status due to a process crash or unexpe
 ## P
 
 ### Pipeline
-The execution pipeline project (`Raycoon.RayMigrator.Pipeline`) that orchestrates the complete lifecycle of a migration run. Contains `DirectModePipeline` (the unified entry point for Standalone and Managed modes), `RayMigratorService` (the top-level service that dispatches to the appropriate migration command), `JsonOptionsSource` (loads configuration from JSON files), and `SerilogFactory` (creates Serilog logger instances). Configuration source abstractions (`IOptionsSource`, `OptionsSourceResult`) are defined in the Core project (`Core/Configuration/Sources/`). Extracted from the Console project to enable reuse across different host contexts.
+The execution pipeline project (`Raycoon.RayMigrator.Pipeline`) that orchestrates the complete lifecycle of a migration run. Contains `DirectModePipeline` (the lifecycle of a CLI run after the options are loaded from the `appsettings.json` hierarchy), `RayMigratorService` (the top-level service that dispatches to the appropriate migration command), `JsonOptionsSource` (loads configuration from JSON files), and `SerilogFactory` (creates Serilog logger instances). Configuration source abstractions (`IOptionsSource`, `OptionsSourceResult`) are defined in the Core project (`Core/Configuration/Sources/`). Extracted from the Console project to enable reuse across different host contexts.
 
 ### Placeholder
 A token replaced with actual values at runtime. Used in SQL templates and CLI tool argument templates:
@@ -295,7 +289,7 @@ The unique identifier for a product, used in configuration and CLI commands.
 A directory name representing a version of migrations (e.g., "Release 1.0", "v2.0.0"). Migrations are organized by release.
 
 ### Repository
-The database structure that tracks migration state, history, and metadata. Contains 13 tables (`RepositorySchemaVersion`, `MigratorMeta`, `Product`, `Environment`, `MigrationRun`, `MigrationRunMeta`, `MigrationRecord`, `MigrationRecordHistory`, plus five lookups); the schema is versioned and upgraded in numbered steps (ADR-024). See [Repository Schema](../03-database-layer/repository-schema.md).
+The database structure that tracks migration state, history, and metadata. Contains 13 tables (`RepositorySchemaVersion`, `MigratorMeta`, `Product`, `Environment`, `MigrationRun`, `MigrationRunMeta`, `MigrationRecord`, `MigrationRecordHistory`, plus five lookups); the schema is versioned and upgraded in numbered steps (ADR-024). A host creates or upgrades a repository without a run through `IRepositorySchemaService.Ensure(RepositoryOptions)`. See [Repository Schema](../03-database-layer/repository-schema.md).
 
 ### Rollback
 The process of reversing previously applied migrations using rollback files.
@@ -366,7 +360,7 @@ The runtime effective value is resolved as: CLI option (highest priority) → `T
 ## T
 
 ### Table Base Name
-A prefix added to all repository table names (e.g., "Ray" produces "RayMigrationRecord" instead of "MigrationRecord").
+A prefix added to all repository table names (e.g., "Ray" produces "RayMigrationRecord" instead of "MigrationRecord") and to their index and constraint names, so repositories with different prefixes can share one database or schema. At most 16 characters (`RULE_4_4`).
 
 ### Target
 A single database connection that receives migrations. Multiple targets can exist within a Target Group.

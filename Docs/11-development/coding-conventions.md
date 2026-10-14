@@ -115,7 +115,7 @@ Reference files are cited so that a rule can be checked against real code.
 
 ## 9. Documentation comments
 
-- Every `public` and `protected` type and member in the packable projects (`Core`, `Shared`, `Infrastructure`, `Services`, `Services.Abstractions`, `Pipeline`, `Database`, `Database.Common`, `Database.<Db>`, `Validation`, `Testing`) has a `///<summary>` that says what it is for, not what its name already says. `internal` members and Console/Wizard code: document when the behaviour is not obvious.
+- Every `public` and `protected` type and member in the packable projects (`Core`, `Shared`, `Infrastructure`, `Services`, `Services.Abstractions`, `Pipeline`, `Database`, `Database.Common`, `Database.<Db>`, `Repository.ReadModel`, `Validation`, `Testing`) has a `///<summary>` that says what it is for, not what its name already says. `internal` members and Console/Wizard code: document when the behaviour is not obvious.
 - Empty `<summary>` placeholders are forbidden. Remove the 17 that exist when you touch their files.
 - Use `<see cref="..."/>`, `<paramref name="..."/>`, `<c>...</c>` and `<remarks>` where they help (`Validation/Rules/SchemaRule.cs`, `Core/Logging/MigrationEvent.cs`). Use `<inheritdoc/>` on interface implementations that add nothing.
 - Engine tests keep their test-ID summaries (`/// B1: Baseline to Release_2.0 should ...`).
@@ -173,15 +173,16 @@ Reference files are cited so that a rule can be checked against real code.
 - Every template starts with the `[RayMigratorTemplate]` header block (`TemplateType`, `DatabaseType`, `Author`, `Version = "YYYY-MM-DD.n"`), followed by `[Description]`, `[ConfigPlaceholders]`, `[Parameters]`, `[ReturnValues]` and `[ModificationNotes]`. Bump `Version` on every change.
 - Placeholders: `{CFG:SchemaName}` and `{CFG:TableBaseName}` are substituted at load time and must appear in the allow-list in `Core/Configuration/ConfigurationConstants.cs`. Runtime values are ADO parameters (`@ProductId`), never string-concatenated.
 - Result contract: the last statement returns `'code[,code...],message'`; the first `code >= 0` is success, negative codes come from `TemplateResultCode`, further integer codes are template-specific (`Repository_CheckCreate` returns the schema version and `unversionedTables`, a schema step returns its own version number); messages contain no commas and never start with an integer.
-- SQL Server templates use `SET NOCOUNT ON; SET XACT_ABORT ON;`, `BEGIN TRY ... END TRY BEGIN CATCH ... ;THROW; END CATCH` and `SYSUTCDATETIME()`. PostgreSQL identifiers are quoted PascalCase. Keep the five dialects functionally identical; a change in one template is a change in five.
+- SQL Server templates use `SET NOCOUNT ON; SET XACT_ABORT ON;`, `BEGIN TRY ... END TRY BEGIN CATCH ... ;THROW; END CATCH` and `SYSUTCDATETIME()`. PostgreSQL, MariaDB and MySQL identifiers are unquoted `snake_case` (DAL-017, DAL-018), and reader `SELECT`s alias the columns back to PascalCase; SQL Server and SQLite use PascalCase. Keep the five dialects functionally identical; a change in one template is a change in five.
+- Every index and constraint name carries the table prefix after its kind: `pk_{CFG:TableBaseName}<Table>`, `fk_{CFG:TableBaseName}<Table>_<Referenced>`, `ix_{CFG:TableBaseName}...`, `uix_{CFG:TableBaseName}...`, in the casing of the engine. `P1_RepositoryTemplatePrefixTests` fails on a name without it. `TableBaseName` has at most 16 characters (`RULE_4_4`); a new name must stay within the 63 characters PostgreSQL allows with a 16-character prefix.
 
 ## 15. Blazor Config Wizard
 
 - Components use `@code { }` blocks, not code-behind files. Dependencies are `[Inject] private X Name { get; set; } = default!;`; `@inject` is not used. The localizer is named `L`, the state service `Wizard`.
 - Every `.razor` file starts with a one-line `@* What this component does *@` comment.
-- UI text goes through `L.Get("Section.Key")`. Add the key to both the `en` and the `de` dictionary in `ConfigWizard.Web/Services/LocalizationService.cs`. Field and section help texts live in the `.resx` pairs under `ConfigWizard.Core/Resources/`.
+- UI text goes through `L.Get("Section.Key")`. Add the key to both the `en` and the `de` dictionary in `ConfigWizard.Web/Services/LocalizationService.cs`. Field and section help texts live in the `.resx` pairs under `Shared/Configuration/Help/` (`FieldHelp`, `SectionHelp`, English and German) and are read through `ConfigurationHelp`; a new field key goes into the key list of `ConfigurationHelp`, both `.resx` files and `JsonPathRegistry` (`P0_ConfigurationHelpTests` and `P0_JsonPathRegistryTests` in `Tests.Unit` check all three).
 - `[Parameter]` strings default to `""`; two-way binding uses `XxxChanged` `EventCallback`s.
-- `ConfigWizard.Core` keeps zero dependencies. Anything that needs the engine belongs in `Validation` (shared rules) or in the Web project.
+- `ConfigWizard.Core` keeps zero package dependencies and references only `Validation` and `Shared`. Anything that needs the engine belongs in `Validation` (shared rules) or in the Web project.
 - Folder layout: `Components/{Hub,Phase1,Phase2,Phase3,Sections,Shared}`, `Layout`, `Pages`, namespaces from `_Imports.razor`.
 
 ## 16. Tests

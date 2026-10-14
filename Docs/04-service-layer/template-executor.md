@@ -76,19 +76,36 @@ All methods are **synchronous** (they internally call async DAL methods with `.G
 public void RepositoryCheckCreate();
 public void RepositoryProductCheckInsert();
 public void RepositoryEnvironmentCheckInsert();
+public bool RepositoryProductSelect();
+public bool RepositoryEnvironmentSelect();
 ```
 
-- `RepositoryCheckCreate` brings the repository to the schema version of the run and registers the engine version (ADR-024): it executes `Repository_CheckCreate` (no parameters, EventId `100`), which reports the schema version found and whether unversioned tables exist; refuses a repository without a version or newer than `MigrationContext.RepositorySchemaTargetVersion` with `RepositorySchemaException`; runs every missing `Repository_Upgrade_{n}` in order (`@RayMigratorVersion`, EventId `101`, the step must return its own number); logs a created or upgraded repository at Information level; and executes `Repository_MigratorMeta_CheckInsert` (`@RayMigratorVersion`, `@RepositoryDatabaseType`, EventId `102`), whose `ResultCode` becomes `MigrationState.MigratorMetaId`.
+- `RepositoryCheckCreate` brings the repository to the schema version of the run and registers the engine version (ADR-024). It delegates to `RepositorySchemaExecutor` (see below) with the repository, `MigrationContext.RepositorySchemaTargetVersion` and the engine version of the current context, and stores the `MigratorMetaId` of the outcome in `MigrationState.MigratorMetaId`. The executor runs `Repository_CheckCreate` (no parameters, EventId `100`), which reports the schema version found and whether unversioned tables exist; refuses a repository without a version or newer than the target with `RepositorySchemaException`; runs every missing `Repository_Upgrade_{n}` in order (`@RayMigratorVersion`, EventId `101`, the step must return its own number); logs a created or upgraded repository at Information level; and executes `Repository_MigratorMeta_CheckInsert` (`@RayMigratorVersion`, `@RepositoryDatabaseType`, EventId `102`), whose `ResultCode` is the `MigratorMetaId`.
 - `RepositoryProductCheckInsert` passes `@Name` (the product alias from `RayMigratorConsoleOptions.Product`) and `@NameLower` (the lowercase invariant of that name), stores the returned `ResultCode` as `MigrationState.ProductId` (EventId `120`).
 - `RepositoryEnvironmentCheckInsert` passes `@Name` (the environment name from `RayMigratorConsoleOptions.Environment`) and `@NameLower` (the lowercase invariant of that name), stores the returned `ResultCode` as `MigrationState.EnvironmentId` (EventId `121`).
+- `RepositoryProductSelect` and `RepositoryEnvironmentSelect` look the ids up without inserting (EventIds `122`, `123`) for the commands that must not write the repository; the id is `0` when the row does not exist, and the return value says whether it does.
+
+### Schema Steps (`RepositorySchemaExecutor`)
+
+The schema steps live in `RepositorySchemaExecutor` (`Raycoon.RayMigrator.Infrastructure/RepositorySchemaExecutor.cs`, namespace `Raycoon.RayMigrator.Core`), which needs no migration context:
+
+```csharp
+public RepositorySchemaExecutor(TemplateCache templateCache, ILogger logger, RepositoryOptions repository,
+    IDal repositoryDal, string rayMigratorVersion, int targetVersion, Func<object>? logContext = null);
+
+public RepositorySchemaOutcome Ensure();   // RepositorySchemaOutcome(VersionBefore, VersionAfter, MigratorMetaId)
+```
+
+`RepositoryCheckCreate` creates it with the values of the current context, so its log lines carry the context of the run. `RepositorySchemaService` (`IRepositorySchemaService.Ensure(RepositoryOptions)`) creates it from the repository options alone, with `RepositorySchema.CurrentVersion` as target, for a host that creates or upgrades a repository without a run. A step that fails because a parallel start applied it meanwhile (SQLite cannot make `ADD COLUMN` idempotent) is skipped when a re-read of the version shows it applied.
 
 ### Migration Run Operations
 
 ```csharp
 public void RepositoryMigrationRunInsert(string migrationRunSettingsJson);
-public void RepositoryMigrationRunUpdate(MigrationRunResult runResult);
+public void RepositoryMigrationRunUpdate(MigrationRunResult runResult, string? errorCode = null, string? errorMessage = null);
+public bool RepositoryMigrationRunHeartbeat();
 public List<Dictionary<string, object?>> RepositoryMigrationRunSelectOrphaned(int productId, int environmentId);
-public void RepositoryMigrationRunFixOrphaned(int migrationRunId);
+public bool RepositoryMigrationRunFixOrphaned(int migrationRunId, int thresholdMinutes);
 public List<Dictionary<string, object?>> RepositoryMigrationRunSelect(int limit);
 ```
 
@@ -132,6 +149,7 @@ public void RepositoryMigrationUpdateRollback(int migrationRecordId,
 public void RepositoryMigrationUpdateHash(int migrationRecordId, string fileUpHash,
     string? fileUpConfigHash, string fileUpBlocksHash);
 public List<MigrationRecord> RepositoryMigrationSelect();
+public List<MigrationRecord> RepositoryMigrationRecordHistorySelect();
 public InterruptedMigrationInfo? RepositoryMigrationGetInterrupted();
 ```
 
@@ -152,21 +170,29 @@ public TemplateResponse ExecuteScalarWithNegativeResultCodeException(
     Template template, IDal dal, DbConnection connection, DbTransaction transaction,
     int commandTimeoutInSeconds, DalParameterList? dalParameterList,
     ILogger? logger = null, EventId? eventId = null);
+
+// Shared execution of the standard overload — no context, no logging
+internal static TemplateResponse ExecuteScalar(
+    Template template, IDal dal, DalSettings dalSettings, DalParameterList? dalParameterList);
 ```
 
 The atomic overload is used internally by the shared-connection atomic methods (`RepositoryMigrationUpdate` and `RepositoryMigrationUpdateRollback` with connection/transaction parameters) to execute the repository update within the caller's active transaction.
+
+The standard overload runs the template through the static `ExecuteScalar`, which executes it on the DAL and validates the result contract, and then writes the Debug line with the current migration context. `RepositorySchemaExecutor` calls `ExecuteScalar` directly, because its steps also run without a context, and writes that line itself.
 
 ## TemplateResponse
 
 ```csharp
 public class TemplateResponse
 {
-    public int ResultCode { get; set; }
+    public int ResultCode { get; set; }            // first code
+    public int[] ResultCodes { get; set; } = [];   // every integer code in order; [0] == ResultCode
     public string? ResultMessage { get; set; }
 
     public override string ToString()
     {
-        return $"ResultCode: {ResultCode}, ResultMessage: {(string.IsNullOrWhiteSpace(ResultMessage) ? "{NullOrEmpty}" : ResultMessage)}";
+        string additionalCodes = ResultCodes.Length > 1 ? $" (codes: {string.Join(", ", ResultCodes)})" : string.Empty;
+        return $"ResultCode: {ResultCode}{additionalCodes}, ResultMessage: {(string.IsNullOrWhiteSpace(ResultMessage) ? "{NullOrEmpty}" : ResultMessage)}";
     }
 }
 ```
@@ -231,17 +257,18 @@ var response = ExecuteScalarWithNegativeResultCodeException(template, _repositor
 ### Executing a Template
 
 ```csharp
-private int RepositoryMigratorMetaCheckInsert()
+public void RepositoryProductCheckInsert()
 {
-    var templateType = TemplateType.Repository_MigratorMeta_CheckInsert;
-    var eventId = MigrationEvent.TemplateExecutionRepositoryMigratorMetaCheckInsert;
+    var templateType = TemplateType.Repository_Product_CheckInsert;
+    var eventId = MigrationEvent.TemplateExecutionRepositoryProductCheckInsert;
+    string productName = _ctxAccessor.Current.RayMigratorConsoleOptions.Product;
 
     // Build parameter list
     DalParameterList dalParameterList = new DalParameterList();
-    dalParameterList.AddParameter(new DalParameter("RayMigratorVersion", _ctxAccessor.Current.RayMigratorVersion, typeof(string)));
-    dalParameterList.AddParameter(new DalParameter("RepositoryDatabaseType", _repositoryDal.DatabaseType, typeof(string)));
+    dalParameterList.AddParameter(new DalParameter("Name", productName, typeof(string)));
+    dalParameterList.AddParameter(new DalParameter("NameLower", productName.ToLowerInvariant(), typeof(string)));
 
-    // Load template from cache (CFG placeholders replaced during load)
+    // Get the template from the cache ({CFG:*} placeholders replaced here)
     var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
 
     // Execute via DAL (synchronous wrapper around async)
@@ -249,16 +276,16 @@ private int RepositoryMigratorMetaCheckInsert()
         template, _repositoryDal, _repository.GetDalSettings(),
         dalParameterList, _logger, eventId);
 
-    // ResultCode is used as the output value (here the MigratorMetaId)
-    return templateResponse.ResultCode;
+    // ResultCode is used as the output value (here the ProductId)
+    _ctxAccessor.Current.MigrationState.ProductId = templateResponse.ResultCode;
 }
 ```
 
-`RepositoryCheckCreate` calls this helper after `Repository_CheckCreate` reported the schema version and every missing `Repository_Upgrade_{n}` step ran (ADR-024).
+The schema steps follow the same pattern inside `RepositorySchemaExecutor`; `Repository_MigratorMeta_CheckInsert` binds `@RayMigratorVersion` and `@RepositoryDatabaseType`, and its `ResultCode` is the `MigratorMetaId` (ADR-024).
 
 ### Parsing Results
 
-Templates return a comma-separated string: `"ResultCode,ResultMessage"`. The `GetValidatedTemplateResponseFromExecuteScalar()` method (internal static) parses this into a `TemplateResponse` with `ResultCode` (int) and `ResultMessage` (string). The method splits on the first comma only (using `IndexOf(',')`) so that the message part can itself contain commas. If the result is null or empty, a `TemplateResultException` is thrown. A negative `ResultCode` throws either a `TemplateResultException` (if the code is registered in `TemplateResultCode.IsKnown()`) or an `UndefinedTemplateResultException` (for unrecognized negative codes from custom templates). A non-negative `ResultCode` indicates success and is often used as an output ID value.
+Templates return a comma-separated string: `"ResultCode[,Code...],ResultMessage"`. The `GetValidatedTemplateResponseFromExecuteScalar()` method (internal static, called by `ExecuteScalar` and the atomic overload) parses this into a `TemplateResponse`: every leading integer token becomes a code (`ResultCodes`, the first one is `ResultCode`) and the rest is `ResultMessage`, so a message that contains commas stays intact. If the result is null or empty, or its first token is not an integer, a `TemplateResultException` is thrown. A negative `ResultCode` throws either a `TemplateResultException` (if the code is registered in `TemplateResultCode.IsKnown()`) or an `UndefinedTemplateResultException` (for unrecognized negative codes from custom templates). A non-negative `ResultCode` indicates success and is often used as an output ID value.
 
 Additionally, `RepositoryMigrationRunInsert` catches `TemplateResultException` with `ResultCode == -2` specifically and wraps it in a `MigrationAlreadyRunningException` to signal parallel run prevention.
 
@@ -304,7 +331,7 @@ public TemplateResponse ExecuteScalarWithNegativeResultCodeException(
     Template template, IDal dal, DalSettings dalSettings,
     DalParameterList? dalParameterList, ILogger? logger = null, EventId? eventId = null)
 {
-    // 1. Executes template via DAL (ExecuteScalarAsync)
+    // 1. Executes template via DAL (ExecuteScalarAsync, in the static ExecuteScalar)
     //    -> throws TemplateExecutionException on DAL failure
     // 2. Parses result via GetValidatedTemplateResponseFromExecuteScalar
     //    -> throws TemplateResultException on null/empty result

@@ -1233,15 +1233,14 @@ RayMigrator Studio · licence and maturity · take it with you
 
 # Outlook: RayMigrator Studio
 
-- Today the engine runs **Standalone**: everything comes from `appsettings*.json`.
-- Two more operating modes exist as a contract that **RayMigrator Studio** implements:
-  - **ManagedLocal**: products, environments, targets and repository settings come from an admin database; only logging stays in `appsettings`.
-  - **ManagedRemote**: the CLI becomes a thin client that talks to a Studio API server.
-- Studio adds the API server, the admin database and services around the same engine packages. It is a **separate commercial product**.
+- The `raymigrator` CLI runs **standalone**: everything comes from `appsettings*.json`, one run per process.
+- **RayMigrator Studio** hosts the same engine packages in its own server process: a web UI and an API, and its own thin-client CLI.
+- The engine's side of that contract: options built in memory and one migration context per run (`IMigrationContextFactory`), repository creation and upgrade without a run (`IRepositorySchemaService`).
+- Studio is a **separate commercial product**.
 - Roadmap items, not promises: Oracle as a DAL plugin, Studio, Config Wizard improvements.
 
 <!--
-Timing: 1:06. Keep it to one minute. Source: Docs/02-core-concepts/execution-modes.md and Docs/appendix/open-features.md (F11, F12).
+Timing: 1:06. Keep it to one minute. Source: Docs/02-core-concepts/migration-context.md (hosting the engine in-process) and Docs/appendix/open-features.md (F11).
 -->
 
 ---

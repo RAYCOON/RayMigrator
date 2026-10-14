@@ -1,6 +1,6 @@
 # 11 — Production Operations
 
-This chapter covers everything you need to deploy, monitor, and maintain RayMigrator in production environments using the CLI (direct mode).
+This chapter covers everything you need to deploy, monitor, and maintain RayMigrator in production environments using the CLI.
 
 ---
 

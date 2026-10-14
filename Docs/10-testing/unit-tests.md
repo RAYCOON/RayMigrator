@@ -35,6 +35,8 @@ Unit tests verify RayMigrator's internal logic without requiring database connec
 - EnvironmentId FK feature (template structure, parameter binding, logging propagation)
 - `MigrationContext.Clone` regression coverage (`EnvironmentId`, `MigratorMetaId`, `MigrationEvent` propagation)
 - `RepositoryQueryHelper.ToSnakeCase` mapping (DAL-017 brand-token preservation)
+- Configuration help texts and the path registry of the Shared package (`ConfigurationHelp`, `JsonPathRegistry`)
+- Repository schema service (`RepositorySchemaService`) on a SQLite file, and the table prefix in every index and constraint name of the schema templates and in the testing helpers
 
 The project contains approximately **1196 unit test cases** organized into **114 test classes** across **77 source test files** using a **P0-P3 priority system** (each file may contain multiple related test classes):
 
@@ -47,7 +49,7 @@ Additionally, there is 1 test class outside the priority system (`MigrationComma
 
 ## ConfigWizard.Core Unit Tests
 
-A separate **ConfigWizard.Core unit test project** (`Raycoon.RayMigrator.Tests.Unit.ConfigWizard.Core`) contains approximately **419 tests** across **28 test classes** in **28 files**, covering the zero-dependency shared domain library:
+A separate **ConfigWizard.Core unit test project** (`Raycoon.RayMigrator.Tests.Unit.ConfigWizard.Core`) contains approximately **427 tests** across **30 test classes** in **30 files**, covering the zero-dependency shared domain library:
 
 | Test File | Description |
 |-----------|-------------|
@@ -62,11 +64,13 @@ A separate **ConfigWizard.Core unit test project** (`Raycoon.RayMigrator.Tests.U
 | `ConfigurationSerializerTests.cs` / `ConfigurationSerializerAdditionalTests.cs` | JSON load/save round-trips |
 | `ConfigurationValidatorTests.cs` / `ConfigurationValidatorProductTests.cs` / `ConfigurationValidatorCrossFieldTests.cs` | Validation rules including cross-field structural rules (duplicate aliases, semantic contradictions, CLI tool constraints, default cascade completeness) |
 | `DefaultsPromoterTests.cs` / `DefaultsPromoterAdditionalTests.cs` / `DefaultsPromoterAcrossModelsTests.cs` | Defaults promotion logic, including cross-model promotion via `PromoteAcrossModels` |
+| `EncodingHelpValuesTests.cs` | Every `MigrationFilesEncoding` value that the field help advertises (`ConfigurationHelp` of the Shared package, English and German) passes the wizard validator, both languages list the same values, `UTF-8-BOM` and `ANSI` are rejected (#4) |
 | `PromotionEndToEndTests.cs` | End-to-end scenarios verifying the interaction between `DefaultsPromoter` (promotion) and diff-based serialization (`ConfigurationSerializer.ToJson(model, baseModel)`) across all hierarchy levels, including `StopRollbackOnMissingRollbackFile` at both product and target-group level |
 | `EnvFileGeneratorTests.cs` / `EnvFileGeneratorAdditionalTests.cs` | example.env generation |
 | `EnvironmentSkeletonGeneratorTests.cs` / `EnvironmentSkeletonGeneratorAdditionalTests.cs` | Environment skeleton files |
 | `InheritanceResolverTests.cs` / `InheritanceResolverAdditionalTests.cs` | Effective value resolution |
 | `OverridableValueTests.cs` | OverridableValue&lt;T&gt; behavior |
+| `WizardOnlyChecksEnumCasingTests.cs` | Wizard-only enum checks accept enum values in any case, as the engine does, and still reject typos (#3) |
 | `WizardSetupAnswersTests.cs` | Wizard setup answer model |
 | `WizardValidationResultTests.cs` | Validation result aggregation |
 
@@ -90,7 +94,7 @@ Target framework: `net10.0` (single target). No Docker or database connection re
 
 ## Validation Rule-Catalog Unit Tests
 
-A separate **Validation unit test project** (`Raycoon.RayMigrator.Tests.Unit.Validation`) contains approximately **69 tests** that exercise the standalone rule catalog in `Raycoon.RayMigrator.Validation`. The project intentionally references **only** the `Validation` project (no Core, no ConfigWizard.Core), enforcing the rule that the catalog stays WASM-safe and zero-dependency.
+A separate **Validation unit test project** (`Raycoon.RayMigrator.Tests.Unit.Validation`) contains approximately **80 tests** that exercise the standalone rule catalog in `Raycoon.RayMigrator.Validation`. The project intentionally references **only** the `Validation` project (no Core, no ConfigWizard.Core), enforcing the rule that the catalog stays WASM-safe and zero-dependency.
 
 | Folder / File | Description |
 |---------------|-------------|
@@ -101,7 +105,7 @@ A separate **Validation unit test project** (`Raycoon.RayMigrator.Tests.Unit.Val
 | `Rules/CliToolReferencesRuleTests.cs` | Cross-references between `UseCliToolAlias` and `CliTools[]` |
 | `Rules/ConnectionStringRuleTests.cs` | Connection string presence and shape |
 | `Rules/DefaultCascadeRuleTests.cs` | Default cascade completeness |
-| `Rules/SchemaRuleTests.cs` | Repository / DatabaseLogging schema constraints |
+| `Rules/SchemaRuleTests.cs` | Repository / DatabaseLogging schema constraints: schema name on schemaless and schema engines, lowercase `TableBaseName` and its maximum of 16 characters (`RULE_4_1` to `RULE_4_4`) |
 | `Rules/SemanticContradictionsRuleTests.cs` | Semantic contradictions (incompatible option combinations) |
 | `Rules/TargetGroupMigrationOrderRuleTests.cs` | `TargetGroupMigrationOrder` configuration validation |
 | `Helpers/CliToolPlaceholderExtractorTests.cs` | Placeholder extraction helper used by CLI tool rules |
@@ -151,8 +155,10 @@ Raycoon.RayMigrator.Tests.Unit/
 ├── MigrationCommandExhaustivenessTests.cs
 ├── P0_CliToolConfigTests.cs
 ├── P0_ConfigDirTests.cs
+├── P0_ConfigurationHelpTests.cs
 ├── P0_EnvironmentVariableReplacerTests.cs
 ├── P0_FileClassificationTests.cs
+├── P0_JsonPathRegistryTests.cs
 ├── P0_LineEndingTests.cs
 ├── P0_MigrationRunModeExtensionsTests.cs
 ├── P0_ShouldSkipBlockSplittingTests.cs
@@ -183,6 +189,7 @@ Raycoon.RayMigrator.Tests.Unit/
 ├── P1_DalTransientErrorCodesTests.cs
 ├── P1_EnvironmentCheckInsertTests.cs
 ├── P1_RepositorySchemaTests.cs
+├── P1_RepositorySchemaServiceTests.cs
 ├── P1_RunInitiatorTests.cs
 ├── P1_RepositorySelectTemplateTests.cs
 ├── P1_EnvironmentIdFkTests.cs
@@ -208,6 +215,7 @@ Raycoon.RayMigrator.Tests.Unit/
 ├── P1_RayAttributeTests.cs
 ├── P1_RayMigratorOptionsValidatorTests.cs
 ├── P1_RepositoryQueryHelperToSnakeCaseTests.cs
+├── P1_RepositoryTemplatePrefixTests.cs
 ├── P1_RequireRollbackFileValidationTests.cs
 ├── P1_ResolveHashValidationScopeTests.cs
 ├── P1_ResumeFromBlockTests.cs
@@ -226,6 +234,7 @@ Raycoon.RayMigrator.Tests.Unit/
 ├── P1_TemplateExecutorEnvironmentIdTests.cs
 ├── P1_TemplateExecutorRepositoryCreatedLoggingTests.cs
 ├── P1_TemplateExecutorRunDetailsTests.cs
+├── P1_TestingHelpersPrefixTests.cs
 ├── P1_TransientErrorCodesFileTests.cs
 ├── P1_TryFinalizeCompletedMigrationTests.cs
 ├── P1_UseCliToolAliasInheritanceTests.cs
@@ -300,11 +309,12 @@ Raycoon.RayMigrator.Tests.Unit/
 | `P1_DalTransientErrorCodesTests` | `DalTransientErrorCodesTests` | `DalBase` transient error code list: built-in defaults until `SetTransientErrorCodes` replaces them completely, case-insensitive comparison, `IsTransientCode` classification, `TransientErrorCodesSource` (ADR-022) |
 | `P1_EnvironmentCheckInsertTests` | `EnvironmentCheckInsertTests` | `Repository_Environment_CheckInsert` feature: TemplateType enum membership, MigrationEvent EventId, `MigrationState.EnvironmentId`, `TemplateResultCode.EnvironmentNameEmpty`, and SQL template structural patterns across all 5 engines (NameLower lookup, TOML header DatabaseType/TemplateType) |
 | `P1_RepositorySchemaTests` | `RepositorySchemaTests` | The repository schema version contract (ADR-024): `RepositorySchema.CurrentVersion` matches the `Repository_Upgrade_{n}` members of `TemplateType`, every engine ships `Repository_CheckCreate`, every step and `Repository_MigratorMeta_CheckInsert` with the declared parameters, the log events 101/102 exist and are seeded, `-10`/`-11` are no longer catalogued |
+| `P1_RepositorySchemaServiceTests` | `RepositorySchemaServiceTests` | `RepositorySchemaService.Ensure` on a SQLite file, from the repository options alone (no product, no context): a fresh repository gets every schema step and one `MigratorMeta` row, a second call changes nothing, a repository newer than the engine is refused with `RepositorySchemaException`, the documented defaults are written into the options, the created repository is logged at Information level, a missing database type or connection string and an unknown database type are refused with `ConfigurationValidationException`; `AddRayMigratorServices` registers the service as a singleton |
 | `P1_RunInitiatorTests` | `RunInitiatorTests` | `RunInitiator`: CI/CD detection from `CI`, `GITHUB_ACTIONS`, `GITLAB_CI`, `TF_BUILD`, `JENKINS_URL`, `TEAMCITY_VERSION` (false/0 do not count), user and machine name, `MigrationRunSource` values and their seeds in `Repository_Upgrade_2` of every engine, the CLI parser recording source, user and host |
 | `P1_TemplateExecutorRunDetailsTests` | `TemplateExecutorRunDetailsTests` | `RepositoryMigrationRunInsert` binds operation, source, initiator and host (NULL source and the machine name without a host), `RepositoryMigrationRunUpdate` binds error code and message cut to 4000 characters |
 | `P1_MigrationRunHeartbeatTests` | `MigrationRunHeartbeatTests` | `MigrationRunHeartbeat` beats until stopped and survives a failing beat; `Repository.HeartbeatIntervalInSeconds` (30) and `OrphanedRunThresholdInMinutes` (2) defaults; `fix --older-than` and `FixIssuesRequest` default 2; every engine ships `Repository_MigrationRun_Heartbeat`, measures `MinutesSinceHeartbeat` in the orphan select and guards the fix with `@ThresholdMinutes` |
 | `P1_RepositorySelectTemplateTests` | `RepositorySelectTemplateTests` | `Repository_Product_Select` / `Repository_Environment_Select` (#7): TemplateType membership, MigrationEvent ids 122/123, and per-engine structural checks that the templates exist, are read-only (no INSERT/UPDATE/DELETE/CREATE), look up by `NameLower` and return `0,... not found` for a missing row |
-| `P1_EnvironmentIdFkTests` | `EnvironmentIdFkTests` | Structural SQL-template tests for the EnvironmentId FK feature: confirms Environment text column is replaced with EnvironmentId INT FK across all 5 engines and that all INSERT/SELECT templates bind `@EnvironmentId` (not `@Environment`) |
+| `P1_EnvironmentIdFkTests` | `EnvironmentIdFkTests` | Structural SQL-template tests for the EnvironmentId FK feature: confirms Environment text column is replaced with EnvironmentId INT FK across all 5 engines, with foreign key names that carry the `{CFG:TableBaseName}` prefix (`fk_{CFG:TableBaseName}MigrationRun_Environment`, `fk_{CFG:TableBaseName}migration_run_environment`), and that all INSERT/SELECT templates bind `@EnvironmentId` (not `@Environment`) |
 | `P1_EnvironmentResolverTests` | `EnvironmentResolverTests` | `EnvironmentResolver` decision table: the `--environment` argument is the environment, `DOTNET_ENVIRONMENT` is only cross-checked (a different value exits with 2), a blank argument exits with 3 whether or not the variable is set (#32) |
 | `P1_ExitCodeMatcherTests` | `ExitCodeMatcherTests` | `ExitCodeMatcher` parsing and evaluation for CLI tool success/error code lists and range notation (`"0"`, `"0,1"`, `"0..5"`) |
 | `P1_FilterAlreadyMigratedFilesTests` | `FilterAlreadyMigratedFilesTests` | Filtering out already-migrated files from the migration plan |
@@ -328,6 +338,7 @@ Raycoon.RayMigrator.Tests.Unit/
 | `P1_RayAttributeTests` | `RayEnumAttributeTests`, `RayRangeIntAttributeTests`, `RayConnectionStringAttributeTests`, `RayEncodingAttributeTests`, `RayDirectoryExistsAttributeTests` | Custom validation attributes (`RayAttributes`) |
 | `P1_RayMigratorOptionsValidatorTests` | `RayMigratorOptionsValidatorTests` | `RayMigratorOptions` validation rules |
 | `P1_RepositoryQueryHelperToSnakeCaseTests` | `RepositoryQueryHelperToSnakeCaseTests` | `RepositoryQueryHelper.ToSnakeCase` mapping (DAL-017): mechanical PascalCase → snake_case conversion with the brand-token `RayMigrator` collapsed to `raymigrator` |
+| `P1_RepositoryTemplatePrefixTests` | `RepositoryTemplatePrefixTests` | Every `pk_`, `fk_`, `ix_` and `uix_` name in `Repository_CheckCreate`, `Repository_Upgrade_1`, `Repository_Upgrade_2` and `DatabaseLogging_CheckCreate` of all five engines continues with `{CFG:TableBaseName}` (`pk_{CFG:TableBaseName}migration_run`), so that repositories with different prefixes can share one database or schema; spot checks of single key names per engine |
 | `P1_RequireRollbackFileValidationTests` | `RequireRollbackFileValidationTests` | `RequireRollbackFile` enforcement |
 | `P1_ResolveHashValidationScopeTests` | `ResolveHashValidationScopeTests` | `MigrationService.ResolveHashValidationScope` — resolves effective scope from `ProductOptions` target group lookup with fallback to `File` |
 | `P1_ResumeFromBlockTests` | `ResumeFromBlockTests` | Resume-from-block logic for partially completed migrations |
@@ -344,7 +355,8 @@ Raycoon.RayMigrator.Tests.Unit/
 | `P1_TargetMigrationOrderExecutionTests` | `TargetMigrationOrderExecutionTests` | `TargetMigrationOrder` (FileByFile vs TargetByTarget) execution order |
 | `P1_TemplateCacheCfgValidationTests` | `TemplateCacheCfgValidationTests` | `TemplateCache` configuration validation against available templates |
 | `P1_TemplateExecutorEnvironmentIdTests` | `TemplateExecutorEnvironmentIdTests` | `TemplateExecutor` parameter binding for the EnvironmentId FK feature: verifies the five flipped methods bind `@EnvironmentId` (int) and not a text `@Environment` parameter to `IDal` |
-| `P1_TemplateExecutorRepositoryCreatedLoggingTests` | `TemplateExecutorRepositoryCreatedLoggingTests` | `TemplateExecutor.RepositoryCheckCreate` logs "Repository created" at Information level only when the template's second result code is 1; schema name masked unless `--reveal-sensitive-data` (#27); a step that fails after a parallel start applied it is accepted on re-read of the version, otherwise the step's own error surfaces |
+| `P1_TemplateExecutorRepositoryCreatedLoggingTests` | `TemplateExecutorRepositoryCreatedLoggingTests` | `TemplateExecutor.RepositoryCheckCreate` and the schema steps it runs through `RepositorySchemaExecutor` (ADR-024), against a mocked `IDal`: a fresh repository gets every step and is logged as created at Information level, an older one gets the missing steps and is logged as upgraded, a current one only registers the engine version; tables without a schema version, a newer version and a step that returns another code are refused; version and database type are bound as parameters; schema name masked unless `--reveal-sensitive-data` (#27); a step that fails after a parallel start applied it is accepted on re-read of the version, otherwise the step's own error surfaces |
+| `P1_TestingHelpersPrefixTests` | `TestingHelpersPrefixTests` | The testing package with a table prefix, on a SQLite file: `RepositoryQueryHelper` reads the prefixed repository tables, `DatabaseCleanupHelper.CleanDatabase` drops the repository of one prefix and leaves the repository of another prefix alone |
 | `P1_TransientErrorCodesFileTests` | `TransientErrorCodesFileTests` | `TransientErrorCodesFile` parser and loader for `TransientErrorCodes.txt`: comments, blank lines, trimming, whitespace inside a code throws with the line number, missing file falls back (ADR-022) |
 | `P1_TryFinalizeCompletedMigrationTests` | `TryFinalizeCompletedMigrationTests` | Migration finalization (status updates after execution) |
 | `P1_UseCliToolAliasInheritanceTests` | `UseCliToolAliasInheritanceTests` | `UseCliToolAlias` inheritance cascade via `ProductDefaultsPostConfigureOptions.MergeDefaults` (ProductDefaults -> Product -> TargetGroup -> Target, explicit values not overridden) |
