@@ -185,4 +185,28 @@ public class RepositorySchemaServiceTests : IDisposable
         service.Should().BeOfType<RepositorySchemaService>();
         provider.GetRequiredService<IRepositorySchemaService>().Should().BeSameAs(service, because: "the service is a singleton");
     }
+
+    [Fact]
+    public void Ensure_RefusesAPrefixTheRunsWouldRefuse()
+    {
+        // Arrange: longer than RULE_4_4 allows
+        var tooLong = new RepositoryOptions { DatabaseType = "Sqlite", ConnectionString = ConnectionString, TableBaseName = "seventeen_chars__" };
+
+        // Act
+        var act = () => CreateService().Ensure(tooLong);
+
+        // Assert
+        act.Should().Throw<ConfigurationValidationException>().Which.Message.Should().Contain("RULE_4_4").And.Contain("TableBaseName");
+        File.Exists(_file).Should().BeFalse("nothing is created for options a run would refuse");
+    }
+
+    [Fact]
+    public void Ensure_UnknownDatabaseTypeInAnotherCase_NamesTheExactName()
+    {
+        var repository = new RepositoryOptions { DatabaseType = "sqlite", ConnectionString = ConnectionString };
+
+        var act = () => CreateService().Ensure(repository);
+
+        act.Should().Throw<ConfigurationValidationException>().Which.Message.Should().Contain("Did you mean [Sqlite]");
+    }
 }

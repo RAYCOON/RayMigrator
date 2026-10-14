@@ -3,8 +3,8 @@ namespace Raycoon.RayMigrator.Core.Templates;
 /// <summary>
 /// Parsed result of a template executed as ExecuteScalar. Templates return <c>'code[,code...],message'</c>:
 /// one or more integer codes followed by a message. The first code is the <see cref="ResultCode"/>; further
-/// codes carry template-specific information, for example whether <c>Repository_CheckCreate</c> created the
-/// repository in this run (#27).
+/// codes carry template-specific information, for example whether <c>Repository_CheckCreate</c> found repository
+/// tables without a schema version (ADR-024).
 /// </summary>
 public class TemplateResponse
 {

@@ -12,6 +12,8 @@ using Raycoon.RayMigrator.Database.Common;
 using Raycoon.RayMigrator.Services.Abstractions;
 using Raycoon.RayMigrator.Shared;
 using Raycoon.RayMigrator.Shared.Exceptions;
+using Raycoon.RayMigrator.Validation;
+using Raycoon.RayMigrator.Validation.Models;
 
 namespace Raycoon.RayMigrator.Services;
 
@@ -43,9 +45,14 @@ public sealed class RepositorySchemaService : IRepositorySchemaService
         var available = _templateCache.GetAvailableDatabaseTypes();
         if (!available.Contains(databaseType, StringComparer.Ordinal))
         {
+            string hint = available.FirstOrDefault(t => t.Equals(databaseType, StringComparison.OrdinalIgnoreCase)) is { } near
+                ? $" Did you mean [{near}]? The DAL is looked up by the exact name."
+                : string.Empty;
             throw new ConfigurationValidationException(
-                $"Unknown DatabaseType [{databaseType}] for the repository. Templates exist for [{string.Join(", ", available)}].");
+                $"Unknown DatabaseType [{databaseType}] for the repository. Templates exist for [{string.Join(", ", available)}].{hint}");
         }
+
+        ValidateWithCatalog(repository);
 
         DalFactory.TryGetDal(databaseType, repository.ConnectionString!, out IDal? dal);
         var dalProperties = new ConcurrentDictionary<string, DalSpecificProperties>();
@@ -60,6 +67,34 @@ public sealed class RepositorySchemaService : IRepositorySchemaService
             AssemblyInfoHelper.GetRayMigratorVersion(), RepositorySchema.CurrentVersion).Ensure();
 
         return new RepositorySchemaResult(dal.DatabaseType, outcome.VersionBefore, outcome.VersionAfter, outcome.MigratorMetaId);
+    }
+
+    /// <summary>
+    /// The rules of the catalog that judge a repository on its own: the schema name where the engine needs one
+    /// (RULE_4_2), a lowercase prefix on the engines that fold identifiers (RULE_4_3) and the length of the prefix
+    /// (RULE_4_4). A repository the service created must pass the validation of every later run.
+    /// </summary>
+    private static void ValidateWithCatalog(RepositoryOptions repository)
+    {
+        var report = RuleCatalog.RunAll(new ValidationInput
+        {
+            Repository = new RepositoryInput
+            {
+                DatabaseType = repository.DatabaseType,
+                ConnectionString = repository.ConnectionString,
+                SchemaName = repository.SchemaName,
+                TableBaseName = repository.TableBaseName
+            },
+            Products = [],
+            CliTools = [],
+            Defaults = new ProductDefaultsInput()
+        });
+        var errors = report.Errors.Where(i => i.Path.StartsWith("Repository", StringComparison.Ordinal)).ToList();
+        if (errors.Count > 0)
+        {
+            throw new ConfigurationValidationException(
+                "The repository options are not valid: " + string.Join(" ", errors.Select(e => $"[{e.Code}] {e.Path}: {e.Message}")));
+        }
     }
 
     /// <summary>

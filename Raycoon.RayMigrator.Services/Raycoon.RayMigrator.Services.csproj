@@ -25,6 +25,7 @@
         <ProjectReference Include="..\Raycoon.RayMigrator.Core\Raycoon.RayMigrator.Core.csproj" />
         <ProjectReference Include="..\Raycoon.RayMigrator.Infrastructure\Raycoon.RayMigrator.Infrastructure.csproj" />
         <ProjectReference Include="..\Raycoon.RayMigrator.Database\Raycoon.RayMigrator.Database.csproj" />
+        <ProjectReference Include="..\Raycoon.RayMigrator.Validation\Raycoon.RayMigrator.Validation.csproj" />
     </ItemGroup>
     
     <ItemGroup>

@@ -191,7 +191,7 @@ public static class DirectModePipeline
             #endregion Create host and DI container
 
 
-            // Resolve DatabaseLogWriter first — its factory triggers options validation (JSON mode)
+            // Resolve DatabaseLogWriter first — its factory triggers the options validation
             var dbLogWriter = host.Services.GetRequiredService<DatabaseLogWriter>();
 
             // Resolve the validated options

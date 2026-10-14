@@ -30,7 +30,9 @@ RayMigrator follows Semantic Versioning where applicable.
   runs `Repository_CheckCreate`, the missing `Repository_Upgrade_{n}` steps
   and `Repository_MigratorMeta_CheckInsert`, and returns
   `RepositorySchemaResult` (version before and after, `MigratorMetaId`,
-  `Created`, `Upgraded`). The steps themselves moved from `TemplateExecutor`
+  `Created`, `Upgraded`). The rules of the catalog that judge the repository
+  alone (RULE_4_2, RULE_4_3, RULE_4_4) run before anything is created, so a
+  repository the service creates passes the validation of every later run. The steps themselves moved from `TemplateExecutor`
   into `RepositorySchemaExecutor` (`Raycoon.RayMigrator.Infrastructure`);
   `TemplateExecutor.RepositoryCheckCreate` runs them with the values of the
   current context as before. A host that managed repositories through a
