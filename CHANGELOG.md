@@ -21,6 +21,20 @@ RayMigrator follows Semantic Versioning where applicable.
 - `RayMigratorOptionsValidator.GetReport` is public: a host gets the full
   rule-catalog report (code, severity, path and message of every warning and
   error) of prepared options instead of one failure string.
+- `IRepositorySchemaService` (`Raycoon.RayMigrator.Services.Abstractions`,
+  registered by `AddRayMigratorServices`) creates or upgrades a repository
+  from its `RepositoryOptions` alone: no product, no environment, no
+  migration context. `Ensure` validates the options like the context factory
+  validates the repository of a run (data annotations with their defaults, a
+  DAL for the database type, the schema name against the DAL capabilities),
+  runs `Repository_CheckCreate`, the missing `Repository_Upgrade_{n}` steps
+  and `Repository_MigratorMeta_CheckInsert`, and returns
+  `RepositorySchemaResult` (version before and after, `MigratorMetaId`,
+  `Created`, `Upgraded`). The steps themselves moved from `TemplateExecutor`
+  into `RepositorySchemaExecutor` (`Raycoon.RayMigrator.Infrastructure`);
+  `TemplateExecutor.RepositoryCheckCreate` runs them with the values of the
+  current context as before. A host that managed repositories through a
+  synthetic product can drop it.
 
 ### Changed
 

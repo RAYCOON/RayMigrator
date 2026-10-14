@@ -68,154 +68,20 @@ public class TemplateExecutor
 
     /// <summary>
     /// Makes sure the repository exists in the schema version this run expects and registers the engine version
-    /// (ADR-024): <c>Repository_CheckCreate</c> creates the schema version table when it is missing and reports the
-    /// version the repository has; every missing <c>Repository_Upgrade_{n}</c> step up to
-    /// <see cref="MigrationContext.RepositorySchemaTargetVersion"/> runs in order, step 1 creating the tables of a
-    /// fresh repository; and <c>Repository_MigratorMeta_CheckInsert</c> yields the <c>MigratorMetaId</c> of this
-    /// engine version. A repository that has tables but no schema version was created by a RayMigrator before
-    /// 0.17.0 and is refused, as is one whose version is newer than the target.
+    /// (ADR-024): the schema steps of <see cref="RepositorySchemaExecutor"/> run with the repository, the target
+    /// version and the engine version of the current context, and the <c>MigratorMetaId</c> they yield goes into
+    /// the migration state of the run.
     /// </summary>
     /// <exception cref="RepositorySchemaException">The repository has no schema version but repository tables, or a
     /// schema version newer than this engine supports.</exception>
     /// <exception cref="TemplateExecutionException"></exception>
     public void RepositoryCheckCreate()
     {
-        var eventId = MigrationEvent.TemplateExecutionRepositoryCheckCreate;
-        int targetVersion = _ctxAccessor.Current.RepositorySchemaTargetVersion;
+        var context = _ctxAccessor.Current;
+        var schema = new RepositorySchemaExecutor(_templateCache, _logger, _repository, _repositoryDal,
+            context.RayMigratorVersion, context.RepositorySchemaTargetVersion, () => _ctxAccessor.Current.Clone);
 
-        _logger.LogDebug(eventId, "Checking the repository schema version (target version [{TargetVersion}])...{MigrationContext}", targetVersion, _ctxAccessor.Current.Clone);
-
-        var checkTemplate = _templateCache.GetRepositoryTemplate(TemplateType.Repository_CheckCreate, _repository);
-        var check = ExecuteScalarWithNegativeResultCodeException(checkTemplate, _repositoryDal, _repository.GetDalSettings(), null, _logger, eventId);
-
-        // Repository_CheckCreate returns 'schemaVersion,unversionedTables,message': the highest applied schema version (0 when
-        // none) and 1 when the MigratorMeta table exists, which with version 0 means a repository of a RayMigrator before 0.17.0.
-        int foundVersion = check.ResultCode;
-        bool unversionedTables = check.ResultCodes.Length > 1 && check.ResultCodes[1] == 1;
-        string schemaName = SensitiveDataMasker.Mask(_repository.SchemaName);
-
-        if (foundVersion == 0 && unversionedTables)
-        {
-            throw new RepositorySchemaException(
-                $"The repository (DatabaseType [{_repositoryDal.DatabaseType}], schema [{schemaName}]) has repository tables but no schema version: " +
-                "a RayMigrator before 0.17.0 created it, and repositories are not upgraded across that boundary. " +
-                "Drop the repository tables and let this version create them again.",
-                foundVersion, targetVersion);
-        }
-
-        if (foundVersion > targetVersion)
-        {
-            throw new RepositorySchemaException(
-                $"The repository (DatabaseType [{_repositoryDal.DatabaseType}], schema [{schemaName}]) has schema version [{foundVersion}], " +
-                $"but RayMigrator [{_ctxAccessor.Current.RayMigratorVersion}] supports version [{targetVersion}] at most. Use a RayMigrator that supports this repository.",
-                foundVersion, targetVersion);
-        }
-
-        for (int step = foundVersion + 1; step <= targetVersion; step++)
-        {
-            RepositoryUpgrade(step);
-        }
-
-        // An operator should see a created or upgraded repository without Debug logging: a first run creates the schema and
-        // the tables in a database that may belong to someone else (#27).
-        if (foundVersion == 0)
-        {
-            _logger.LogInformation(eventId,
-                "Repository created: DatabaseType [{DatabaseType}], schema [{SchemaName}], schema version [{SchemaVersion}].{MigrationContext}",
-                _repositoryDal.DatabaseType, schemaName, targetVersion, _ctxAccessor.Current.Clone);
-        }
-        else if (foundVersion < targetVersion)
-        {
-            _logger.LogInformation(eventId,
-                "Repository schema upgraded: DatabaseType [{DatabaseType}], schema [{SchemaName}], version [{FromVersion}] to [{ToVersion}].{MigrationContext}",
-                _repositoryDal.DatabaseType, schemaName, foundVersion, targetVersion, _ctxAccessor.Current.Clone);
-        }
-
-        _ctxAccessor.Current.MigrationState.MigratorMetaId = RepositoryMigratorMetaCheckInsert();
-    }
-
-    /// <summary>
-    /// Applies one schema step: <c>Repository_Upgrade_{step}</c> creates schema version <paramref name="step"/> on top of
-    /// the version before it and writes its row of the schema version table. The step is idempotent per engine and
-    /// serialised against a parallel start on the same repository.
-    /// </summary>
-    /// <exception cref="TemplateExecutionException"></exception>
-    /// <exception cref="TemplateResultException">The step did not return its own version as result code.</exception>
-    private void RepositoryUpgrade(int step)
-    {
-        var templateType = RepositorySchema.UpgradeTemplate(step);
-        var eventId = MigrationEvent.TemplateExecutionRepositoryUpgrade;
-
-        _logger.LogDebug(eventId, "Applying repository schema version [{SchemaVersion}] ({TemplateType})...{MigrationContext}", step, templateType, _ctxAccessor.Current.Clone);
-
-        DalParameterList dalParameterList = new DalParameterList();
-        dalParameterList.AddParameter(new DalParameter("RayMigratorVersion", _ctxAccessor.Current.RayMigratorVersion, typeof(string)));
-
-        var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
-        TemplateResponse templateResponse;
-        try
-        {
-            templateResponse = ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId);
-        }
-        catch (TemplateExecutionException)
-        {
-            // Two processes that start on the same repository both read the version before either applies the step. The
-            // step is serialised and idempotent where the engine allows it; SQLite cannot make ALTER TABLE ADD COLUMN
-            // idempotent, so the second process fails on a column the first one added. The version row decides.
-            if (!StepAppliedMeanwhile(step))
-                throw;
-
-            _logger.LogDebug(eventId, "Repository schema version [{SchemaVersion}] was applied by a parallel start meanwhile; the step is skipped.{MigrationContext}", step, _ctxAccessor.Current.Clone);
-            return;
-        }
-
-        if (templateResponse.ResultCode != step)
-        {
-            throw new TemplateResultException(
-                $"Repository schema step [{step}] ({template}) returned result code [{templateResponse.ResultCode}] instead of its version. {templateResponse.ResultMessage}",
-                templateResponse.ResultCode);
-        }
-    }
-
-
-    /// <summary>
-    /// Whether the repository already has schema version <paramref name="step"/>, read through <c>Repository_CheckCreate</c>
-    /// after a failed step. A read that fails itself counts as "not applied", so the step's own exception surfaces.
-    /// </summary>
-    private bool StepAppliedMeanwhile(int step)
-    {
-        try
-        {
-            var checkTemplate = _templateCache.GetRepositoryTemplate(TemplateType.Repository_CheckCreate, _repository);
-            var check = ExecuteScalarWithNegativeResultCodeException(checkTemplate, _repositoryDal, _repository.GetDalSettings(), null, _logger, MigrationEvent.TemplateExecutionRepositoryCheckCreate);
-            return check.ResultCode >= step;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(MigrationEvent.TemplateExecutionRepositoryCheckCreate, "Could not re-read the repository schema version after a failed step: {Error}{MigrationContext}", ex.Message, _ctxAccessor.Current.Clone);
-            return false;
-        }
-    }
-    /// <summary>
-    /// Registers the engine version in <c>MigratorMeta</c> if it is not registered yet and returns the id of its row,
-    /// which every run of this engine version references as <c>MigratorMetaId</c>.
-    /// </summary>
-    /// <exception cref="TemplateExecutionException"></exception>
-    private int RepositoryMigratorMetaCheckInsert()
-    {
-        var templateType = TemplateType.Repository_MigratorMeta_CheckInsert;
-        var eventId = MigrationEvent.TemplateExecutionRepositoryMigratorMetaCheckInsert;
-
-        _logger.LogDebug(eventId, "Registering RayMigrator version [{RayMigratorVersion}] in the repository...{MigrationContext}", _ctxAccessor.Current.RayMigratorVersion, _ctxAccessor.Current.Clone);
-
-        DalParameterList dalParameterList = new DalParameterList();
-        dalParameterList.AddParameter(new DalParameter("RayMigratorVersion", _ctxAccessor.Current.RayMigratorVersion, typeof(string)));
-        dalParameterList.AddParameter(new DalParameter("RepositoryDatabaseType", _repositoryDal.DatabaseType, typeof(string)));
-
-        var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
-        var templateResponse = ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId);
-
-        return templateResponse.ResultCode;
+        context.MigrationState.MigratorMetaId = schema.Ensure().MigratorMetaId;
     }
 
     /// <summary>
@@ -999,19 +865,7 @@ public class TemplateExecutor
     /// </summary>
     public TemplateResponse ExecuteScalarWithNegativeResultCodeException(Template template, IDal dal, DalSettings dalSettings, DalParameterList? dalParameterList, ILogger? logger = null, EventId? eventId = null)
     {
-        object? returnValue;
-        
-        try
-        {
-            returnValue = dal.ExecuteScalarAsync(template.Content, dalSettings, dalParameterList).GetAwaiter().GetResult();
-        }
-        catch (Exception ex)
-        {
-            string errorMessage = $"Error executing template [{template}] with dal for DB [{dal.DatabaseType}]";
-            throw new TemplateExecutionException(errorMessage, ex);
-        }        
-        
-        TemplateResponse templateResponse = GetValidatedTemplateResponseFromExecuteScalar(returnValue, template);
+        TemplateResponse templateResponse = ExecuteScalar(template, dal, dalSettings, dalParameterList);
 
         if (logger != null)
         {
@@ -1019,6 +873,26 @@ public class TemplateExecutor
         }
         
         return templateResponse;
+    }
+
+    /// <summary>
+    /// Executes a template as ExecuteScalar and validates the result contract <c>'code[,code...],message'</c>; a
+    /// failing execution becomes a <see cref="TemplateExecutionException"/>, a negative code a
+    /// <see cref="TemplateResultException"/>. No context and no logging: the schema steps run through it without a run.
+    /// </summary>
+    internal static TemplateResponse ExecuteScalar(Template template, IDal dal, DalSettings dalSettings, DalParameterList? dalParameterList)
+    {
+        object? returnValue;
+        try
+        {
+            returnValue = dal.ExecuteScalarAsync(template.Content, dalSettings, dalParameterList).GetAwaiter().GetResult();
+        }
+        catch (Exception ex)
+        {
+            throw new TemplateExecutionException($"Error executing template [{template}] with dal for DB [{dal.DatabaseType}]", ex);
+        }
+
+        return GetValidatedTemplateResponseFromExecuteScalar(returnValue, template);
     }
 
     /// <summary>

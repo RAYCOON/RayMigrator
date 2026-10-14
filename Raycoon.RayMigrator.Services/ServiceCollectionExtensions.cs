@@ -38,6 +38,9 @@ public static class ServiceCollectionExtensions
         // Register the context factory, the entry point of every host for one run
         services.AddSingleton<IMigrationContextFactory, MigrationContextFactory>();
 
+        // Register the schema service for hosts that create or upgrade a repository without a run (needs the host's TemplateCache)
+        services.AddSingleton<IRepositorySchemaService, RepositorySchemaService>();
+
         return services;
     }
 }
