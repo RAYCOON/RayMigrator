@@ -6,7 +6,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_CheckCreate"
 DatabaseType   = "SqlServer"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-10-13.1"
+Version        = "2026-10-14.1"
 
 [Description]
 Function = """
@@ -67,7 +67,7 @@ BEGIN TRY
 			Version              int            NOT NULL,
 			AppliedAt            datetime2(3)   NOT NULL,
 			RayMigratorVersion   nvarchar(100)  NOT NULL,
-			CONSTRAINT pk_RepositorySchemaVersion PRIMARY KEY ( Version )
+			CONSTRAINT pk_{CFG:TableBaseName}RepositorySchemaVersion PRIMARY KEY ( Version )
 		);
 	END;
 

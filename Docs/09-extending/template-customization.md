@@ -224,7 +224,7 @@ CREATE  TABLE [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRecord] (
 	StartedAt            datetime2(3)   NULL,
 	FinishedAt           datetime2(3)   NULL,
 	DurationInMs         bigint      NULL,
-	CONSTRAINT pk_MigrationRecord PRIMARY KEY  ( Id )
+	CONSTRAINT pk_{CFG:TableBaseName}MigrationRecord PRIMARY KEY  ( Id )
  );
 ```
 

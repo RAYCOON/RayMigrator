@@ -6,7 +6,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_Upgrade_2"
 DatabaseType   = "MySql"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-10-13.1"
+Version        = "2026-10-14.1"
 
 [Description]
 Function = """
@@ -72,8 +72,8 @@ SET @v_sql = IF(
         ADD COLUMN error_code              VARCHAR(100)     NULL,
         ADD COLUMN error_message           TEXT             NULL,
         ADD COLUMN last_heartbeat_at       TIMESTAMP        NULL,
-        ADD CONSTRAINT fk_migration_run_migration_operation FOREIGN KEY (migration_operation_id) REFERENCES {CFG:TableBaseName}migration_operation(id),
-        ADD CONSTRAINT fk_migration_run_migration_run_source FOREIGN KEY (migration_run_source_id) REFERENCES {CFG:TableBaseName}migration_run_source(id)',
+        ADD CONSTRAINT fk_{CFG:TableBaseName}migration_run_migration_operation FOREIGN KEY (migration_operation_id) REFERENCES {CFG:TableBaseName}migration_operation(id),
+        ADD CONSTRAINT fk_{CFG:TableBaseName}migration_run_migration_run_source FOREIGN KEY (migration_run_source_id) REFERENCES {CFG:TableBaseName}migration_run_source(id)',
     'DO 0');
 PREPARE v_stmt FROM @v_sql;
 EXECUTE v_stmt;

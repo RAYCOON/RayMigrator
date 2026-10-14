@@ -9,10 +9,17 @@ namespace Raycoon.RayMigrator.Validation.Rules;
 /// <item><see cref="RuleIds.RULE_4_1"/> — SchemaName on schemaless DB (Sqlite) is a Warning</item>
 /// <item><see cref="RuleIds.RULE_4_2"/> — SchemaName is required for SqlServer and PostgreSQL (Error)</item>
 /// <item><see cref="RuleIds.RULE_4_3"/> — TableBaseName must be lowercase for PostgreSQL, MariaDB, MySQL (Error)</item>
+/// <item><see cref="RuleIds.RULE_4_4"/> — TableBaseName has at most <see cref="MaxTableBaseNameLength"/> characters (Error)</item>
 /// </list>
 /// </summary>
 internal sealed class SchemaRule : IValidationRule
 {
+    /// <summary>
+    /// The longest prefixed name of the repository, <c>ix_{prefix}migration_record_history_migration_record_id</c>,
+    /// has 47 characters plus the prefix; 16 keeps it within the 63 characters PostgreSQL allows (MySQL and MariaDB: 64).
+    /// </summary>
+    public const int MaxTableBaseNameLength = 16;
+
     private static readonly HashSet<string> SchemalessDbTypes = new(StringComparer.OrdinalIgnoreCase) { "Sqlite" };
     private static readonly HashSet<string> SchemaRequiredDbTypes = new(StringComparer.OrdinalIgnoreCase) { "SqlServer", "PostgreSQL" };
     private static readonly HashSet<string> LowercaseIdentifierDbTypes = new(StringComparer.OrdinalIgnoreCase)
@@ -79,6 +86,14 @@ internal sealed class SchemaRule : IValidationRule
                 RuleIds.RULE_4_3,
                 $"{path} > TableBaseName",
                 ValidationMessages.Format(ValidationMessages.LowercaseTableBaseNameRequired, repo.TableBaseName, repo.DatabaseType));
+        }
+
+        if (repo.TableBaseName is { Length: > MaxTableBaseNameLength })
+        {
+            report.AddError(
+                RuleIds.RULE_4_4,
+                $"{path} > TableBaseName",
+                ValidationMessages.Format(ValidationMessages.TableBaseNameTooLong, repo.TableBaseName, repo.TableBaseName.Length, MaxTableBaseNameLength));
         }
     }
 }

@@ -46,6 +46,17 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ### Changed
 
+- **Breaking (schema):** the primary key and foreign key names of the
+  repository and log tables carry the table prefix like the index names
+  (`pk_{TableBaseName}MigrationRun`, `fk_{TableBaseName}MigrationRun_Product`
+  and their snake_case forms; the SQL Server log table's key is
+  `pk_{TableBaseName}MigrationLog`). Two repositories with different
+  prefixes can now share one database or schema; before, the second one
+  failed on the first name that already existed (SQL Server and PostgreSQL in
+  `Repository_CheckCreate`, MySQL and MariaDB in step 1). A repository created
+  by 0.17.0 keeps its names and keeps working. New rule RULE_4_4 (Error):
+  `TableBaseName` has at most 16 characters, so that the longest prefixed
+  index name fits the identifier limit of PostgreSQL, MySQL and MariaDB.
 - **Breaking (API):** `ContextHelpProvider`, `JsonPathRegistry` and the help
   records left `Raycoon.RayMigrator.ConfigWizard.Core` for the Shared package
   (`ContextHelpProvider` is now `ConfigurationHelp`); the unread

@@ -6,7 +6,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_Upgrade_2"
 DatabaseType   = "PostgreSQL"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-10-13.1"
+Version        = "2026-10-14.1"
 
 [Description]
 Function = """
@@ -51,7 +51,7 @@ BEGIN
             id                     SMALLINT       NOT NULL,
             name                   TEXT           NOT NULL,
             description            TEXT               NULL,
-            CONSTRAINT pk_migration_run_source PRIMARY KEY (id)
+            CONSTRAINT pk_{CFG:TableBaseName}migration_run_source PRIMARY KEY (id)
         );
 
         COMMENT ON TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_run_source IS 'Cli = 10, Ci = 20, Studio = 30';
@@ -73,12 +73,12 @@ BEGIN
             ADD COLUMN IF NOT EXISTS error_message            TEXT            NULL,
             ADD COLUMN IF NOT EXISTS last_heartbeat_at        TIMESTAMPTZ     NULL;
 
-        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_migration_run_migration_operation' AND connamespace = '{CFG:SchemaName}'::regnamespace) THEN
-            ALTER TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_run ADD CONSTRAINT fk_migration_run_migration_operation FOREIGN KEY (migration_operation_id) REFERENCES {CFG:SchemaName}.{CFG:TableBaseName}migration_operation(id) ON DELETE NO ACTION ON UPDATE NO ACTION;
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_{CFG:TableBaseName}migration_run_migration_operation' AND connamespace = '{CFG:SchemaName}'::regnamespace) THEN
+            ALTER TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_run ADD CONSTRAINT fk_{CFG:TableBaseName}migration_run_migration_operation FOREIGN KEY (migration_operation_id) REFERENCES {CFG:SchemaName}.{CFG:TableBaseName}migration_operation(id) ON DELETE NO ACTION ON UPDATE NO ACTION;
         END IF;
 
-        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_migration_run_migration_run_source' AND connamespace = '{CFG:SchemaName}'::regnamespace) THEN
-            ALTER TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_run ADD CONSTRAINT fk_migration_run_migration_run_source FOREIGN KEY (migration_run_source_id) REFERENCES {CFG:SchemaName}.{CFG:TableBaseName}migration_run_source(id) ON DELETE NO ACTION ON UPDATE NO ACTION;
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_{CFG:TableBaseName}migration_run_migration_run_source' AND connamespace = '{CFG:SchemaName}'::regnamespace) THEN
+            ALTER TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_run ADD CONSTRAINT fk_{CFG:TableBaseName}migration_run_migration_run_source FOREIGN KEY (migration_run_source_id) REFERENCES {CFG:SchemaName}.{CFG:TableBaseName}migration_run_source(id) ON DELETE NO ACTION ON UPDATE NO ACTION;
         END IF;
 
         CREATE INDEX IF NOT EXISTS ix_{CFG:TableBaseName}migration_run_migration_operation_id

@@ -9,7 +9,7 @@ The repository stores migration tracking data. Configuration is under `RayMigrat
 | `DatabaseType` | string | Yes | - | Database type: `SqlServer`, `PostgreSQL`, `MariaDb`, `MySql`, `Sqlite` |
 | `ConnectionString` | string | Yes | - | Database connection string |
 | `SchemaName` | string | Conditional | `"ray"` (ConfigWizard-scaffolded default; options class itself has no default) | Schema for repository tables (required for SqlServer, PostgreSQL; ignored for MariaDb, MySql, SQLite) |
-| `TableBaseName` | string | No | `null` (no prefix) | Prefix for table names |
+| `TableBaseName` | string | No | `null` (no prefix) | Prefix for the table, index and constraint names; at most 16 characters (RULE_4_4) |
 | `DbCommandTimeoutInSeconds` | int | No | 60 | Command timeout (0 = infinite) |
 | `DbCommandMaxRetries` | int | No | 100 | Retry attempts on transient failure |
 | `DbCommandWaitTimeInMsBeforeRetry` | int | No | 250 | Base wait time between retries (linear backoff: base * attempt) |
@@ -26,7 +26,7 @@ A running migrate-up, migrate-down or baseline writes a heartbeat into its `Migr
 
 When `TableBaseName` is `null` or omitted, repository tables have no prefix (e.g., `migrations.MigratorMeta`). When set (e.g., `"Ray"`), tables get the prefix (e.g., `migrations.RayMigratorMeta`). See [Table Naming](#table-naming) below.
 
-> **Note**: For `PostgreSQL`, `MariaDb`, and `MySql`, `TableBaseName` must be lowercase. Mixed-case prefixes (e.g., `"Ray"`) are rejected at startup with a `RULE_4_3` validation error. The `"Ray"` example below applies to `SqlServer` only — use a lowercase prefix like `"ray"` for the other engines.
+> **Note**: For `PostgreSQL`, `MariaDb`, and `MySql`, `TableBaseName` must be lowercase. Mixed-case prefixes (e.g., `"Ray"`) are rejected at startup with a `RULE_4_3` validation error. The `"Ray"` example below applies to `SqlServer` only — use a lowercase prefix like `"ray"` for the other engines. On every engine the prefix has at most 16 characters (`RULE_4_4`), because it is part of every index and constraint name of the repository. Since 0.18.0 the primary key and foreign key names carry the prefix as well, so two repositories with different prefixes can share one database or schema.
 
 ## Database Types
 

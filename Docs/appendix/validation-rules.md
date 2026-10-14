@@ -56,6 +56,7 @@ Implementation lives in the `Raycoon.RayMigrator.Validation` project:
 | RULE_4_1 | SCHEMA_ON_SCHEMALESS_DB | Warning | Setting `SchemaName` for `Sqlite` has no effect — SQLite has no schema concept. |
 | RULE_4_2 | SCHEMA_MISSING_FOR_SCHEMA_DB | Error | `Repository.SchemaName` is required for `SqlServer` and `PostgreSQL`. Also flags a missing `Repository` section or missing `DatabaseType`/`ConnectionString`. |
 | RULE_4_3 | LOWERCASE_TABLEBASENAME_REQUIRED | Error | `TableBaseName` must be all-lowercase for `PostgreSQL`, `MariaDb`, and `MySql` — unquoted PostgreSQL identifiers fold to lowercase, and the MariaDB/MySQL repository schema is stored as lowercase. |
+| RULE_4_4 | TABLEBASENAME_TOO_LONG | Error | `TableBaseName` has at most 16 characters (`Repository` and `DatabaseLogging`). The prefix is part of every index and constraint name; the longest, `ix_{prefix}migration_record_history_migration_record_id`, must stay within the 63 characters PostgreSQL allows (MySQL and MariaDB: 64). |
 
 ### Group 7 — Connection-string hygiene
 

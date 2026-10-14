@@ -663,6 +663,8 @@ PostgreSQL, MariaDB, and MySQL all use **unquoted snake_case** for repository id
 
 `RepositoryNaming.ToSnakeCase` in the read model package `Raycoon.RayMigrator.Repository.ReadModel` (ADR-025) implements this exception via a sentinel pre-pass (`RayMigrator` → `Raymigrator` before mechanical splitting) and is covered by `P1_RepositoryReadModelTests`; `RepositoryQueryHelper.ToSnakeCase` in the Testing project delegates to it (covered by `P1_RepositoryQueryHelperToSnakeCaseTests`) when it formats table and column names for PostgreSQL, MariaDB and MySQL queries (DAL-017, DAL-018).
 
+**Index and constraint names carry the table prefix on every engine.** `ix_`, `uix_`, `pk_` and `fk_` names all start with `{CFG:TableBaseName}` (since 0.18.0 the keys as well), so two repositories with different prefixes can share a database or schema; the prefix has at most 16 characters (RULE_4_4), which keeps the longest name within the 63 characters PostgreSQL allows.
+
 **`TableBaseName` must be lowercase for PostgreSQL, MariaDB, and MySQL.** The `RayMigratorOptionsValidator` rejects any uppercase character in `Repository.TableBaseName` or `DatabaseLogging.TableBaseName` when `DatabaseType` is `"PostgreSQL"`, `"MariaDb"`, or `"MySql"`. Rationale: PostgreSQL folds unquoted identifiers to lowercase; the MariaDB/MySQL snake_case repository schema (DAL-018) is stored as lowercase; any uppercase prefix character would break the `information_schema.tables` existence checks in `Repository_CheckCreate` and `DatabaseLogging_CheckCreate`.
 
 ### MariaDB and MySQL (DAL-018)

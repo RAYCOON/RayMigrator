@@ -6,7 +6,7 @@ RayMigrator SQL Template
 TemplateType   = "DatabaseLogging_CheckCreate"
 DatabaseType   = "SqlServer"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-09-09.1"
+Version        = "2026-10-14.1"
 
 [Description]
 Function = """
@@ -61,7 +61,7 @@ BEGIN TRY
 					Id                   int      NOT NULL,
 					Name                 nvarchar(100)     NOT NULL,
 					Description          nvarchar(1000)      NULL,
-					CONSTRAINT pk_MigrationEvent PRIMARY KEY  ( Id ) 
+					CONSTRAINT pk_{CFG:TableBaseName}MigrationEvent PRIMARY KEY  ( Id ) 
 				 );
 
 
@@ -82,7 +82,7 @@ BEGIN TRY
 					FileBlockId          int      NULL,
 					Message              nvarchar(max)      NULL,
 					CreatedAt            datetime2(3) DEFAULT SYSUTCDATETIME()  NOT NULL,
-					CONSTRAINT pk_Log PRIMARY KEY  ( Id )
+					CONSTRAINT pk_{CFG:TableBaseName}MigrationLog PRIMARY KEY  ( Id )
 				 );
 
 

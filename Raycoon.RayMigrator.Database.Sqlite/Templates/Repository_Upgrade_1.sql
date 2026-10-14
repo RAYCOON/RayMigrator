@@ -6,7 +6,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_Upgrade_1"
 DatabaseType   = "Sqlite"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-10-13.1"
+Version        = "2026-10-14.1"
 
 [Description]
 Function = """
@@ -123,11 +123,11 @@ CREATE TABLE IF NOT EXISTS "{CFG:TableBaseName}MigrationRun" (
     "StartedAt"            TEXT         NOT NULL CHECK (datetime("StartedAt") IS NOT NULL AND datetime("StartedAt") = "StartedAt"),
     "FinishedAt"           TEXT             NULL CHECK ("FinishedAt" IS NULL OR (datetime("FinishedAt") IS NOT NULL AND datetime("FinishedAt") = "FinishedAt")),
     "DurationInMs"         INTEGER          NULL,
-    CONSTRAINT "fk_MigrationRun_Product" FOREIGN KEY ("ProductId") REFERENCES "{CFG:TableBaseName}Product"("Id"),
-    CONSTRAINT "fk_MigrationRun_Environment" FOREIGN KEY ("EnvironmentId") REFERENCES "{CFG:TableBaseName}Environment"("Id"),
-    CONSTRAINT "fk_MigrationRun_MigratorMeta" FOREIGN KEY ("MigratorMetaId") REFERENCES "{CFG:TableBaseName}MigratorMeta"("Id"),
-    CONSTRAINT "fk_MigrationRun_MigrationRunResult" FOREIGN KEY ("MigrationRunResultId") REFERENCES "{CFG:TableBaseName}MigrationRunResult"("Id"),
-    CONSTRAINT "fk_MigrationRun_MigrationRunMode" FOREIGN KEY ("MigrationRunModeId") REFERENCES "{CFG:TableBaseName}MigrationRunMode"("Id")
+    CONSTRAINT "fk_{CFG:TableBaseName}MigrationRun_Product" FOREIGN KEY ("ProductId") REFERENCES "{CFG:TableBaseName}Product"("Id"),
+    CONSTRAINT "fk_{CFG:TableBaseName}MigrationRun_Environment" FOREIGN KEY ("EnvironmentId") REFERENCES "{CFG:TableBaseName}Environment"("Id"),
+    CONSTRAINT "fk_{CFG:TableBaseName}MigrationRun_MigratorMeta" FOREIGN KEY ("MigratorMetaId") REFERENCES "{CFG:TableBaseName}MigratorMeta"("Id"),
+    CONSTRAINT "fk_{CFG:TableBaseName}MigrationRun_MigrationRunResult" FOREIGN KEY ("MigrationRunResultId") REFERENCES "{CFG:TableBaseName}MigrationRunResult"("Id"),
+    CONSTRAINT "fk_{CFG:TableBaseName}MigrationRun_MigrationRunMode" FOREIGN KEY ("MigrationRunModeId") REFERENCES "{CFG:TableBaseName}MigrationRunMode"("Id")
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS "{CFG:TableBaseName}MigrationRunMeta" (
@@ -135,7 +135,7 @@ CREATE TABLE IF NOT EXISTS "{CFG:TableBaseName}MigrationRunMeta" (
     "MigrationRunSettingsJson" TEXT         NULL,
     "Description"          TEXT             NULL,
     PRIMARY KEY ("MigrationRunId"),
-    CONSTRAINT "fk_MigrationRunMeta_MigrationRun" FOREIGN KEY ("MigrationRunId") REFERENCES "{CFG:TableBaseName}MigrationRun"("Id")
+    CONSTRAINT "fk_{CFG:TableBaseName}MigrationRunMeta_MigrationRun" FOREIGN KEY ("MigrationRunId") REFERENCES "{CFG:TableBaseName}MigrationRun"("Id")
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS "{CFG:TableBaseName}MigrationRecord" (
@@ -167,12 +167,12 @@ CREATE TABLE IF NOT EXISTS "{CFG:TableBaseName}MigrationRecord" (
     "StartedAt"            TEXT             NULL CHECK ("StartedAt" IS NULL OR (datetime("StartedAt") IS NOT NULL AND datetime("StartedAt") = "StartedAt")),
     "FinishedAt"           TEXT             NULL CHECK ("FinishedAt" IS NULL OR (datetime("FinishedAt") IS NOT NULL AND datetime("FinishedAt") = "FinishedAt")),
     "DurationInMs"         INTEGER          NULL,
-    CONSTRAINT "fk_MigrationRecord_Product" FOREIGN KEY ("ProductId") REFERENCES "{CFG:TableBaseName}Product"("Id"),
-    CONSTRAINT "fk_MigrationRecord_Environment" FOREIGN KEY ("EnvironmentId") REFERENCES "{CFG:TableBaseName}Environment"("Id"),
-    CONSTRAINT "fk_MigrationRecord_MigrationRun" FOREIGN KEY ("MigrationRunId") REFERENCES "{CFG:TableBaseName}MigrationRun"("Id"),
-    CONSTRAINT "fk_MigrationRecord_MigrationRunMode" FOREIGN KEY ("MigrationRunModeId") REFERENCES "{CFG:TableBaseName}MigrationRunMode"("Id"),
-    CONSTRAINT "fk_MigrationRecord_MigrationOperation" FOREIGN KEY ("MigrationOperationId") REFERENCES "{CFG:TableBaseName}MigrationOperation"("Id"),
-    CONSTRAINT "fk_MigrationRecord_MigrationStatus" FOREIGN KEY ("MigrationStatusId") REFERENCES "{CFG:TableBaseName}MigrationStatus"("Id")
+    CONSTRAINT "fk_{CFG:TableBaseName}MigrationRecord_Product" FOREIGN KEY ("ProductId") REFERENCES "{CFG:TableBaseName}Product"("Id"),
+    CONSTRAINT "fk_{CFG:TableBaseName}MigrationRecord_Environment" FOREIGN KEY ("EnvironmentId") REFERENCES "{CFG:TableBaseName}Environment"("Id"),
+    CONSTRAINT "fk_{CFG:TableBaseName}MigrationRecord_MigrationRun" FOREIGN KEY ("MigrationRunId") REFERENCES "{CFG:TableBaseName}MigrationRun"("Id"),
+    CONSTRAINT "fk_{CFG:TableBaseName}MigrationRecord_MigrationRunMode" FOREIGN KEY ("MigrationRunModeId") REFERENCES "{CFG:TableBaseName}MigrationRunMode"("Id"),
+    CONSTRAINT "fk_{CFG:TableBaseName}MigrationRecord_MigrationOperation" FOREIGN KEY ("MigrationOperationId") REFERENCES "{CFG:TableBaseName}MigrationOperation"("Id"),
+    CONSTRAINT "fk_{CFG:TableBaseName}MigrationRecord_MigrationStatus" FOREIGN KEY ("MigrationStatusId") REFERENCES "{CFG:TableBaseName}MigrationStatus"("Id")
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS "{CFG:TableBaseName}MigrationRecordHistory" (
@@ -206,9 +206,9 @@ CREATE TABLE IF NOT EXISTS "{CFG:TableBaseName}MigrationRecordHistory" (
     "FinishedAt"           TEXT             NULL CHECK ("FinishedAt" IS NULL OR (datetime("FinishedAt") IS NOT NULL AND datetime("FinishedAt") = "FinishedAt")),
     "DurationInMs"         INTEGER          NULL,
     "HistorizedAt"         TEXT             NOT NULL  DEFAULT (datetime('now')) CHECK (datetime("HistorizedAt") IS NOT NULL AND datetime("HistorizedAt") = "HistorizedAt"),
-    CONSTRAINT "fk_MigrationRecordHistory_MigrationRun" FOREIGN KEY ("MigrationRunId") REFERENCES "{CFG:TableBaseName}MigrationRun"("Id"),
-    CONSTRAINT "fk_MigrationRecordHistory_Product" FOREIGN KEY ("ProductId") REFERENCES "{CFG:TableBaseName}Product"("Id"),
-    CONSTRAINT "fk_MigrationRecordHistory_Environment" FOREIGN KEY ("EnvironmentId") REFERENCES "{CFG:TableBaseName}Environment"("Id")
+    CONSTRAINT "fk_{CFG:TableBaseName}MigrationRecordHistory_MigrationRun" FOREIGN KEY ("MigrationRunId") REFERENCES "{CFG:TableBaseName}MigrationRun"("Id"),
+    CONSTRAINT "fk_{CFG:TableBaseName}MigrationRecordHistory_Product" FOREIGN KEY ("ProductId") REFERENCES "{CFG:TableBaseName}Product"("Id"),
+    CONSTRAINT "fk_{CFG:TableBaseName}MigrationRecordHistory_Environment" FOREIGN KEY ("EnvironmentId") REFERENCES "{CFG:TableBaseName}Environment"("Id")
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS "ix_{CFG:TableBaseName}MigrationRecordHistory" ON "{CFG:TableBaseName}MigrationRecordHistory" ("MigrationRecordId");

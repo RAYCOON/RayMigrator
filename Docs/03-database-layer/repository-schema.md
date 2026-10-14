@@ -455,11 +455,11 @@ CREATE INDEX ix_migration_record_migration_operation_id  ON migration_record (mi
 CREATE INDEX ix_migration_record_migration_status_id     ON migration_record (migration_status_id);
 ```
 
-Actual index names in the template use the `{CFG:TableBaseName}` prefix, e.g. `ix_{CFG:TableBaseName}migration_run_product_id`. SQL Server does not auto-index FK columns either; that is a candidate for a future work item (see DAL-007 and related tickets).
+Actual index names in the template use the `{CFG:TableBaseName}` prefix, e.g. `ix_{CFG:TableBaseName}migration_run_product_id`, and so do the primary key and foreign key names since 0.18.0 (`pk_{CFG:TableBaseName}migration_run`, `fk_{CFG:TableBaseName}migration_run_product`): constraint names are scoped per schema on SQL Server, per schema for the index behind a primary key on PostgreSQL and per database on MySQL and MariaDB, and the prefix keeps two repositories in one place apart. The prefix has at most 16 characters (RULE_4_4) so that the longest name fits the identifier limits. SQL Server does not auto-index FK columns either; that is a candidate for a future work item (see DAL-007 and related tickets).
 
 ## Foreign Keys
 
-All 15 foreign keys use `NO ACTION` referential behavior (no cascade on delete or update). The logical FK declarations below use SQL Server / canonical names. On PostgreSQL, MariaDB, and MySQL, each FK uses snake_case constraint names (e.g., `fk_migration_run_product` instead of `fk_MigrationRun_Product`); on PostgreSQL each FK is additionally declared with an explicit `ON DELETE NO ACTION ON UPDATE NO ACTION` clause; on MariaDB/MySQL the default `NO ACTION` is implicit.
+All 15 foreign keys use `NO ACTION` referential behavior (no cascade on delete or update). The logical FK declarations below use SQL Server / canonical names without the prefix; the templates write `fk_{CFG:TableBaseName}...`. On PostgreSQL, MariaDB, and MySQL, each FK uses snake_case constraint names (e.g., `fk_migration_run_product` instead of `fk_MigrationRun_Product`); on PostgreSQL each FK is additionally declared with an explicit `ON DELETE NO ACTION ON UPDATE NO ACTION` clause; on MariaDB/MySQL the default `NO ACTION` is implicit.
 
 ```sql
 -- MigrationRecord table
