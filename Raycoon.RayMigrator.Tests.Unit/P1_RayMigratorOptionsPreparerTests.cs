@@ -210,4 +210,17 @@ public class RayMigratorOptionsPreparerTests : IDisposable
         JsonSerializer.Serialize(options).Should().Be(first);
         second.ReplacedEnvironmentVariables.Should().BeEmpty("the placeholders were already resolved");
     }
+
+
+    [Fact]
+    public void Prepare_TreatsAMissingTableBaseNameAsNoPrefix()
+    {
+        var options = CreateOptions("Data Source=target.db");
+        options.Repository!.TableBaseName = null;
+
+        RayMigratorOptionsPreparer.Prepare(options);
+
+        options.Repository.TableBaseName.Should().Be(string.Empty, "the templates substitute the prefix and refuse a missing value");
+        options.DatabaseLogging!.TableBaseName.Should().Be(string.Empty);
+    }
 }

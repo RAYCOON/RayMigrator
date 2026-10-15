@@ -31,6 +31,8 @@ public static class DatabaseLoggingDefaults
         var repository = options.Repository;
         if (repository != null)
         {
+            // No prefix is the empty string: the templates substitute it and refuse a missing value.
+            repository.TableBaseName ??= string.Empty;
             logging.DatabaseType ??= repository.DatabaseType;
 
             // The repository's connection, schema and prefix fit only a log database of the repository's type.

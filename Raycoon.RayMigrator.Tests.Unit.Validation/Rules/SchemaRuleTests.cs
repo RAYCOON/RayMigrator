@@ -135,7 +135,27 @@ public class SchemaRuleTests
             i.Code == RuleIds.RULE_4_4 &&
             i.Severity == ValidationSeverity.Error &&
             i.Path == "Repository > TableBaseName" &&
-            i.Message.Contains("17 characters"));
+            i.Message.Contains("17 bytes"));
+    }
+
+    [Fact]
+    public void TableBaseName_IsMeasuredInBytes_BecausePostgreSqlCountsBytes()
+    {
+        // Sixteen characters, nineteen bytes in UTF-8: PostgreSQL would truncate the longest index name.
+        var input = new ValidationInput
+        {
+            Repository = new RepositoryInput
+            {
+                DatabaseType = "PostgreSQL",
+                ConnectionString = "Host=x;Database=y;",
+                SchemaName = "ray",
+                TableBaseName = "größenprüfung_x_",
+            },
+        };
+
+        var report = RuleCatalog.RunAll(input);
+
+        report.Issues.Should().Contain(i => i.Code == RuleIds.RULE_4_4 && i.Path == "Repository > TableBaseName" && i.Message.Contains("19 bytes"));
     }
 
     [Fact]

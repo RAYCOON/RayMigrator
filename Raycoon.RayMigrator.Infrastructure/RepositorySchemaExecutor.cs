@@ -48,6 +48,18 @@ public sealed class RepositorySchemaExecutor
         _rayMigratorVersion = rayMigratorVersion ?? throw new ArgumentNullException(nameof(rayMigratorVersion));
         _targetVersion = targetVersion;
         _logContext = logContext;
+
+        // The templates and the DAL settings need every value; the data annotations of the options write the
+        // documented defaults into empty settings, and RepositorySchemaService applies them before it gets here.
+        var missing = new List<string>();
+        if (string.IsNullOrWhiteSpace(repository.DatabaseType)) missing.Add(nameof(RepositoryOptions.DatabaseType));
+        if (string.IsNullOrWhiteSpace(repository.ConnectionString)) missing.Add(nameof(RepositoryOptions.ConnectionString));
+        if (repository.TableBaseName is null) missing.Add(nameof(RepositoryOptions.TableBaseName) + " (the empty string for no prefix)");
+        if (repository.DbCommandTimeoutInSeconds is null) missing.Add(nameof(RepositoryOptions.DbCommandTimeoutInSeconds));
+        if (repository.DbCommandMaxRetries is null) missing.Add(nameof(RepositoryOptions.DbCommandMaxRetries));
+        if (repository.DbCommandWaitTimeInMsBeforeRetry is null) missing.Add(nameof(RepositoryOptions.DbCommandWaitTimeInMsBeforeRetry));
+        if (missing.Count > 0)
+            throw new ArgumentException($"The repository options lack {string.Join(", ", missing)}; apply the data annotations' defaults first, as RepositorySchemaService does.", nameof(repository));
     }
 
     private object LogContext => _logContext?.Invoke() ?? string.Empty;

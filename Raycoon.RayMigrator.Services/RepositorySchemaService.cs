@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Raycoon.RayMigrator.Core;
 using Raycoon.RayMigrator.Core.Configuration;
 using Raycoon.RayMigrator.Core.Configuration.Options;
+using Raycoon.RayMigrator.Core.Configuration.Replacer;
 using Raycoon.RayMigrator.Core.Configuration.Validation;
 using Raycoon.RayMigrator.Core.Templates;
 using Raycoon.RayMigrator.Database;
@@ -39,6 +40,10 @@ public sealed class RepositorySchemaService : IRepositorySchemaService
     public RepositorySchemaResult Ensure(RepositoryOptions repository)
     {
         ArgumentNullException.ThrowIfNull(repository);
+
+        // The steps log the schema name and may quote the connection string in an error: masked, as a run masks them.
+        using var masking = SensitiveDataMasker.BeginScope(revealSensitiveData: false);
+        ResolvePlaceholders(repository);
         Validate(repository);
 
         string databaseType = repository.DatabaseType!;
@@ -59,8 +64,6 @@ public sealed class RepositorySchemaService : IRepositorySchemaService
         dalProperties.TryAdd(databaseType, dal!.DalSpecificProperties);
         SchemaNameValidator.ValidateSchemaName(dalProperties, databaseType, repository.SchemaName, "Repository", _logger);
 
-        // The steps log the schema name and may quote the connection string in an error: masked, as a run masks them.
-        using var masking = SensitiveDataMasker.BeginScope(revealSensitiveData: false);
         SensitiveDataMasker.RegisterSensitiveValues([repository.ConnectionString, repository.SchemaName, repository.TableBaseName]);
 
         var outcome = new RepositorySchemaExecutor(_templateCache, _logger, repository, dal,
@@ -95,6 +98,28 @@ public sealed class RepositorySchemaService : IRepositorySchemaService
             throw new ConfigurationValidationException(
                 "The repository options are not valid: " + string.Join(" ", errors.Select(e => $"[{e.Code}] {e.Path}: {e.Message}")));
         }
+    }
+
+    /// <summary>
+    /// Resolves the <c>{ENV:VAR}</c> placeholders of the options with the environment of this process, as the
+    /// options preparer resolves them before a run, and refuses a variable that is not set: a host that hands the
+    /// options over as written must not end up with a database named after a placeholder.
+    /// </summary>
+    private static void ResolvePlaceholders(RepositoryOptions repository)
+    {
+        var replaced = EnvironmentVariableReplacer.ReplaceWithEnvironmentVariables(new RayMigratorOptions { Repository = repository });
+        var missing = replaced
+            .Where(r => string.IsNullOrWhiteSpace(r.EnvironmentVariableValue))
+            .Select(r => $"[{r.EnvironmentVariableName}] at [{r.Path}]")
+            .Distinct()
+            .ToList();
+        if (missing.Count > 0)
+        {
+            throw new ConfigurationValidationException(
+                "The repository options reference environment variables that do not exist, are empty or contain whitespace only: " + string.Join(", ", missing));
+        }
+
+        SensitiveDataMasker.RegisterSensitiveValues(replaced.Select(r => r.EnvironmentVariableValue));
     }
 
     /// <summary>

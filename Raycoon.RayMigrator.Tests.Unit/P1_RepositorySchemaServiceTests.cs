@@ -4,6 +4,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Raycoon.RayMigrator.Core;
 using Raycoon.RayMigrator.Core.Configuration.Options;
 using Raycoon.RayMigrator.Core.Templates;
+using Raycoon.RayMigrator.Database;
+using Raycoon.RayMigrator.Database.Common;
 using Raycoon.RayMigrator.Services;
 using Raycoon.RayMigrator.Services.Abstractions;
 using Raycoon.RayMigrator.Shared.Exceptions;
@@ -208,5 +210,79 @@ public class RepositorySchemaServiceTests : IDisposable
         var act = () => CreateService().Ensure(repository);
 
         act.Should().Throw<ConfigurationValidationException>().Which.Message.Should().Contain("Did you mean [Sqlite]");
+    }
+
+
+    [Fact]
+    public void Ensure_ResolvesPlaceholders_AndRefusesAMissingVariable()
+    {
+        // Arrange
+        var service = CreateService();
+        string variable = $"RM_SCHEMA_SERVICE_{Guid.NewGuid():N}";
+        Environment.SetEnvironmentVariable(variable, ConnectionString);
+        try
+        {
+            // Act
+            var result = service.Ensure(new RepositoryOptions { DatabaseType = "Sqlite", ConnectionString = $"{{ENV:{variable}}}" });
+
+            // Assert
+            result.Created.Should().BeTrue("the placeholder named the SQLite file");
+            File.Exists(_file).Should().BeTrue();
+            File.Exists(Path.Combine(Environment.CurrentDirectory, $"{{ENV:{variable}}}")).Should().BeFalse("no file is named after the placeholder");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(variable, null);
+        }
+
+        var missing = () => service.Ensure(new RepositoryOptions { DatabaseType = "Sqlite", ConnectionString = "{ENV:RM_SCHEMA_SERVICE_UNSET}" });
+        missing.Should().Throw<ConfigurationValidationException>().WithMessage("*RM_SCHEMA_SERVICE_UNSET*");
+    }
+
+    [Fact]
+    public void Ensure_RefusesAnUppercasePrefix_AndAMissingSchemaName_BeforeTheDatabaseIsTouched()
+    {
+        // Arrange: the connection strings point nowhere; the rules refuse the options first.
+        var service = CreateService();
+
+        // Act
+        var uppercase = () => service.Ensure(new RepositoryOptions { DatabaseType = "PostgreSQL", ConnectionString = "Host=nowhere.invalid;Database=x", SchemaName = "ray", TableBaseName = "Rm_" });
+        var noSchema = () => service.Ensure(new RepositoryOptions { DatabaseType = "SqlServer", ConnectionString = "Server=nowhere.invalid;Database=x" });
+
+        // Assert
+        uppercase.Should().Throw<ConfigurationValidationException>().WithMessage("*RULE_4_3*");
+        noSchema.Should().Throw<ConfigurationValidationException>().WithMessage("*RULE_4_2*");
+    }
+
+    [Fact]
+    public void Ensure_UpgradesARepositoryOfAnOlderSchemaVersion()
+    {
+        // Arrange: a repository at schema version 1, created through the executor with that target.
+        var cache = new TemplateCache(false, NullLogger<TemplateCache>.Instance);
+        var versionOne = new RepositoryOptions { DatabaseType = "Sqlite", ConnectionString = ConnectionString, TableBaseName = "", DbCommandTimeoutInSeconds = 60, DbCommandMaxRetries = 100, DbCommandWaitTimeInMsBeforeRetry = 250 };
+        DalFactory.TryGetDal("Sqlite", ConnectionString, out var dal).Should().BeTrue();
+        new RepositorySchemaExecutor(cache, NullLogger.Instance, versionOne, dal!, "test", 1).Ensure();
+        Query().CountRows("RepositorySchemaVersion").Should().Be(1);
+
+        // Act
+        var result = CreateService().Ensure(Repository());
+
+        // Assert
+        result.Upgraded.Should().BeTrue();
+        result.Created.Should().BeFalse();
+        result.VersionBefore.Should().Be(1);
+        result.VersionAfter.Should().Be(RepositorySchema.CurrentVersion);
+        Query().CountRows("RepositorySchemaVersion").Should().Be(RepositorySchema.CurrentVersion);
+    }
+
+    [Fact]
+    public void RepositorySchemaExecutor_RefusesOptionsWithoutTheirDefaults()
+    {
+        var cache = new TemplateCache(false, NullLogger<TemplateCache>.Instance);
+        DalFactory.TryGetDal("Sqlite", ConnectionString, out var dal).Should().BeTrue();
+
+        var act = () => new RepositorySchemaExecutor(cache, NullLogger.Instance, Repository(), dal!, "test", RepositorySchema.CurrentVersion);
+
+        act.Should().Throw<ArgumentException>().WithMessage("*TableBaseName*DbCommandTimeoutInSeconds*apply the data annotations*");
     }
 }

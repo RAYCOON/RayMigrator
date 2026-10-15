@@ -88,12 +88,12 @@ internal sealed class SchemaRule : IValidationRule
                 ValidationMessages.Format(ValidationMessages.LowercaseTableBaseNameRequired, repo.TableBaseName, repo.DatabaseType));
         }
 
-        if (repo.TableBaseName is { Length: > MaxTableBaseNameLength })
+        if (repo.TableBaseName is { } prefix && System.Text.Encoding.UTF8.GetByteCount(prefix) > MaxTableBaseNameLength)
         {
             report.AddError(
                 RuleIds.RULE_4_4,
                 $"{path} > TableBaseName",
-                ValidationMessages.Format(ValidationMessages.TableBaseNameTooLong, repo.TableBaseName, repo.TableBaseName.Length, MaxTableBaseNameLength));
+                ValidationMessages.Format(ValidationMessages.TableBaseNameTooLong, prefix, System.Text.Encoding.UTF8.GetByteCount(prefix), MaxTableBaseNameLength));
         }
     }
 }

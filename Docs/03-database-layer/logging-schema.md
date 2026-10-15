@@ -144,7 +144,7 @@ Database logging is on by default and goes into the repository: without a `Datab
 | `DatabaseType` | string | Yes | - | Database type (SqlServer, PostgreSQL, MariaDb, MySql, Sqlite) |
 | `ConnectionString` | string | Yes | - | Database connection string |
 | `SchemaName` | string | No | - | Schema for logging tables |
-| `TableBaseName` | string | No | - | Table name prefix; at most 16 characters (RULE_4_4) |
+| `TableBaseName` | string | No | - | Table name prefix; at most 16 bytes in UTF-8 (16 ASCII characters) (RULE_4_4) |
 | `MinimumLevel` | string | No | Information | Minimum log level |
 | `DbCommandTimeoutInSeconds` | int | No | 20 | Command timeout |
 

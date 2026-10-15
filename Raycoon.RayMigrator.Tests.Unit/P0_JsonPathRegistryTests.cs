@@ -124,4 +124,74 @@ public class JsonPathRegistryTests
         JsonPathRegistry.TryGetFieldKey(path, out var key).Should().BeFalse();
         key.Should().BeEmpty();
     }
+
+
+    [Theory]
+    [InlineData("Products[].MigrationErrorAction", "ProductDefaults_MigrationErrorAction")]
+    [InlineData("Products[].TargetGroups[].StopRollbackOnMissingRollbackFile", "ProductDefaults_StopRollbackOnMissingRollbackFile")]
+    [InlineData("ProductDefaults.TargetGroupDefaults.TargetDefaults.DbCommandTimeoutInSeconds", "Target_Timeout")]
+    [InlineData("DatabaseLogging.Enabled", "DatabaseLogging_Enable")]
+    [InlineData("Products[Shop].TargetGroups[Backend].Targets[Main].ConnectionString", "Target_ConnectionString")]
+    [InlineData("Products[0].Alias", "Product_Alias")]
+    [InlineData("products[].targetgroups[].alias", "TargetGroup_Alias")]
+    public void TryGetFieldKey_FindsTheKey_ThroughTheInheritanceAndBehindAliasesAndIndexes(string path, string expectedKey)
+    {
+        JsonPathRegistry.TryGetFieldKey(path, out string key).Should().BeTrue(path);
+        key.Should().Be(expectedKey);
+    }
+
+    [Theory]
+    [InlineData("DatabaseLogging")]
+    [InlineData("Products[]")]
+    [InlineData("Nowhere.Field")]
+    public void TryGetFieldKey_KnowsNoKeyForASectionOrAnUnknownPath(string path)
+    {
+        JsonPathRegistry.TryGetFieldKey(path, out string key).Should().BeFalse(path);
+        key.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void TryGetFieldKey_KnowsEveryOptionOfTheEngine()
+    {
+        var missing = new List<string>();
+        foreach (string path in OptionPaths(typeof(Raycoon.RayMigrator.Core.Configuration.Options.RayMigratorOptions), string.Empty))
+        {
+            if (!JsonPathRegistry.TryGetFieldKey(path, out _))
+                missing.Add(path);
+        }
+
+        missing.Should().BeEmpty("every option a host can show deserves its help text");
+    }
+
+    /// <summary>Every leaf of the options tree as a schema path: objects by their name, lists of option objects as [], everything else a leaf.</summary>
+    private static IEnumerable<string> OptionPaths(Type type, string prefix)
+    {
+        foreach (var property in type.GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance))
+        {
+            // Only what the binder writes is an option; the read-only enum views of the string options are not.
+            if (!property.CanWrite || property.GetSetMethod() is not { IsPublic: true } || property.GetIndexParameters().Length > 0)
+                continue;
+            string path = prefix.Length == 0 ? property.Name : $"{prefix}.{property.Name}";
+            var propertyType = Nullable.GetUnderlyingType(property.PropertyType) ?? property.PropertyType;
+            var element = propertyType.IsGenericType && propertyType.GetGenericTypeDefinition() == typeof(List<>) ? propertyType.GetGenericArguments()[0] : null;
+            if (element is not null && IsOptionsClass(element))
+            {
+                foreach (string below in OptionPaths(element, path + "[]"))
+                    yield return below;
+            }
+            else if (IsOptionsClass(propertyType))
+            {
+                foreach (string below in OptionPaths(propertyType, path))
+                    yield return below;
+            }
+            else
+            {
+                yield return path;
+            }
+        }
+    }
+
+    /// <summary>A class of the options namespace is a section; one without properties (Serilog, which Serilog itself reads) has no leaves.</summary>
+    private static bool IsOptionsClass(Type type) =>
+        type.IsClass && type.Namespace == typeof(Raycoon.RayMigrator.Core.Configuration.Options.RayMigratorOptions).Namespace;
 }

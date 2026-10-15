@@ -44,3 +44,11 @@ jobs:
 
       - name: Unit Tests
         run: dotnet test Raycoon.RayMigrator.Tests.Unit/ -c Release --no-build --framework net10.0
+
+      - name: Validation Tests
+        run: dotnet test Raycoon.RayMigrator.Tests.Unit.Validation/ -c Release --no-build --framework net10.0
+
+      - name: Config Wizard Tests
+        run: |
+          dotnet test Raycoon.RayMigrator.Tests.Unit.ConfigWizard.Core/ -c Release --no-build --framework net10.0
+          dotnet test Raycoon.RayMigrator.Tests.Unit.ConfigWizard.Web/ -c Release --no-build --framework net10.0

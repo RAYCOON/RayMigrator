@@ -70,7 +70,7 @@ Authoritative pages: [File naming](https://github.com/RAYCOON/RayMigrator/blob/m
 The repository has 13 tables (canonical names below; PostgreSQL, MariaDB and MySQL use unquoted `snake_case`, SQL Server and
 SQLite PascalCase), prefixed by `TableBaseName` and placed in `SchemaName` where the engine supports schemas. The prefix is also part of every
 index and constraint name (`pk_{prefix}...`, likewise `fk_`, `ix_`, `uix_`), so repositories with different prefixes can share one database or schema; it
-has at most 16 characters (`RULE_4_4`) to keep the longest name within the 63 characters PostgreSQL allows. The schema is
+has at most 16 bytes in UTF-8 (16 ASCII characters) (`RULE_4_4`) to keep the longest name within the 63 characters PostgreSQL allows. The schema is
 versioned (ADR-024): `Repository_CheckCreate` creates only `RepositorySchemaVersion` and reports the version found, the numbered
 steps `Repository_Upgrade_{n}` create the other 12 tables with their lookup seeds (step 1 the first 11, step 2 `MigrationRunSource` and the
 run details of `MigrationRun`) and every later change, and the first command of a newer engine applies the missing steps. A repository without a version row (created before 0.17.0) or with a version

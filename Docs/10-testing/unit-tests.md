@@ -105,7 +105,7 @@ A separate **Validation unit test project** (`Raycoon.RayMigrator.Tests.Unit.Val
 | `Rules/CliToolReferencesRuleTests.cs` | Cross-references between `UseCliToolAlias` and `CliTools[]` |
 | `Rules/ConnectionStringRuleTests.cs` | Connection string presence and shape |
 | `Rules/DefaultCascadeRuleTests.cs` | Default cascade completeness |
-| `Rules/SchemaRuleTests.cs` | Repository / DatabaseLogging schema constraints: schema name on schemaless and schema engines, lowercase `TableBaseName` and its maximum of 16 characters (`RULE_4_1` to `RULE_4_4`) |
+| `Rules/SchemaRuleTests.cs` | Repository / DatabaseLogging schema constraints: schema name on schemaless and schema engines, lowercase `TableBaseName` and its maximum of 16 bytes in UTF-8 (`RULE_4_1` to `RULE_4_4`) |
 | `Rules/SemanticContradictionsRuleTests.cs` | Semantic contradictions (incompatible option combinations) |
 | `Rules/TargetGroupMigrationOrderRuleTests.cs` | `TargetGroupMigrationOrder` configuration validation |
 | `Helpers/CliToolPlaceholderExtractorTests.cs` | Placeholder extraction helper used by CLI tool rules |

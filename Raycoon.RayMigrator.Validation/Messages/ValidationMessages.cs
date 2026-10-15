@@ -71,7 +71,7 @@ internal static class ValidationMessages
     public const string LowercaseTableBaseNameRequired =
         "TableBaseName '{0}' must be lowercase for database type '{1}'. Unquoted PostgreSQL identifiers fold to lowercase, and MariaDB/MySQL repository identifiers are stored as lowercase.";
     public const string TableBaseNameTooLong =
-        "TableBaseName '{0}' has {1} characters; at most {2} are allowed. The prefix is part of every index and constraint name of the repository, and the longest of them must fit the identifier limit of PostgreSQL, MySQL and MariaDB.";
+        "TableBaseName '{0}' has {1} bytes in UTF-8; at most {2} are allowed ({2} ASCII characters). The prefix is part of every index and constraint name of the repository, and the longest of them must fit the identifier limit of PostgreSQL, MySQL and MariaDB, which count bytes.";
 
     // -- Connection string rules ------------------------------------------
     public const string RepoAndTargetSameDb =
