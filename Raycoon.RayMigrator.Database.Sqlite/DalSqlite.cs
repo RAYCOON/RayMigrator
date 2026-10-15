@@ -60,10 +60,11 @@ public class DalSqlite : DalBase, IDal
         }
     }
 
-    public override async Task ExecuteNonQueryAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null)
+    protected override async Task ExecuteNonQueryCoreAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList, CancellationToken cancellationToken)
     {
         await ExecuteWithRetryAsync(
-            async () => { await ExecuteNonQueryAsyncInternal(sqlCode, dalSettings, dalParameterList); }, dalSettings);
+            async () => { await ExecuteNonQueryAsyncInternal(sqlCode, dalSettings, dalParameterList, cancellationToken); }, dalSettings,
+            cancellationToken: cancellationToken);
     }
 
     /// <summary>
@@ -71,10 +72,14 @@ public class DalSqlite : DalBase, IDal
     /// Microsoft.Data.Sqlite's documented batching mechanism — ensures all statements execute
     /// and errors in later statements are thrown in the caller's context (not during Dispose).
     /// See: https://learn.microsoft.com/en-us/dotnet/standard/data/sqlite/batching
+    /// <paramref name="cancellationToken"/> is observed once, before the first statement. Microsoft.Data.Sqlite cannot
+    /// interrupt a running statement, and disposing the reader executes the statements that are left, so a check
+    /// between statements would report a cancelled call whose statements ran anyway. A batch that has started runs to
+    /// its end; a cancelled call has executed nothing.
     /// </summary>
-    private static async Task ExecuteAllStatementsAsync(SqliteCommand command)
+    private static async Task ExecuteAllStatementsAsync(SqliteCommand command, CancellationToken cancellationToken)
     {
-        await using var reader = await command.ExecuteReaderAsync();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.NextResultAsync()) { }
     }
 
@@ -89,11 +94,13 @@ public class DalSqlite : DalBase, IDal
     /// Executes all statements and returns the scalar value from the last result set with rows.
     /// RayMigrator templates follow: setup DDL/DML (no result sets) → final SELECT with result
     /// code → optional cleanup DROP. Only the SELECT produces HasRows=true.
+    /// <paramref name="cancellationToken"/> is observed once, before the first statement, for the reason given at
+    /// <see cref="ExecuteAllStatementsAsync"/>.
     /// </summary>
-    private static async Task<object?> ExecuteScalarAllStatementsAsync(SqliteCommand command)
+    private static async Task<object?> ExecuteScalarAllStatementsAsync(SqliteCommand command, CancellationToken cancellationToken)
     {
         object? result = null;
-        await using var reader = await command.ExecuteReaderAsync();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         do
         {
             if (reader.HasRows && await reader.ReadAsync())
@@ -104,12 +111,12 @@ public class DalSqlite : DalBase, IDal
         return result;
     }
 
-    private async Task ExecuteNonQueryAsyncInternal(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null)
+    private async Task ExecuteNonQueryAsyncInternal(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList, CancellationToken cancellationToken)
     {
         string sql = dalParameterList != null ? SubstituteParameters(sqlCode, dalParameterList) : sqlCode;
 
         await using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync();
+        await connection.OpenAsync(cancellationToken);
 
         if (dalSettings.UseTransaction)
         {
@@ -120,7 +127,8 @@ public class DalSqlite : DalBase, IDal
                 command.Transaction = transaction;
                 command.CommandText = sql;
                 command.CommandTimeout = dalSettings.DbCommandTimeoutInSeconds;
-                await ExecuteAllStatementsAsync(command);
+                await ExecuteAllStatementsAsync(command, cancellationToken);
+                // No token: a commit that has started must complete, or the caller cannot tell whether it happened.
                 await transaction.CommitAsync();
             }
             catch
@@ -136,7 +144,7 @@ public class DalSqlite : DalBase, IDal
                 await using var command = connection.CreateCommand();
                 command.CommandText = sql;
                 command.CommandTimeout = dalSettings.DbCommandTimeoutInSeconds;
-                await ExecuteAllStatementsAsync(command);
+                await ExecuteAllStatementsAsync(command, cancellationToken);
             }
             catch
             {
@@ -194,18 +202,19 @@ public class DalSqlite : DalBase, IDal
         }
     }
 
-    public override async Task<object?> ExecuteScalarAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null)
+    protected override async Task<object?> ExecuteScalarCoreAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList, CancellationToken cancellationToken)
     {
         return await ExecuteWithRetryAsync(
-            async () => await ExecuteScalarAsyncInternal(sqlCode, dalSettings, dalParameterList), dalSettings);
+            async () => await ExecuteScalarAsyncInternal(sqlCode, dalSettings, dalParameterList, cancellationToken), dalSettings,
+            cancellationToken: cancellationToken);
     }
 
-    private async Task<object?> ExecuteScalarAsyncInternal(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null)
+    private async Task<object?> ExecuteScalarAsyncInternal(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList, CancellationToken cancellationToken)
     {
         string sql = dalParameterList != null ? SubstituteParameters(sqlCode, dalParameterList) : sqlCode;
 
         await using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync();
+        await connection.OpenAsync(cancellationToken);
 
         if (dalSettings.UseTransaction)
         {
@@ -216,7 +225,8 @@ public class DalSqlite : DalBase, IDal
                 command.Transaction = transaction;
                 command.CommandText = sql;
                 command.CommandTimeout = dalSettings.DbCommandTimeoutInSeconds;
-                var result = await ExecuteScalarAllStatementsAsync(command);
+                var result = await ExecuteScalarAllStatementsAsync(command, cancellationToken);
+                // No token: a commit that has started must complete, or the caller cannot tell whether it happened.
                 await transaction.CommitAsync();
                 return result;
             }
@@ -233,7 +243,7 @@ public class DalSqlite : DalBase, IDal
                 await using var command = connection.CreateCommand();
                 command.CommandText = sql;
                 command.CommandTimeout = dalSettings.DbCommandTimeoutInSeconds;
-                return await ExecuteScalarAllStatementsAsync(command);
+                return await ExecuteScalarAllStatementsAsync(command, cancellationToken);
             }
             catch
             {
@@ -265,31 +275,32 @@ public class DalSqlite : DalBase, IDal
         }
     }
 
-    public override async Task<List<Dictionary<string, object?>>> ExecuteReaderAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null)
+    protected override async Task<List<Dictionary<string, object?>>> ExecuteReaderCoreAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList, CancellationToken cancellationToken)
     {
         return await ExecuteWithRetryAsync(
-            async () => await ExecuteReaderAsyncInternal(sqlCode, dalSettings, dalParameterList), dalSettings);
+            async () => await ExecuteReaderAsyncInternal(sqlCode, dalSettings, dalParameterList, cancellationToken), dalSettings,
+            cancellationToken: cancellationToken);
     }
 
-    private async Task<List<Dictionary<string, object?>>> ExecuteReaderAsyncInternal(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null)
+    private async Task<List<Dictionary<string, object?>>> ExecuteReaderAsyncInternal(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList, CancellationToken cancellationToken)
     {
         string sql = dalParameterList != null ? SubstituteParameters(sqlCode, dalParameterList) : sqlCode;
         var results = new List<Dictionary<string, object?>>();
 
         await using var connection = new SqliteConnection(_connectionString);
-        await connection.OpenAsync();
+        await connection.OpenAsync(cancellationToken);
 
         await using var command = connection.CreateCommand();
         command.CommandText = sql;
         command.CommandTimeout = dalSettings.DbCommandTimeoutInSeconds;
 
-        await using var reader = await command.ExecuteReaderAsync();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         do
         {
             if (reader.FieldCount > 0)
             {
                 var currentBatch = new List<Dictionary<string, object?>>();
-                while (await reader.ReadAsync())
+                while (await reader.ReadAsync(cancellationToken))
                 {
                     var row = new Dictionary<string, object?>();
                     for (int i = 0; i < reader.FieldCount; i++)
@@ -299,20 +310,20 @@ public class DalSqlite : DalBase, IDal
                 if (currentBatch.Count > 0)
                     results = currentBatch;
             }
-        } while (await reader.NextResultAsync());
+        } while (await reader.NextResultAsync(cancellationToken));
 
         return results;
     }
 
-    public override async Task<bool> IsConnectionValid(string connectionString, IDalSettings dalSettings)
+    protected override async Task<bool> IsConnectionValidCoreAsync(string connectionString, IDalSettings dalSettings, CancellationToken cancellationToken)
     {
         try
         {
             await using var connection = new SqliteConnection(connectionString);
-            await connection.OpenAsync();
+            await connection.OpenAsync(cancellationToken);
             return true;
         }
-        catch
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
         {
             return false;
         }
@@ -323,7 +334,7 @@ public class DalSqlite : DalBase, IDal
         return new SqliteConnection(_connectionString);
     }
 
-    public override async Task ExecuteNonQueryAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList = null)
+    protected override async Task ExecuteNonQueryCoreAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList, CancellationToken cancellationToken)
     {
         string sql = dalParameterList != null ? SubstituteParameters(sqlCode, dalParameterList) : sqlCode;
 
@@ -331,10 +342,10 @@ public class DalSqlite : DalBase, IDal
         command.Transaction = (SqliteTransaction)transaction;
         command.CommandText = sql;
         command.CommandTimeout = commandTimeoutInSeconds;
-        await ExecuteAllStatementsAsync(command);
+        await ExecuteAllStatementsAsync(command, cancellationToken);
     }
 
-    public override async Task<object?> ExecuteScalarAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList = null)
+    protected override async Task<object?> ExecuteScalarCoreAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList, CancellationToken cancellationToken)
     {
         string sql = dalParameterList != null ? SubstituteParameters(sqlCode, dalParameterList) : sqlCode;
 
@@ -342,7 +353,7 @@ public class DalSqlite : DalBase, IDal
         command.Transaction = (SqliteTransaction)transaction;
         command.CommandText = sql;
         command.CommandTimeout = commandTimeoutInSeconds;
-        return await ExecuteScalarAllStatementsAsync(command);
+        return await ExecuteScalarAllStatementsAsync(command, cancellationToken);
     }
 
     /// <summary>

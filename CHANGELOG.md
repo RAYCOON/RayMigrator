@@ -7,6 +7,48 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking (API / external DALs):** the asynchronous members of `IDal`
+  take `CancellationToken cancellationToken = default` as their last
+  parameter: `ExecuteNonQueryAsync`, `ExecuteScalarAsync`,
+  `ExecuteReaderAsync`, the shared-connection `ExecuteNonQueryAsync` and
+  `ExecuteScalarAsync`, and `IsConnectionValid`, which is now
+  `IsConnectionValidAsync`. A call that fails after the token was
+  cancelled throws an `OperationCanceledException` that carries the token,
+  whatever the provider reported (SqlClient, for one, reports a cancelled
+  command as a `SqlException`), and starts no further retry. The provider's
+  exception is its inner exception, and unless the provider reported a
+  cancellation itself, its message names the provider's message, so that a
+  database error that met the cancel stays readable.
+  `RetryHelper.ExecuteWithRetryAsync` takes the token, waits for a retry
+  with it and neither classifies nor retries a failure after the
+  cancellation; `DalBase.IsTransient` never counts a cancellation as
+  transient. `DalBase` implements the asynchronous members itself and calls
+  protected members a DAL overrides instead: `ExecuteNonQueryCoreAsync`,
+  `ExecuteScalarCoreAsync` (each also for a shared connection),
+  `ExecuteReaderCoreAsync` and `IsConnectionValidCoreAsync`; its retry
+  helpers `ExecuteWithRetryAsync` take the token as well. An external DAL
+  must be rebuilt against this version: one built against an earlier
+  version does not load, and `DalFactory` names the assemblies whose types
+  did not load, with their loader exceptions, in its message for an unknown
+  database type, which said nothing about them before. The shipped DALs
+  pass the token to opening the connection and to the command, not to
+  commit and rollback, so a commit that has started completes. The SQLite
+  DAL observes it before a batch starts, because Microsoft.Data.Sqlite can
+  neither interrupt a statement nor skip the statements left in a batch.
+  When a call on a connection of its own fails, times out or is cancelled,
+  the MySQL and MariaDB DALs release the `GET_LOCK` locks of the session
+  that ran it (`DO RELEASE_ALL_LOCKS()`, best effort, without the token):
+  a template that stopped between its `GET_LOCK` and its `RELEASE_LOCK`
+  left the lock on the pooled session, and every other host waited for it
+  until the pool handed the connection out again or pruned it as idle, up
+  to 180 seconds. The templates of earlier versions had the same gap; a
+  cancel makes it routine.
+  The synchronous `ExecuteNonQuery`, which the database log writer calls
+  from its own thread, has no token. The engine passes no token yet, so a
+  run behaves as before.
+
 ## [0.19.0] — 2026-10-15
 
 ### Added

@@ -48,6 +48,9 @@ public class DalMySql : DalBase, IDal
     /// <inheritdoc />
     protected override IReadOnlyCollection<string> DefaultTransientErrorCodes => TransientCodes;
 
+    /// <summary>The command timeout of the statement that releases the locks of a session after a failed call.</summary>
+    private const int UserLockReleaseTimeoutInSeconds = 5;
+
     public override (bool isTransient, string? errorCode) IsTransient(Exception ex)
     {
         if (ex is MySqlException mysqlEx)
@@ -65,41 +68,51 @@ public class DalMySql : DalBase, IDal
         }
     }
 
-    public override async Task ExecuteNonQueryAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null)
+    protected override async Task ExecuteNonQueryCoreAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList, CancellationToken cancellationToken)
     {
         await ExecuteWithRetryAsync(
-            async () => { await ExecuteNonQueryAsyncInternal(sqlCode, dalSettings, dalParameterList); }, dalSettings);
+            async () => { await ExecuteNonQueryAsyncInternal(sqlCode, dalSettings, dalParameterList, cancellationToken); }, dalSettings,
+            cancellationToken: cancellationToken);
     }
 
-    private async Task ExecuteNonQueryAsyncInternal(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null)
+    private async Task ExecuteNonQueryAsyncInternal(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList, CancellationToken cancellationToken)
     {
         string sql = dalParameterList != null ? SubstituteParameters(sqlCode, dalParameterList) : sqlCode;
 
         await using var connection = new MySqlConnection(_connectionString);
-        await connection.OpenAsync();
-        await SetSessionTimezoneAsync(connection);
-
-        if (dalSettings.UseTransaction)
+        await connection.OpenAsync(cancellationToken);
+        try
         {
-            await using var transaction = await connection.BeginTransactionAsync();
-            try
+            await SetSessionTimezoneAsync(connection, cancellationToken);
+
+            if (dalSettings.UseTransaction)
             {
-                await using var command = new MySqlCommand(sql, connection, transaction);
-                command.CommandTimeout = dalSettings.DbCommandTimeoutInSeconds;
-                await command.ExecuteNonQueryAsync();
-                await transaction.CommitAsync();
+                await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+                try
+                {
+                    await using var command = new MySqlCommand(sql, connection, transaction);
+                    command.CommandTimeout = dalSettings.DbCommandTimeoutInSeconds;
+                    await command.ExecuteNonQueryAsync(cancellationToken);
+                    // No token: a commit that has started must complete, or the caller cannot tell whether it happened.
+                    await transaction.CommitAsync();
+                }
+                catch
+                {
+                    await transaction.RollbackAsync();
+                    throw;
+                }
             }
-            catch
+            else
             {
-                await transaction.RollbackAsync();
-                throw;
+                await using var command = new MySqlCommand(sql, connection);
+                command.CommandTimeout = dalSettings.DbCommandTimeoutInSeconds;
+                await command.ExecuteNonQueryAsync(cancellationToken);
             }
         }
-        else
+        catch
         {
-            await using var command = new MySqlCommand(sql, connection);
-            command.CommandTimeout = dalSettings.DbCommandTimeoutInSeconds;
-            await command.ExecuteNonQueryAsync();
+            await ReleaseUserLocksAsync(connection);
+            throw;
         }
     }
 
@@ -115,113 +128,141 @@ public class DalMySql : DalBase, IDal
 
         using var connection = new MySqlConnection(_connectionString);
         connection.Open();
-        SetSessionTimezone(connection);
-
-        if (dalSettings.UseTransaction)
+        try
         {
-            using var transaction = connection.BeginTransaction();
-            try
+            SetSessionTimezone(connection);
+
+            if (dalSettings.UseTransaction)
             {
-                using var command = new MySqlCommand(sql, connection, transaction);
+                using var transaction = connection.BeginTransaction();
+                try
+                {
+                    using var command = new MySqlCommand(sql, connection, transaction);
+                    command.CommandTimeout = dalSettings.DbCommandTimeoutInSeconds;
+                    command.ExecuteNonQuery();
+                    transaction.Commit();
+                }
+                catch
+                {
+                    transaction.Rollback();
+                    throw;
+                }
+            }
+            else
+            {
+                using var command = new MySqlCommand(sql, connection);
                 command.CommandTimeout = dalSettings.DbCommandTimeoutInSeconds;
                 command.ExecuteNonQuery();
-                transaction.Commit();
-            }
-            catch
-            {
-                transaction.Rollback();
-                throw;
             }
         }
-        else
+        catch
         {
-            using var command = new MySqlCommand(sql, connection);
-            command.CommandTimeout = dalSettings.DbCommandTimeoutInSeconds;
-            command.ExecuteNonQuery();
+            ReleaseUserLocks(connection);
+            throw;
         }
     }
 
-    public override async Task<object?> ExecuteScalarAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null)
+    protected override async Task<object?> ExecuteScalarCoreAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList, CancellationToken cancellationToken)
     {
         return await ExecuteWithRetryAsync(
-            async () => await ExecuteScalarAsyncInternal(sqlCode, dalSettings, dalParameterList), dalSettings);
+            async () => await ExecuteScalarAsyncInternal(sqlCode, dalSettings, dalParameterList, cancellationToken), dalSettings,
+            cancellationToken: cancellationToken);
     }
 
-    private async Task<object?> ExecuteScalarAsyncInternal(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null)
+    private async Task<object?> ExecuteScalarAsyncInternal(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList, CancellationToken cancellationToken)
     {
         string sql = dalParameterList != null ? SubstituteParameters(sqlCode, dalParameterList) : sqlCode;
 
         await using var connection = new MySqlConnection(_connectionString);
-        await connection.OpenAsync();
-        await SetSessionTimezoneAsync(connection);
-
-        if (dalSettings.UseTransaction)
+        await connection.OpenAsync(cancellationToken);
+        try
         {
-            await using var transaction = await connection.BeginTransactionAsync();
-            try
+            await SetSessionTimezoneAsync(connection, cancellationToken);
+
+            if (dalSettings.UseTransaction)
             {
-                await using var command = new MySqlCommand(sql, connection, transaction);
-                command.CommandTimeout = dalSettings.DbCommandTimeoutInSeconds;
-                var result = await command.ExecuteScalarAsync();
-                await transaction.CommitAsync();
-                return result;
+                await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+                try
+                {
+                    await using var command = new MySqlCommand(sql, connection, transaction);
+                    command.CommandTimeout = dalSettings.DbCommandTimeoutInSeconds;
+                    var result = await command.ExecuteScalarAsync(cancellationToken);
+                    // No token: a commit that has started must complete, or the caller cannot tell whether it happened.
+                    await transaction.CommitAsync();
+                    return result;
+                }
+                catch
+                {
+                    await transaction.RollbackAsync();
+                    throw;
+                }
             }
-            catch
+            else
             {
-                await transaction.RollbackAsync();
-                throw;
+                await using var command = new MySqlCommand(sql, connection);
+                command.CommandTimeout = dalSettings.DbCommandTimeoutInSeconds;
+                return await command.ExecuteScalarAsync(cancellationToken);
             }
         }
-        else
+        catch
         {
-            await using var command = new MySqlCommand(sql, connection);
-            command.CommandTimeout = dalSettings.DbCommandTimeoutInSeconds;
-            return await command.ExecuteScalarAsync();
+            await ReleaseUserLocksAsync(connection);
+            throw;
         }
     }
 
-    public override async Task<List<Dictionary<string, object?>>> ExecuteReaderAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null)
+    protected override async Task<List<Dictionary<string, object?>>> ExecuteReaderCoreAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList, CancellationToken cancellationToken)
     {
         return await ExecuteWithRetryAsync(
-            async () => await ExecuteReaderAsyncInternal(sqlCode, dalSettings, dalParameterList), dalSettings);
+            async () => await ExecuteReaderAsyncInternal(sqlCode, dalSettings, dalParameterList, cancellationToken), dalSettings,
+            cancellationToken: cancellationToken);
     }
 
-    private async Task<List<Dictionary<string, object?>>> ExecuteReaderAsyncInternal(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null)
+    private async Task<List<Dictionary<string, object?>>> ExecuteReaderAsyncInternal(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList, CancellationToken cancellationToken)
     {
         string sql = dalParameterList != null ? SubstituteParameters(sqlCode, dalParameterList) : sqlCode;
         var results = new List<Dictionary<string, object?>>();
 
         await using var connection = new MySqlConnection(_connectionString);
-        await connection.OpenAsync();
-        await SetSessionTimezoneAsync(connection);
-
-        await using var command = new MySqlCommand(sql, connection);
-        command.CommandTimeout = dalSettings.DbCommandTimeoutInSeconds;
-
-        await using var reader = await command.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        await connection.OpenAsync(cancellationToken);
+        try
         {
-            var row = new Dictionary<string, object?>();
-            for (int i = 0; i < reader.FieldCount; i++)
-            {
-                var value = reader.IsDBNull(i) ? null : reader.GetValue(i);
-                row[reader.GetName(i)] = value;
-            }
-            results.Add(row);
-        }
+            await SetSessionTimezoneAsync(connection, cancellationToken);
 
-        return results;
+            await using var command = new MySqlCommand(sql, connection);
+            command.CommandTimeout = dalSettings.DbCommandTimeoutInSeconds;
+
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var row = new Dictionary<string, object?>();
+                for (int i = 0; i < reader.FieldCount; i++)
+                {
+                    var value = reader.IsDBNull(i) ? null : reader.GetValue(i);
+                    row[reader.GetName(i)] = value;
+                }
+                results.Add(row);
+            }
+
+            return results;
+        }
+        catch
+        {
+            // The reader is closed here: the using of the try block ended before the catch
+            await ReleaseUserLocksAsync(connection);
+            throw;
+        }
     }
 
-    public override async Task<bool> IsConnectionValid(string connectionString, IDalSettings dalSettings)
+    protected override async Task<bool> IsConnectionValidCoreAsync(string connectionString, IDalSettings dalSettings, CancellationToken cancellationToken)
     {
         try
         {
             await using var connection = new MySqlConnection(EnsureConnectionStringOptions(connectionString));
-            await connection.OpenAsync();
+            await connection.OpenAsync(cancellationToken);
             return true;
         }
-        catch
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
         {
             return false;
         }
@@ -232,22 +273,22 @@ public class DalMySql : DalBase, IDal
         return new MySqlConnection(_connectionString);
     }
 
-    public override async Task ExecuteNonQueryAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList = null)
+    protected override async Task ExecuteNonQueryCoreAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList, CancellationToken cancellationToken)
     {
         string sql = dalParameterList != null ? SubstituteParameters(sqlCode, dalParameterList) : sqlCode;
 
         await using var command = new MySqlCommand(sql, (MySqlConnection)connection, (MySqlTransaction)transaction);
         command.CommandTimeout = commandTimeoutInSeconds;
-        await command.ExecuteNonQueryAsync();
+        await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    public override async Task<object?> ExecuteScalarAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList = null)
+    protected override async Task<object?> ExecuteScalarCoreAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList, CancellationToken cancellationToken)
     {
         string sql = dalParameterList != null ? SubstituteParameters(sqlCode, dalParameterList) : sqlCode;
 
         await using var command = new MySqlCommand(sql, (MySqlConnection)connection, (MySqlTransaction)transaction);
         command.CommandTimeout = commandTimeoutInSeconds;
-        return await command.ExecuteScalarAsync();
+        return await command.ExecuteScalarAsync(cancellationToken);
     }
 
     /// <summary>
@@ -258,10 +299,10 @@ public class DalMySql : DalBase, IDal
     /// pool-lease state. Executed as a separate round-trip (not prepended to
     /// user SQL) to keep ADO.NET's reader-state model simple.
     /// </summary>
-    private static async Task SetSessionTimezoneAsync(MySqlConnection connection)
+    private static async Task SetSessionTimezoneAsync(MySqlConnection connection, CancellationToken cancellationToken)
     {
         await using var cmd = new MySqlCommand("SET time_zone = '+00:00';", connection);
-        await cmd.ExecuteNonQueryAsync();
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
     }
 
     /// <summary>
@@ -271,6 +312,51 @@ public class DalMySql : DalBase, IDal
     {
         using var cmd = new MySqlCommand("SET time_zone = '+00:00';", connection);
         cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>
+    /// Releases the locks the session holds through <c>GET_LOCK</c> after a call on a connection of its own failed. A
+    /// template that takes such a lock releases it itself, but one that failed, timed out or was cancelled between the
+    /// two leaves the lock on the session, and the pool keeps the session with its lock until it hands the connection out
+    /// again or prunes it as idle (<c>ConnectionIdleTimeout</c>, 180 seconds by default): every other host waits for the
+    /// lock until then. Best effort and without the token of the call; a session that is gone has lost its locks anyway.
+    /// The shared-connection calls leave this to the caller, whose connection it is.
+    /// </summary>
+    private static async Task ReleaseUserLocksAsync(MySqlConnection connection)
+    {
+        if (connection.State != ConnectionState.Open)
+            return;
+
+        try
+        {
+            await using var command = new MySqlCommand("DO RELEASE_ALL_LOCKS();", connection);
+            command.CommandTimeout = UserLockReleaseTimeoutInSeconds;
+            await command.ExecuteNonQueryAsync(CancellationToken.None);
+        }
+        catch (Exception)
+        {
+            // ignored: best effort, the caller sees the failure of its call
+        }
+    }
+
+    /// <summary>
+    /// Synchronous counterpart to <see cref="ReleaseUserLocksAsync"/>.
+    /// </summary>
+    private static void ReleaseUserLocks(MySqlConnection connection)
+    {
+        if (connection.State != ConnectionState.Open)
+            return;
+
+        try
+        {
+            using var command = new MySqlCommand("DO RELEASE_ALL_LOCKS();", connection);
+            command.CommandTimeout = UserLockReleaseTimeoutInSeconds;
+            command.ExecuteNonQuery();
+        }
+        catch (Exception)
+        {
+            // ignored: best effort, the caller sees the failure of its call
+        }
     }
 
     /// <summary>

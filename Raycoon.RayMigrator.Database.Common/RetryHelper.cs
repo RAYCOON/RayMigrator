@@ -26,6 +26,8 @@ public static class RetryHelper
     /// <param name="isTransientPredicate">Function that evaluates whether an exception is transient. Returns (isTransient, errorCode). The errorCode is a string to support both numeric codes (e.g. SQL Server "233") and SQLSTATE codes (e.g. PostgreSQL "08000").</param>
     /// <param name="onRetry">Optional callback for logging retry attempts.</param>
     /// <param name="operationDescription">Optional description of the operation for logging.</param>
+    /// <param name="cancellationToken">Once cancelled, a failure is not retried and the wait before a retry ends with an
+    /// <see cref="OperationCanceledException"/>. The operation receives the token itself, typically through its closure.</param>
     /// <returns>The result of the operation.</returns>
     /// <exception cref="RetryExhaustedException">Thrown when all retry attempts are exhausted.</exception>
     public static async Task<T> ExecuteWithRetryAsync<T>(
@@ -34,7 +36,8 @@ public static class RetryHelper
         int retryDelayMs,
         Func<Exception, (bool isTransient, string? errorCode)> isTransientPredicate,
         RetryLogCallback? onRetry = null,
-        string? operationDescription = null)
+        string? operationDescription = null,
+        CancellationToken cancellationToken = default)
     {
         if (maxRetries < 0)
         {
@@ -50,7 +53,8 @@ public static class RetryHelper
             {
                 return await operation();
             }
-            catch (Exception ex)
+            // A failure after the cancellation is not classified: whatever the provider reports, the call ends here.
+            catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
             {
                 var (isTransient, errorCode) = isTransientPredicate(ex);
                 lastErrorCode = errorCode;
@@ -62,7 +66,7 @@ public static class RetryHelper
 
                     onRetry?.Invoke(attempt, maxRetries, lastErrorCode, operationDescription ?? "database operation", delay);
 
-                    await Task.Delay(delay);
+                    await Task.Delay(delay, cancellationToken);
                 }
                 else if (isTransient && attempt >= maxRetries)
                 {
@@ -81,7 +85,8 @@ public static class RetryHelper
     }
 
     /// <summary>
-    /// Executes an async operation (returning void) with retry logic using a transient error predicate.
+    /// Executes an async operation (returning void) with retry logic using a transient error predicate. Once
+    /// <paramref name="cancellationToken"/> is cancelled, a failure is not retried and the wait before a retry ends.
     /// </summary>
     public static async Task ExecuteWithRetryAsync(
         Func<Task> operation,
@@ -89,17 +94,19 @@ public static class RetryHelper
         int retryDelayMs,
         Func<Exception, (bool isTransient, string? errorCode)> isTransientPredicate,
         RetryLogCallback? onRetry = null,
-        string? operationDescription = null)
+        string? operationDescription = null,
+        CancellationToken cancellationToken = default)
     {
         await ExecuteWithRetryAsync(async () =>
         {
             await operation();
             return true; // Dummy return value
-        }, maxRetries, retryDelayMs, isTransientPredicate, onRetry, operationDescription);
+        }, maxRetries, retryDelayMs, isTransientPredicate, onRetry, operationDescription, cancellationToken);
     }
 
     /// <summary>
-    /// Executes a synchronous operation with retry logic using a transient error predicate.
+    /// Executes a synchronous operation with retry logic using a transient error predicate. It has no cancellation:
+    /// it serves the synchronous <see cref="IDal.ExecuteNonQuery"/> of the database log writer's background thread.
     /// </summary>
     public static T ExecuteWithRetry<T>(
         Func<T> operation,

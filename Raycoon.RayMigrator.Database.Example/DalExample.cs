@@ -15,7 +15,8 @@ namespace Raycoon.RayMigrator.Database.Example;
 /// 3. Add your ADO.NET driver NuGet package
 /// 4. Override DefaultTransientErrorCodes and IsTransient() for your database's transient error codes; users can
 ///    replace the list without a rebuild through DataAccessLayers/{YourDatabaseType}/TransientErrorCodes.txt
-/// 5. Implement all methods using your database's connection/command classes
+/// 5. Implement all methods using your database's connection/command classes; the asynchronous ones are the
+///    *CoreAsync members, DalBase wraps them so that a cancelled call always ends in an OperationCanceledException
 /// 6. Implement all 19 SQL templates in the Templates/ directory
 /// 7. Build and copy the output to DataAccessLayers/{YourDatabaseType}/
 /// </summary>
@@ -86,11 +87,13 @@ public class DalExample : DalBase, IDal
         throw new NotImplementedException("Implement connection validation for your database.");
     }
 
-    public override async Task ExecuteNonQueryAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null)
+    protected override async Task ExecuteNonQueryCoreAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList, CancellationToken cancellationToken)
     {
         // TODO: Implement async non-query execution
-        // Use the DalBase retry helpers which automatically route through your IsTransient override:
-        // await ExecuteWithRetryAsync(async () => { await YourInternalMethod(...); }, dalSettings);
+        // Use the DalBase retry helpers which automatically route through your IsTransient override, and pass the
+        // token on to OpenAsync and the command (not to CommitAsync: a started commit must complete):
+        // await ExecuteWithRetryAsync(async () => { await YourInternalMethod(..., cancellationToken); }, dalSettings,
+        //     cancellationToken: cancellationToken);
         throw new NotImplementedException("Implement async non-query execution for your database.");
     }
 
@@ -100,22 +103,23 @@ public class DalExample : DalBase, IDal
         throw new NotImplementedException("Implement sync non-query execution for your database.");
     }
 
-    public override async Task<object?> ExecuteScalarAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null)
+    protected override async Task<object?> ExecuteScalarCoreAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList, CancellationToken cancellationToken)
     {
         // TODO: Implement async scalar execution
         throw new NotImplementedException("Implement async scalar execution for your database.");
     }
 
-    public override async Task<List<Dictionary<string, object?>>> ExecuteReaderAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null)
+    protected override async Task<List<Dictionary<string, object?>>> ExecuteReaderCoreAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList, CancellationToken cancellationToken)
     {
         // TODO: Implement async reader execution
         throw new NotImplementedException("Implement async reader execution for your database.");
     }
 
-    public override async Task<bool> IsConnectionValid(string connectionString, IDalSettings dalSettings)
+    protected override async Task<bool> IsConnectionValidCoreAsync(string connectionString, IDalSettings dalSettings, CancellationToken cancellationToken)
     {
         // TODO: Implement connection validation
-        // Return true if the connection can be established, false otherwise
+        // Return true if the connection can be established, false otherwise; let a failure through once the token is
+        // cancelled: catch (Exception) when (!cancellationToken.IsCancellationRequested) { return false; }
         throw new NotImplementedException("Implement connection validation for your database.");
     }
 
@@ -126,14 +130,14 @@ public class DalExample : DalBase, IDal
         throw new NotImplementedException("Implement CreateConnection for your database.");
     }
 
-    public override async Task ExecuteNonQueryAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList = null)
+    protected override async Task ExecuteNonQueryCoreAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList, CancellationToken cancellationToken)
     {
         // TODO: Execute a non-query command on the caller-provided connection and transaction
         // Do NOT create connections, manage transactions, or add retry logic here — the caller controls the lifecycle.
         throw new NotImplementedException("Implement shared-connection ExecuteNonQueryAsync for your database.");
     }
 
-    public override async Task<object?> ExecuteScalarAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList = null)
+    protected override async Task<object?> ExecuteScalarCoreAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList, CancellationToken cancellationToken)
     {
         // TODO: Execute a scalar command on the caller-provided connection and transaction
         // Do NOT create connections, manage transactions, or add retry logic here — the caller controls the lifecycle.

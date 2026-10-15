@@ -44,14 +44,14 @@ public class TemplateExecutorEnvironmentIdTests
         var dal = Substitute.For<IDal>();
         DalParameterList? captured = null;
 
-        dal.ExecuteScalarAsync(Arg.Any<string>(), Arg.Any<IDalSettings>(), Arg.Any<DalParameterList>())
+        dal.ExecuteScalarAsync(Arg.Any<string>(), Arg.Any<IDalSettings>(), Arg.Any<DalParameterList>(), Arg.Any<CancellationToken>())
            .Returns(callInfo =>
            {
                captured = callInfo.ArgAt<DalParameterList>(2);
                return Task.FromResult<object?>(scalarResult);
            });
 
-        dal.ExecuteReaderAsync(Arg.Any<string>(), Arg.Any<IDalSettings>(), Arg.Any<DalParameterList>())
+        dal.ExecuteReaderAsync(Arg.Any<string>(), Arg.Any<IDalSettings>(), Arg.Any<DalParameterList>(), Arg.Any<CancellationToken>())
            .Returns(callInfo =>
            {
                captured = callInfo.ArgAt<DalParameterList>(2);

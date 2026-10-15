@@ -131,6 +131,41 @@ public class DalFactoryTests
         act.Should().NotThrow();
         DalFactory.RegisteredDalTypes.Should().ContainKey("SqlServer");
     }
+
+    /// <summary>
+    /// An assembly whose types do not load, like an external DAL built against an earlier version of the engine: its DAL
+    /// overrides members that <see cref="DalBase"/> no longer has and lacks those it has now.
+    /// </summary>
+    private sealed class UnloadableDalAssembly : Assembly
+    {
+        public const string LoaderMessage =
+            "Method 'ExecuteNonQueryCoreAsync' in type 'Probe.ExternalDal.DalExt' from assembly 'Probe.ExternalDal, Version=1.0.0.0, " +
+            "Culture=neutral, PublicKeyToken=null' does not have an implementation.";
+
+        public const string Path = "/app/DataAccessLayers/Ext/Probe.ExternalDal.dll";
+
+        public override string FullName => "Probe.ExternalDal, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null";
+
+        public override string Location => Path;
+
+        public override Type[] GetTypes() => throw new ReflectionTypeLoadException([null], [new TypeLoadException(LoaderMessage)]);
+    }
+
+    [Fact]
+    public void TryGetDal_UnknownTypeAfterADalAssemblyFailedToLoad_NamesTheAssemblyAndTheLoaderExceptions()
+    {
+        // Arrange
+        DalFactory.ScanAssemblyForDals(new UnloadableDalAssembly());
+
+        // Act
+        var act = () => DalFactory.TryGetDal("Ext", "Server=ext", out _);
+
+        // Assert
+        act.Should().Throw<ConfigurationValidationException>()
+            .WithMessage($"*Unknown DataAccessLayer for DatabaseType [Ext].*{UnloadableDalAssembly.Path}*{UnloadableDalAssembly.LoaderMessage}*rebuilt*",
+                because: "a DAL built against an earlier version does not load, and the message must say why it is unknown");
+    }
+
     [Fact]
     public void TryGetDal_BuiltInDal_LoadsTheShippedTransientErrorCodesFile()
     {

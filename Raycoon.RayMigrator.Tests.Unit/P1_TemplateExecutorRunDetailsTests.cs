@@ -158,7 +158,7 @@ public class TemplateExecutorRunDetailsTests
         var calls = new List<DalParameterList?>();
         var dal = Substitute.For<IDal>();
         dal.DatabaseType.Returns("SqlServer");
-        dal.ExecuteScalarAsync(Arg.Any<string>(), Arg.Any<IDalSettings>(), Arg.Any<DalParameterList?>())
+        dal.ExecuteScalarAsync(Arg.Any<string>(), Arg.Any<IDalSettings>(), Arg.Any<DalParameterList?>(), Arg.Any<CancellationToken>())
            .Returns(callInfo =>
            {
                calls.Add(callInfo.ArgAt<DalParameterList?>(2));

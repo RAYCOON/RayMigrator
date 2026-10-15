@@ -21,7 +21,7 @@ public class RetryHelperCustomPredicateTests
 
         var result = await RetryHelper.ExecuteWithRetryAsync(
             () => { callCount++; return Task.FromResult(99); },
-            maxRetries: 3, retryDelayMs: 1, isTransientPredicate: TransientPredicate);
+            maxRetries: 3, retryDelayMs: 1, isTransientPredicate: TransientPredicate, cancellationToken: TestContext.Current.CancellationToken);
 
         result.Should().Be(99);
         callCount.Should().Be(1);
@@ -34,7 +34,7 @@ public class RetryHelperCustomPredicateTests
 
         await RetryHelper.ExecuteWithRetryAsync(
             () => { callCount++; return Task.CompletedTask; },
-            maxRetries: 3, retryDelayMs: 1, isTransientPredicate: TransientPredicate);
+            maxRetries: 3, retryDelayMs: 1, isTransientPredicate: TransientPredicate, cancellationToken: TestContext.Current.CancellationToken);
 
         callCount.Should().Be(1);
     }
@@ -69,7 +69,7 @@ public class RetryHelperCustomPredicateTests
                     throw new TimeoutException("Simulated");
                 return Task.FromResult(99);
             },
-            maxRetries: 3, retryDelayMs: 1, isTransientPredicate: TransientPredicate);
+            maxRetries: 3, retryDelayMs: 1, isTransientPredicate: TransientPredicate, cancellationToken: TestContext.Current.CancellationToken);
 
         result.Should().Be(99);
         callCount.Should().Be(2);
@@ -88,7 +88,7 @@ public class RetryHelperCustomPredicateTests
                     throw new TimeoutException("Simulated");
                 return Task.CompletedTask;
             },
-            maxRetries: 3, retryDelayMs: 1, isTransientPredicate: TransientPredicate);
+            maxRetries: 3, retryDelayMs: 1, isTransientPredicate: TransientPredicate, cancellationToken: TestContext.Current.CancellationToken);
 
         callCount.Should().Be(2);
     }
@@ -191,7 +191,7 @@ public class RetryHelperCustomPredicateTests
             onRetry: (attempt, maxAttempts, errorCode, desc, delay) =>
             {
                 retryAttempts.Add(attempt);
-            });
+            }, cancellationToken: TestContext.Current.CancellationToken);
 
         retryAttempts.Should().HaveCount(2);
         retryAttempts.Should().ContainInOrder(1, 2);

@@ -60,11 +60,11 @@ public class SqliteDatetimeCheckConstraintTests : SqliteTestBase
 
         await dal!.ExecuteNonQueryAsync(
             "INSERT INTO \"Product\" (\"Name\",\"NameLower\",\"CreatedAt\") VALUES ('Good','good',datetime('now'));",
-            Settings);
+            Settings, cancellationToken: TestContext.Current.CancellationToken);
 
         var count = await dal.ExecuteScalarAsync(
             "SELECT COUNT(*) FROM \"Product\" WHERE \"Name\"='Good';",
-            Settings);
+            Settings, cancellationToken: TestContext.Current.CancellationToken);
 
         Convert.ToInt32(count).Should().Be(1,
             "DAL-021: an INSERT using datetime('now') must pass the strict CHECK");

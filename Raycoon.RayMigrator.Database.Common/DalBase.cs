@@ -3,19 +3,60 @@ using System.Data.Common;
 
 namespace Raycoon.RayMigrator.Database.Common;
 
+/// <summary>
+/// Base class of the DAL plugins. It implements the asynchronous <see cref="IDal"/> members on top of the
+/// <c>…CoreAsync</c> members a DAL provides, so that a cancelled call ends the same way in every DAL (see
+/// <see cref="IDal"/>), and holds the transient error classification and the retry helpers.
+/// </summary>
 public abstract class DalBase : IDal
 {
     public abstract string DatabaseType { get; }
     public abstract DalSpecificProperties DalSpecificProperties { get; }
 
-    public abstract Task ExecuteNonQueryAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null);
+    /// <inheritdoc />
+    public Task ExecuteNonQueryAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null, CancellationToken cancellationToken = default)
+        => ObserveCancellationAsync(() => ExecuteNonQueryCoreAsync(sqlCode, dalSettings, dalParameterList, cancellationToken), cancellationToken);
+
+    /// <summary>
+    /// The work of <see cref="ExecuteNonQueryAsync(string, IDalSettings, DalParameterList, CancellationToken)"/>: passes
+    /// <paramref name="cancellationToken"/> to opening the connection, to the command and to
+    /// <see cref="ExecuteWithRetryAsync(Func{Task}, IDalSettings, string, CancellationToken)"/>, not to commit and rollback.
+    /// </summary>
+    protected abstract Task ExecuteNonQueryCoreAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList, CancellationToken cancellationToken);
+
     public abstract void ExecuteNonQuery(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null);
 
-    public abstract Task<object?> ExecuteScalarAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null);
+    /// <inheritdoc />
+    public Task<object?> ExecuteScalarAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null, CancellationToken cancellationToken = default)
+        => ObserveCancellationAsync(() => ExecuteScalarCoreAsync(sqlCode, dalSettings, dalParameterList, cancellationToken), cancellationToken);
 
-    public abstract Task<List<Dictionary<string, object?>>> ExecuteReaderAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null);
+    /// <summary>
+    /// The work of <see cref="ExecuteScalarAsync(string, IDalSettings, DalParameterList, CancellationToken)"/>: passes
+    /// <paramref name="cancellationToken"/> to opening the connection, to the command and to
+    /// <see cref="ExecuteWithRetryAsync{T}(Func{Task{T}}, IDalSettings, string, CancellationToken)"/>, not to commit and rollback.
+    /// </summary>
+    protected abstract Task<object?> ExecuteScalarCoreAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList, CancellationToken cancellationToken);
 
-    public abstract Task<bool> IsConnectionValid(string connectionString, IDalSettings dalSettings);
+    /// <inheritdoc />
+    public Task<List<Dictionary<string, object?>>> ExecuteReaderAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null, CancellationToken cancellationToken = default)
+        => ObserveCancellationAsync(() => ExecuteReaderCoreAsync(sqlCode, dalSettings, dalParameterList, cancellationToken), cancellationToken);
+
+    /// <summary>
+    /// The work of <see cref="ExecuteReaderAsync(string, IDalSettings, DalParameterList, CancellationToken)"/>: passes
+    /// <paramref name="cancellationToken"/> to opening the connection, to the query, to every read and to
+    /// <see cref="ExecuteWithRetryAsync{T}(Func{Task{T}}, IDalSettings, string, CancellationToken)"/>.
+    /// </summary>
+    protected abstract Task<List<Dictionary<string, object?>>> ExecuteReaderCoreAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList, CancellationToken cancellationToken);
+
+    /// <inheritdoc />
+    public Task<bool> IsConnectionValidAsync(string connectionString, IDalSettings dalSettings, CancellationToken cancellationToken = default)
+        => ObserveCancellationAsync(() => IsConnectionValidCoreAsync(connectionString, dalSettings, cancellationToken), cancellationToken);
+
+    /// <summary>
+    /// The work of <see cref="IsConnectionValidAsync"/>: opens a connection with <paramref name="cancellationToken"/> and
+    /// answers false for every failure while the token is not cancelled.
+    /// </summary>
+    protected abstract Task<bool> IsConnectionValidCoreAsync(string connectionString, IDalSettings dalSettings, CancellationToken cancellationToken);
 
     public abstract void CheckConnectionStringOrValidateConnection(bool validateConnection);
 
@@ -23,19 +64,83 @@ public abstract class DalBase : IDal
     public abstract DbConnection CreateConnection();
 
     /// <inheritdoc />
-    public abstract Task ExecuteNonQueryAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList = null);
+    public Task ExecuteNonQueryAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList = null, CancellationToken cancellationToken = default)
+        => ObserveCancellationAsync(() => ExecuteNonQueryCoreAsync(sqlCode, connection, transaction, commandTimeoutInSeconds, dalParameterList, cancellationToken), cancellationToken);
+
+    /// <summary>
+    /// The work of the shared-connection <c>ExecuteNonQueryAsync</c>: passes <paramref name="cancellationToken"/> to the
+    /// command on the caller's connection and transaction.
+    /// </summary>
+    protected abstract Task ExecuteNonQueryCoreAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList, CancellationToken cancellationToken);
 
     /// <inheritdoc />
-    public abstract Task<object?> ExecuteScalarAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList = null);
+    public Task<object?> ExecuteScalarAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList = null, CancellationToken cancellationToken = default)
+        => ObserveCancellationAsync(() => ExecuteScalarCoreAsync(sqlCode, connection, transaction, commandTimeoutInSeconds, dalParameterList, cancellationToken), cancellationToken);
+
+    /// <summary>
+    /// The work of the shared-connection <c>ExecuteScalarAsync</c>: passes <paramref name="cancellationToken"/> to the
+    /// command on the caller's connection and transaction.
+    /// </summary>
+    protected abstract Task<object?> ExecuteScalarCoreAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Runs one asynchronous <see cref="IDal"/> call. Once <paramref name="cancellationToken"/> is cancelled, whatever the
+    /// provider throws becomes an <see cref="OperationCanceledException"/> carrying that token, with the provider's
+    /// exception as inner exception: providers report a cancelled command in their own way (an exception of their own,
+    /// or an <see cref="OperationCanceledException"/> with a token of their own), and a failure that coincides with the
+    /// cancellation is reported as the cancellation. The message names the provider's message unless the provider
+    /// reported a cancellation itself, so that a database error that met the cancel stays readable where the cancel is
+    /// reported.
+    /// </summary>
+    private async Task<T> ObserveCancellationAsync<T>(Func<Task<T>> operation, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await operation();
+        }
+        catch (Exception ex) when (cancellationToken.IsCancellationRequested && !IsCancellationOf(ex, cancellationToken))
+        {
+            throw CancelledBy(ex, cancellationToken);
+        }
+    }
+
+    /// <summary>The counterpart of <see cref="ObserveCancellationAsync{T}"/> for calls without a result.</summary>
+    private async Task ObserveCancellationAsync(Func<Task> operation, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await operation();
+        }
+        catch (Exception ex) when (cancellationToken.IsCancellationRequested && !IsCancellationOf(ex, cancellationToken))
+        {
+            throw CancelledBy(ex, cancellationToken);
+        }
+    }
+
+    private static bool IsCancellationOf(Exception ex, CancellationToken cancellationToken) =>
+        ex is OperationCanceledException canceled && canceled.CancellationToken == cancellationToken;
+
+    private OperationCanceledException CancelledBy(Exception ex, CancellationToken cancellationToken)
+    {
+        string message = ex is OperationCanceledException
+            ? $"The operation on the [{DatabaseType}] database was cancelled."
+            : $"The operation on the [{DatabaseType}] database was cancelled: {ex.Message}";
+        return new OperationCanceledException(message, ex, cancellationToken);
+    }
 
     /// <summary>
     /// Determines if an exception represents a transient database error that can be retried.
     /// Override in each DAL to check database-specific exception types and error codes.
     /// The base implementation handles TimeoutException as a common transient error
-    /// and recursively checks InnerException via virtual dispatch.
+    /// and recursively checks InnerException via virtual dispatch. A cancellation (an
+    /// <see cref="OperationCanceledException"/> whose token is cancelled) is never transient, whatever its inner
+    /// exception reports: a cancelled call must not be retried.
     /// </summary>
     public virtual (bool isTransient, string? errorCode) IsTransient(Exception ex)
     {
+        if (ex is OperationCanceledException { CancellationToken.IsCancellationRequested: true })
+            return (false, null);
+
         if (ex is TimeoutException)
             return (true, null);
 
@@ -88,34 +193,37 @@ public abstract class DalBase : IDal
 
     /// <summary>
     /// Executes an async operation with retry logic for transient errors.
-    /// Uses this DAL's IsTransient method for transient error detection.
+    /// Uses this DAL's IsTransient method for transient error detection. Once <paramref name="cancellationToken"/> is
+    /// cancelled, no further attempt starts and the wait before a retry ends.
     /// </summary>
     protected async Task<T> ExecuteWithRetryAsync<T>(
-        Func<Task<T>> operation, IDalSettings dalSettings, string? operationDescription = null)
+        Func<Task<T>> operation, IDalSettings dalSettings, string? operationDescription = null, CancellationToken cancellationToken = default)
     {
         if (dalSettings.MaxRetries > 0)
             return await RetryHelper.ExecuteWithRetryAsync(
                 operation, dalSettings.MaxRetries, dalSettings.RetryDelayMs,
-                IsTransient, operationDescription: operationDescription);
+                IsTransient, operationDescription: operationDescription, cancellationToken: cancellationToken);
         return await operation();
     }
 
     /// <summary>
-    /// Executes an async void operation with retry logic for transient errors.
+    /// Executes an async void operation with retry logic for transient errors. Once <paramref name="cancellationToken"/>
+    /// is cancelled, no further attempt starts and the wait before a retry ends.
     /// </summary>
     protected async Task ExecuteWithRetryAsync(
-        Func<Task> operation, IDalSettings dalSettings, string? operationDescription = null)
+        Func<Task> operation, IDalSettings dalSettings, string? operationDescription = null, CancellationToken cancellationToken = default)
     {
         if (dalSettings.MaxRetries > 0)
             await RetryHelper.ExecuteWithRetryAsync(
                 operation, dalSettings.MaxRetries, dalSettings.RetryDelayMs,
-                IsTransient, operationDescription: operationDescription);
+                IsTransient, operationDescription: operationDescription, cancellationToken: cancellationToken);
         else
             await operation();
     }
 
     /// <summary>
-    /// Executes a synchronous operation with retry logic for transient errors.
+    /// Executes a synchronous operation with retry logic for transient errors. Only for the synchronous
+    /// <see cref="ExecuteNonQuery"/>, which the background thread of the database log writer calls.
     /// </summary>
     protected void ExecuteWithRetry(
         Action operation, IDalSettings dalSettings, string? operationDescription = null)

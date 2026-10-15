@@ -20,14 +20,14 @@ public class DalTransientErrorCodesTests
         public override string DatabaseType => "Test";
         public override DalSpecificProperties DalSpecificProperties => new();
         public override void CheckConnectionStringOrValidateConnection(bool validateConnection) => throw new NotImplementedException();
-        public override Task ExecuteNonQueryAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null) => throw new NotImplementedException();
+        protected override Task ExecuteNonQueryCoreAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList, CancellationToken cancellationToken) => throw new NotImplementedException();
         public override void ExecuteNonQuery(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null) => throw new NotImplementedException();
-        public override Task<object?> ExecuteScalarAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null) => throw new NotImplementedException();
-        public override Task<List<Dictionary<string, object?>>> ExecuteReaderAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null) => throw new NotImplementedException();
-        public override Task<bool> IsConnectionValid(string connectionString, IDalSettings dalSettings) => throw new NotImplementedException();
+        protected override Task<object?> ExecuteScalarCoreAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList, CancellationToken cancellationToken) => throw new NotImplementedException();
+        protected override Task<List<Dictionary<string, object?>>> ExecuteReaderCoreAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList, CancellationToken cancellationToken) => throw new NotImplementedException();
+        protected override Task<bool> IsConnectionValidCoreAsync(string connectionString, IDalSettings dalSettings, CancellationToken cancellationToken) => throw new NotImplementedException();
         public override DbConnection CreateConnection() => throw new NotImplementedException();
-        public override Task ExecuteNonQueryAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList = null) => throw new NotImplementedException();
-        public override Task<object?> ExecuteScalarAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList = null) => throw new NotImplementedException();
+        protected override Task ExecuteNonQueryCoreAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList, CancellationToken cancellationToken) => throw new NotImplementedException();
+        protected override Task<object?> ExecuteScalarCoreAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList, CancellationToken cancellationToken) => throw new NotImplementedException();
     }
 
     [Fact]

@@ -67,27 +67,29 @@ public class DalPostgreSql : DalBase, IDal
         }
     }
 
-    public override async Task ExecuteNonQueryAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null)
+    protected override async Task ExecuteNonQueryCoreAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList, CancellationToken cancellationToken)
     {
         await ExecuteWithRetryAsync(
-            async () => { await ExecuteNonQueryAsyncInternal(sqlCode, dalSettings, dalParameterList); }, dalSettings);
+            async () => { await ExecuteNonQueryAsyncInternal(sqlCode, dalSettings, dalParameterList, cancellationToken); }, dalSettings,
+            cancellationToken: cancellationToken);
     }
 
-    private async Task ExecuteNonQueryAsyncInternal(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null)
+    private async Task ExecuteNonQueryAsyncInternal(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList, CancellationToken cancellationToken)
     {
         string sql = dalParameterList != null ? SubstituteParameters(sqlCode, dalParameterList) : sqlCode;
 
         await using var connection = new NpgsqlConnection(_connectionString);
-        await connection.OpenAsync();
+        await connection.OpenAsync(cancellationToken);
 
         if (dalSettings.UseTransaction)
         {
-            await using var transaction = await connection.BeginTransactionAsync();
+            await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
             try
             {
                 await using var command = new NpgsqlCommand(sql, connection, transaction);
                 command.CommandTimeout = dalSettings.DbCommandTimeoutInSeconds;
-                await command.ExecuteNonQueryAsync();
+                await command.ExecuteNonQueryAsync(cancellationToken);
+                // No token: a commit that has started must complete, or the caller cannot tell whether it happened.
                 await transaction.CommitAsync();
             }
             catch
@@ -100,7 +102,7 @@ public class DalPostgreSql : DalBase, IDal
         {
             await using var command = new NpgsqlCommand(sql, connection);
             command.CommandTimeout = dalSettings.DbCommandTimeoutInSeconds;
-            await command.ExecuteNonQueryAsync();
+            await command.ExecuteNonQueryAsync(cancellationToken);
         }
     }
 
@@ -141,13 +143,14 @@ public class DalPostgreSql : DalBase, IDal
         }
     }
 
-    public override async Task<object?> ExecuteScalarAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null)
+    protected override async Task<object?> ExecuteScalarCoreAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList, CancellationToken cancellationToken)
     {
         return await ExecuteWithRetryAsync(
-            async () => await ExecuteScalarAsyncInternal(sqlCode, dalSettings, dalParameterList), dalSettings);
+            async () => await ExecuteScalarAsyncInternal(sqlCode, dalSettings, dalParameterList, cancellationToken), dalSettings,
+            cancellationToken: cancellationToken);
     }
 
-    private async Task<object?> ExecuteScalarAsyncInternal(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null)
+    private async Task<object?> ExecuteScalarAsyncInternal(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList, CancellationToken cancellationToken)
     {
         string sql = dalParameterList != null ? SubstituteParameters(sqlCode, dalParameterList) : sqlCode;
 
@@ -157,16 +160,17 @@ public class DalPostgreSql : DalBase, IDal
         string? lastNotice = null;
         connection.Notice += (_, args) => { lastNotice = args.Notice.MessageText; };
 
-        await connection.OpenAsync();
+        await connection.OpenAsync(cancellationToken);
 
         if (dalSettings.UseTransaction)
         {
-            await using var transaction = await connection.BeginTransactionAsync();
+            await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
             try
             {
                 await using var command = new NpgsqlCommand(sql, connection, transaction);
                 command.CommandTimeout = dalSettings.DbCommandTimeoutInSeconds;
-                var result = await command.ExecuteScalarAsync();
+                var result = await command.ExecuteScalarAsync(cancellationToken);
+                // No token: a commit that has started must complete, or the caller cannot tell whether it happened.
                 await transaction.CommitAsync();
                 return result ?? lastNotice;
             }
@@ -180,30 +184,31 @@ public class DalPostgreSql : DalBase, IDal
         {
             await using var command = new NpgsqlCommand(sql, connection);
             command.CommandTimeout = dalSettings.DbCommandTimeoutInSeconds;
-            var result = await command.ExecuteScalarAsync();
+            var result = await command.ExecuteScalarAsync(cancellationToken);
             return result ?? lastNotice;
         }
     }
 
-    public override async Task<List<Dictionary<string, object?>>> ExecuteReaderAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null)
+    protected override async Task<List<Dictionary<string, object?>>> ExecuteReaderCoreAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList, CancellationToken cancellationToken)
     {
         return await ExecuteWithRetryAsync(
-            async () => await ExecuteReaderAsyncInternal(sqlCode, dalSettings, dalParameterList), dalSettings);
+            async () => await ExecuteReaderAsyncInternal(sqlCode, dalSettings, dalParameterList, cancellationToken), dalSettings,
+            cancellationToken: cancellationToken);
     }
 
-    private async Task<List<Dictionary<string, object?>>> ExecuteReaderAsyncInternal(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null)
+    private async Task<List<Dictionary<string, object?>>> ExecuteReaderAsyncInternal(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList, CancellationToken cancellationToken)
     {
         string sql = dalParameterList != null ? SubstituteParameters(sqlCode, dalParameterList) : sqlCode;
         var results = new List<Dictionary<string, object?>>();
 
         await using var connection = new NpgsqlConnection(_connectionString);
-        await connection.OpenAsync();
+        await connection.OpenAsync(cancellationToken);
 
         await using var command = new NpgsqlCommand(sql, connection);
         command.CommandTimeout = dalSettings.DbCommandTimeoutInSeconds;
 
-        await using var reader = await command.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
         {
             var row = new Dictionary<string, object?>();
             for (int i = 0; i < reader.FieldCount; i++)
@@ -217,15 +222,15 @@ public class DalPostgreSql : DalBase, IDal
         return results;
     }
 
-    public override async Task<bool> IsConnectionValid(string connectionString, IDalSettings dalSettings)
+    protected override async Task<bool> IsConnectionValidCoreAsync(string connectionString, IDalSettings dalSettings, CancellationToken cancellationToken)
     {
         try
         {
             await using var connection = new NpgsqlConnection(connectionString);
-            await connection.OpenAsync();
+            await connection.OpenAsync(cancellationToken);
             return true;
         }
-        catch
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
         {
             return false;
         }
@@ -236,16 +241,16 @@ public class DalPostgreSql : DalBase, IDal
         return new NpgsqlConnection(_connectionString);
     }
 
-    public override async Task ExecuteNonQueryAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList = null)
+    protected override async Task ExecuteNonQueryCoreAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList, CancellationToken cancellationToken)
     {
         string sql = dalParameterList != null ? SubstituteParameters(sqlCode, dalParameterList) : sqlCode;
 
         await using var command = new NpgsqlCommand(sql, (NpgsqlConnection)connection, (NpgsqlTransaction)transaction);
         command.CommandTimeout = commandTimeoutInSeconds;
-        await command.ExecuteNonQueryAsync();
+        await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    public override async Task<object?> ExecuteScalarAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList = null)
+    protected override async Task<object?> ExecuteScalarCoreAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList, CancellationToken cancellationToken)
     {
         string sql = dalParameterList != null ? SubstituteParameters(sqlCode, dalParameterList) : sqlCode;
 
@@ -259,7 +264,7 @@ public class DalPostgreSql : DalBase, IDal
         {
             await using var command = new NpgsqlCommand(sql, npgsqlConnection, (NpgsqlTransaction)transaction);
             command.CommandTimeout = commandTimeoutInSeconds;
-            var result = await command.ExecuteScalarAsync();
+            var result = await command.ExecuteScalarAsync(cancellationToken);
             return result ?? lastNotice;
         }
         finally

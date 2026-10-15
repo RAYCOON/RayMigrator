@@ -30,16 +30,16 @@ public class DalSqliteOpenTransactionTests : IDisposable
     public async Task ExecuteScalarAsync_FailingScriptWithOwnTransaction_RollsBackAndReleasesTheWriteLock()
     {
         var dal = new DalSqlite(_connectionString);
-        await dal.ExecuteNonQueryAsync("CREATE TABLE t (x INTEGER);", Settings);
+        await dal.ExecuteNonQueryAsync("CREATE TABLE t (x INTEGER);", Settings, cancellationToken: TestContext.Current.CancellationToken);
 
         var act = () => dal.ExecuteScalarAsync(FailingScript, Settings);
         await act.Should().ThrowAsync<Exception>();
 
         // Another writer gets the lock at once (the busy timeout is one second) and the failed ALTER left no trace.
         var other = new DalSqlite(_connectionString);
-        await other.ExecuteNonQueryAsync("BEGIN IMMEDIATE; INSERT INTO t (x) VALUES (1); COMMIT;", Settings);
-        (await other.ExecuteScalarAsync("SELECT COUNT(*) FROM t;", Settings)).Should().Be(1L);
-        (await other.ExecuteScalarAsync("SELECT COUNT(*) FROM pragma_table_info('t') WHERE name = 'y';", Settings)).Should().Be(0L,
+        await other.ExecuteNonQueryAsync("BEGIN IMMEDIATE; INSERT INTO t (x) VALUES (1); COMMIT;", Settings, cancellationToken: TestContext.Current.CancellationToken);
+        (await other.ExecuteScalarAsync("SELECT COUNT(*) FROM t;", Settings, cancellationToken: TestContext.Current.CancellationToken)).Should().Be(1L);
+        (await other.ExecuteScalarAsync("SELECT COUNT(*) FROM pragma_table_info('t') WHERE name = 'y';", Settings, cancellationToken: TestContext.Current.CancellationToken)).Should().Be(0L,
             "the first ALTER TABLE of the failed script is rolled back with the script's transaction");
     }
 
@@ -53,7 +53,7 @@ public class DalSqliteOpenTransactionTests : IDisposable
         act.Should().Throw<Exception>();
 
         var other = new DalSqlite(_connectionString);
-        await other.ExecuteNonQueryAsync("BEGIN IMMEDIATE; INSERT INTO t (x) VALUES (1); COMMIT;", Settings);
-        (await other.ExecuteScalarAsync("SELECT COUNT(*) FROM pragma_table_info('t') WHERE name = 'y';", Settings)).Should().Be(0L);
+        await other.ExecuteNonQueryAsync("BEGIN IMMEDIATE; INSERT INTO t (x) VALUES (1); COMMIT;", Settings, cancellationToken: TestContext.Current.CancellationToken);
+        (await other.ExecuteScalarAsync("SELECT COUNT(*) FROM pragma_table_info('t') WHERE name = 'y';", Settings, cancellationToken: TestContext.Current.CancellationToken)).Should().Be(0L);
     }
 }
