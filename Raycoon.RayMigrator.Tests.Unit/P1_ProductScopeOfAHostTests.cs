@@ -17,6 +17,7 @@ namespace Raycoon.RayMigrator.Tests.Unit;
 /// so a product that cannot be prepared does not stop the run of another, and an unknown product is named with
 /// the aliases the options carry.
 /// </summary>
+[Collection("EnvironmentVariableTests")]
 public class ProductScopeOfAHostTests
 {
     private const string BrokenAlias = "Broken";
@@ -54,6 +55,38 @@ public class ProductScopeOfAHostTests
         RayMigratorOptionsPreparer.IsolateProduct(options, ProfileTestContext.ProductAlias.ToLowerInvariant());
 
         options.Products.Select(p => p.Alias).Should().Equal(ProfileTestContext.ProductAlias, ProfileTestContext.ProductAlias.ToUpperInvariant());
+    }
+
+    [Fact]
+    public void IsolateProduct_ResolvesAPlaceholderAlias_ForTheComparison()
+    {
+        const string variable = "RM_SCOPE_HOST_ALIAS";
+        var options = OptionsWithABrokenProduct();
+        options.Products![0].Alias = "{ENV:RM_SCOPE_HOST_ALIAS}";
+
+        var unset = () => RayMigratorOptionsPreparer.IsolateProduct(options, ProfileTestContext.ProductAlias);
+        unset.Should().Throw<ConfigurationValidationException>("the variable is not set, so the alias stays the placeholder")
+            .WithMessage("*Available product aliases: {ENV:RM_SCOPE_HOST_ALIAS}, Broken*");
+
+        Environment.SetEnvironmentVariable(variable, ProfileTestContext.ProductAlias);
+        try
+        {
+            RayMigratorOptionsPreparer.IsolateProduct(options, ProfileTestContext.ProductAlias);
+
+            options.Products.Should().ContainSingle().Which.Alias.Should().Be("{ENV:RM_SCOPE_HOST_ALIAS}", "the options keep the placeholder until the preparer resolves it");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(variable, null);
+        }
+    }
+
+    [Fact]
+    public void IsolateProduct_BlankProduct_ThrowsAConfigurationError()
+    {
+        var act = () => RayMigratorOptionsPreparer.IsolateProduct(OptionsWithABrokenProduct(), " ");
+
+        act.Should().Throw<ConfigurationValidationException>().WithMessage("*product alias of the run is missing*");
     }
 
     [Fact]

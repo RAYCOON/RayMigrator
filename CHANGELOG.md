@@ -41,7 +41,12 @@ RayMigrator follows Semantic Versioning where applicable.
   migration context before (exit code 100 as before); files without any
   product alias are refused later by the data annotations as before.
   Elements of `Products` without an alias are ignored by a run, because
-  no `--product` can select them. `IMigrationContextFactory.Create` gives
+  no `--product` can select them; a blank alias counts as none, a numeric
+  alias by its text, as the binder reads it. An alias written as a
+  `{ENV:...}` placeholder is resolved for the comparison only, the
+  configuration keeps the placeholder until the section is resolved; a
+  variable that is not set leaves the alias as written, so the message
+  of an unknown product shows the placeholder. `IMigrationContextFactory.Create` gives
   options a host built in memory the same scope through
   `RayMigratorOptionsPreparer.IsolateProduct`; a host that binds a document
   of its own isolates it with `ConfigurationProductScope` first.

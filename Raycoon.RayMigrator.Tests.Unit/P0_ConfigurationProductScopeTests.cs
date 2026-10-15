@@ -74,14 +74,41 @@ public class ConfigurationProductScopeTests
     }
 
     [Fact]
-    public void Isolate_DropsElementsWithoutAStringAlias()
+    public void Isolate_DropsElementsWithoutAnAlias()
     {
-        var document = Parse("""{"RayMigrator":{"Products":[{"MigrationErrorAction":"Terminate"},{"Alias":7},{"Alias":"Shop"},"text",null]}}""");
+        var document = Parse("""{"RayMigrator":{"Products":[{"MigrationErrorAction":"Terminate"},{"Alias":""},{"Alias":" "},{"Alias":true},{"Alias":{"Name":"x"}},{"Alias":"Shop"},"text",null]}}""");
 
         var products = Products(ConfigurationProductScope.Isolate(document, "Shop"));
 
         products.Should().ContainSingle("no --product can select an element without an alias");
         Alias(products[0]).Should().Be("Shop");
+    }
+
+    [Fact]
+    public void Isolate_SelectsANumericAliasByItsText_AsTheBinderReadsIt()
+    {
+        var document = Parse("""{"RayMigrator":{"Products":[{"Alias":"Shop"},{"Alias":7,"MigrationErrorAction":"Terminate"}]}}""");
+
+        var products = Products(ConfigurationProductScope.Isolate(document, "7"));
+
+        products.Should().ContainSingle();
+        products[0]!["MigrationErrorAction"]!.GetValue<string>().Should().Be("Terminate");
+        ConfigurationProductScope.ProductAliases(document).Should().Equal("Shop", "7");
+    }
+
+    [Fact]
+    public void Isolate_ComparesTheAliasAsTheResolverReturnsIt_AndKeepsTheElementAsWritten()
+    {
+        var document = Parse("""{"RayMigrator":{"Products":[{"Alias":"{ENV:RM_SCOPE_PRODUCT}","MigrationErrorAction":"Terminate"},{"Alias":"Crm"}]}}""");
+        string Resolve(string alias) => alias == "{ENV:RM_SCOPE_PRODUCT}" ? "Shop" : alias;
+
+        var products = Products(ConfigurationProductScope.Isolate(document, "shop", Resolve));
+
+        products.Should().ContainSingle();
+        Alias(products[0]).Should().Be("{ENV:RM_SCOPE_PRODUCT}", "the document keeps the placeholder until the configuration is resolved");
+        ConfigurationProductScope.ProductAliases(document, Resolve).Should().Equal("Shop", "Crm");
+        ConfigurationProductScope.ProductAliases(document).Should().Equal(new[] { "{ENV:RM_SCOPE_PRODUCT}", "Crm" }, "without a resolver the aliases are listed as written");
+        Products(ConfigurationProductScope.Isolate(document, "Shop")).Should().BeEmpty("without a resolver the placeholder does not match");
     }
 
     [Fact]
@@ -154,7 +181,7 @@ public class ConfigurationProductScopeTests
     [Fact]
     public void ProductAliases_ListsTheAliasesInOrder_SkippingElementsWithoutOne()
     {
-        var document = Parse("""{"RayMigrator":{"Products":[{"Alias":"Shop"},{"Name":"nameless"},{"Alias":"Crm"},{"Alias":"shop"}]}}""");
+        var document = Parse("""{"RayMigrator":{"Products":[{"Alias":"Shop"},{"Name":"nameless"},{"Alias":""},{"Alias":"  "},{"Alias":"Crm"},{"Alias":"shop"}]}}""");
 
         ConfigurationProductScope.ProductAliases(document).Should().Equal("Shop", "Crm", "shop");
     }

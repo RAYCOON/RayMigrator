@@ -79,15 +79,17 @@ public class JsonOptionsSource : IOptionsSource
             // The run sees the shared sections and its own product only (ADR-026): the other products are left out
             // before the document is bound, so every later step (placeholders, data annotations, rule catalog,
             // template check, masker) judges one product, and the section as written pairs with the bound lists.
-            // A product the files do not name fails here with the aliases they do name; files without any product
-            // keep going, so that the host reports the missing section as before.
-            var productAliases = ConfigurationProductScope.ProductAliases(merged);
+            // An alias written as a {ENV:...} placeholder is resolved for the comparison only; the document keeps
+            // the placeholder until the section is resolved below. A product the files do not name fails here with
+            // the aliases they do name; files without any product keep going, so that the host reports the missing
+            // section as before.
+            var productAliases = ConfigurationProductScope.ProductAliases(merged, EnvironmentVariableReplacer.ResolveForComparison);
             if (productAliases.Count > 0)
             {
                 if (!productAliases.Any(alias => AliasComparer.AliasEquals(alias, product)))
                     throw new ConfigurationValidationException(ProductAliasGuard.NotFoundMessage(product, productAliases));
 
-                merged = ConfigurationProductScope.Isolate(merged, product);
+                merged = ConfigurationProductScope.Isolate(merged, product, EnvironmentVariableReplacer.ResolveForComparison);
             }
 
             byte[] mergedJson = Encoding.UTF8.GetBytes(merged.ToJsonString());

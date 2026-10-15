@@ -182,6 +182,22 @@ public static class EnvironmentVariableReplacer
     }
     
     /// <summary>
+    /// Returns <paramref name="value"/> with every <c>{ENV:VARIABLE}</c> placeholder replaced when every variable it
+    /// names is set, otherwise the value as written. For comparing a configured text, such as a product alias, with
+    /// a value from the command line before the configuration itself is resolved: the configuration keeps its
+    /// placeholders, and a variable that is not set is reported where the configuration is resolved.
+    /// </summary>
+    public static string ResolveForComparison(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+
+        if (!TryReplaceStringContainingEnvironmentVariableReferences(value, out var replaced, out var replacements))
+            return value;
+
+        return replacements.All(r => !string.IsNullOrWhiteSpace(r.VariableValue)) ? replaced! : value;
+    }
+
+    /// <summary>
     /// Tries to replace an input string that contains one or multiple environment-variable references
     /// by their corresponding environment-variable values.
     /// </summary>

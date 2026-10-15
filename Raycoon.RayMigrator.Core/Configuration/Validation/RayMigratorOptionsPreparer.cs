@@ -27,18 +27,24 @@ public static class RayMigratorOptionsPreparer
     /// <summary>
     /// Reduces <paramref name="options"/> to the scope of one product: every element of
     /// <see cref="RayMigratorOptions.Products"/> whose alias is not <paramref name="productAlias"/> (compared like the
-    /// configuration merger compares aliases, without regard to case) is removed in place; elements that repeat the
-    /// alias stay for the rule catalog. Options without products are left alone, so that the data annotations
-    /// report the missing section as they do for the CLI.
+    /// configuration merger compares aliases, without regard to case; an alias written as a <c>{ENV:...}</c>
+    /// placeholder is resolved for the comparison) is removed from the list in place; elements that repeat the
+    /// alias stay for the rule catalog. Options without products, or whose products carry no alias, are left alone,
+    /// so that the data annotations report the missing section as they do for the CLI. The caller's list is
+    /// changed; <see cref="IMigrationContextFactory.Create"/> works on a copy of the options.
     /// </summary>
     /// <exception cref="ConfigurationValidationException">
-    /// The options name products, but none carries <paramref name="productAlias"/>; the message names the aliases
-    /// they carry, like <see cref="ProductAliasGuard.GetProduct"/> names them for bound options.
+    /// <paramref name="productAlias"/> is blank, or the options name products but none carries it; the message names
+    /// the aliases they carry, like <see cref="ProductAliasGuard.GetProduct"/> names them for bound options.
     /// </exception>
     public static void IsolateProduct(RayMigratorOptions options, string productAlias)
     {
         ArgumentNullException.ThrowIfNull(options);
-        ArgumentException.ThrowIfNullOrWhiteSpace(productAlias);
+
+        if (string.IsNullOrWhiteSpace(productAlias))
+        {
+            throw new ConfigurationValidationException("The product alias of the run is missing. Name the product the run is for.");
+        }
 
         if (options.Products is null)
         {
@@ -46,8 +52,9 @@ public static class RayMigratorOptionsPreparer
         }
 
         var availableAliases = options.Products
-            .Where(p => !string.IsNullOrWhiteSpace(p.Alias))
-            .Select(p => p.Alias!)
+            .Select(ResolvedAlias)
+            .Where(alias => alias is not null)
+            .Select(alias => alias!)
             .ToList();
         if (availableAliases.Count == 0)
         {
@@ -59,8 +66,12 @@ public static class RayMigratorOptionsPreparer
             throw new ConfigurationValidationException(ProductAliasGuard.NotFoundMessage(productAlias, availableAliases));
         }
 
-        options.Products.RemoveAll(p => !AliasComparer.AliasEquals(p.Alias, productAlias));
+        options.Products.RemoveAll(p => !AliasComparer.AliasEquals(ResolvedAlias(p), productAlias));
     }
+
+    /// <summary>The alias of a product for the comparison: resolved when it is a placeholder, null when it is blank.</summary>
+    private static string? ResolvedAlias(ProductOptions product) =>
+        string.IsNullOrWhiteSpace(product.Alias) ? null : EnvironmentVariableReplacer.ResolveForComparison(product.Alias);
 
     /// <summary>
     /// Prepares <paramref name="options"/> for a run. See the class summary for the steps.

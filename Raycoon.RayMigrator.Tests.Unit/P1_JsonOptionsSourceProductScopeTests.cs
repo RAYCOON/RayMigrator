@@ -106,6 +106,33 @@ public class JsonOptionsSourceProductScopeTests : IDisposable
     }
 
     [Fact]
+    public async Task LoadAsync_AliasWrittenAsPlaceholder_IsResolvedForTheComparison()
+    {
+        const string variable = "RM_SCOPE_PRODUCT_ALIAS";
+        Write("appsettings.json", """{"RayMigrator":{"Repository":{"DatabaseType":"Sqlite"},"Products":[{"Alias":"{ENV:RM_SCOPE_PRODUCT_ALIAS}","MigrationErrorAction":"Terminate"},{"Alias":"Crm"}]}}""");
+
+        var unset = () => new JsonOptionsSource(_dir).LoadAsync("Shop", "Dev");
+        (await unset.Should().ThrowAsync<ConfigurationValidationException>("the variable is not set, so the alias stays the placeholder")).Which.Message
+            .Should().Contain("Available product aliases: {ENV:RM_SCOPE_PRODUCT_ALIAS}, Crm");
+
+        Environment.SetEnvironmentVariable(variable, "Shop");
+        try
+        {
+            var result = await new JsonOptionsSource(_dir).LoadAsync("Shop", "Dev");
+
+            result.RayMigratorConfigSection["Products:0:Alias"].Should().Be("Shop", "the section is resolved after the product was chosen");
+            result.RayMigratorConfigSection["Products:0:MigrationErrorAction"].Should().Be("Terminate");
+            result.RayMigratorConfigSection["Products:1:Alias"].Should().BeNull();
+            result.RayMigratorConfigSectionAsWritten!["Products:0:Alias"].Should().Be("{ENV:RM_SCOPE_PRODUCT_ALIAS}", "the section as written keeps the placeholder");
+            result.ReplacedEnvironmentVariables.Should().ContainSingle(v => v.EnvironmentVariableName == variable);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(variable, null);
+        }
+    }
+
+    [Fact]
     public async Task LoadAsync_ElementsWithoutAlias_AreLeftOut()
     {
         Write("appsettings.json", """{"RayMigrator":{"Repository":{"DatabaseType":"Sqlite"},"Products":[{"MigrationErrorAction":"Terminate"},{"Alias":"Shop"}]}}""");
