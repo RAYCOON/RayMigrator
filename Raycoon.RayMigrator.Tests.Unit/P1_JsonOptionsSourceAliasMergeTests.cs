@@ -34,21 +34,30 @@ public class JsonOptionsSourceAliasMergeTests : IDisposable
           "Serilog":{"Using":["Serilog.Sinks.Console"],"MinimumLevel":{"Default":"Warning"},"WriteTo":[{"Name":"Console"}]}}}
         """;
 
+    /// <summary>The merged files before the loader isolates the product of the run: the order of the products and their merged values.</summary>
+    private JsonNode Merged(string product, string environment) =>
+        JsonOptionsSource.MergeConfigurationFiles(_dir, product, environment, new List<(string Filename, bool Found)>());
+
     [Fact]
     public async Task LoadAsync_EnvironmentFile_OverridesProductByAlias()
     {
         Write("appsettings.json", BaseTwoProducts);
         Write("appsettings.Production.json", """{"RayMigrator":{"Products":[{"Alias":"Crm","MigrationErrorAction":"Rollback"}]}}""");
 
-        var result = await new JsonOptionsSource(_dir).LoadAsync("Crm", "Production");
-        var section = result.RayMigratorConfigSection;
+        var merged = Merged("Crm", "Production");
+        var products = merged["RayMigrator"]!["Products"]!.AsArray();
+        products.Should().HaveCount(2, "the merge keeps every product in the base order");
+        products[0]!["Alias"]!.GetValue<string>().Should().Be("Shop");
+        products[0]!["MigrationErrorAction"]!.GetValue<string>().Should().Be("Terminate");
+        products[1]!["Alias"]!.GetValue<string>().Should().Be("Crm");
+        products[1]!["MigrationErrorAction"]!.GetValue<string>().Should().Be("Rollback");
 
-        section["Products:0:Alias"].Should().Be("Shop");
-        section["Products:0:MigrationErrorAction"].Should().Be("Terminate");
-        section["Products:1:Alias"].Should().Be("Crm");
-        section["Products:1:MigrationErrorAction"].Should().Be("Rollback");
-        section["Products:1:TargetGroups:0:Targets:0:ConnectionString"].Should().Be("Data Source=crm.sqlite");
-        section["Products:2:Alias"].Should().BeNull();
+        var section = (await new JsonOptionsSource(_dir).LoadAsync("Crm", "Production")).RayMigratorConfigSection;
+
+        section["Products:0:Alias"].Should().Be("Crm", "the loader hands the run its own product (ADR-026)");
+        section["Products:0:MigrationErrorAction"].Should().Be("Rollback");
+        section["Products:0:TargetGroups:0:Targets:0:ConnectionString"].Should().Be("Data Source=crm.sqlite");
+        section["Products:1:Alias"].Should().BeNull();
     }
 
     [Fact]
@@ -57,13 +66,17 @@ public class JsonOptionsSourceAliasMergeTests : IDisposable
         Write("appsettings.json", BaseTwoProducts);
         Write("appsettings.Staging.json", """{"RayMigrator":{"Products":[{"Alias":"Crm","MigrationErrorAction":"Rollback"},{"Alias":"Shop","MigrationErrorAction":"Terminate"}]}}""");
 
+        var products = Merged("Crm", "Staging")["RayMigrator"]!["Products"]!.AsArray();
+        products[0]!["Alias"]!.GetValue<string>().Should().Be("Shop");
+        products[0]!["TargetGroups"]![0]!["Targets"]![0]!["ConnectionString"]!.GetValue<string>().Should().Be("Data Source=shop.sqlite");
+        products[1]!["Alias"]!.GetValue<string>().Should().Be("Crm");
+        products[1]!["MigrationErrorAction"]!.GetValue<string>().Should().Be("Rollback");
+
         var section = (await new JsonOptionsSource(_dir).LoadAsync("Crm", "Staging")).RayMigratorConfigSection;
 
-        section["Products:0:Alias"].Should().Be("Shop");
-        section["Products:0:TargetGroups:0:Targets:0:ConnectionString"].Should().Be("Data Source=shop.sqlite");
-        section["Products:1:Alias"].Should().Be("Crm");
-        section["Products:1:MigrationErrorAction"].Should().Be("Rollback");
-        section["Products:1:TargetGroups:0:Targets:0:ConnectionString"].Should().Be("Data Source=crm.sqlite");
+        section["Products:0:Alias"].Should().Be("Crm");
+        section["Products:0:MigrationErrorAction"].Should().Be("Rollback");
+        section["Products:0:TargetGroups:0:Targets:0:ConnectionString"].Should().Be("Data Source=crm.sqlite");
     }
 
     [Fact]
@@ -91,10 +104,11 @@ public class JsonOptionsSourceAliasMergeTests : IDisposable
 
             var result = await new JsonOptionsSource(_dir).LoadAsync("Crm", "Production");
 
-            result.RayMigratorConfigSection["Products:1:TargetGroups:0:Targets:0:ConnectionString"].Should().Be("Data Source=from-env.sqlite");
+            // Crm is the only product the run loads, so it is Products:0 (ADR-026)
+            result.RayMigratorConfigSection["Products:0:TargetGroups:0:Targets:0:ConnectionString"].Should().Be("Data Source=from-env.sqlite");
             result.ReplacedEnvironmentVariables.Should().ContainSingle(v => v.EnvironmentVariableName == variable);
             result.HostConfiguration.Should().NotBeNull();
-            result.HostConfiguration!["RayMigrator:Products:1:TargetGroups:0:Targets:0:ConnectionString"].Should().Be("{ENV:RM_TEST_23_PLACEHOLDER}");
+            result.HostConfiguration!["RayMigrator:Products:0:TargetGroups:0:Targets:0:ConnectionString"].Should().Be("{ENV:RM_TEST_23_PLACEHOLDER}");
         }
         finally
         {

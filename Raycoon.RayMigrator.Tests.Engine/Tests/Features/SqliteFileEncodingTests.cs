@@ -112,6 +112,35 @@ public class SqliteFileEncodingTests : SqliteTestBase
     }
 
     [Fact]
+    public async Task MigrateUp_WithoutMigrationFilesEncoding_ReadsUtf8_AndNamingItLaterKeepsTheHashes()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        // The scenario names no encoding: the attribute writes UTF-8 into the defaults and the product (0.19.0)
+        await using var ctx = await CreateScenario()
+            .WithFileBytes(SeedFile, new UTF8Encoding(false).GetBytes(SeedWithUmlaut))
+            .BuildAsync();
+        File.ReadAllText(Path.Combine(ctx.WorkDirectory, "appsettings.json")).Should().NotContain("MigrationFilesEncoding");
+
+        await ctx.MigrateUpAsync("Release_1.0");
+
+        ctx.AssertSuccess(true);
+        ctx.AssertRowCount("tablea", 3);
+        ctx.ExecuteOnConnection(Fixture.EngineConfig.ConnectionString,
+            "INSERT INTO tablea (name, value) SELECT 'marker', 1 FROM tablea WHERE name = 'Grüße';");
+        ctx.AssertRowCount("tablea", 4);
+
+        // Naming the default explicitly must not change the hash of a migrated file.
+        string configPath = Path.Combine(ctx.WorkDirectory, "appsettings.json");
+        File.WriteAllText(configPath, File.ReadAllText(configPath).Replace("\"ProductDefaults\": {", "\"ProductDefaults\": {\n    \"MigrationFilesEncoding\": \"UTF-8\","));
+        File.ReadAllText(configPath).Should().Contain("\"MigrationFilesEncoding\": \"UTF-8\"");
+        await ctx.RebuildForAsync(MigrationCommand.ValidateHash, MigrationRunMode.Migrate);
+        var validation = await ctx.ValidateHashAsync();
+
+        validation.Success.Should().BeTrue($"the implicit and the named UTF-8 decode the same text: {validation.ErrorMessage}");
+        validation.InvalidFiles.Should().Be(0);
+    }
+
+    [Fact]
     public async Task MigrateUp_MigSettingsInWindows1252_AbortsEvenWhenMigrationFilesEncodingIsWindows1252()
     {
         Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");

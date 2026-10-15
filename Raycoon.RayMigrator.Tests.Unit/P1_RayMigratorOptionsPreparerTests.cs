@@ -223,4 +223,34 @@ public class RayMigratorOptionsPreparerTests : IDisposable
         options.Repository.TableBaseName.Should().Be(string.Empty, "the templates substitute the prefix and refuse a missing value");
         options.DatabaseLogging!.TableBaseName.Should().Be(string.Empty);
     }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("  ")]
+    public void Prepare_WithoutAnEncoding_WritesUtf8IntoTheDefaultsAndTheProduct(string? encoding)
+    {
+        using var maskerScope = SensitiveDataMasker.BeginScope(revealSensitiveData: false);
+        var options = CreateOptions("Data Source=target.db");
+        options.ProductDefaults!.MigrationFilesEncoding = encoding;
+        options.Products![0].MigrationFilesEncoding = encoding;
+
+        RayMigratorOptionsPreparer.Prepare(options);
+
+        options.ProductDefaults.MigrationFilesEncoding.Should().Be(EncodingSupport.DefaultEncodingName, "the attribute writes the documented default into an empty value");
+        options.Products[0].MigrationFilesEncoding.Should().Be(EncodingSupport.DefaultEncodingName, "the product level has the same default, because the cascade copies no empty default");
+    }
+
+    [Fact]
+    public void Prepare_WithAnEncodingOnTheDefaultsOnly_CascadesItIntoTheProduct()
+    {
+        using var maskerScope = SensitiveDataMasker.BeginScope(revealSensitiveData: false);
+        var options = CreateOptions("Data Source=target.db");
+        options.ProductDefaults!.MigrationFilesEncoding = "windows-1252";
+        options.Products![0].MigrationFilesEncoding = null;
+
+        RayMigratorOptionsPreparer.Prepare(options);
+
+        options.Products[0].MigrationFilesEncoding.Should().Be("windows-1252", "a named default wins over the attribute's UTF-8");
+    }
 }

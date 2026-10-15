@@ -29,11 +29,19 @@ public static class EncodingSupport
     public static void EnsureCodePagesRegistered() => _ = CodePagesRegistered.Value;
 
     /// <summary>
+    /// The encoding of migration files when the configuration names none: <c>MigrationFilesEncoding</c> left out
+    /// or empty on both levels reads as UTF-8. <c>RayEncodingAttribute</c> writes this name into the empty value,
+    /// so the prepared options always carry an explicit encoding.
+    /// </summary>
+    public const string DefaultEncodingName = "UTF-8";
+
+    /// <summary>
     /// The fixed part of every "not a valid encoding name" message, so that the attribute, the defaults merge,
     /// the engine and the documentation speak with one voice.
     /// </summary>
     public const string ValidNamesHint =
-        "Use a .NET encoding name such as 'UTF-8', 'UTF-16', 'UTF-32', 'ASCII', 'iso-8859-1' or 'windows-1252'. " +
+        "Use a .NET encoding name such as 'UTF-8', 'UTF-16', 'UTF-32', 'ASCII', 'iso-8859-1' or 'windows-1252'; " +
+        "left out, UTF-8 is used. " +
         "A byte-order mark (UTF-8, UTF-16, UTF-32) is detected automatically and overrides this setting. " +
         "'ANSI' is not an encoding name; use the concrete code page, e.g. 'windows-1252'.";
 

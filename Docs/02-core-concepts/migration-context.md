@@ -161,10 +161,10 @@ The factory is the entry point of every host for one run, the CLI pipeline inclu
 ```csharp
 public interface IMigrationContextFactory
 {
-    // Options a host built in memory: prepared with RayMigratorOptionsPreparer first
+    // Options a host built in memory: reduced to the product of the run on a copy, then prepared with RayMigratorOptionsPreparer
     MigrationContext Create(RayMigratorOptions options, RayMigratorConsoleOptions consoleOptions);
 
-    // Options the options framework already bound, merged and validated (the CLI pipeline)
+    // Options the options framework already bound, merged and validated (the CLI pipeline): taken as they are
     MigrationContext CreateFromValidatedOptions(RayMigratorOptions options, RayMigratorConsoleOptions consoleOptions);
 }
 ```
@@ -175,7 +175,7 @@ Both methods do the same work after the preparation step:
 2. Fill `DalSpecificPropertiesDictionary` for the repository, every target of the product and the database logging, and check the schema names against the DAL capabilities. A host that skipped this step fell back to the SQL Server block delimiter `GO` for every engine.
 3. Register the configuration's secrets with `SensitiveDataMasker` and make the context current: `IMigrationContextAccessor.Current` and `MigrationLoggingContext.Current` of the calling async flow.
 
-`Create` additionally runs `RayMigratorOptionsPreparer.Prepare`, which gives in-memory options what options bound from `appsettings*.json` always got: `{ENV:VARIABLE}` placeholders are resolved in every string of the options graph (a missing variable is an error that names the variable and the path), the product defaults are merged down, every enum-typed value is probed, the data annotations run and write their documented defaults into null properties, and the rule catalog is applied. Preparing an object twice is harmless.
+`Create` works on a shallow copy of the options with a `Products` list of its own; the sections and the product objects stay shared, and the context carries the copy, so a host that creates one context per product from the same options can do so in turn. It first reduces the copy to the product of the console options (`RayMigratorOptionsPreparer.IsolateProduct`, ADR-026): a blank or unknown product alias throws a `ConfigurationValidationException` before anything is prepared, with the aliases the options carry; the other products are left out, so a fault in one of them does not reach the run. Then it runs `RayMigratorOptionsPreparer.Prepare`, which gives in-memory options what options bound from `appsettings*.json` always got: `{ENV:VARIABLE}` placeholders are resolved in every string of the options graph (a missing variable is an error that names the variable and the path), the product defaults are merged down, every enum-typed value is probed, the data annotations run, name a failed element by alias and write their documented defaults (`[RayRangeInt]` numbers, `[RayEncoding]` UTF-8) into values that are left out, and the rule catalog is applied. Preparing an object twice is harmless. `CreateFromValidatedOptions` neither reduces nor prepares: the CLI's loader applied the product scope before the options were bound, and a host that calls it hands over options it has prepared itself.
 
 ### Hosting the engine in-process
 
@@ -183,12 +183,12 @@ A host (RayMigrator Studio, an integration test) runs one operation per context.
 
 1. Build the options object, or load it from a store, and the `RayMigratorConsoleOptions` of the operation.
 2. Open the masking scope for the async flow of the run: `using var scope = SensitiveDataMasker.BeginScope(revealSensitiveData);`. Without an active scope or global initialization the masker is off and the MigrationRun settings snapshot stores connection strings unmasked.
-3. `factory.Create(options, consoleOptions)`. The returned context is current for the calling async flow; set `context.ProgressObserver` before the operation if the host wants progress events.
-4. Optionally `ConnectionValidator.ValidateTargetConnections(context, logger)`: it opens the connections the command's profile needs and fails fast with a clear message.
+3. `factory.Create(options, consoleOptions)`. It reduces a copy of the options to the product of the run and throws for a blank or unknown alias before anything is prepared; the caller's options keep every product. The returned context carries the copy and is current for the calling async flow; set `context.ProgressObserver` before the operation if the host wants progress events.
+4. `templateCache.ValidateConfigurationAgainstTemplateCache(context.RayMigratorOptions)` after the context exists, so that the check judges the repository and the target groups of this product only. Optionally `ConnectionValidator.ValidateTargetConnections(context, logger)`: it opens the connections the command's profile needs and fails fast with a clear message.
 5. Call the operation on a scoped `IMigrationService`. The request must agree with the context: `MigrateUpAsync`, `MigrateDownAsync` and `BaselineAsync` refuse a request whose run mode, target release or environment differs from the console options of the context (#6, #17).
 6. Dispose the scope. The next run gets a fresh scope, a fresh context and a fresh `TemplateExecutor` (it caches the repository of the first context it sees, so it is registered as scoped).
 
-Per process, not per run: one `TemplateCache` (`new TemplateCache(revealSensitiveData, logger)`, then `ValidateConfigurationAgainstTemplateCache(options)` for each configuration the host runs), the `DatabaseLogWriter` and its Serilog sink when database logging is wanted, and the Serilog logger with `MigrationContextEnricher`, which reads `MigrationLoggingContext.Current` and stamps every event with run, release, target group, target, file and block.
+Per process, not per run: one `TemplateCache` (`new TemplateCache(revealSensitiveData, logger)`; the check against it runs per run on the context's options, step 4), the `DatabaseLogWriter` and its Serilog sink when database logging is wanted, and the Serilog logger with `MigrationContextEnricher`, which reads `MigrationLoggingContext.Current` and stamps every event with run, release, target group, target, file and block.
 
 #### Creating or upgrading a repository without a run
 

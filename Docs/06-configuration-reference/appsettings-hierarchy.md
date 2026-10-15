@@ -28,6 +28,8 @@ flowchart TD
 
 **Note**: Command-line arguments (`--product`, `--environment`, `--run-mode`, etc.) control which command is executed and which configuration files are loaded, but they do not override individual configuration values like connection strings or timeouts.
 
+**Product scope.** After the merge the engine keeps the shared sections (`Repository`, `DatabaseLogging`, `ProductDefaults`, `Serilog`, `CliTools`) and only the elements of `Products` whose `Alias` is the `--product` of the run, compared like the merge compares aliases (without regard to case); the other products are neither bound nor validated, and their `{ENV:...}` placeholders are not resolved (ADR-026, `ConfigurationProductScope` in `Raycoon.RayMigrator.Shared`). A fault in one product therefore never stops the run of another, and a value a product sets in its own `appsettings.{Product}.{Environment}.json` is where it belongs. A `--product` that none of the loaded files names fails before the host is built, with the aliases they do name; elements of `Products` without an alias are left out, because no `--product` can select them.
+
 ## Merge Behavior
 
 ### Objects (Nested Properties)
@@ -290,8 +292,10 @@ Configuration is validated at startup:
 - Connection strings must be valid
 - Database types must be recognized: `SqlServer`, `PostgreSQL`, `MariaDb`, `MySql`, `Sqlite` (applies to Repository, DatabaseLogging, and TargetGroup database types)
 - Aliases must match the pattern `^(?=.{1,50}$)[\p{L}\p{N}_]+$`: Unicode letters (`\p{L}`), Unicode numeric characters (`\p{N}`), and underscores only (max 50 characters). Non-ASCII letters and digits are accepted. CLI tool aliases additionally allow hyphens: `^(?=.{1,50}$)[\p{L}\p{N}_\-]+$`.
-- Alias uniqueness is enforced case-insensitively: `MyProduct` and `myproduct` are considered duplicates. This applies to Product aliases (across all products), TargetGroup aliases (within each product), and Target aliases (within each target group).
-- `CliTools[]` aliases must be unique (case-insensitive). `UseCliToolAlias` values across Products, TargetGroups, and Targets must reference an existing `CliTools[].Alias` (matching is also case-insensitive).
+- Alias uniqueness is enforced case-insensitively: `MyProduct` and `myproduct` are considered duplicates. This applies to Product aliases (within the product scope of a run, so a run reports an alias its own product repeats), TargetGroup aliases (within each product), and Target aliases (within each target group).
+- `CliTools[]` aliases must be unique (case-insensitive). `UseCliToolAlias` values of `ProductDefaults` and of the Product, TargetGroups and Targets of the run must reference an existing `CliTools[].Alias` (matching is also case-insensitive).
+- Validation runs in the scope of the product the run is for (see [Product scope](#configuration-loading)): the shared sections and the run's product are checked, the other products are not loaded.
+- `MigrationFilesEncoding` may be left out, or left empty, on both levels: the engine then writes `UTF-8` into the prepared options and reads the migration files as UTF-8.
 
 ## Related Documentation
 

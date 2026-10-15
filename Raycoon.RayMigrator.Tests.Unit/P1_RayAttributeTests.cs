@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using AwesomeAssertions;
+using Raycoon.RayMigrator.Core.Configuration;
 using Raycoon.RayMigrator.Core.Configuration.Enums;
 using Raycoon.RayMigrator.Core.Configuration.Options;
 using Raycoon.RayMigrator.Core.Configuration.Validation.RayAttributes;
@@ -277,14 +278,31 @@ public class RayEncodingAttributeTests
         result!.ErrorMessage.Should().Contain("windows-1252").And.NotContain("RegisterProvider");
     }
 
-    [Fact]
-    public void NullInput_ReturnsError()
+    /// <summary>A property the attribute can write its default into, as it writes into the options classes.</summary>
+    private sealed class EncodingHolder
     {
-        var attr = new RayEncodingAttribute();
-        var result = Validate(attr, null);
+        public string? Encoding { get; set; }
+    }
 
-        result.Should().NotBe(ValidationResult.Success);
-        result!.ErrorMessage.Should().Contain("null");
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void MissingOrEmptyInput_WritesUtf8IntoThePropertyAndSucceeds(string? value)
+    {
+        var holder = new EncodingHolder { Encoding = value };
+        var context = new ValidationContext(holder) { MemberName = nameof(EncodingHolder.Encoding) };
+
+        var result = new RayEncodingAttribute().GetValidationResult(value, context);
+
+        result.Should().Be(ValidationResult.Success, "a missing or empty encoding reads as UTF-8; an empty one always did, a missing one failed the validation before 0.19.0");
+        holder.Encoding.Should().Be("UTF-8", "the prepared options name the encoding they read with");
+    }
+
+    [Fact]
+    public void DefaultValue_IsTheUtf8OfEncodingSupport()
+    {
+        new RayEncodingAttribute().DefaultValue.Should().Be(EncodingSupport.DefaultEncodingName).And.Be("UTF-8");
     }
 }
 

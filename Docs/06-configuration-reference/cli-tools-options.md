@@ -106,7 +106,7 @@ See [Settings and Inheritance Overview — UseCliToolAlias](settings-inheritance
 At startup, `RayMigratorOptionsValidator` validates that:
 
 1. **CLI tool aliases are unique** -- duplicate `Alias` values within `CliTools[]` produce a validation error. Duplicate detection is case-insensitive: `"sqlcmd"` and `"SQLCMD"` are considered duplicates.
-2. **UseCliToolAlias references exist** -- every `UseCliToolAlias` value across all Products, TargetGroups, and Targets must match an existing `CliTools[].Alias`. This validation runs after `PostConfigure` inheritance, so inherited aliases are also checked. Alias matching is case-insensitive.
+2. **UseCliToolAlias references exist** -- every `UseCliToolAlias` value of `ProductDefaults` and of the run's Product, its TargetGroups and Targets (a run validates the shared sections and its own product, ADR-026) must match an existing `CliTools[].Alias`. This validation runs after `PostConfigure` inheritance, so inherited aliases are also checked. Alias matching is case-insensitive.
 
 ## Example Configurations
 

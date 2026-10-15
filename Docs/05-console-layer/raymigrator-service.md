@@ -43,7 +43,9 @@ Main()
   +-- RunDirectMode(JsonOptionsSource)
        |
        +-- JsonOptionsSource.LoadAsync() loads appsettings.json hierarchy
-       |   (up to 4 files: base, environment, product, product+environment)
+       |   (up to 4 files: base, environment, product, product+environment),
+       |   merges it by alias and keeps the shared sections and the product
+       |   of the run (ADR-026); an alias the files do not name fails here
        |
        +-- DirectModePipeline.ExecuteAsync() handles the full lifecycle
 ```
@@ -52,15 +54,14 @@ Main()
 1. Validate Serilog configuration exists in the loaded config (returns exit code 4 if missing; the message names the missing section and lists the loaded files, and names the files of the hierarchy that were not found only when no loaded file carries a `RayMigrator` section, #31)
 2. Create Serilog logger (with optional database sink) and log environment variable replacements
 3. Build the DI host and register all services (including `RayMigratorOptions`, `RayMigratorConsoleOptions`, `DatabaseLogWriter`, the Service Layer via `AddRayMigratorServices`, `TemplateCache`, `TemplateExecutor`, `RayMigratorService`, and `MigrationContext`)
-4. Resolve `DatabaseLogWriter` (triggers options validation in Standalone mode)
+4. Resolve `DatabaseLogWriter` (triggers options validation in Standalone mode: the data annotations, naming a failed element by alias, and the rule catalog, both on the shared sections and the run's product)
 5. Register sensitive configuration values for masking in TRACE logs
-6. Validate the `--product` alias exists in the loaded configuration (with case-sensitive matching and helpful suggestions)
-7. Resolve `MigrationContext` and set `MigrationLoggingContext.Current` (enables log enrichment with migration properties)
-8. Initialize database logging infrastructure (wire database sink to `DatabaseLogWriter`)
-9. Populate `DalSpecificPropertiesDictionary` for all configured database types and validate schema names (Repository and DatabaseLogging)
-10. Validate all target connection strings via `ConnectionValidator.ValidateTargetConnections`
-11. Resolve `RayMigratorService` from DI and call `DoWorkAsync`
-12. Flush queued database logs (`dbLogWriter.Flush()`), then stop the host
+6. Resolve `MigrationContext`: the product alias, which the loader already found among the files' aliases, is matched case-sensitively here (a near miss in another case gets a hint), and `MigrationLoggingContext.Current` is set (enables log enrichment with migration properties)
+7. Initialize database logging infrastructure (wire database sink to `DatabaseLogWriter`)
+8. Populate `DalSpecificPropertiesDictionary` for all configured database types and validate schema names (Repository and DatabaseLogging)
+9. Validate all target connection strings via `ConnectionValidator.ValidateTargetConnections`
+10. Resolve `RayMigratorService` from DI and call `DoWorkAsync`
+11. Flush queued database logs (`dbLogWriter.Flush()`), then stop the host
 
 ## Dependencies
 

@@ -27,11 +27,11 @@ public class RayMigratorOptions
     public List<CliToolOptions>? CliTools { get; set; }
 }
 
-// Registration with DataAnnotations validation
+// Registration with the data annotations (every failed element named by alias) and validation at start
 services.AddOptions<RayMigratorOptions>()
     .Configure(options => rayMigratorConfigurationSection.Bind(options))
-    .ValidateDataAnnotations()
     .ValidateOnStart();
+services.AddSingleton<IValidateOptions<RayMigratorOptions>, RayMigratorDataAnnotationValidateOptions>();
 
 // PostConfigure merges ProductDefaults into Products/TargetGroups.
 // The static MergeDefaults method can also be called directly

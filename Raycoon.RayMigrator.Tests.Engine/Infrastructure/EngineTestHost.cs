@@ -12,10 +12,12 @@ using Raycoon.RayMigrator.Core.Templates;
 using Raycoon.RayMigrator.Database;
 using Raycoon.RayMigrator.Database.Common;
 using Raycoon.RayMigrator.Infrastructure.Logging;
+using Raycoon.RayMigrator.Pipeline;
 using Raycoon.RayMigrator.Services;
 using Raycoon.RayMigrator.Services.Abstractions;
 using Raycoon.RayMigrator.Shared;
-using Raycoon.RayMigrator.Shared.Constants;
+using Raycoon.RayMigrator.Shared.Configuration;
+using Raycoon.RayMigrator.Shared.Exceptions;
 using Serilog;
 using Serilog.Events;
 
@@ -55,12 +57,29 @@ public sealed class EngineTestHost : IDisposable
         string solutionRoot = FindSolutionRoot();
         string migrationFilesRoot = Path.Combine(solutionRoot, "Testing", "MigrationFiles");
 
-        // Build configuration
-        var configurationBuilder = new ConfigurationBuilder()
-            .AddJsonFile(configFilePath, optional: false, reloadOnChange: false);
+        // Load the configuration through the engine's loader, as the CLI does: the appsettings hierarchy of the
+        // scenario's directory (only appsettings.json exists there), merged by alias and reduced to the product the
+        // host is built for (ADR-026). The host configuration is the merged document as written, the section the
+        // one with resolved placeholders, like DirectModePipeline uses them.
+        if (!string.Equals(Path.GetFileName(configFilePath), ConfigurationFileChain.BaseFileName, StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException($"The engine test host loads the hierarchy of a directory; the file must be {ConfigurationFileChain.BaseFileName}.", nameof(configFilePath));
 
-        IConfigurationRoot configuration = configurationBuilder.Build();
-        IConfigurationSection rayMigratorSection = configuration.GetSection(InternalConstants.RayMigratorSectionName);
+        var sourceResult = new JsonOptionsSource(Path.GetDirectoryName(configFilePath)!).LoadAsync(productAlias, environment).GetAwaiter().GetResult();
+        IConfigurationRoot configuration = sourceResult.HostConfiguration!;
+        IConfigurationSection rayMigratorSection = sourceResult.RayMigratorConfigSection;
+
+        // Like DirectModePipeline: a placeholder whose variable is not set stops the start before the host is built
+        var unresolved = sourceResult.ReplacedEnvironmentVariables
+            .Where(v => string.IsNullOrWhiteSpace(v.EnvironmentVariableValue))
+            .Select(v => $"[{v.EnvironmentVariableName}] at [{v.Path}]")
+            .Distinct()
+            .ToList();
+        if (unresolved.Count > 0)
+        {
+            throw new ApplicationStartupException(
+                "RayMigrator is shutting down due to error(s) replacing configuration variables from environment variables: " +
+                string.Join(", ", unresolved));
+        }
 
         // Replace __MIGRATION_FILES_ROOT__ placeholder in configuration
         ReplaceMigrationFilesRoot(rayMigratorSection, migrationFilesRoot);
@@ -116,11 +135,15 @@ public sealed class EngineTestHost : IDisposable
             {
                 services.AddOptions<RayMigratorOptions>()
                     .Configure(options => rayMigratorSection.Bind(options))
-                    .ValidateDataAnnotations()
                     .ValidateOnStart();
+                services.AddSingleton<IValidateOptions<RayMigratorOptions>, RayMigratorDataAnnotationValidateOptions>();
 
                 services.AddTransient<IPostConfigureOptions<RayMigratorOptions>, ProductDefaultsPostConfigureOptions>();
-                services.AddSingleton<IValidateOptions<RayMigratorOptions>, RayMigratorOptionsValidator>();
+
+                // Like DirectModePipeline: the rule catalog reads the connection strings as written, so RULE_7_3
+                // sees a placeholder and not the resolved credential, paired by index with the bound lists
+                services.AddSingleton<IValidateOptions<RayMigratorOptions>>(
+                    new RayMigratorOptionsValidator(sourceResult.RayMigratorConfigSectionAsWritten));
 
                 services.AddSingleton(consoleOptions);
 

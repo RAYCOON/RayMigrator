@@ -10,8 +10,9 @@ namespace Raycoon.RayMigrator.Core.Configuration.Sources;
 public class OptionsSourceResult
 {
     /// <summary>
-    /// The RayMigrator configuration section. Used for Serilog configuration reading
-    /// and verbose configuration output.
+    /// The RayMigrator configuration section: the shared sections and the product the run is for, the other
+    /// products of the files left out (ADR-026). Used for Serilog configuration reading and verbose
+    /// configuration output.
     /// </summary>
     public required IConfigurationSection RayMigratorConfigSection { get; init; }
 

@@ -8,7 +8,8 @@ namespace Raycoon.RayMigrator.Core.Configuration.Sources;
 public interface IOptionsSource
 {
     /// <summary>
-    /// Loads configuration for the specified product and environment.
+    /// Loads configuration for the specified product and environment. The result holds the shared sections and
+    /// the product only (ADR-026); the other products of the files are not loaded.
     /// </summary>
     /// <param name="product">The product alias to load configuration for.</param>
     /// <param name="environment">The environment name (e.g. "Docker", "Production").</param>

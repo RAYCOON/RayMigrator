@@ -45,9 +45,9 @@ For Sqlite: Data Source=./raymigrator.db</value></data>
   <data name="Repository_SchemaName_DefaultValue" xml:space="preserve"><value>ray</value></data>
   <data name="Repository_SchemaName_InheritanceNote" xml:space="preserve"><value>Not applicable for Sqlite. For SQL Server and PostgreSQL the schema is created automatically if it does not exist.</value></data>
   <data name="Repository_TableBaseName_Title" xml:space="preserve"><value>Repository - TableBaseName</value></data>
-  <data name="Repository_TableBaseName_Description" xml:space="preserve"><value>Prefix for all repository table names. Helps with sorting and displaying database objects when the migration repository resides in the same schema as your application tables. For example, a prefix like 'RM_' groups all RayMigrator tables together in database management tools.</value></data>
+  <data name="Repository_TableBaseName_Description" xml:space="preserve"><value>Prefix for all repository table names. Helps with sorting and displaying database objects when the migration repository resides in the same schema as your application tables. For example, a prefix like 'rm_' groups all RayMigrator tables together in database management tools.</value></data>
   <data name="Repository_TableBaseName_DefaultValue" xml:space="preserve"><value></value></data>
-  <data name="Repository_TableBaseName_Examples" xml:space="preserve"><value>If set to 'App1_', tables will be named App1_MigrationRun, App1_Migration, etc.
+  <data name="Repository_TableBaseName_Examples" xml:space="preserve"><value>If set to 'app1_', tables will be named app1_MigrationRun, app1_MigrationRecord, etc. on SQL Server and SQLite, and app1_migration_run, app1_migration_record, etc. on PostgreSQL, MySQL and MariaDB, which need the prefix in lowercase.
 Useful when sharing a schema between multiple RayMigrator instances.</value></data>
   <data name="Repository_Timeout_Title" xml:space="preserve"><value>Repository - Timeout</value></data>
   <data name="Repository_Timeout_Description" xml:space="preserve"><value>Database command timeout in seconds for repository operations. Default: 60.</value></data>
@@ -302,10 +302,10 @@ File: Writes to a log file (configure path in Args)</value></data>
 
   <!-- DatabaseLogging - TableBaseName -->
   <data name="DatabaseLogging_TableBaseName_Title" xml:space="preserve"><value>Database Logging - Table Base Name</value></data>
-  <data name="DatabaseLogging_TableBaseName_Description" xml:space="preserve"><value>Optional prefix for the logging table name. When set, the log table is named {Prefix}MigrationLog instead of MigrationLog. Useful when sharing a schema between the migration repository and the logging table, or when multiple RayMigrator instances log to the same schema.</value></data>
-  <data name="DatabaseLogging_TableBaseName_DefaultValue" xml:space="preserve"><value>"" (empty — default table name MigrationLog is used)</value></data>
-  <data name="DatabaseLogging_TableBaseName_Examples" xml:space="preserve"><value>If set to 'App1_', the log table will be named App1_MigrationLog.
-If left empty, the default table name MigrationLog is used.
+  <data name="DatabaseLogging_TableBaseName_Description" xml:space="preserve"><value>Optional prefix for the logging table name. When set, the log table is named {Prefix}MigrationLog instead of MigrationLog ({Prefix}migration_log on PostgreSQL, MySQL and MariaDB). Left out, it takes Repository.TableBaseName when the log database has the repository's database type. Useful when sharing a schema between the migration repository and the logging table, or when multiple RayMigrator instances log to the same schema.</value></data>
+  <data name="DatabaseLogging_TableBaseName_DefaultValue" xml:space="preserve"><value>Repository.TableBaseName when the log database has the repository's database type, otherwise "" (table name MigrationLog)</value></data>
+  <data name="DatabaseLogging_TableBaseName_Examples" xml:space="preserve"><value>If set to 'app1_', the log table will be named app1_MigrationLog, or app1_migration_log on PostgreSQL, MySQL and MariaDB.
+Set to an empty string, the table is named MigrationLog whatever the repository's prefix is.
 Use the same prefix as Repository.TableBaseName to keep table names consistent.</value></data>
 
   <!-- Serilog - OverrideSource -->

@@ -107,8 +107,16 @@ switches; it overrides configured values only through `--stop-rollback-on-missin
 | Defaults cascade | `ProductDefaults` to `ProductOptions`; `TargetGroupDefaults` to `TargetGroupOptions`; `TargetDefaults` to `TargetOptions`; `UseCliToolAlias` additionally product to target group to target; only null or blank values are filled | `ProductDefaultsPostConfigureOptions.MergeDefaults` |
 | Directory and file | six `migsettings` levels, then the TOML header; arrays replace | `LoadMigSettingsDefaults`, `ResolveMigSettingsForFile`, `ParseTomlConfig` |
 
+A run binds and validates in the scope of its product (ADR-026): `JsonOptionsSource` reduces the merged document to the shared
+sections (`Repository`, `DatabaseLogging`, `ProductDefaults`, `Serilog`, `CliTools`) and the elements of `Products` whose alias is the
+`--product` of the run (`ConfigurationProductScope` in `Shared`) before the document is bound, and `IMigrationContextFactory.Create`
+does the same for options a host built in memory (`RayMigratorOptionsPreparer.IsolateProduct`); a fault in another product does not
+reach the run, and a product the files do not name fails while they are loaded.
+
 Validation runs in three stages at startup: data annotations (`[Required]`, `[RegularExpression]`, `[RayEnum]`, `[RayRangeInt]`,
-`[RayEncoding]`, `[RayConnectionString]`, `[RayDirectoryExists]`; `RayRangeInt` also writes its default into a null property),
+`[RayEncoding]`, `[RayConnectionString]`, `[RayDirectoryExists]`; `RayRangeInt` writes its numeric default into a number that is
+left out and `RayEncoding` the encoding default `UTF-8` into an encoding that is left out or empty; a failed element is named by
+alias through `RayMigratorDataAnnotationValidateOptions`),
 then `RuleCatalog.RunAll(ValidationInput)` invoked by `RayMigratorOptionsValidator` through `OptionsValidationInputAdapter`, then
 engine aware checks outside the catalog (`SchemaNameValidator`, `ConnectionValidator`,
 `TemplateCache.ValidateConfigurationAgainstTemplateCache`). Rule ids follow `RULE_{group}_{n}` as declared in `RuleIds`
@@ -356,7 +364,7 @@ Authoritative pages: [Security policy](https://github.com/RAYCOON/RayMigrator/bl
 
 ### Dependency injection and the context pattern
 
-`DirectModePipeline` builds a standard `IHost`: `RayMigratorOptions` with `ValidateDataAnnotations` and `ValidateOnStart`, the
+`DirectModePipeline` builds a standard `IHost`: `RayMigratorOptions` with `RayMigratorDataAnnotationValidateOptions` and `ValidateOnStart`, the
 singletons `DatabaseLogWriter`, `TemplateCache`, `TemplateExecutor` and `MigrationContext`, the scoped `RayMigratorService`, and
 `AddRayMigratorServices(RayMigratorHostMode.Cli)` from `Raycoon.RayMigrator.Services`, which registers `IMigrationService` and
 `ICliToolExecutor` as scoped, `IMigrationContextFactory` and `IRepositorySchemaService` as singletons and the accessor per host mode,

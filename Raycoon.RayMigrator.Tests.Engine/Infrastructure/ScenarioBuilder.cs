@@ -40,10 +40,48 @@ public class ScenarioBuilder
     private int? _heartbeatIntervalSeconds;
     private int? _orphanedRunThresholdMinutes;
     private string _tableBaseName = "";
+    private string _hostProductAlias = MainProductAlias;
+    private (string Alias, bool Broken)? _secondProduct;
+
+    /// <summary>The product every scenario configures: the migration files of the scenario belong to it.</summary>
+    public const string MainProductAlias = "EngineTest";
 
     public ScenarioBuilder(EngineConfig engineConfig)
     {
         _engineConfig = engineConfig;
+    }
+
+    /// <summary>
+    /// Builds the host for <paramref name="alias"/> instead of <see cref="MainProductAlias"/>, for example for the
+    /// product of <see cref="WithSecondProduct"/>. The configuration file keeps every product; the loader hands the
+    /// host the product it is built for (ADR-026).
+    /// </summary>
+    public ScenarioBuilder ForProduct(string alias)
+    {
+        _hostProductAlias = alias;
+        return this;
+    }
+
+    /// <summary>
+    /// The environment variable the broken second product (<see cref="WithSecondProduct"/>) names in a
+    /// <c>{ENV:...}</c> placeholder; it is not set, unless a test sets it. Unique per builder, so that parallel
+    /// tests do not see each other's value.
+    /// </summary>
+    public string UnsetVariableName { get; } = "RM_ISOLATION_UNSET_" + Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
+
+    /// <summary>
+    /// Adds a second product to the configuration file, with one target group and one target. A sound second
+    /// product shares the migration files, the database type and the main target of the scenario. A broken one
+    /// (<paramref name="broken"/>) has a target without a connection string, a target group of the database type
+    /// <c>NoSuchDb</c>, which no template serves, and a migration files directory written as the placeholder of
+    /// <see cref="UnsetVariableName"/>: unresolved while the variable is not set, a directory that does not exist
+    /// once a test sets it to one. A run of <see cref="MainProductAlias"/> must not notice any of it, a run of the
+    /// broken product must fail on it.
+    /// </summary>
+    public ScenarioBuilder WithSecondProduct(string alias, bool broken = false)
+    {
+        _secondProduct = (alias, broken);
+        return this;
     }
 
     /// <summary>
@@ -309,8 +347,9 @@ public class ScenarioBuilder
     }
 
     /// <summary>
-    /// Sets ProductDefaults.MigrationFilesEncoding for the scenario (default UTF-8). Used with
-    /// <see cref="WithFileBytes"/> to provide files in a specific encoding (#4).
+    /// Writes ProductDefaults.MigrationFilesEncoding into the scenario's configuration; without this call the key is
+    /// left out and the engine's default UTF-8 applies. Used with <see cref="WithFileBytes"/> to provide files in a
+    /// specific encoding (#4).
     /// </summary>
     public ScenarioBuilder WithMigrationFilesEncoding(string encodingName)
     {
@@ -534,8 +573,8 @@ public class ScenarioBuilder
 
         // 4. Generate JSON config file
         string configPath = Path.Combine(workDir, "appsettings.json");
-        const string productAlias = "EngineTest";
-        GenerateConfig(configPath, workDir, productAlias);
+        string productAlias = _hostProductAlias;
+        GenerateConfig(configPath, workDir, MainProductAlias);
 
         // 5. Clean databases
         DatabaseCleanupHelper.CleanDatabase(_engineConfig.DatabaseType, _engineConfig.ConnectionString, _engineConfig.SchemaName, _tableBaseName);
@@ -549,7 +588,16 @@ public class ScenarioBuilder
 
         // 6. Build host
         var host = new EngineTestHost();
-        host.Build(configPath, productAlias, command, mode, toRelease, initiator: _initiator);
+        try
+        {
+            host.Build(configPath, productAlias, command, mode, toRelease, initiator: _initiator);
+        }
+        catch
+        {
+            host.Dispose();
+            try { Directory.Delete(workDir, recursive: true); } catch { /* best effort */ }
+            throw;
+        }
 
         // 7. Create query helper
         var queryHelper = new RepositoryQueryHelper(_engineConfig.DatabaseType, _engineConfig.ConnectionString, _engineConfig.SchemaName, _tableBaseName);
@@ -613,10 +661,13 @@ public class ScenarioBuilder
             ["MigrationErrorAction"] = (_migrationErrorAction ?? MigrationErrorAction.Terminate).ToString(),
             ["MigrationFilesExtension"] = "sql",
             ["MigrationRollbackFilesPreExtension"] = "rollback",
-            ["MigrationFilesEncoding"] = _migrationFilesEncoding ?? "UTF-8",
             ["RequireRollbackFile"] = _requireRollbackFile ?? true,
             ["TargetGroupDefaults"] = targetGroupDefaults
         };
+
+        // Without the key the engine's own default applies (UTF-8, written by [RayEncoding]); every scenario exercises it.
+        if (_migrationFilesEncoding != null)
+            productDefaults["MigrationFilesEncoding"] = _migrationFilesEncoding;
 
         if (_stopRollbackOnMissingRollbackFile.HasValue)
             productDefaults["StopRollbackOnMissingRollbackFile"] = _stopRollbackOnMissingRollbackFile.Value;
@@ -680,6 +731,32 @@ public class ScenarioBuilder
         if (_targetGroupMigrationOrder != null)
             product["TargetGroupMigrationOrder"] = _targetGroupMigrationOrder;
 
+        var products = new List<Dictionary<string, object>> { product };
+
+        // A second product beside the main one: sound, or broken in a data annotation, a database type and a
+        // placeholder (ADR-026 tests)
+        if (_secondProduct is { } second)
+        {
+            var secondTarget = new Dictionary<string, object> { ["Alias"] = "MainDB" };
+            if (!second.Broken)
+                secondTarget["ConnectionString"] = _mainTargetConnectionString ?? _engineConfig.ConnectionString;
+
+            products.Add(new Dictionary<string, object>
+            {
+                ["Alias"] = second.Alias,
+                ["MigrationFilesRootDirectory"] = second.Broken ? $"{{ENV:{UnsetVariableName}}}" : workDir,
+                ["TargetGroups"] = new List<Dictionary<string, object>>
+                {
+                    new()
+                    {
+                        ["Alias"] = "Backend",
+                        ["DatabaseType"] = second.Broken ? "NoSuchDb" : _engineConfig.DatabaseType,
+                        ["Targets"] = new List<Dictionary<string, object>> { secondTarget }
+                    }
+                }
+            });
+        }
+
         // Build Repository
         var repository = new Dictionary<string, object>
         {
@@ -714,7 +791,7 @@ public class ScenarioBuilder
         {
             ["Repository"] = repository,
             ["ProductDefaults"] = productDefaults,
-            ["Products"] = new List<Dictionary<string, object>> { product },
+            ["Products"] = products,
             ["Serilog"] = serilog
         };
 

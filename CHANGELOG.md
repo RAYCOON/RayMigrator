@@ -7,6 +7,98 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ## [Unreleased]
 
+### Added
+
+- `ConfigurationProductScope` in `Raycoon.RayMigrator.Shared` (namespace
+  `Raycoon.RayMigrator.Shared.Configuration`): `Isolate` reduces a merged
+  configuration to the scope of one product, the shared sections and the
+  elements of `Products` whose alias equals the product's (compared like the
+  merger compares aliases, without regard to case); the other products and
+  elements without an alias are left out, elements that repeat the product's
+  alias stay so that the rule catalog reports them. `ProductAliases` lists
+  the product aliases of a document. The engine's loader applies it to the
+  merged document before a run binds it; hosts such as RayMigrator Studio
+  are to apply it the same way.
+- `RayMigratorOptionsPreparer.IsolateProduct` reduces options a host built
+  in memory to one product the same way, and `ProductAliasGuard.NotFoundMessage`
+  builds the message of an unknown product alias from a list of aliases.
+- `RayMigratorDataAnnotationValidateOptions` (`Raycoon.RayMigrator.Core`) runs
+  the data annotations of the options as the options framework runs them and
+  names the elements of a failure by alias
+  (`RayMigratorOptions.Products[Crm].TargetGroups[Backend].Targets[Main]`
+  instead of `Products[0].TargetGroups[0].Targets[0]`), because the position
+  in the reduced list of a run no longer tells which product of the files
+  failed; an element without an alias keeps its position. The CLI pipeline
+  and `RayMigratorOptionsPreparer` use it in place of
+  `ValidateDataAnnotations()`.
+- `EncodingSupport.DefaultEncodingName` (`UTF-8`), the encoding of migration
+  files when the configuration names none, and
+  `RayEncodingAttribute.DefaultValue`, which exposes it for hosts that
+  describe the options.
+
+### Changed
+
+- **Breaking (behavior):** a run loads, validates and masks only the
+  product it runs for (ADR-026). The CLI reduces the merged appsettings
+  hierarchy to the shared sections and the product named by `--product`
+  before the configuration is bound, so the placeholder resolution, the
+  data annotations, the defaults cascade, the rule catalog, the template
+  check and the masker see one product: a missing connection string, an
+  unknown database type or an unset `{ENV:...}` variable of another
+  product no longer stops the run, and the rule catalog judges duplicate
+  aliases, CLI tool references and connection strings within that product.
+  The shared sections (`Repository`, `DatabaseLogging`, `ProductDefaults`,
+  `Serilog` and every entry of `CliTools`, because a migration file may
+  name any of them) are checked for every run as before. A `--product`
+  that names none of the configured products now fails while the files
+  are loaded, with the message that named the available aliases from the
+  migration context before; `Program.Main` prints it on stdout with exit
+  code 100, as before, but before Serilog is started, so the log file no
+  longer carries it. Files without any product alias are refused later
+  by the data annotations as before.
+  Elements of `Products` without an alias are ignored by a run, because
+  no `--product` can select them; a blank alias counts as none, a numeric
+  alias by its text, as the binder reads it. An alias written as a
+  `{ENV:...}` placeholder is resolved for the comparison only, the
+  configuration keeps the placeholder until the section is resolved; a
+  variable that is not set leaves the alias as written, so the message
+  of an unknown product shows the placeholder. `IMigrationContextFactory.Create`
+  gives options a host built in memory the same scope through
+  `RayMigratorOptionsPreparer.IsolateProduct`, on a shallow copy of the
+  options with a product list of its own, so the caller's options keep every
+  product and a host can create one context per product from them in turn;
+  a blank product alias is a `ConfigurationValidationException` there.
+  `CreateFromValidatedOptions` applies no scope and takes the options as
+  they are. Hosts such as RayMigrator Studio that bind a document of their
+  own are to isolate it with `ConfigurationProductScope` before they bind.
+- `MigrationFilesEncoding` defaults to UTF-8. A configuration that leaves
+  the encoding out on `ProductDefaults` and on a product no longer fails
+  the data annotations, and an empty value, which passed before and was
+  already read as UTF-8, now gets `UTF-8` written: `[RayEncoding]` writes
+  `EncodingSupport.DefaultEncodingName` into a value that is left out or
+  empty on both levels, as `[RayRangeInt]` writes its numeric defaults,
+  and a named default still cascades into the products. The named `UTF-8`
+  decodes like the strict UTF-8 the engine used for an empty value, so no
+  hash changes and no `update-hash` is needed. The settings snapshot of a
+  run records `UTF-8` where it recorded an empty value before.
+
+### Fixed
+
+- The German help texts (`FieldHelp.de.resx`, `SectionHelp.de.resx` in
+  `Raycoon.RayMigrator.Shared`) are written with umlauts and ß instead of
+  the transliterations ae, oe, ue and ss.
+- The help texts of `Repository.TableBaseName` and
+  `DatabaseLogging.TableBaseName` suggest the lowercase prefixes `rm_` and
+  `app1_` and name the resulting table names per database. The examples
+  `RM_` and `App1_` were refused by `RULE_4_3` on PostgreSQL, MySQL and
+  MariaDB, whose table names are snake_case. The example of the repository
+  prefix names tables that exist (`app1_MigrationRecord`,
+  `app1_migration_record`), and the help of `DatabaseLogging.TableBaseName`
+  says that the log table is `migration_log` on PostgreSQL, MySQL and
+  MariaDB and that a prefix left out takes `Repository.TableBaseName` when
+  the log database has the repository's database type; it said the table
+  was `MigrationLog` then.
+
 ## [0.18.0] — 2026-10-15
 
 ### Added

@@ -222,7 +222,7 @@ Resolved by `TemplateCache.GetRepositoryTemplate()` using reflection-based prope
 ```csharp
 // TemplateCache returns a Template with {CFG:*} already replaced
 var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
-// e.g., {CFG:SchemaName} → "migrations", {CFG:TableBaseName} → "RayMigrator_"
+// e.g., {CFG:SchemaName} → "migrations", {CFG:TableBaseName} → "rm_"
 ```
 
 The `GetRepositoryTemplate<T>()` method calls `ReplacePlaceholdersFromPropertyClass()` which uses regex to find `{CFG:PropertyName}` patterns and replaces them with matching property values from the passed options object (e.g., `RepositoryOptions`). After replacement, `GetRepositoryTemplate<T>()` and `GetTemplate<T>()` validate that no `{CFG:*}` placeholders remain — if any are found, a `ConfigurationValidationException` is thrown.

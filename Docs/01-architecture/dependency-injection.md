@@ -30,11 +30,11 @@ host = Host.CreateDefaultBuilder(args)
     .UseSerilog()
     .ConfigureServices((context, services) =>
     {
-        // Bind the options from the configuration section with validation
+        // Bind the options from the configuration section with validation; the data annotations name a failed element by alias
         services.AddOptions<RayMigratorOptions>()
             .Configure(options => sourceResult.RayMigratorConfigSection.Bind(options))
-            .ValidateDataAnnotations()
             .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<RayMigratorOptions>, RayMigratorDataAnnotationValidateOptions>();
         services.AddTransient<IPostConfigureOptions<RayMigratorOptions>,
             ProductDefaultsPostConfigureOptions>();
         // The validator checks connection strings as written, so RULE_7_3 sees {ENV:...} placeholders (#30)
@@ -119,11 +119,11 @@ Services created per operation:
 Configuration sections are bound to strongly-typed options classes with DataAnnotations validation. The binding is the CLI pipeline's way of loading and validating the files; the services never consume `IOptions<RayMigratorOptions>`. They read the configuration of the current run from `MigrationContext.RayMigratorOptions`, which the context factory receives from the pipeline (`CreateFromValidatedOptions`) or prepares itself for a host that built the options in memory (`Create`, see [MigrationContext](../02-core-concepts/migration-context.md#hosting-the-engine-in-process)).
 
 ```csharp
-// Registration with validation
+// Registration with validation (the data annotations name a failed element by alias)
 services.AddOptions<RayMigratorOptions>()
     .Configure(options => sourceResult.RayMigratorConfigSection.Bind(options))
-    .ValidateDataAnnotations()
     .ValidateOnStart();
+services.AddSingleton<IValidateOptions<RayMigratorOptions>, RayMigratorDataAnnotationValidateOptions>();
 
 // PostConfigure merges defaults (MigrationErrorAction, RollbackErrorAction, encoding, etc.)
 // into product/target options

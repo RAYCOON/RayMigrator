@@ -213,6 +213,8 @@ Each product represents an independent set of migrations. Products are defined i
 
 > **Tip:** The `Alias` is what you pass to `--product` on the command line. Keep it short and meaningful: `BookStore`, `UserService`, `PaymentGateway`.
 
+A run loads only the product you pass with `--product`, together with the sections every product shares (`Repository`, `DatabaseLogging`, `ProductDefaults`, `CliTools`, `Serilog`). The other products of the configuration are neither validated nor resolved for that run, so a mistake in one product's section, or an environment variable only that product needs, cannot stop the runs of another. An alias that none of the loaded files names stops the run before the host is built, naming the aliases they do contain.
+
 ---
 
 ## Inheritance Chain
@@ -244,7 +246,7 @@ ProductDefaults
 - **RollbackRelease** — Roll back the current run's migrations of the release that caused the error. Earlier releases remain intact.
 - **Ignore** — Skip the error and continue with the next file.
 
-There is no built-in default for `MigrationErrorAction`: set it in `ProductDefaults` or on the product, otherwise validation rule RULE_8_1 rejects the configuration.
+There is no built-in default for `MigrationErrorAction`: set it in `ProductDefaults` or on the product, otherwise validation rule RULE_8_1 rejects the configuration. `MigrationFilesEncoding` has one: a configuration that leaves it out reads the migration files as UTF-8.
 
 **RollbackErrorAction** controls what happens when a rollback operation itself fails:
 - **Terminate** (default) — Stop the rollback chain immediately.

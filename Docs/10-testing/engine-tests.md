@@ -8,17 +8,17 @@ The engine test project (`Raycoon.RayMigrator.Tests.Engine`) tests the core migr
 
 | Metric | Value |
 |--------|-------|
-| Total test methods | ~1260 (across 220 test class files, including the engine-agnostic `CliToolPresetConsistencyTests` with 16 inline cases) |
-| PostgreSQL tests | ~245 (43 test classes; most use unprefixed filenames as the "base" engine) |
-| SqlServer tests | ~256 (47 test classes, includes 6 block-level tests, 3 resume tests, 12 CLI tool tests, 2 atomic shared connection tests and 1 killed pooled session test) |
-| MariaDb tests | ~248 (44 test classes; one is `MariaDbSessionTimezoneTests` defined alongside `MySqlSessionTimezoneTests` in `P2_MySqlMariaDbSessionTimezoneTests.cs`) |
-| MySql tests | ~248 (44 test classes; one is `MySqlSessionTimezoneTests` defined in the same shared P2 file) |
-| Sqlite tests | ~259 (42 test classes; includes the SQLite-only `SqliteDatetimeCheckConstraintTests`, `SqliteCommandProfileTests` and `SqliteFileEncodingTests`) |
+| Total test methods | ~1283 (across 225 test class files, including the engine-agnostic `CliToolPresetConsistencyTests` with 16 inline cases; 10 are skipped on purpose) |
+| PostgreSQL tests | ~247 (44 test classes; most use unprefixed filenames as the "base" engine) |
+| SqlServer tests | ~258 (48 test classes, includes 6 block-level tests, 3 resume tests, 12 CLI tool tests, 2 atomic shared connection tests and 1 killed pooled session test) |
+| MariaDb tests | ~250 (45 test classes; one is `MariaDbSessionTimezoneTests` defined alongside `MySqlSessionTimezoneTests` in `P2_MySqlMariaDbSessionTimezoneTests.cs`) |
+| MySql tests | ~250 (45 test classes; one is `MySqlSessionTimezoneTests` defined in the same shared P2 file) |
+| Sqlite tests | ~262 (43 test classes; includes the SQLite-only `SqliteDatetimeCheckConstraintTests`, `SqliteCommandProfileTests` and `SqliteFileEncodingTests`) |
 | Backend migration file sets | 5 engines x 24 files = 120 files |
 | Frontend migration file sets | 5 engines x 16 files = 80 files |
 | Database engines | PostgreSQL, SQL Server, MariaDB, MySQL, SQLite |
 
-> **Note**: PostgreSQL is treated as the "base" engine — most of its test classes have unprefixed filenames (`HappyPathTests.cs`, `RollbackTests.cs`, etc.) and live in the same `Tests.Engine` namespace; the CLI tool classes and the two feature classes that run a shared contract (`PostgreSqlRepositorySchemaServiceTests`, `PostgreSqlRepositoryPrefixTests`) carry the engine prefix like the other engines. Each unprefixed class is replicated by engine-specific wrapper classes (e.g. `SqlServerHappyPathTests`, `MariaDbHappyPathTests`, `MySqlHappyPathTests`, `SqliteHappyPathTests`). The lone exception is `P2_MySqlMariaDbSessionTimezoneTests.cs`, which contains two engine-specific classes (one for MySQL, one for MariaDB) and runs against neither PostgreSQL nor SqlServer.
+> **Note**: PostgreSQL is treated as the "base" engine — most of its test classes have unprefixed filenames (`HappyPathTests.cs`, `RollbackTests.cs`, etc.) and live in the same `Tests.Engine` namespace; the CLI tool classes and the three feature classes that run a shared contract (`PostgreSqlRepositorySchemaServiceTests`, `PostgreSqlRepositoryPrefixTests`, `PostgreSqlProductIsolationTests`) carry the engine prefix like the other engines. Each unprefixed class is replicated by engine-specific wrapper classes (e.g. `SqlServerHappyPathTests`, `MariaDbHappyPathTests`, `MySqlHappyPathTests`, `SqliteHappyPathTests`). The lone exception is `P2_MySqlMariaDbSessionTimezoneTests.cs`, which contains two engine-specific classes (one for MySQL, one for MariaDB) and runs against neither PostgreSQL nor SqlServer.
 
 ## Prerequisites
 
@@ -107,13 +107,14 @@ Raycoon.RayMigrator.Tests.Engine/
 │   ├── CliToolConfigHelper.cs      — Pre-built CLI tool configs for CliTool tests (File and Stdin modes)
 │   ├── DockerExecHelper.cs         — Static Process wrapper for docker exec -i stdin piping
 │   ├── EngineConfig.cs             — Engine configuration record
-│   ├── EngineTestHost.cs           — DI container (mirrors Program.cs setup)
+│   ├── EngineTestHost.cs           — DI container (mirrors Program.cs setup); loads the scenario's appsettings.json through JsonOptionsSource, so the host runs in the product scope of a run (ADR-026), stops on a placeholder whose variable is not set, names a failed element by alias and hands the rule catalog the section as written, like DirectModePipeline
 │   ├── MariaDbTestBase.cs          — MariaDB base class
 │   ├── MigrationRecordExpectation.cs  — Partial-match DTO for MigrationRecord table
 │   ├── MigrationRunExpectation.cs     — Partial-match DTO for MigrationRun table
 │   ├── MySqlTestBase.cs            — MySQL base class
 │   ├── ParameterRoundTripValues.cs — Values the parameter round-trip tests send through a template parameter
 │   ├── PostgreSqlTestBase.cs       — PostgreSQL base class
+│   ├── ProductIsolationContract.cs — Shared assertions of ProductIsolationTests: a run of the main product beside a broken second product, and the broken product failing on its own findings
 │   ├── ReadModelContract.cs        — Shared assertions of ReadModelContractTests: every repository table reads through the read model package
 │   ├── RecordingProgressObserver.cs — Records the progress events of a run in order (ProgressEventsTests)
 │   ├── RepositoryPrefixContract.cs — Shared assertions of RepositoryPrefixTests: a second repository with another table prefix beside a migrated one
@@ -194,6 +195,9 @@ public async Task ErrorInR3_OnlyR3RolledBack()
 - `WithTargetMaxRetries(maxRetries, retryDelayMs?)` — sets `DbCommandMaxRetries` and `DbCommandWaitTimeInMsBeforeRetry` on the primary target (used for retry/atomic shared-connection tests)
 - `WithTargetCommandTimeout(seconds)` — sets `DbCommandTimeoutInSeconds` on the primary target
 - `WithTableBaseName(tableBaseName)` — sets the table prefix (`Repository.TableBaseName`, and `DatabaseLogging.TableBaseName` when the logging section is written); the cleanup before the run and the query helper of the scenario use the same prefix
+- `WithMigrationFilesEncoding(encodingName)` — writes `ProductDefaults.MigrationFilesEncoding`; without the call the key is left out and the engine's default UTF-8 applies, so every scenario exercises the default
+- `WithSecondProduct(alias, broken?)` — adds a second product to the configuration file, sound (the main target, database type and migration files of the scenario) or broken (a target without a connection string, a target group of the database type `NoSuchDb`, and a migration files directory written as the `{ENV:...}` placeholder of the builder's `UnsetVariableName`, which no test sets unless it wants a directory that does not exist); the host still runs for `EngineTest` and must not notice a broken second product (ADR-026)
+- `ForProduct(alias)` — builds the host for another product of the configuration than `ScenarioBuilder.MainProductAlias` (`EngineTest`), for example the broken one; a host that fails to build is disposed
 
 ### ScenarioContext — Execution + Assertions
 
@@ -356,6 +360,7 @@ The catalog lists the unique test scenarios defined for the base PostgreSQL test
 | `RepositorySchemaTests` | 5 | Versioned repository schema (ADR-024): fresh repository gets every step and the engine version, second run changes nothing, a newer repository and one without a schema version are refused before anything is written, parallel start on an empty repository creates it once |
 | `RepositorySchemaServiceTests` | 1 | `IRepositorySchemaService.Ensure` from the repository options alone, without product, environment or run: a fresh repository gets one `RepositorySchemaVersion` row per step, one `MigratorMeta` row and the `MigrationRecordHistory` table; a second call finds the current version and changes nothing (`Infrastructure/RepositorySchemaServiceContract.cs`). The class name carries the engine prefix on every engine (`PostgreSqlRepositorySchemaServiceTests`, `SqlServerRepositorySchemaServiceTests`, ...) |
 | `RepositoryPrefixTests` | 1 | A migrate-up against a repository with table prefix `a_` (`WithTableBaseName`), then a second repository with prefix `b_` created through the schema service in the same database or schema; the second repository is complete and empty and the first keeps its run, because every index and constraint name carries the prefix (`Infrastructure/RepositoryPrefixContract.cs`). Engine-prefixed class names as above |
+| `ProductIsolationTests` | 2 | The product scope of a run (ADR-026): the configuration carries a second product `Broken` whose target has no connection string, whose target group names the database type `NoSuchDb` and whose directory is a placeholder of a variable that is not set (`WithSecondProduct(alias, broken: true)`); migrate-up and info of `EngineTest` succeed beside it, and a host built for `Broken` (`ForProduct`) fails on the broken product alone: on the unset variable first (`ApplicationStartupException`), and once the test sets the variable to a directory that does not exist, on the data annotations, which name `Products[Broken]`, the connection string and the directory (`Infrastructure/ProductIsolationContract.cs`). Engine-prefixed class names as above |
 | `ProgressEventsTests` | 8 | Typed progress events through `MigrationContext.ProgressObserver`: run, file and block events of migrate-up, simulated outcomes and the start release without a run row, rollbacks and skipped records of migrate-down, baselined files without blocks, the failed file and run, and an observer that throws does not abort the run |
 | `ParameterRoundTripTests` | 2 (PostgreSQL 3) | A parameter value with quotes, backslashes, `$$`, other placeholders, comment and statement markers and non-ASCII text comes back unchanged through the DAL; PostgreSQL also inside a `DO` block |
 | `RunningGuardTests` | 6 | Concurrent run prevention (MigrateUp, MigrateDown, Baseline blocked; ValidateHash/UpdateHash allowed) |
@@ -368,7 +373,7 @@ The catalog lists the unique test scenarios defined for the base PostgreSQL test
 | `SqlServerKilledPooledSessionTests` | 1 | SqlServer-only: a migration file that alters the login RayMigrator uses invalidates the pooled sessions (errors 4021 and 596); the DAL retries, clears the pool and the repository update succeeds on a fresh connection |
 | `SqliteDatetimeCheckConstraintTests` | 3 | SQLite-only: DAL-021 strict ISO-8601 CHECK constraints on repository datetime columns (rejects bad input, accepts `datetime('now')`, allows NULLs on nullable columns) |
 | `SqliteCommandProfileTests` | 18 | SQLite-only, database independent (#6): read-only commands start against an unreachable target and write no log, product or environment rows; state changing commands log; baseline runs appear as `MigrationOperation.Baseline` in the history |
-| `SqliteFileEncodingTests` | 6 | SQLite-only (#4): migration files are decoded strictly with `MigrationFilesEncoding`; an invalid byte aborts discovery and names file and encoding, a byte-order mark decides the encoding, `migsettings.txt` is always UTF-8 |
+| `SqliteFileEncodingTests` | 7 | SQLite-only (#4): migration files are decoded strictly with `MigrationFilesEncoding`; an invalid byte aborts discovery and names file and encoding, a byte-order mark decides the encoding, `migsettings.txt` is always UTF-8; a scenario without the setting reads UTF-8 and naming `UTF-8` afterwards keeps every hash valid (0.19.0 default) |
 | `MySqlSessionTimezoneTests` / `MariaDbSessionTimezoneTests` | 2 + 2 | DAL-014 session time-zone enforcement: every DAL execute method issues `SET time_zone = '+00:00';` after opening a connection; `DateTime.UtcNow` round-trips through `TIMESTAMP` columns with millisecond fidelity. Defined together in `P2_MySqlMariaDbSessionTimezoneTests.cs`. |
 
 **CliTool tests** (PostgreSQL, SqlServer, MariaDb, MySql — 4 engines × 2 classes [File + Stdin] = 8 test classes; not available for SQLite):

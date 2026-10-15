@@ -13,6 +13,10 @@ Implementation lives in the `Raycoon.RayMigrator.Validation` project:
 - **Error** — blocks engine startup (`OptionsValidationException` on `ValidateOnStart`) and is rendered as a red badge in the ConfigWizard Overview.
 - **Warning** — logged via `Serilog.Log.Warning` at engine startup, and rendered as a yellow badge in the ConfigWizard Overview. Does not block startup.
 
+## Product scope of a run
+
+Since 0.19.0 the engine validates a run in the scope of its product (ADR-026): `JsonOptionsSource` reduces the merged hierarchy to the shared sections (`Repository`, `DatabaseLogging`, `ProductDefaults`, `Serilog` and every `CliTools` entry) and the elements of `Products` whose alias equals `--product` before the document is bound (`ConfigurationProductScope` in `Raycoon.RayMigrator.Shared`), and `IMigrationContextFactory.Create` does the same for options a host built in memory (`RayMigratorOptionsPreparer.IsolateProduct`). The catalog therefore never judges the other products of a run: RULE_1_8 reports an alias the run's product repeats, RULE_3_3 the references of `ProductDefaults` and of the run's product, RULE_7_1, RULE_7_2 and RULE_8_x the run's product. The rules of the shared sections (RULE_1_9, RULE_2_13 on the defaults, RULE_3_1, RULE_3_2, RULE_3_7, RULE_3_11, RULE_4_x) apply to every run. Elements of `Products` without an alias are left out of a run, because no `--product` can select them. Hosts such as RayMigrator Studio are to apply the same scope; a whole-document check stays where no product is selected (the Config Wizard validates its base model as a whole and every product-environment combination on its own, a host its documents without a product).
+
 ## Rule Index
 
 ### Group 1 — Alias uniqueness & migration order
@@ -21,7 +25,7 @@ Implementation lives in the `Raycoon.RayMigrator.Validation` project:
 |------|------|----------|----------------|
 | RULE_1_1 | DUPLICATE_TARGETGROUP_ALIAS | Error | TargetGroup aliases within a single Product must be unique (case-insensitive). |
 | RULE_1_2 | DUPLICATE_TARGET_ALIAS | Error | Target aliases within a single TargetGroup must be unique (case-insensitive). |
-| RULE_1_8 | DUPLICATE_PRODUCT_ALIAS | Error | Product aliases must be unique across the configuration (case-insensitive). |
+| RULE_1_8 | DUPLICATE_PRODUCT_ALIAS | Error | Product aliases must be unique across the configuration (case-insensitive). A run sees its own product only ([product scope](#product-scope-of-a-run)), so it reports an alias that its product repeats; a whole-document check reports every duplicate. |
 | RULE_1_9 | DUPLICATE_CLITOOL_ALIAS | Error | CliTool aliases must be unique across the configuration (case-insensitive). |
 | RULE_1_10 | TG_MIGRATION_ORDER_INVALID_ALIAS | Error | Every alias listed in `Product.TargetGroupMigrationOrder` must match a real TargetGroup in that Product. |
 | RULE_1_11 | TG_MIGRATION_ORDER_MISSING_ALIAS | Error | Every TargetGroup in the Product must appear in `TargetGroupMigrationOrder` when it is set. |
@@ -41,7 +45,7 @@ Implementation lives in the `Raycoon.RayMigrator.Validation` project:
 |------|------|----------|----------------|
 | RULE_3_1 | FILE_MODE_MISSING_FILEPATH | Error | When `InputMode=File`, the `ArgumentTemplate` must contain `{FilePath}`. |
 | RULE_3_2 | STDIN_MODE_WITH_FILEPATH | Warning | When `InputMode=Stdin`, `{FilePath}` in `ArgumentTemplate` is unused and will not be resolved. |
-| RULE_3_3 | USE_CLI_TOOL_ALIAS_INVALID | Error | Every `UseCliToolAlias` reference (at ProductDefaults / Product / TargetGroup / Target) must match a defined CliTool. |
+| RULE_3_3 | USE_CLI_TOOL_ALIAS_INVALID | Error | Every `UseCliToolAlias` reference (at ProductDefaults / Product / TargetGroup / Target) must match a defined CliTool; a run checks the references of `ProductDefaults` and of its own product ([product scope](#product-scope-of-a-run)). |
 | RULE_3_4 | CLI_PARAMS_WITHOUT_CLI_ALIAS | Warning | A Target defines `CliToolParameters` but no `UseCliToolAlias` resolves at any level — the parameters are dead config. |
 | RULE_3_7 | EXIT_CODE_EXPRESSION_INVALID | Error | Every expression in `SuccessExitCodes` must parse as a single integer (`"0"`), closed range (`"1..5"`), open-up range (`"10.."`), or open-down range (`"..-1"`). |
 | RULE_3_8 | CLI_PARAMS_MISSING_REQUIRED_KEYS | **Error** | When a Target resolves to a CLI tool, every placeholder in that tool's `ArgumentTemplate` (except reserved `{FilePath}`) must have a non-empty entry in the effective `CliToolParameters` map. Severity upgraded from Warning to Error — missing values crash the CLI at runtime. |
@@ -83,6 +87,7 @@ These run **outside** the shared catalog because they rely on APIs that are unav
 
 - `RayConnectionStringAttribute` — uses `System.Data.Common.DbConnectionStringBuilder` to parse `ConnectionString` syntax (applied via `[RayConnectionString]` DataAnnotation on `TargetOptions.ConnectionString`); a null value passes for an optional connection string and is reported as missing for a required one.
 - `RayDirectoryExistsAttribute` — verifies filesystem existence of directory paths.
+- `RayEncodingAttribute` — resolves `MigrationFilesEncoding` as a .NET encoding name (code pages included); a value that is left out or empty is set to `UTF-8` (`EncodingSupport.DefaultEncodingName`) on `ProductDefaults` and on the product, so a configuration without the setting is valid and reads its files as UTF-8.
 - `SchemaNameValidator` — pipeline-level DAL-aware check that uses `DalSpecificProperties.SupportsSchema` (runs after DAL discovery).
 
 ## Breaking changes vs. previous behaviour
@@ -96,4 +101,4 @@ These run **outside** the shared catalog because they rely on APIs that are unav
 
 ## Options built in memory
 
-A host that builds `RayMigratorOptions` in memory (RayMigrator Studio, a test) runs the same catalog: `IMigrationContextFactory.Create` prepares the options with `RayMigratorOptionsPreparer`, which fails with a `ConfigurationValidationException` listing every error with its rule code (see [Configuration System — Validation](../02-core-concepts/configuration-system.md#validation)). `RayMigratorOptionsValidator.GetReport(options, sectionAsWritten)` returns the full `ValidationReport` of prepared options, warnings and errors with code, severity and path, for a host that shows the findings instead of refusing the options.
+A host that builds `RayMigratorOptions` in memory (RayMigrator Studio, a test) runs the same catalog: `IMigrationContextFactory.Create` reduces the options to the product of the run (`RayMigratorOptionsPreparer.IsolateProduct`) and prepares them with `RayMigratorOptionsPreparer`, which fails with a `ConfigurationValidationException` listing every error with its rule code (see [Configuration System — Validation](../02-core-concepts/configuration-system.md#validation)). `RayMigratorOptionsValidator.GetReport(options, sectionAsWritten)` returns the full `ValidationReport` of prepared options, warnings and errors with code, severity and path, for a host that shows the findings instead of refusing the options.
