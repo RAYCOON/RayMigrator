@@ -17,6 +17,7 @@ using Raycoon.RayMigrator.Services;
 using Raycoon.RayMigrator.Services.Abstractions;
 using Raycoon.RayMigrator.Shared;
 using Raycoon.RayMigrator.Shared.Configuration;
+using Raycoon.RayMigrator.Shared.Exceptions;
 using Serilog;
 using Serilog.Events;
 
@@ -66,6 +67,19 @@ public sealed class EngineTestHost : IDisposable
         var sourceResult = new JsonOptionsSource(Path.GetDirectoryName(configFilePath)!).LoadAsync(productAlias, environment).GetAwaiter().GetResult();
         IConfigurationRoot configuration = sourceResult.HostConfiguration!;
         IConfigurationSection rayMigratorSection = sourceResult.RayMigratorConfigSection;
+
+        // Like DirectModePipeline: a placeholder whose variable is not set stops the start before the host is built
+        var unresolved = sourceResult.ReplacedEnvironmentVariables
+            .Where(v => string.IsNullOrWhiteSpace(v.EnvironmentVariableValue))
+            .Select(v => $"[{v.EnvironmentVariableName}] at [{v.Path}]")
+            .Distinct()
+            .ToList();
+        if (unresolved.Count > 0)
+        {
+            throw new ApplicationStartupException(
+                "RayMigrator is shutting down due to error(s) replacing configuration variables from environment variables: " +
+                string.Join(", ", unresolved));
+        }
 
         // Replace __MIGRATION_FILES_ROOT__ placeholder in configuration
         ReplaceMigrationFilesRoot(rayMigratorSection, migrationFilesRoot);
@@ -125,7 +139,11 @@ public sealed class EngineTestHost : IDisposable
                 services.AddSingleton<IValidateOptions<RayMigratorOptions>, RayMigratorDataAnnotationValidateOptions>();
 
                 services.AddTransient<IPostConfigureOptions<RayMigratorOptions>, ProductDefaultsPostConfigureOptions>();
-                services.AddSingleton<IValidateOptions<RayMigratorOptions>, RayMigratorOptionsValidator>();
+
+                // Like DirectModePipeline: the rule catalog reads the connection strings as written, so RULE_7_3
+                // sees a placeholder and not the resolved credential, paired by index with the bound lists
+                services.AddSingleton<IValidateOptions<RayMigratorOptions>>(
+                    new RayMigratorOptionsValidator(sourceResult.RayMigratorConfigSectionAsWritten));
 
                 services.AddSingleton(consoleOptions);
 

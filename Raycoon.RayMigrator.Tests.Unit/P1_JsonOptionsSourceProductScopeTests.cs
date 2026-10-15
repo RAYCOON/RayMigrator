@@ -1,6 +1,11 @@
 using AwesomeAssertions;
+using Microsoft.Extensions.Configuration;
+using Raycoon.RayMigrator.Core.Configuration.Options;
+using Raycoon.RayMigrator.Core.Configuration.Sources;
+using Raycoon.RayMigrator.Core.Configuration.Validation;
 using Raycoon.RayMigrator.Pipeline;
 using Raycoon.RayMigrator.Shared.Exceptions;
+using Raycoon.RayMigrator.Validation;
 
 namespace Raycoon.RayMigrator.Tests.Unit;
 
@@ -103,6 +108,47 @@ public class JsonOptionsSourceProductScopeTests : IDisposable
 
         section["Products:0:Alias"].Should().Be("Crm", "the loader compares like the merger, the context's guard compares with case and hints at the spelling");
         section["Products:1:Alias"].Should().BeNull();
+    }
+
+    [Fact]
+    public async Task LoadAsync_PairsTheSectionAsWrittenWithTheBoundProduct_ForTheCredentialRule()
+    {
+        const string variable = "RM_SCOPE_CRM_PASSWORD";
+        Write("appsettings.json", """
+            {"RayMigrator":{
+              "Repository":{"DatabaseType":"Sqlite","ConnectionString":"Data Source=repo.sqlite","TableBaseName":""},
+              "ProductDefaults":{"MigrationErrorAction":"Terminate","TargetGroupDefaults":{"TargetMigrationOrder":"FileByFile","HashValidationScope":"File","TargetDefaults":{"DbCommandTimeoutInSeconds":20}}},
+              "Products":[
+                {"Alias":"Shop","MigrationFilesRootDirectory":"/tmp","TargetGroups":[{"Alias":"Backend","DatabaseType":"Sqlite","Targets":[{"Alias":"Main","ConnectionString":"Data Source=shop.sqlite;Password=literal"}]}]},
+                {"Alias":"Crm","MigrationFilesRootDirectory":"/tmp","TargetGroups":[{"Alias":"Backend","DatabaseType":"Sqlite","Targets":[{"Alias":"Main","ConnectionString":"Data Source=crm.sqlite;Password={ENV:RM_SCOPE_CRM_PASSWORD}"}]}]}
+              ]}}
+            """);
+        Environment.SetEnvironmentVariable(variable, "s3cr3t");
+        try
+        {
+            var shop = await new JsonOptionsSource(_dir).LoadAsync("Shop", "Dev");
+            var shopReport = RayMigratorOptionsValidator.GetReport(Bind(shop), shop.RayMigratorConfigSectionAsWritten);
+            shopReport.Warnings.Should().ContainSingle(w => w.Code == RuleIds.RULE_7_3).Which.Path
+                .Should().Be("Products > Shop > TargetGroups > Backend > Targets > Main > ConnectionString", "the literal password of the run's product is reported at its own path");
+            shopReport.Issues.Should().NotContain(i => i.Path.Contains("Crm"), "the other product is not part of this run");
+
+            var crm = await new JsonOptionsSource(_dir).LoadAsync("Crm", "Dev");
+            var crmReport = RayMigratorOptionsValidator.GetReport(Bind(crm), crm.RayMigratorConfigSectionAsWritten);
+            crmReport.Warnings.Should().NotContain(w => w.Code == RuleIds.RULE_7_3, "the credential enters through a placeholder, which the section as written shows after the scope was applied");
+            crmReport.Issues.Should().NotContain(i => i.Path.Contains("Shop"));
+            Bind(crm).Products![0].TargetGroups![0].Targets![0].ConnectionString.Should().Be("Data Source=crm.sqlite;Password=s3cr3t");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(variable, null);
+        }
+    }
+
+    private static RayMigratorOptions Bind(OptionsSourceResult result)
+    {
+        var options = new RayMigratorOptions();
+        result.RayMigratorConfigSection.Bind(options);
+        return options;
     }
 
     [Fact]

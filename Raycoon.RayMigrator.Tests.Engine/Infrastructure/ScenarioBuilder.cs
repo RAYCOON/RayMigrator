@@ -63,11 +63,20 @@ public class ScenarioBuilder
     }
 
     /// <summary>
-    /// Adds a second product to the configuration file, with one target group of the scenario's database type and
-    /// one target. A sound second product shares the migration files and the main target of the scenario. A broken
-    /// one (<paramref name="broken"/>) has a target without a connection string and a migration files directory
-    /// that does not exist, so that it fails two data annotations of the engine; a run of
-    /// <see cref="MainProductAlias"/> must not notice it, a run of the broken product must fail on them.
+    /// The environment variable the broken second product (<see cref="WithSecondProduct"/>) names in a
+    /// <c>{ENV:...}</c> placeholder; it is not set, unless a test sets it. Unique per builder, so that parallel
+    /// tests do not see each other's value.
+    /// </summary>
+    public string UnsetVariableName { get; } = "RM_ISOLATION_UNSET_" + Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
+
+    /// <summary>
+    /// Adds a second product to the configuration file, with one target group and one target. A sound second
+    /// product shares the migration files, the database type and the main target of the scenario. A broken one
+    /// (<paramref name="broken"/>) has a target without a connection string, a target group of the database type
+    /// <c>NoSuchDb</c>, which no template serves, and a migration files directory written as the placeholder of
+    /// <see cref="UnsetVariableName"/>: unresolved while the variable is not set, a directory that does not exist
+    /// once a test sets it to one. A run of <see cref="MainProductAlias"/> must not notice any of it, a run of the
+    /// broken product must fail on it.
     /// </summary>
     public ScenarioBuilder WithSecondProduct(string alias, bool broken = false)
     {
@@ -586,6 +595,7 @@ public class ScenarioBuilder
         catch
         {
             host.Dispose();
+            try { Directory.Delete(workDir, recursive: true); } catch { /* best effort */ }
             throw;
         }
 
@@ -723,7 +733,8 @@ public class ScenarioBuilder
 
         var products = new List<Dictionary<string, object>> { product };
 
-        // A second product beside the main one: sound, or broken in two data annotations (ADR-026 tests)
+        // A second product beside the main one: sound, or broken in a data annotation, a database type and a
+        // placeholder (ADR-026 tests)
         if (_secondProduct is { } second)
         {
             var secondTarget = new Dictionary<string, object> { ["Alias"] = "MainDB" };
@@ -733,13 +744,13 @@ public class ScenarioBuilder
             products.Add(new Dictionary<string, object>
             {
                 ["Alias"] = second.Alias,
-                ["MigrationFilesRootDirectory"] = second.Broken ? Path.Combine(workDir, "does-not-exist") : workDir,
+                ["MigrationFilesRootDirectory"] = second.Broken ? $"{{ENV:{UnsetVariableName}}}" : workDir,
                 ["TargetGroups"] = new List<Dictionary<string, object>>
                 {
                     new()
                     {
                         ["Alias"] = "Backend",
-                        ["DatabaseType"] = _engineConfig.DatabaseType,
+                        ["DatabaseType"] = second.Broken ? "NoSuchDb" : _engineConfig.DatabaseType,
                         ["Targets"] = new List<Dictionary<string, object>> { secondTarget }
                     }
                 }
