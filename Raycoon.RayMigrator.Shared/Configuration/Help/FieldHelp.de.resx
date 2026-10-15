@@ -47,7 +47,7 @@ Für Sqlite: Data Source=./raymigrator.db</value></data>
   <data name="Repository_TableBaseName_Title" xml:space="preserve"><value>Repository - Tabellenbasisname</value></data>
   <data name="Repository_TableBaseName_Description" xml:space="preserve"><value>Präfix für alle Repository-Tabellennamen. Hilft bei der Sortierung und Anzeige von Datenbankobjekten, wenn sich das Migrations-Repository im selben Schema wie die Applikationstabellen befindet. Beispielsweise gruppiert ein Präfix wie 'rm_' alle RayMigrator-Tabellen in Datenbank-Management-Tools zusammen.</value></data>
   <data name="Repository_TableBaseName_DefaultValue" xml:space="preserve"><value>(leer)</value></data>
-  <data name="Repository_TableBaseName_Examples" xml:space="preserve"><value>Bei Einstellung auf 'app1_' werden die Tabellen auf SQL Server und SQLite app1_MigrationRun, app1_Migration usw. benannt, auf PostgreSQL, MySQL und MariaDB app1_migration_run, app1_migration usw.; dort muss das Präfix kleingeschrieben sein.
+  <data name="Repository_TableBaseName_Examples" xml:space="preserve"><value>Bei Einstellung auf 'app1_' werden die Tabellen auf SQL Server und SQLite app1_MigrationRun, app1_MigrationRecord usw. benannt, auf PostgreSQL, MySQL und MariaDB app1_migration_run, app1_migration_record usw.; dort muss das Präfix kleingeschrieben sein.
 Nützlich wenn mehrere RayMigrator-Instanzen ein Schema teilen.</value></data>
   <data name="Repository_Timeout_Title" xml:space="preserve"><value>Repository - Timeout</value></data>
   <data name="Repository_Timeout_Description" xml:space="preserve"><value>Datenbank-Befehlstimeout in Sekunden für Repository-Operationen. Standard: 60.</value></data>
@@ -302,10 +302,10 @@ File: Schreibt in eine Protokolldatei (Pfad in Args konfigurieren)</value></data
 
   <!-- DatabaseLogging - TableBaseName -->
   <data name="DatabaseLogging_TableBaseName_Title" xml:space="preserve"><value>Datenbank-Protokollierung - Tabellenbasisname</value></data>
-  <data name="DatabaseLogging_TableBaseName_Description" xml:space="preserve"><value>Optionaler Präfix für den Protokolltabellennamen. Wenn gesetzt, wird die Protokolltabelle {Präfix}MigrationLog statt MigrationLog benannt. Nützlich wenn ein Schema zwischen dem Migrations-Repository und der Protokolltabelle geteilt wird, oder wenn mehrere RayMigrator-Instanzen in dasselbe Schema protokollieren.</value></data>
-  <data name="DatabaseLogging_TableBaseName_DefaultValue" xml:space="preserve"><value>"" (leer — Standard-Tabellenname MigrationLog wird verwendet)</value></data>
+  <data name="DatabaseLogging_TableBaseName_Description" xml:space="preserve"><value>Optionales Präfix für den Protokolltabellennamen. Wenn gesetzt, wird die Protokolltabelle {Präfix}MigrationLog statt MigrationLog benannt (auf PostgreSQL, MySQL und MariaDB {Präfix}migration_log). Wird es weggelassen, gilt Repository.TableBaseName, wenn die Protokolldatenbank den Datenbanktyp des Repositorys hat. Nützlich, wenn ein Schema zwischen dem Migrations-Repository und der Protokolltabelle geteilt wird, oder wenn mehrere RayMigrator-Instanzen in dasselbe Schema protokollieren.</value></data>
+  <data name="DatabaseLogging_TableBaseName_DefaultValue" xml:space="preserve"><value>Repository.TableBaseName, wenn die Protokolldatenbank den Datenbanktyp des Repositorys hat, sonst "" (Tabellenname MigrationLog)</value></data>
   <data name="DatabaseLogging_TableBaseName_Examples" xml:space="preserve"><value>Bei Einstellung auf 'app1_' wird die Protokolltabelle app1_MigrationLog benannt, auf PostgreSQL, MySQL und MariaDB app1_migration_log.
-Wenn leer gelassen, wird der Standard-Tabellenname MigrationLog verwendet.
+Als leere Zeichenfolge gesetzt, heißt die Tabelle MigrationLog, unabhängig vom Präfix des Repositorys.
 Verwenden Sie denselben Präfix wie Repository.TableBaseName für konsistente Tabellennamen.</value></data>
 
   <!-- Serilog - OverrideSource -->
