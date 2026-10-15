@@ -48,7 +48,7 @@ Für Sqlite: Data Source=./raymigrator.db</value></data>
   <data name="Repository_TableBaseName_Description" xml:space="preserve"><value>Präfix für alle Repository-Tabellennamen. Hilft bei der Sortierung und Anzeige von Datenbankobjekten, wenn sich das Migrations-Repository im selben Schema wie die Applikationstabellen befindet. Beispielsweise gruppiert ein Präfix wie 'rm_' alle RayMigrator-Tabellen in Datenbank-Management-Tools zusammen.</value></data>
   <data name="Repository_TableBaseName_DefaultValue" xml:space="preserve"><value>(leer)</value></data>
   <data name="Repository_TableBaseName_Examples" xml:space="preserve"><value>Bei Einstellung auf 'app1_' werden die Tabellen auf SQL Server und SQLite app1_MigrationRun, app1_MigrationRecord usw. benannt, auf PostgreSQL, MySQL und MariaDB app1_migration_run, app1_migration_record usw.; dort muss das Präfix kleingeschrieben sein.
-Nützlich wenn mehrere RayMigrator-Instanzen ein Schema teilen.</value></data>
+Nützlich, wenn mehrere RayMigrator-Instanzen ein Schema teilen.</value></data>
   <data name="Repository_Timeout_Title" xml:space="preserve"><value>Repository - Timeout</value></data>
   <data name="Repository_Timeout_Description" xml:space="preserve"><value>Datenbank-Befehlstimeout in Sekunden für Repository-Operationen. Standard: 60.</value></data>
   <data name="Repository_Timeout_DefaultValue" xml:space="preserve"><value>60</value></data>
@@ -118,7 +118,7 @@ Ignore: Rollback-Fehler protokollieren und mit dem Rollback weiterer Dateien for
   <data name="ProductDefaults_MigrationFilesExtension_Title" xml:space="preserve"><value>Produkt-Standardwerte - Dateierweiterung</value></data>
   <data name="ProductDefaults_MigrationFilesExtension_Description" xml:space="preserve"><value>Dateierweiterung für Migrationsskripte. Standard: sql.</value></data>
   <data name="ProductDefaults_MigrationFilesExtension_DefaultValue" xml:space="preserve"><value>sql</value></data>
-  <data name="ProductDefaults_MigrationFilesExtension_ValidValues" xml:space="preserve"><value>Beliebige Dateierweiterung ohne Punkt (z.B. sql, ddl, migration)</value></data>
+  <data name="ProductDefaults_MigrationFilesExtension_ValidValues" xml:space="preserve"><value>Beliebige Dateierweiterung ohne Punkt (z. B. sql, ddl, migration)</value></data>
   <data name="ProductDefaults_MigrationFilesExtension_Examples" xml:space="preserve"><value>sql (Standard für alle Datenbanktypen)</value></data>
   <data name="ProductDefaults_RollbackFilesPreExtension_Title" xml:space="preserve"><value>Produkt-Standardwerte - Rollback-Vorerweiterung</value></data>
   <data name="ProductDefaults_RollbackFilesPreExtension_Description" xml:space="preserve"><value>Vorerweiterung für Rollback-Skriptdateien. Beispiel: 001_CreateUsers.rollback.sql. Standard: rollback.</value></data>
@@ -240,7 +240,7 @@ Database=mydb
 Diese Werte ersetzen Platzhalter in der ArgumentTemplate des CLI-Werkzeugs.
 Beispiel mit Vorlage '-S {Server} -U {User} -P {Password} -d {Database} -i "{FilePath}"':
 ergibt: '-S myserver -U admin -P *** -d mydb -i "migration.sql"'</value></data>
-  <data name="Target_CliToolParameters_InheritanceNote" xml:space="preserve"><value>Nur anwendbar wenn diesem Target ein CLI-Werkzeug zugewiesen ist (direkt oder per Vererbung). Die erwarteten Parameter-Schlüssel hängen von der ArgumentTemplate des CLI-Werkzeugs ab.</value></data>
+  <data name="Target_CliToolParameters_InheritanceNote" xml:space="preserve"><value>Nur anwendbar, wenn diesem Target ein CLI-Werkzeug zugewiesen ist (direkt oder per Vererbung). Die erwarteten Parameter-Schlüssel hängen von der ArgumentTemplate des CLI-Werkzeugs ab.</value></data>
 
   <!-- CliTool -->
   <data name="CliTool_Alias_Title" xml:space="preserve"><value>CLI-Werkzeug - Alias</value></data>
@@ -256,7 +256,7 @@ mariadb
 mysql
 sqlite3</value></data>
   <data name="CliTool_ArgumentTemplate_Title" xml:space="preserve"><value>CLI-Werkzeug - Argumentvorlage</value></data>
-  <data name="CliTool_ArgumentTemplate_Description" xml:space="preserve"><value>Kommandozeilen-Argumentvorlage mit Platzhaltern. {FilePath} ist der einzige systemeigene Platzhalter und wird immer durch den Migrationsdateipfad ersetzt. Alle anderen Platzhalter (z.B. {Server}, {User}, {Password}, {Database}) sind exemplarische Namen — Sie können beliebige eigene Platzhalter-Namen verwenden. Jeder Platzhalter wird aus den CliToolParameters des Targets aufgelöst.</value></data>
+  <data name="CliTool_ArgumentTemplate_Description" xml:space="preserve"><value>Kommandozeilen-Argumentvorlage mit Platzhaltern. {FilePath} ist der einzige systemeigene Platzhalter und wird immer durch den Migrationsdateipfad ersetzt. Alle anderen Platzhalter (z. B. {Server}, {User}, {Password}, {Database}) sind exemplarische Namen — Sie können beliebige eigene Platzhalter-Namen verwenden. Jeder Platzhalter wird aus den CliToolParameters des Targets aufgelöst.</value></data>
   <data name="CliTool_ArgumentTemplate_Examples" xml:space="preserve"><value>SQL Server (sqlcmd):
   -S {Server} -U {User} -P {Password} -d {Database} -i "{FilePath}" -C
 
@@ -274,7 +274,7 @@ Sqlite:
   <data name="CliTool_InputMode_ValidValues" xml:space="preserve"><value>File | Stdin</value></data>
   <data name="CliTool_InputMode_DefaultValue" xml:space="preserve"><value>File</value></data>
   <data name="CliTool_InputMode_Examples" xml:space="preserve"><value>File: Der Migrationsdateipfad wird als Kommandozeilenargument via {FilePath} übergeben.
-Stdin: Der Migrationsdateiinhalt wird in die Standardeingabe des Werkzeugs geleitet. Nützlich für Werkzeuge die SQL von stdin lesen (z.B. psql mit -f -).</value></data>
+Stdin: Der Migrationsdateiinhalt wird in die Standardeingabe des Werkzeugs geleitet. Nützlich für Werkzeuge, die SQL von stdin lesen (z. B. psql mit -f -).</value></data>
   <data name="CliTool_SuccessExitCodes_Title" xml:space="preserve"><value>CLI-Werkzeug - Erfolgs-Exit-Codes</value></data>
   <data name="CliTool_SuccessExitCodes_Description" xml:space="preserve"><value>Whitelist der Exit-Codes, die eine erfolgreiche Ausführung anzeigen. Jeder nicht zutreffende Exit-Code wird als Fehler behandelt. Unterstützt Bereichsnotation. Standard: ["0"].</value></data>
   <data name="CliTool_SuccessExitCodes_DefaultValue" xml:space="preserve"><value>["0"]</value></data>
@@ -306,7 +306,7 @@ File: Schreibt in eine Protokolldatei (Pfad in Args konfigurieren)</value></data
   <data name="DatabaseLogging_TableBaseName_DefaultValue" xml:space="preserve"><value>Repository.TableBaseName, wenn die Protokolldatenbank den Datenbanktyp des Repositorys hat, sonst "" (Tabellenname MigrationLog)</value></data>
   <data name="DatabaseLogging_TableBaseName_Examples" xml:space="preserve"><value>Bei Einstellung auf 'app1_' wird die Protokolltabelle app1_MigrationLog benannt, auf PostgreSQL, MySQL und MariaDB app1_migration_log.
 Als leere Zeichenfolge gesetzt, heißt die Tabelle MigrationLog, unabhängig vom Präfix des Repositorys.
-Verwenden Sie denselben Präfix wie Repository.TableBaseName für konsistente Tabellennamen.</value></data>
+Verwenden Sie dasselbe Präfix wie Repository.TableBaseName für konsistente Tabellennamen.</value></data>
 
   <!-- Serilog - OverrideSource -->
   <data name="Serilog_OverrideSource_Title" xml:space="preserve"><value>Serilog - Quell-Namespace überschreiben</value></data>
@@ -323,7 +323,7 @@ Raycoon.RayMigrator.Database → zeigt Datenbankoperations-Details</value></data
   <data name="Serilog_OverrideLevel_ValidValues" xml:space="preserve"><value>Verbose | Debug | Information | Warning | Error | Fatal</value></data>
   <data name="Serilog_OverrideLevel_Examples" xml:space="preserve"><value>Microsoft auf Warning setzen unterdrückt alle Info/Debug-Logs von Microsoft-Namespaces.
 Raycoon.RayMigrator auf Debug setzen zeigt detaillierte Diagnoseausgaben für RayMigrator.
-System.Net.Http auf Error setzen unterdrückt alle HTTP-Verkehrsprotokollierung außer Fehler.</value></data>
+System.Net.Http auf Error setzen unterdrückt die gesamte HTTP-Verkehrsprotokollierung außer Fehlern.</value></data>
 
   <!-- Serilog - SinkArgs -->
   <data name="Serilog_SinkArgs_Title" xml:space="preserve"><value>Serilog - Sink-Argumente</value></data>
@@ -337,17 +337,17 @@ File-Sink:
   outputTemplate → {Timestamp:yyyy-MM-dd HH:mm:ss} [{Level:u3}] {Message:lj}{NewLine}{Exception}</value></data>
 
   <!-- Konzept-Hilfe -->
-  <data name="Concept_Environment_Title" xml:space="preserve"><value>Was ist eine Environment (Umgebung)?</value></data>
-  <data name="Concept_Environment_Description" xml:space="preserve"><value>Eine Environment (Umgebung) repräsentiert eine Bereitstellungsstufe Ihrer Anwendung, wie Development, Staging oder Production. RayMigrator generiert für jede Umgebung eine separate Konfigurationsdatei (appsettings.{Environment}.json), die es ermöglicht, unterschiedliche Verbindungszeichenfolgen, Log-Level oder andere Einstellungen pro Stufe zu verwenden. Beispielsweise könnte Ihre Development-Umgebung auf eine lokale Docker-Datenbank zeigen, während Production sich mit Ihrem Live-Datenbankserver verbindet.</value></data>
+  <data name="Concept_Environment_Title" xml:space="preserve"><value>Was ist ein Environment (eine Umgebung)?</value></data>
+  <data name="Concept_Environment_Description" xml:space="preserve"><value>Ein Environment (eine Umgebung) repräsentiert eine Bereitstellungsstufe Ihrer Anwendung, wie Development, Staging oder Production. RayMigrator generiert für jede Umgebung eine separate Konfigurationsdatei (appsettings.{Environment}.json), die es ermöglicht, unterschiedliche Verbindungszeichenfolgen, Log-Level oder andere Einstellungen pro Stufe zu verwenden. Beispielsweise könnte Ihre Development-Umgebung auf eine lokale Docker-Datenbank zeigen, während Production sich mit Ihrem Live-Datenbankserver verbindet.</value></data>
   <data name="Concept_Environment_Examples" xml:space="preserve"><value>Development — lokale Entwicklung mit Docker-Datenbanken
 Staging — Testumgebung vor der Produktionsfreigabe
 Production — Live-Produktionsumgebung
 Docker — containerisierte Testumgebung</value></data>
 
   <data name="Concept_TargetGroup_Title" xml:space="preserve"><value>Was ist eine Target Group (TargetGroup)?</value></data>
-  <data name="Concept_TargetGroup_Description" xml:space="preserve"><value>Eine Target Group (TargetGroup) ist eine logische Gruppierung von Datenbankzielen, die dieselbe Datenbank-Engine verwenden (z.B. SQL Server, PostgreSQL). Ein Produkt kann mehrere TargetGroups haben, um verschiedene Teile der Datenbanklandschaft Ihrer Anwendung zu verwalten. Beispielsweise eine 'Backend'-TargetGroup für Ihre Hauptanwendungsdatenbanken und eine 'Frontend'-TargetGroup für eine separate CMS-Datenbank. Alle Targets innerhalb einer TargetGroup müssen denselben Datenbanktyp verwenden, da sie dieselben Migrations-SQL-Dateien teilen. Die Migrationsdateien für jede TargetGroup werden in einem Unterverzeichnis gespeichert, das nach dem TargetGroups-Alias benannt ist.</value></data>
-  <data name="Concept_TargetGroup_Examples" xml:space="preserve"><value>Backend — Hauptanwendungsdatenbanken (z.B. SQL Server)
-Frontend — CMS- oder Inhaltsdatenbanken (z.B. PostgreSQL)
+  <data name="Concept_TargetGroup_Description" xml:space="preserve"><value>Eine Target Group (TargetGroup) ist eine logische Gruppierung von Datenbankzielen, die dieselbe Datenbank-Engine verwenden (z. B. SQL Server, PostgreSQL). Ein Produkt kann mehrere TargetGroups haben, um verschiedene Teile der Datenbanklandschaft Ihrer Anwendung zu verwalten. Beispielsweise eine 'Backend'-TargetGroup für Ihre Hauptanwendungsdatenbanken und eine 'Frontend'-TargetGroup für eine separate CMS-Datenbank. Alle Targets innerhalb einer TargetGroup müssen denselben Datenbanktyp verwenden, da sie dieselben Migrations-SQL-Dateien teilen. Die Migrationsdateien für jede TargetGroup werden in einem Unterverzeichnis gespeichert, das nach dem TargetGroups-Alias benannt ist.</value></data>
+  <data name="Concept_TargetGroup_Examples" xml:space="preserve"><value>Backend — Hauptanwendungsdatenbanken (z. B. SQL Server)
+Frontend — CMS- oder Inhaltsdatenbanken (z. B. PostgreSQL)
 Reporting — Analyse- und Berichtsdatenbanken
 Archive — Archiv-/Verlaufsdatenbanken</value></data>
   <data name="Concept_TargetGroup_InheritanceNote" xml:space="preserve"><value>Jede TargetGroup hat ein eigenes Unterverzeichnis unter dem Release-Ordner. Beispiel: Migrations/MyApp/Release_1.0/Backend/*.sql</value></data>

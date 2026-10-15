@@ -33,9 +33,9 @@
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
 
   <data name="Welcome_Title" xml:space="preserve"><value>Willkommen</value></data>
-  <data name="Welcome_Description" xml:space="preserve"><value>Willkommen beim RayMigrator Konfigurations-Assistenten. Dieser Assistent führt Sie Schritt für Schritt durch die Erstellung einer vollständigen RayMigrator-Konfigurationsdatei.</value></data>
+  <data name="Welcome_Description" xml:space="preserve"><value>Willkommen beim RayMigrator-Konfigurationsassistenten. Dieser Assistent führt Sie Schritt für Schritt durch die Erstellung einer vollständigen RayMigrator-Konfigurationsdatei.</value></data>
 
-  <data name="Root_Title" xml:space="preserve"><value>RayMigrator Konfiguration</value></data>
+  <data name="Root_Title" xml:space="preserve"><value>RayMigrator-Konfiguration</value></data>
   <data name="Root_Description" xml:space="preserve"><value>Dies ist die Wurzel Ihrer RayMigrator-Konfiguration. Die Konfiguration ist in Abschnitte unterteilt: Repository, DatabaseLogging, ProductDefaults, Products, Serilog und CliTools.</value></data>
 
   <data name="Repository_Title" xml:space="preserve"><value>Repository</value></data>
@@ -60,7 +60,7 @@
   <data name="Serilog_Description" xml:space="preserve"><value>Protokollierungskonfiguration mit dem Serilog-Framework. Konfigurieren Sie das minimale Protokollierungslevel, Namespace-Überschreibungen und Ausgabe-Sinks (Console, File, etc.).</value></data>
 
   <data name="CliTools_Title" xml:space="preserve"><value>CLI-Werkzeuge</value></data>
-  <data name="CliTools_Description" xml:space="preserve"><value>Externe Kommandozeilenwerkzeuge (z.B. sqlcmd, psql, mariadb, mysql, sqlite3), die anstelle der eingebauten Datenbanktreiber von RayMigrator zur Ausführung von Migrations-SQL verwendet werden können.</value></data>
+  <data name="CliTools_Description" xml:space="preserve"><value>Externe Kommandozeilenwerkzeuge (z. B. sqlcmd, psql, mariadb, mysql, sqlite3), die anstelle der eingebauten Datenbanktreiber von RayMigrator zur Ausführung von Migrations-SQL verwendet werden können.</value></data>
 
   <data name="Products_Title" xml:space="preserve"><value>Produkte</value></data>
   <data name="Products_Description" xml:space="preserve"><value>Container für alle konfigurierten Produkte. Ein Produkt ist eine bereitstellbare Einheit mit eigenen Migrationsdateien und Zieldatenbanken.</value></data>
