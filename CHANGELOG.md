@@ -55,10 +55,15 @@ RayMigrator follows Semantic Versioning where applicable.
   `{ENV:...}` placeholder is resolved for the comparison only, the
   configuration keeps the placeholder until the section is resolved; a
   variable that is not set leaves the alias as written, so the message
-  of an unknown product shows the placeholder. `IMigrationContextFactory.Create` gives
-  options a host built in memory the same scope through
-  `RayMigratorOptionsPreparer.IsolateProduct`; a host that binds a document
-  of its own isolates it with `ConfigurationProductScope` first.
+  of an unknown product shows the placeholder. `IMigrationContextFactory.Create`
+  gives options a host built in memory the same scope through
+  `RayMigratorOptionsPreparer.IsolateProduct`, on a shallow copy of the
+  options with a product list of its own, so the caller's options keep every
+  product and a host can create one context per product from them in turn;
+  a blank product alias is a `ConfigurationValidationException` there.
+  `CreateFromValidatedOptions` applies no scope and takes the options as
+  they are. Hosts such as RayMigrator Studio that bind a document of their
+  own are to isolate it with `ConfigurationProductScope` before they bind.
 - `MigrationFilesEncoding` defaults to UTF-8. A configuration that leaves
   the encoding out, or empty, on `ProductDefaults` and on a product no
   longer fails the data annotations: `[RayEncoding]` writes

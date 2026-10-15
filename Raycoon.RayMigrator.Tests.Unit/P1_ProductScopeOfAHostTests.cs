@@ -141,23 +141,63 @@ public class ProductScopeOfAHostTests
 
         ctx.RayMigratorOptions.Products.Should().ContainSingle().Which.Alias.Should().Be(ProfileTestContext.ProductAlias);
         ctx.ProductTargetGroupOptionsEnumerable.Should().ContainSingle().Which.Alias.Should().Be(ProfileTestContext.TargetGroupAlias);
+        options.Products.Should().HaveCount(2, "the caller's options keep every product");
     }
+
+    [Fact]
+    public void Create_LeavesTheCallersOptionsIntact_SoEveryProductCanBeRunInTurn()
+    {
+        using var scope = SensitiveDataMasker.BeginScope(revealSensitiveData: false);
+        var options = ProfileTestContext.CreateOptions("Data Source=:memory:");
+        var second = new ProductOptions
+        {
+            Alias = "Second",
+            MigrationFilesRootDirectory = Path.GetTempPath(),
+            MigrationErrorAction = "Terminate",
+            TargetGroups = [new TargetGroupOptions { Alias = "Backend", DatabaseType = "Sqlite", TargetMigrationOrder = "FileByFile", HashValidationScope = "File", Targets = [new TargetOptions { Alias = "MainDB", ConnectionString = "Data Source=:memory:" }] }]
+        };
+        options.Products!.Add(second);
+        var factory = Factory();
+
+        var contexts = new List<MigrationContext>();
+        foreach (var product in options.Products.ToList())
+        {
+            contexts.Add(factory.Create(options, ConsoleOptionsFor(product.Alias!)));
+        }
+
+        options.Products.Select(p => p.Alias).Should().Equal(ProfileTestContext.ProductAlias, "Second");
+        contexts.Select(c => c.RayMigratorOptions.Products!.Single().Alias).Should().Equal(ProfileTestContext.ProductAlias, "Second");
+        contexts.Should().OnlyContain(c => !ReferenceEquals(c.RayMigratorOptions, options), "the context carries a copy with a product list of its own");
+        contexts.Should().OnlyContain(c => ReferenceEquals(c.RayMigratorOptions.Repository, options.Repository), "the sections stay shared");
+        second.MigrationFilesEncoding.Should().Be("UTF-8", "the preparer writes into the shared product objects as before");
+    }
+
+    [Fact]
+    public void Create_BlankProduct_ThrowsAConfigurationError()
+    {
+        using var scope = SensitiveDataMasker.BeginScope(revealSensitiveData: false);
+
+        var act = () => Factory().Create(OptionsWithABrokenProduct(), ConsoleOptionsFor(" "));
+
+        act.Should().Throw<ConfigurationValidationException>().WithMessage("*product alias of the run is missing*");
+    }
+
+    private static RayMigratorConsoleOptions ConsoleOptionsFor(string product) => new()
+    {
+        Command = MigrationCommand.Info,
+        Product = product,
+        Environment = "Docker",
+        RunMode = MigrationRunMode.Migrate,
+        ShowStartupInfo = false,
+        RevealSensitiveData = false
+    };
 
     [Fact]
     public void Create_UnknownProduct_NamesTheAliasesOfTheOptions()
     {
         using var scope = SensitiveDataMasker.BeginScope(revealSensitiveData: false);
-        var consoleOptions = new RayMigratorConsoleOptions
-        {
-            Command = MigrationCommand.Info,
-            Product = "Nope",
-            Environment = "Docker",
-            RunMode = MigrationRunMode.Migrate,
-            ShowStartupInfo = false,
-            RevealSensitiveData = false
-        };
 
-        var act = () => Factory().Create(OptionsWithABrokenProduct(), consoleOptions);
+        var act = () => Factory().Create(OptionsWithABrokenProduct(), ConsoleOptionsFor("Nope"));
 
         act.Should().Throw<ConfigurationValidationException>()
             .WithMessage($"*Available product aliases: {ProfileTestContext.ProductAlias}, {BrokenAlias}*");

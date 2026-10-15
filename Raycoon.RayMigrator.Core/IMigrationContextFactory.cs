@@ -21,24 +21,29 @@ namespace Raycoon.RayMigrator.Core;
 public interface IMigrationContextFactory
 {
     /// <summary>
-    /// Reduces <paramref name="options"/> to the product of the console options
-    /// (<see cref="RayMigratorOptionsPreparer.IsolateProduct"/>: the other products are removed, a fault in one of
-    /// them does not reach this run), prepares them with <see cref="RayMigratorOptionsPreparer"/> (placeholders,
-    /// defaults, enum check, data annotations, rule catalog) and creates the context. For options a host built in
-    /// memory, for example from a configuration store. A host that binds a document and wants the rule catalog to
-    /// see the connection strings as written isolates the document with <c>ConfigurationProductScope</c> of
+    /// Reduces a copy of <paramref name="options"/> to the product of the console options
+    /// (<see cref="RayMigratorOptionsPreparer.IsolateProduct"/>: the other products are left out, so a fault in one
+    /// of them does not reach this run), prepares the copy with <see cref="RayMigratorOptionsPreparer"/>
+    /// (placeholders, defaults, enum check, data annotations, rule catalog) and creates the context from it. The
+    /// caller's options keep every product; the copy shares the sections and the product objects, into which the
+    /// preparer writes the resolved values and defaults as before, and the context carries the copy. For options a
+    /// host built in memory, for example from a configuration store; a host that creates one context per product
+    /// from the same options can do so in turn. A host that binds a document and wants the rule catalog to see the
+    /// connection strings as written isolates the document with <c>ConfigurationProductScope</c> of
     /// <c>Raycoon.RayMigrator.Shared</c> before it binds.
     /// </summary>
     /// <exception cref="ConfigurationValidationException">
-    /// The product alias is unknown, the options do not pass preparation, a configured DatabaseType has no
-    /// data access layer, or a schema name is missing where the database requires one. A schema name on a database
-    /// without schemas is only logged as a warning.
+    /// The product alias of the console options is blank or unknown (before anything is prepared), the options do
+    /// not pass preparation, a configured DatabaseType has no data access layer, or a schema name is missing where
+    /// the database requires one. A schema name on a database without schemas is only logged as a warning.
     /// </exception>
     MigrationContext Create(RayMigratorOptions options, RayMigratorConsoleOptions consoleOptions);
 
     /// <summary>
     /// Creates the context for options that the options framework already bound, merged and validated
-    /// (the CLI pipeline). Everything else is as in <see cref="Create"/>.
+    /// (the CLI pipeline, whose loader applied the product scope before binding). The options are taken as they
+    /// are: no product scope, no preparation; the context carries the given object. Everything after the
+    /// preparation is as in <see cref="Create"/>.
     /// </summary>
     /// <exception cref="ConfigurationValidationException">
     /// The product alias is unknown, a configured DatabaseType has no data access layer, or a schema name is

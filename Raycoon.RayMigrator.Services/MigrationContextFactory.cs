@@ -32,11 +32,14 @@ public sealed class MigrationContextFactory : IMigrationContextFactory
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(consoleOptions);
 
-        // The run sees its own product only (ADR-026); the other products of the options are not prepared.
-        RayMigratorOptionsPreparer.IsolateProduct(options, consoleOptions.Product);
-        RayMigratorOptionsPreparer.Prepare(options);
+        // The run sees its own product only (ADR-026): the scope is applied to a copy of the options with a list of
+        // its own, so a host that creates a context per product from the same options keeps them intact; the
+        // sections and the product objects stay shared, the preparer writes into them idempotently.
+        var scoped = WithOwnProductList(options);
+        RayMigratorOptionsPreparer.IsolateProduct(scoped, consoleOptions.Product);
+        RayMigratorOptionsPreparer.Prepare(scoped);
 
-        return Activate(new MigrationContext(options, consoleOptions, AssemblyInfoHelper.GetRayMigratorVersion()));
+        return Activate(new MigrationContext(scoped, consoleOptions, AssemblyInfoHelper.GetRayMigratorVersion()));
     }
 
     /// <inheritdoc/>
@@ -49,6 +52,17 @@ public sealed class MigrationContextFactory : IMigrationContextFactory
 
         return Activate(new MigrationContext(options, consoleOptions, AssemblyInfoHelper.GetRayMigratorVersion()));
     }
+
+    /// <summary>A shallow copy of the options whose <see cref="RayMigratorOptions.Products"/> is a list of its own.</summary>
+    private static RayMigratorOptions WithOwnProductList(RayMigratorOptions options) => new()
+    {
+        Repository = options.Repository,
+        DatabaseLogging = options.DatabaseLogging,
+        Serilog = options.Serilog,
+        ProductDefaults = options.ProductDefaults,
+        Products = options.Products?.ToList(),
+        CliTools = options.CliTools
+    };
 
     private MigrationContext Activate(MigrationContext ctx)
     {
