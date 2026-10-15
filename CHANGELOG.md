@@ -21,6 +21,15 @@ RayMigrator follows Semantic Versioning where applicable.
 - `RayMigratorOptionsPreparer.IsolateProduct` reduces options a host built
   in memory to one product the same way, and `ProductAliasGuard.NotFoundMessage`
   builds the message of an unknown product alias from a list of aliases.
+- `RayMigratorDataAnnotationValidateOptions` (`Raycoon.RayMigrator.Core`) runs
+  the data annotations of the options as the options framework runs them and
+  names the elements of a failure by alias
+  (`RayMigratorOptions.Products[Crm].TargetGroups[Backend].Targets[Main]`
+  instead of `Products[0].TargetGroups[0].Targets[0]`), because the position
+  in the reduced list of a run no longer tells which product of the files
+  failed; an element without an alias keeps its position. The CLI pipeline
+  and `RayMigratorOptionsPreparer` use it in place of
+  `ValidateDataAnnotations()`.
 
 ### Changed
 

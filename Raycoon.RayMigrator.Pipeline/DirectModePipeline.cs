@@ -117,11 +117,12 @@ public static class DirectModePipeline
                     .UseSerilog()
                     .ConfigureServices((context, services) =>
                     {
-                        // Bind the options from the configuration section with validation
+                        // Bind the options from the configuration section with validation; the data annotations
+                        // name the elements of a failure by alias, because the run binds its own product only
                         services.AddOptions<RayMigratorOptions>()
                             .Configure(options => sourceResult.RayMigratorConfigSection.Bind(options))
-                            .ValidateDataAnnotations()
                             .ValidateOnStart();
+                        services.AddSingleton<IValidateOptions<RayMigratorOptions>, RayMigratorDataAnnotationValidateOptions>();
 
                         services.AddTransient<IPostConfigureOptions<RayMigratorOptions>, ProductDefaultsPostConfigureOptions>();
 

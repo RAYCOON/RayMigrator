@@ -50,7 +50,7 @@ internal static class ProductIsolationContract
         var exception = (await act.Should().ThrowAsync<OptionsValidationException>("the broken product fails its own data annotations")).Which;
         exception.Message.Should().Contain("ConnectionString", "the target of the broken product has none")
             .And.Contain("MigrationFilesRootDirectory", "the directory of the broken product does not exist")
-            .And.Contain("Products[0]", "the broken product is the only product the host loaded")
-            .And.NotContain("Products[1]", "the main product is not part of this run");
+            .And.Contain($"Products[{BrokenAlias}]", "a failure names the product by alias, not by its position in the reduced list")
+            .And.NotContain($"Products[{ScenarioBuilder.MainProductAlias}]", "the main product is not part of this run");
     }
 }

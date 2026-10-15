@@ -111,7 +111,7 @@ public static class RayMigratorOptionsPreparer
         // MergeDefaults, then the enum probe that reports every unparseable value at once.
         new ProductDefaultsPostConfigureOptions().PostConfigure(null, options);
 
-        ThrowIfFailed(new DataAnnotationValidateOptions<RayMigratorOptions>(null).Validate(null, options), "Configuration validation failed");
+        ThrowIfFailed(new RayMigratorDataAnnotationValidateOptions().Validate(null, options), "Configuration validation failed");
         ThrowIfFailed(new RayMigratorOptionsValidator(sectionAsWritten ?? AsWrittenSection(replaced)).Validate(null, options), "Configuration validation failed");
 
         SensitiveDataMasker.RegisterSensitiveData(options);

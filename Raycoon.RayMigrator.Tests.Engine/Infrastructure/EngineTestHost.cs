@@ -121,8 +121,8 @@ public sealed class EngineTestHost : IDisposable
             {
                 services.AddOptions<RayMigratorOptions>()
                     .Configure(options => rayMigratorSection.Bind(options))
-                    .ValidateDataAnnotations()
                     .ValidateOnStart();
+                services.AddSingleton<IValidateOptions<RayMigratorOptions>, RayMigratorDataAnnotationValidateOptions>();
 
                 services.AddTransient<IPostConfigureOptions<RayMigratorOptions>, ProductDefaultsPostConfigureOptions>();
                 services.AddSingleton<IValidateOptions<RayMigratorOptions>, RayMigratorOptionsValidator>();
