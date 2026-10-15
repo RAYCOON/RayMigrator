@@ -12,10 +12,11 @@ using Raycoon.RayMigrator.Core.Templates;
 using Raycoon.RayMigrator.Database;
 using Raycoon.RayMigrator.Database.Common;
 using Raycoon.RayMigrator.Infrastructure.Logging;
+using Raycoon.RayMigrator.Pipeline;
 using Raycoon.RayMigrator.Services;
 using Raycoon.RayMigrator.Services.Abstractions;
 using Raycoon.RayMigrator.Shared;
-using Raycoon.RayMigrator.Shared.Constants;
+using Raycoon.RayMigrator.Shared.Configuration;
 using Serilog;
 using Serilog.Events;
 
@@ -55,12 +56,16 @@ public sealed class EngineTestHost : IDisposable
         string solutionRoot = FindSolutionRoot();
         string migrationFilesRoot = Path.Combine(solutionRoot, "Testing", "MigrationFiles");
 
-        // Build configuration
-        var configurationBuilder = new ConfigurationBuilder()
-            .AddJsonFile(configFilePath, optional: false, reloadOnChange: false);
+        // Load the configuration through the engine's loader, as the CLI does: the appsettings hierarchy of the
+        // scenario's directory (only appsettings.json exists there), merged by alias and reduced to the product the
+        // host is built for (ADR-026). The host configuration is the merged document as written, the section the
+        // one with resolved placeholders, like DirectModePipeline uses them.
+        if (!string.Equals(Path.GetFileName(configFilePath), ConfigurationFileChain.BaseFileName, StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException($"The engine test host loads the hierarchy of a directory; the file must be {ConfigurationFileChain.BaseFileName}.", nameof(configFilePath));
 
-        IConfigurationRoot configuration = configurationBuilder.Build();
-        IConfigurationSection rayMigratorSection = configuration.GetSection(InternalConstants.RayMigratorSectionName);
+        var sourceResult = new JsonOptionsSource(Path.GetDirectoryName(configFilePath)!).LoadAsync(productAlias, environment).GetAwaiter().GetResult();
+        IConfigurationRoot configuration = sourceResult.HostConfiguration!;
+        IConfigurationSection rayMigratorSection = sourceResult.RayMigratorConfigSection;
 
         // Replace __MIGRATION_FILES_ROOT__ placeholder in configuration
         ReplaceMigrationFilesRoot(rayMigratorSection, migrationFilesRoot);
