@@ -57,6 +57,12 @@ RayMigrator follows Semantic Versioning where applicable.
   where it recorded `null` before. `RayEncodingAttribute.DefaultValue`
   exposes the name for hosts that describe the options.
 
+### Fixed
+
+- The German help texts (`FieldHelp.de.resx`, `SectionHelp.de.resx` in
+  `Raycoon.RayMigrator.Shared`) are written with umlauts and ß instead of
+  the transliterations ae, oe, ue and ss.
+
 ## [0.18.0] — 2026-10-15
 
 ### Added
