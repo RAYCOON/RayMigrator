@@ -7,6 +7,8 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ## [Unreleased]
 
+## [0.19.0] — 2026-10-15
+
 ### Added
 
 - `ConfigurationProductScope` in `Raycoon.RayMigrator.Shared` (namespace
