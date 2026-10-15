@@ -91,7 +91,13 @@ RayMigrator follows Semantic Versioning where applicable.
   `DatabaseLogging.TableBaseName` suggest the lowercase prefixes `rm_` and
   `app1_` and name the resulting table names per database. The examples
   `RM_` and `App1_` were refused by `RULE_4_3` on PostgreSQL, MySQL and
-  MariaDB, whose table names are snake_case.
+  MariaDB, whose table names are snake_case. The example of the repository
+  prefix names tables that exist (`app1_MigrationRecord`,
+  `app1_migration_record`), and the help of `DatabaseLogging.TableBaseName`
+  says that the log table is `migration_log` on PostgreSQL, MySQL and
+  MariaDB and that a prefix left out takes `Repository.TableBaseName` when
+  the log database has the repository's database type; it said the table
+  was `MigrationLog` then.
 
 ## [0.18.0] — 2026-10-15
 
