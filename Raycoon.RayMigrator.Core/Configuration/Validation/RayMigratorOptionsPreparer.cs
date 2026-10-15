@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Raycoon.RayMigrator.Core.Configuration.Options;
 using Raycoon.RayMigrator.Core.Configuration.Replacer;
+using Raycoon.RayMigrator.Shared.Configuration;
 using Raycoon.RayMigrator.Shared.Constants;
 using Raycoon.RayMigrator.Shared.Exceptions;
 
@@ -14,8 +15,53 @@ namespace Raycoon.RayMigrator.Core.Configuration.Validation;
 /// write the documented default values back into null properties), and the rule catalog is applied. The object
 /// is changed in place. Preparing an object twice is harmless.
 /// </summary>
+/// <remarks>
+/// A run is prepared in the scope of its product (ADR-026): the CLI reduces the merged files to the product before
+/// it binds them (<c>ConfigurationProductScope</c> in <c>Raycoon.RayMigrator.Shared</c>), and
+/// <see cref="IMigrationContextFactory.Create"/> calls <see cref="IsolateProduct"/> before <see cref="Prepare"/>.
+/// A host that binds a document of its own and hands the section as written to <see cref="Prepare"/> isolates the
+/// document first, so that the lists of the section pair with the bound options.
+/// </remarks>
 public static class RayMigratorOptionsPreparer
 {
+    /// <summary>
+    /// Reduces <paramref name="options"/> to the scope of one product: every element of
+    /// <see cref="RayMigratorOptions.Products"/> whose alias is not <paramref name="productAlias"/> (compared like the
+    /// configuration merger compares aliases, without regard to case) is removed in place; elements that repeat the
+    /// alias stay for the rule catalog. Options without products are left alone, so that the data annotations
+    /// report the missing section as they do for the CLI.
+    /// </summary>
+    /// <exception cref="ConfigurationValidationException">
+    /// The options name products, but none carries <paramref name="productAlias"/>; the message names the aliases
+    /// they carry, like <see cref="ProductAliasGuard.GetProduct"/> names them for bound options.
+    /// </exception>
+    public static void IsolateProduct(RayMigratorOptions options, string productAlias)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentException.ThrowIfNullOrWhiteSpace(productAlias);
+
+        if (options.Products is null)
+        {
+            return;
+        }
+
+        var availableAliases = options.Products
+            .Where(p => !string.IsNullOrWhiteSpace(p.Alias))
+            .Select(p => p.Alias!)
+            .ToList();
+        if (availableAliases.Count == 0)
+        {
+            return;
+        }
+
+        if (!availableAliases.Any(alias => AliasComparer.AliasEquals(alias, productAlias)))
+        {
+            throw new ConfigurationValidationException(ProductAliasGuard.NotFoundMessage(productAlias, availableAliases));
+        }
+
+        options.Products.RemoveAll(p => !AliasComparer.AliasEquals(p.Alias, productAlias));
+    }
+
     /// <summary>
     /// Prepares <paramref name="options"/> for a run. See the class summary for the steps.
     /// </summary>

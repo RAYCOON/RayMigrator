@@ -18,6 +18,33 @@ RayMigrator follows Semantic Versioning where applicable.
   alias stay so that the rule catalog reports them. `ProductAliases` lists
   the product aliases of a document. The engine's loader and RayMigrator
   Studio apply it to the merged document before a run binds it.
+- `RayMigratorOptionsPreparer.IsolateProduct` reduces options a host built
+  in memory to one product the same way, and `ProductAliasGuard.NotFoundMessage`
+  builds the message of an unknown product alias from a list of aliases.
+
+### Changed
+
+- **Breaking (behavior):** a run loads, validates and masks only the
+  product it runs for (ADR-026). The CLI reduces the merged appsettings
+  hierarchy to the shared sections and the product named by `--product`
+  before the configuration is bound, so the placeholder resolution, the
+  data annotations, the defaults cascade, the rule catalog, the template
+  check and the masker see one product: a missing connection string, an
+  unknown database type or an unset `{ENV:...}` variable of another
+  product no longer stops the run, and the rule catalog judges duplicate
+  aliases, CLI tool references and connection strings within that product.
+  The shared sections (`Repository`, `DatabaseLogging`, `ProductDefaults`,
+  `Serilog` and every entry of `CliTools`, because a migration file may
+  name any of them) are checked for every run as before. A `--product`
+  that names none of the configured products now fails while the files
+  are loaded, with the message that named the available aliases from the
+  migration context before (exit code 100 as before); files without any
+  product alias are refused later by the data annotations as before.
+  Elements of `Products` without an alias are ignored by a run, because
+  no `--product` can select them. `IMigrationContextFactory.Create` gives
+  options a host built in memory the same scope through
+  `RayMigratorOptionsPreparer.IsolateProduct`; a host that binds a document
+  of its own isolates it with `ConfigurationProductScope` first.
 
 ## [0.18.0] — 2026-10-15
 

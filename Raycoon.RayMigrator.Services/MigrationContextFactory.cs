@@ -32,6 +32,8 @@ public sealed class MigrationContextFactory : IMigrationContextFactory
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(consoleOptions);
 
+        // The run sees its own product only (ADR-026); the other products of the options are not prepared.
+        RayMigratorOptionsPreparer.IsolateProduct(options, consoleOptions.Product);
         RayMigratorOptionsPreparer.Prepare(options);
 
         return Activate(new MigrationContext(options, consoleOptions, AssemblyInfoHelper.GetRayMigratorVersion()));

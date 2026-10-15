@@ -21,12 +21,16 @@ namespace Raycoon.RayMigrator.Core;
 public interface IMigrationContextFactory
 {
     /// <summary>
-    /// Prepares <paramref name="options"/> with <see cref="RayMigratorOptionsPreparer"/> (placeholders, defaults,
-    /// enum check, data annotations, rule catalog) and creates the context. For options a host built in memory,
-    /// for example from a configuration store.
+    /// Reduces <paramref name="options"/> to the product of the console options
+    /// (<see cref="RayMigratorOptionsPreparer.IsolateProduct"/>: the other products are removed, a fault in one of
+    /// them does not reach this run), prepares them with <see cref="RayMigratorOptionsPreparer"/> (placeholders,
+    /// defaults, enum check, data annotations, rule catalog) and creates the context. For options a host built in
+    /// memory, for example from a configuration store. A host that binds a document and wants the rule catalog to
+    /// see the connection strings as written isolates the document with <c>ConfigurationProductScope</c> of
+    /// <c>Raycoon.RayMigrator.Shared</c> before it binds.
     /// </summary>
     /// <exception cref="ConfigurationValidationException">
-    /// The options do not pass preparation, the product alias is unknown, a configured DatabaseType has no
+    /// The product alias is unknown, the options do not pass preparation, a configured DatabaseType has no
     /// data access layer, or a schema name is missing where the database requires one. A schema name on a database
     /// without schemas is only logged as a warning.
     /// </exception>
