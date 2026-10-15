@@ -245,7 +245,7 @@ MigrationFilesRootDirectory=./migrations
 
 ### 5. Validate at Startup
 
-RayMigrator validates all environment variable placeholders at startup. Unresolved placeholders (missing, empty, or whitespace-only environment variables) are logged as **errors** and cause the application to **terminate** with an `ApplicationStartupException`. Each unresolved variable is logged individually before termination, so all missing variables are reported in a single startup attempt.
+RayMigrator validates the environment variable placeholders of the shared sections and the run's product at startup (ADR-026; the placeholders of other products are not resolved). Unresolved placeholders (missing, empty, or whitespace-only environment variables) are logged as **errors** and cause the application to **terminate** with an `ApplicationStartupException`. Each unresolved variable is logged individually before termination, so all missing variables are reported in a single startup attempt.
 
 ## Troubleshooting
 

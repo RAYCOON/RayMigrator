@@ -114,8 +114,9 @@ does the same for options a host built in memory (`RayMigratorOptionsPreparer.Is
 reach the run, and a product the files do not name fails while they are loaded.
 
 Validation runs in three stages at startup: data annotations (`[Required]`, `[RegularExpression]`, `[RayEnum]`, `[RayRangeInt]`,
-`[RayEncoding]`, `[RayConnectionString]`, `[RayDirectoryExists]`; `RayRangeInt` writes its numeric default and `RayEncoding` the
-encoding default `UTF-8` into a null property),
+`[RayEncoding]`, `[RayConnectionString]`, `[RayDirectoryExists]`; `RayRangeInt` writes its numeric default into a number that is
+left out and `RayEncoding` the encoding default `UTF-8` into an encoding that is left out or empty; a failed element is named by
+alias through `RayMigratorDataAnnotationValidateOptions`),
 then `RuleCatalog.RunAll(ValidationInput)` invoked by `RayMigratorOptionsValidator` through `OptionsValidationInputAdapter`, then
 engine aware checks outside the catalog (`SchemaNameValidator`, `ConnectionValidator`,
 `TemplateCache.ValidateConfigurationAgainstTemplateCache`). Rule ids follow `RULE_{group}_{n}` as declared in `RuleIds`
@@ -363,7 +364,7 @@ Authoritative pages: [Security policy](https://github.com/RAYCOON/RayMigrator/bl
 
 ### Dependency injection and the context pattern
 
-`DirectModePipeline` builds a standard `IHost`: `RayMigratorOptions` with `ValidateDataAnnotations` and `ValidateOnStart`, the
+`DirectModePipeline` builds a standard `IHost`: `RayMigratorOptions` with `RayMigratorDataAnnotationValidateOptions` and `ValidateOnStart`, the
 singletons `DatabaseLogWriter`, `TemplateCache`, `TemplateExecutor` and `MigrationContext`, the scoped `RayMigratorService`, and
 `AddRayMigratorServices(RayMigratorHostMode.Cli)` from `Raycoon.RayMigrator.Services`, which registers `IMigrationService` and
 `ICliToolExecutor` as scoped, `IMigrationContextFactory` and `IRepositorySchemaService` as singletons and the accessor per host mode,

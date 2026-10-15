@@ -262,7 +262,7 @@ public class MigrationFileEncodingTests : IDisposable
         string valid = WriteBytes("utf8.sql", new UTF8Encoding(false).GetBytes(Text));
         string invalid = WriteBytes("latin1.sql", new byte[] { 0x53, 0x45, 0x4C, 0xFC });
 
-        Read(valid, null).Should().Be(Read(valid, "UTF-8"), "a configuration without an encoding read UTF-8 before the default was written into it, so the hashes stay");
+        Read(valid, null).Should().Be(Read(valid, "UTF-8"), "an empty encoding read UTF-8 before the default was written into it, so the hashes stay");
 
         var missing = () => Read(invalid, null);
         var named = () => Read(invalid, "UTF-8");

@@ -213,7 +213,7 @@ Each product represents an independent set of migrations. Products are defined i
 
 > **Tip:** The `Alias` is what you pass to `--product` on the command line. Keep it short and meaningful: `BookStore`, `UserService`, `PaymentGateway`.
 
-A run loads only the product you pass with `--product`, together with the sections every product shares (`Repository`, `DatabaseLogging`, `ProductDefaults`, `CliTools`, `Serilog`). The other products of the configuration are neither validated nor resolved for that run, so a mistake in one product's section, or an environment variable only that product needs, cannot stop the runs of another. An alias that none of the loaded files names stops the run before anything is read, naming the aliases they do contain.
+A run loads only the product you pass with `--product`, together with the sections every product shares (`Repository`, `DatabaseLogging`, `ProductDefaults`, `CliTools`, `Serilog`). The other products of the configuration are neither validated nor resolved for that run, so a mistake in one product's section, or an environment variable only that product needs, cannot stop the runs of another. An alias that none of the loaded files names stops the run before the host is built, naming the aliases they do contain.
 
 ---
 

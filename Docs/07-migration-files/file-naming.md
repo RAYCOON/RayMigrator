@@ -237,7 +237,7 @@ The file extension is used both for discovering migration files (`*.{extension}`
 
 Default: `UTF-8`
 
-The value may be left out, or left empty, on both levels: the engine then writes `UTF-8` into the prepared options (`[RayEncoding]`, like `[RayRangeInt]` writes its numeric defaults) and reads the files as UTF-8, exactly as it read them when the value was missing before 0.19.0, so the hashes of a repository migrated without the setting do not change.
+The value may be left out, or left empty, on both levels. Before 0.19.0 a value that was left out failed the validation, and an empty value was accepted and read as UTF-8; since 0.19.0 the engine writes `UTF-8` into the prepared options in both cases (`[RayEncoding]`, like `[RayRangeInt]` writes its numeric defaults) and reads the files as UTF-8, exactly as it read them for an empty value, so the hashes of a repository migrated with an empty value do not change.
 
 Configurable at both `ProductDefaults` and individual `Products` level. Product-level values override `ProductDefaults`:
 

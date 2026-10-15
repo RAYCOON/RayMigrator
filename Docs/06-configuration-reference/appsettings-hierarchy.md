@@ -295,7 +295,7 @@ Configuration is validated at startup:
 - Alias uniqueness is enforced case-insensitively: `MyProduct` and `myproduct` are considered duplicates. This applies to Product aliases (within the product scope of a run, so a run reports an alias its own product repeats), TargetGroup aliases (within each product), and Target aliases (within each target group).
 - `CliTools[]` aliases must be unique (case-insensitive). `UseCliToolAlias` values of `ProductDefaults` and of the Product, TargetGroups and Targets of the run must reference an existing `CliTools[].Alias` (matching is also case-insensitive).
 - Validation runs in the scope of the product the run is for (see [Product scope](#configuration-loading)): the shared sections and the run's product are checked, the other products are not loaded.
-- `MigrationFilesEncoding` may be left out on both levels: the engine then writes `UTF-8` into the prepared options and reads the migration files as UTF-8.
+- `MigrationFilesEncoding` may be left out, or left empty, on both levels: the engine then writes `UTF-8` into the prepared options and reads the migration files as UTF-8.
 
 ## Related Documentation
 

@@ -295,7 +295,7 @@ public class RayEncodingAttributeTests
 
         var result = new RayEncodingAttribute().GetValidationResult(value, context);
 
-        result.Should().Be(ValidationResult.Success, "a missing encoding reads as UTF-8, like it always did at run time");
+        result.Should().Be(ValidationResult.Success, "a missing or empty encoding reads as UTF-8; an empty one always did, a missing one failed the validation before 0.19.0");
         holder.Encoding.Should().Be("UTF-8", "the prepared options name the encoding they read with");
     }
 

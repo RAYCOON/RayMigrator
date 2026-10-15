@@ -8,12 +8,12 @@ The engine test project (`Raycoon.RayMigrator.Tests.Engine`) tests the core migr
 
 | Metric | Value |
 |--------|-------|
-| Total test methods | ~1260 (across 220 test class files, including the engine-agnostic `CliToolPresetConsistencyTests` with 16 inline cases) |
-| PostgreSQL tests | ~245 (43 test classes; most use unprefixed filenames as the "base" engine) |
-| SqlServer tests | ~256 (47 test classes, includes 6 block-level tests, 3 resume tests, 12 CLI tool tests, 2 atomic shared connection tests and 1 killed pooled session test) |
-| MariaDb tests | ~248 (44 test classes; one is `MariaDbSessionTimezoneTests` defined alongside `MySqlSessionTimezoneTests` in `P2_MySqlMariaDbSessionTimezoneTests.cs`) |
-| MySql tests | ~248 (44 test classes; one is `MySqlSessionTimezoneTests` defined in the same shared P2 file) |
-| Sqlite tests | ~259 (42 test classes; includes the SQLite-only `SqliteDatetimeCheckConstraintTests`, `SqliteCommandProfileTests` and `SqliteFileEncodingTests`) |
+| Total test methods | ~1283 (across 225 test class files, including the engine-agnostic `CliToolPresetConsistencyTests` with 16 inline cases; 10 are skipped on purpose) |
+| PostgreSQL tests | ~247 (44 test classes; most use unprefixed filenames as the "base" engine) |
+| SqlServer tests | ~258 (48 test classes, includes 6 block-level tests, 3 resume tests, 12 CLI tool tests, 2 atomic shared connection tests and 1 killed pooled session test) |
+| MariaDb tests | ~250 (45 test classes; one is `MariaDbSessionTimezoneTests` defined alongside `MySqlSessionTimezoneTests` in `P2_MySqlMariaDbSessionTimezoneTests.cs`) |
+| MySql tests | ~250 (45 test classes; one is `MySqlSessionTimezoneTests` defined in the same shared P2 file) |
+| Sqlite tests | ~262 (43 test classes; includes the SQLite-only `SqliteDatetimeCheckConstraintTests`, `SqliteCommandProfileTests` and `SqliteFileEncodingTests`) |
 | Backend migration file sets | 5 engines x 24 files = 120 files |
 | Frontend migration file sets | 5 engines x 16 files = 80 files |
 | Database engines | PostgreSQL, SQL Server, MariaDB, MySQL, SQLite |

@@ -16,8 +16,9 @@ RayMigrator follows Semantic Versioning where applicable.
   merger compares aliases, without regard to case); the other products and
   elements without an alias are left out, elements that repeat the product's
   alias stay so that the rule catalog reports them. `ProductAliases` lists
-  the product aliases of a document. The engine's loader and RayMigrator
-  Studio apply it to the merged document before a run binds it.
+  the product aliases of a document. The engine's loader applies it to the
+  merged document before a run binds it; hosts such as RayMigrator Studio
+  are to apply it the same way.
 - `RayMigratorOptionsPreparer.IsolateProduct` reduces options a host built
   in memory to one product the same way, and `ProductAliasGuard.NotFoundMessage`
   builds the message of an unknown product alias from a list of aliases.
@@ -30,6 +31,10 @@ RayMigrator follows Semantic Versioning where applicable.
   failed; an element without an alias keeps its position. The CLI pipeline
   and `RayMigratorOptionsPreparer` use it in place of
   `ValidateDataAnnotations()`.
+- `EncodingSupport.DefaultEncodingName` (`UTF-8`), the encoding of migration
+  files when the configuration names none, and
+  `RayEncodingAttribute.DefaultValue`, which exposes it for hosts that
+  describe the options.
 
 ### Changed
 
@@ -47,8 +52,10 @@ RayMigrator follows Semantic Versioning where applicable.
   name any of them) are checked for every run as before. A `--product`
   that names none of the configured products now fails while the files
   are loaded, with the message that named the available aliases from the
-  migration context before (exit code 100 as before); files without any
-  product alias are refused later by the data annotations as before.
+  migration context before; `Program.Main` prints it on stdout with exit
+  code 100, as before, but before Serilog is started, so the log file no
+  longer carries it. Files without any product alias are refused later
+  by the data annotations as before.
   Elements of `Products` without an alias are ignored by a run, because
   no `--product` can select them; a blank alias counts as none, a numeric
   alias by its text, as the binder reads it. An alias written as a
@@ -65,16 +72,15 @@ RayMigrator follows Semantic Versioning where applicable.
   they are. Hosts such as RayMigrator Studio that bind a document of their
   own are to isolate it with `ConfigurationProductScope` before they bind.
 - `MigrationFilesEncoding` defaults to UTF-8. A configuration that leaves
-  the encoding out, or empty, on `ProductDefaults` and on a product no
-  longer fails the data annotations: `[RayEncoding]` writes
-  `EncodingSupport.DefaultEncodingName` (`UTF-8`) into the empty value on
-  both levels, as `[RayRangeInt]` writes its numeric defaults, and a named
-  default still cascades into the products. The files were already read as
-  UTF-8 when the value was missing, and `UTF-8` decodes like the strict
-  UTF-8 the engine used for a missing value, so no hash changes and no
-  `update-hash` is needed. The settings snapshot of a run records `UTF-8`
-  where it recorded `null` before. `RayEncodingAttribute.DefaultValue`
-  exposes the name for hosts that describe the options.
+  the encoding out on `ProductDefaults` and on a product no longer fails
+  the data annotations, and an empty value, which passed before and was
+  already read as UTF-8, now gets `UTF-8` written: `[RayEncoding]` writes
+  `EncodingSupport.DefaultEncodingName` into a value that is left out or
+  empty on both levels, as `[RayRangeInt]` writes its numeric defaults,
+  and a named default still cascades into the products. The named `UTF-8`
+  decodes like the strict UTF-8 the engine used for an empty value, so no
+  hash changes and no `update-hash` is needed. The settings snapshot of a
+  run records `UTF-8` where it recorded an empty value before.
 
 ### Fixed
 

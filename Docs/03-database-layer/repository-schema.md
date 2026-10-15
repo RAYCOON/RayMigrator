@@ -581,12 +581,12 @@ Schema and table prefix are configurable:
 {
   "Repository": {
     "SchemaName": "migrations",
-    "TableBaseName": "Ray"
+    "TableBaseName": "rm_"
   }
 }
 ```
 
-**Result**: `migrations.RayMigrationRecord`, `migrations.RayProduct`, etc.
+**Result**: `migrations.rm_MigrationRecord`, `migrations.rm_Product`, etc. on SQL Server, `migrations.rm_migration_record`, `migrations.rm_product`, etc. on PostgreSQL (the prefix must be lowercase on PostgreSQL, MySQL and MariaDB, RULE_4_3).
 
 ## Related Documentation
 
