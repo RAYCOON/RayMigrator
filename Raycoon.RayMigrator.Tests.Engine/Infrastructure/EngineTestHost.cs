@@ -44,7 +44,7 @@ public sealed class EngineTestHost : IDisposable
     /// <summary>
     /// Builds the host with full DI configuration analogous to Program.cs.
     /// </summary>
-    public void Build(
+    public async Task BuildAsync(
         string configFilePath,
         string productAlias,
         MigrationCommand command,
@@ -209,7 +209,7 @@ public sealed class EngineTestHost : IDisposable
             string loggingDatabaseType = rayMigratorOptions.DatabaseLogging!.DatabaseType!;
             var templateCache = _host.Services.GetRequiredService<TemplateCache>();
             var templateExecutor = _host.Services.GetRequiredService<TemplateExecutor>();
-            dbLogWriter.InitDatabaseLogger(loggingDatabaseType, templateCache, templateExecutor);
+            await dbLogWriter.InitDatabaseLoggerAsync(loggingDatabaseType, templateCache, templateExecutor);
 
             if (databaseSink != null)
             {

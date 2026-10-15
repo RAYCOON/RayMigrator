@@ -184,12 +184,12 @@ public class TemplateExecutorEnvironmentIdTests
     /// Invokes a TemplateExecutor method (ignoring any exception from the stub result),
     /// then returns the captured DalParameterList. Fails the test if the DAL was never called.
     /// </summary>
-    private static DalParameterList InvokeAndCapture(
+    private static async Task<DalParameterList> InvokeAndCaptureAsync(
         TemplateExecutor executor,
-        Action<TemplateExecutor> act,
+        Func<TemplateExecutor, Task> act,
         Func<DalParameterList?> getCapture)
     {
-        try { act(executor); } catch { /* DAL returns "1,ok" but some methods may still throw on result parsing */ }
+        try { await act(executor); } catch { /* DAL returns "1,ok" but some methods may still throw on result parsing */ }
 
         getCapture().Should().NotBeNull("DAL must be called so parameters are captured");
         return getCapture()!;
@@ -200,11 +200,11 @@ public class TemplateExecutorEnvironmentIdTests
     #region RepositoryMigrationRunInsert — passes EnvironmentId int, not text @Environment
 
     [Fact]
-    public void RepositoryMigrationRunInsert_PassesEnvironmentIdInt()
+    public async Task RepositoryMigrationRunInsert_PassesEnvironmentIdInt()
     {
         var (executor, _, getCapture) = CreateExecutor(environmentId: TestEnvironmentId);
 
-        InvokeAndCapture(executor, e => e.RepositoryMigrationRunInsert("{}"), getCapture);
+        await InvokeAndCaptureAsync(executor, e => e.RepositoryMigrationRunInsertAsync("{}"), getCapture);
 
         var captured = getCapture()!;
         captured.TryGetValue("EnvironmentId", out var param).Should().BeTrue(
@@ -215,11 +215,11 @@ public class TemplateExecutorEnvironmentIdTests
     }
 
     [Fact]
-    public void RepositoryMigrationRunInsert_PassesTheReleaseTheRunStartsFrom()
+    public async Task RepositoryMigrationRunInsert_PassesTheReleaseTheRunStartsFrom()
     {
         var (executor, _, getCapture) = CreateExecutor(configureContext: ctx => ctx.MigrationState.FromReleaseVersion = "Release_1.0");
 
-        InvokeAndCapture(executor, e => e.RepositoryMigrationRunInsert("{}"), getCapture);
+        await InvokeAndCaptureAsync(executor, e => e.RepositoryMigrationRunInsertAsync("{}"), getCapture);
 
         var captured = getCapture()!;
         captured.TryGetValue("FromReleaseVersion", out var param).Should().BeTrue();
@@ -227,11 +227,11 @@ public class TemplateExecutorEnvironmentIdTests
     }
 
     [Fact]
-    public void RepositoryMigrationRunInsert_FirstRun_PassesNullFromReleaseVersion()
+    public async Task RepositoryMigrationRunInsert_FirstRun_PassesNullFromReleaseVersion()
     {
         var (executor, _, getCapture) = CreateExecutor();
 
-        InvokeAndCapture(executor, e => e.RepositoryMigrationRunInsert("{}"), getCapture);
+        await InvokeAndCaptureAsync(executor, e => e.RepositoryMigrationRunInsertAsync("{}"), getCapture);
 
         var captured = getCapture()!;
         captured.TryGetValue("FromReleaseVersion", out var param).Should().BeTrue();
@@ -240,11 +240,11 @@ public class TemplateExecutorEnvironmentIdTests
     }
 
     [Fact]
-    public void RepositoryMigrationRunInsert_DoesNotPassTextEnvironmentParameter()
+    public async Task RepositoryMigrationRunInsert_DoesNotPassTextEnvironmentParameter()
     {
         var (executor, _, getCapture) = CreateExecutor();
 
-        InvokeAndCapture(executor, e => e.RepositoryMigrationRunInsert("{}"), getCapture);
+        await InvokeAndCaptureAsync(executor, e => e.RepositoryMigrationRunInsertAsync("{}"), getCapture);
 
         var captured = getCapture()!;
         captured.TryGetValue("Environment", out _).Should().BeFalse(
@@ -256,11 +256,11 @@ public class TemplateExecutorEnvironmentIdTests
     #region RepositoryMigrationGetInterrupted — passes EnvironmentId int
 
     [Fact]
-    public void RepositoryMigrationGetInterrupted_PassesEnvironmentIdInt()
+    public async Task RepositoryMigrationGetInterrupted_PassesEnvironmentIdInt()
     {
         var (executor, _, getCapture) = CreateExecutor(environmentId: TestEnvironmentId);
 
-        InvokeAndCapture(executor, e => e.RepositoryMigrationGetInterrupted(), getCapture);
+        await InvokeAndCaptureAsync(executor, e => e.RepositoryMigrationGetInterruptedAsync(), getCapture);
 
         var captured = getCapture()!;
         captured.TryGetValue("EnvironmentId", out var param).Should().BeTrue(
@@ -270,11 +270,11 @@ public class TemplateExecutorEnvironmentIdTests
     }
 
     [Fact]
-    public void RepositoryMigrationGetInterrupted_DoesNotPassTextEnvironmentParameter()
+    public async Task RepositoryMigrationGetInterrupted_DoesNotPassTextEnvironmentParameter()
     {
         var (executor, _, getCapture) = CreateExecutor();
 
-        InvokeAndCapture(executor, e => e.RepositoryMigrationGetInterrupted(), getCapture);
+        await InvokeAndCaptureAsync(executor, e => e.RepositoryMigrationGetInterruptedAsync(), getCapture);
 
         var captured = getCapture()!;
         captured.TryGetValue("Environment", out _).Should().BeFalse(
@@ -286,11 +286,11 @@ public class TemplateExecutorEnvironmentIdTests
     #region RepositoryMigrationInsert — passes EnvironmentId int
 
     [Fact]
-    public void RepositoryMigrationInsert_PassesEnvironmentIdInt()
+    public async Task RepositoryMigrationInsert_PassesEnvironmentIdInt()
     {
         var (executor, _, getCapture) = CreateExecutor(environmentId: TestEnvironmentId);
 
-        InvokeAndCapture(executor, e => e.RepositoryMigrationInsert(
+        await InvokeAndCaptureAsync(executor, e => e.RepositoryMigrationInsertAsync(
             existingMigrationRecordId: 0,
             filename: "10_Create.sql",
             releaseVersion: "Release 1.0",
@@ -312,11 +312,11 @@ public class TemplateExecutorEnvironmentIdTests
     }
 
     [Fact]
-    public void RepositoryMigrationInsert_DoesNotPassTextEnvironmentParameter()
+    public async Task RepositoryMigrationInsert_DoesNotPassTextEnvironmentParameter()
     {
         var (executor, _, getCapture) = CreateExecutor();
 
-        InvokeAndCapture(executor, e => e.RepositoryMigrationInsert(
+        await InvokeAndCaptureAsync(executor, e => e.RepositoryMigrationInsertAsync(
             existingMigrationRecordId: 0,
             filename: "10_Create.sql",
             releaseVersion: "Release 1.0",
@@ -340,11 +340,11 @@ public class TemplateExecutorEnvironmentIdTests
     #region RepositoryMigrationSelect — passes EnvironmentId int
 
     [Fact]
-    public void RepositoryMigrationSelect_PassesEnvironmentIdInt()
+    public async Task RepositoryMigrationSelect_PassesEnvironmentIdInt()
     {
         var (executor, _, getCapture) = CreateExecutor(environmentId: TestEnvironmentId);
 
-        InvokeAndCapture(executor, e => e.RepositoryMigrationSelect(), getCapture);
+        await InvokeAndCaptureAsync(executor, e => e.RepositoryMigrationSelectAsync(), getCapture);
 
         var captured = getCapture()!;
         captured.TryGetValue("EnvironmentId", out var param).Should().BeTrue(
@@ -354,11 +354,11 @@ public class TemplateExecutorEnvironmentIdTests
     }
 
     [Fact]
-    public void RepositoryMigrationSelect_DoesNotPassTextEnvironmentParameter()
+    public async Task RepositoryMigrationSelect_DoesNotPassTextEnvironmentParameter()
     {
         var (executor, _, getCapture) = CreateExecutor();
 
-        InvokeAndCapture(executor, e => e.RepositoryMigrationSelect(), getCapture);
+        await InvokeAndCaptureAsync(executor, e => e.RepositoryMigrationSelectAsync(), getCapture);
 
         var captured = getCapture()!;
         captured.TryGetValue("Environment", out _).Should().BeFalse(
@@ -377,11 +377,11 @@ public class TemplateExecutorEnvironmentIdTests
     }
 
     [Fact]
-    public void RepositoryProductSelect_PassesNameAndNameLower_AndSetsProductIdFromResult()
+    public async Task RepositoryProductSelect_PassesNameAndNameLower_AndSetsProductIdFromResult()
     {
         var (executor, _, getCapture) = CreateExecutor(productId: 0, runMode: MigrationRunMode.Simulate, scalarResult: "42,Product [TestProduct] with Id [42] found");
 
-        bool found = executor.RepositoryProductSelect();
+        bool found = await executor.RepositoryProductSelectAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         found.Should().BeTrue();
         ContextOf(executor).MigrationState.ProductId.Should().Be(42, "the id returned by the template becomes MigrationState.ProductId");
@@ -393,22 +393,22 @@ public class TemplateExecutorEnvironmentIdTests
     }
 
     [Fact]
-    public void RepositoryProductSelect_NotFound_ReturnsFalseAndLeavesProductIdZero()
+    public async Task RepositoryProductSelect_NotFound_ReturnsFalseAndLeavesProductIdZero()
     {
         var (executor, _, _) = CreateExecutor(productId: 0, runMode: MigrationRunMode.Simulate, scalarResult: "0,Product [TestProduct] not found");
 
-        bool found = executor.RepositoryProductSelect();
+        bool found = await executor.RepositoryProductSelectAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         found.Should().BeFalse("result code 0 means the product is not registered yet — not an error");
         ContextOf(executor).MigrationState.ProductId.Should().Be(0);
     }
 
     [Fact]
-    public void RepositoryEnvironmentSelect_PassesNameAndNameLower_AndSetsEnvironmentIdFromResult()
+    public async Task RepositoryEnvironmentSelect_PassesNameAndNameLower_AndSetsEnvironmentIdFromResult()
     {
         var (executor, _, getCapture) = CreateExecutor(environmentId: 0, runMode: MigrationRunMode.Simulate, scalarResult: "7,Environment [Docker] with Id [7] found");
 
-        bool found = executor.RepositoryEnvironmentSelect();
+        bool found = await executor.RepositoryEnvironmentSelectAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         found.Should().BeTrue();
         ContextOf(executor).MigrationState.EnvironmentId.Should().Be(7);
@@ -420,22 +420,22 @@ public class TemplateExecutorEnvironmentIdTests
     }
 
     [Fact]
-    public void RepositoryProductSelect_NegativeResultCode_ThrowsLikeCheckInsert()
+    public async Task RepositoryProductSelect_NegativeResultCode_ThrowsLikeCheckInsert()
     {
         var (executor, _, _) = CreateExecutor(productId: 0, runMode: MigrationRunMode.Simulate, scalarResult: "-1,lookup failed");
 
-        var act = () => executor.RepositoryProductSelect();
+        var act = () => executor.RepositoryProductSelectAsync();
 
-        act.Should().Throw<Exception>("a negative result code is an error for the select exactly as for the CheckInsert template");
+        await act.Should().ThrowAsync<Exception>("a negative result code is an error for the select exactly as for the CheckInsert template");
         ContextOf(executor).MigrationState.ProductId.Should().Be(0, "a failed lookup must not leave a partial id behind");
     }
 
     [Fact]
-    public void RepositoryEnvironmentSelect_NotFound_ReturnsFalseAndLeavesEnvironmentIdZero()
+    public async Task RepositoryEnvironmentSelect_NotFound_ReturnsFalseAndLeavesEnvironmentIdZero()
     {
         var (executor, _, _) = CreateExecutor(environmentId: 0, runMode: MigrationRunMode.Simulate, scalarResult: "0,Environment [Docker] not found");
 
-        bool found = executor.RepositoryEnvironmentSelect();
+        bool found = await executor.RepositoryEnvironmentSelectAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         found.Should().BeFalse();
         ContextOf(executor).MigrationState.EnvironmentId.Should().Be(0);
@@ -458,13 +458,13 @@ public class TemplateExecutorEnvironmentIdTests
     };
 
     [Fact]
-    public void RepositoryMigrationSelect_NullConfigHash_IsReadAsNull()
+    public async Task RepositoryMigrationSelect_NullConfigHash_IsReadAsNull()
     {
         // A file without a TOML block has a null config hash; the insert templates store NULL, so the
         // repository value and a freshly parsed file compare equal without any normalisation (#9).
         var (executor, _, _) = CreateExecutor(readerRows: new List<Dictionary<string, object?>> { RecordRow(null, null) });
 
-        var records = executor.RepositoryMigrationSelect();
+        var records = await executor.RepositoryMigrationSelectAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         records.Should().ContainSingle();
         records[0].FileUpConfigHash.Should().BeNull();
@@ -472,11 +472,11 @@ public class TemplateExecutorEnvironmentIdTests
     }
 
     [Fact]
-    public void RepositoryMigrationSelect_NonEmptyConfigHash_IsKept()
+    public async Task RepositoryMigrationSelect_NonEmptyConfigHash_IsKept()
     {
         var (executor, _, _) = CreateExecutor(readerRows: new List<Dictionary<string, object?>> { RecordRow("cfg-up", "cfg-down") });
 
-        var records = executor.RepositoryMigrationSelect();
+        var records = await executor.RepositoryMigrationSelectAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         records[0].FileUpConfigHash.Should().Be("cfg-up");
         records[0].FileDownConfigHash.Should().Be("cfg-down");
@@ -495,11 +495,11 @@ public class TemplateExecutorEnvironmentIdTests
     [InlineData(MigrationRunMode.Migrate)]
     [InlineData(MigrationRunMode.Simulate)]
     [InlineData(MigrationRunMode.Validate)]
-    public void RepositoryMigrationSelect_AlwaysFiltersOnMigrateRunMode(MigrationRunMode contextRunMode)
+    public async Task RepositoryMigrationSelect_AlwaysFiltersOnMigrateRunMode(MigrationRunMode contextRunMode)
     {
         var (executor, _, getCapture) = CreateExecutor(runMode: contextRunMode);
 
-        InvokeAndCapture(executor, e => e.RepositoryMigrationSelect(), getCapture);
+        await InvokeAndCaptureAsync(executor, e => e.RepositoryMigrationSelectAsync(), getCapture);
 
         var captured = getCapture()!;
         captured.TryGetValue("MigrationRunModeId", out var param).Should().BeTrue(
@@ -515,7 +515,7 @@ public class TemplateExecutorEnvironmentIdTests
         // The overload that let callers pass a run mode was the trap behind #5: every caller that
         // forgot it inherited the context run mode. No overload may take a run mode again.
         var runModeParameters = typeof(TemplateExecutor).GetMethods(BindingFlags.Public | BindingFlags.Instance)
-            .Where(m => m.Name == "RepositoryMigrationSelect")
+            .Where(m => m.Name == "RepositoryMigrationSelectAsync")
             .SelectMany(m => m.GetParameters())
             .Where(p => p.ParameterType == typeof(MigrationRunMode) || p.ParameterType == typeof(MigrationRunMode?))
             .ToList();
@@ -533,26 +533,27 @@ public class TemplateExecutorEnvironmentIdTests
     {
         // Verify method signature: second param must be int (not string)
         var method = typeof(TemplateExecutor).GetMethod(
-            "RepositoryMigrationRunSelectOrphaned",
+            "RepositoryMigrationRunSelectOrphanedAsync",
             BindingFlags.Public | BindingFlags.Instance);
 
         method.Should().NotBeNull("method must exist");
         var parameters = method!.GetParameters();
-        parameters.Should().HaveCount(2, "RepositoryMigrationRunSelectOrphaned(int productId, int environmentId)");
+        parameters.Should().HaveCount(3, "RepositoryMigrationRunSelectOrphanedAsync(int productId, int environmentId, CancellationToken cancellationToken)");
         parameters[0].Name.Should().Be("productId");
         parameters[0].ParameterType.Should().Be(typeof(int));
         parameters[1].Name.Should().Be("environmentId");
         parameters[1].ParameterType.Should().Be(typeof(int),
             "environmentId second parameter must be int after EnvironmentId FK refactor (was text before)");
+        parameters[2].ParameterType.Should().Be(typeof(CancellationToken));
     }
 
     [Fact]
-    public void RepositoryMigrationRunSelectOrphaned_PassesEnvironmentIdInt()
+    public async Task RepositoryMigrationRunSelectOrphaned_PassesEnvironmentIdInt()
     {
         var (executor, _, getCapture) = CreateExecutor(environmentId: TestEnvironmentId);
 
-        InvokeAndCapture(executor,
-            e => e.RepositoryMigrationRunSelectOrphaned(productId: TestProductId, environmentId: TestEnvironmentId),
+        await InvokeAndCaptureAsync(executor,
+            e => e.RepositoryMigrationRunSelectOrphanedAsync(productId: TestProductId, environmentId: TestEnvironmentId),
             getCapture);
 
         var captured = getCapture()!;
@@ -563,12 +564,12 @@ public class TemplateExecutorEnvironmentIdTests
     }
 
     [Fact]
-    public void RepositoryMigrationRunSelectOrphaned_DoesNotPassTextEnvironmentParameter()
+    public async Task RepositoryMigrationRunSelectOrphaned_DoesNotPassTextEnvironmentParameter()
     {
         var (executor, _, getCapture) = CreateExecutor();
 
-        InvokeAndCapture(executor,
-            e => e.RepositoryMigrationRunSelectOrphaned(productId: TestProductId, environmentId: TestEnvironmentId),
+        await InvokeAndCaptureAsync(executor,
+            e => e.RepositoryMigrationRunSelectOrphanedAsync(productId: TestProductId, environmentId: TestEnvironmentId),
             getCapture);
 
         var captured = getCapture()!;

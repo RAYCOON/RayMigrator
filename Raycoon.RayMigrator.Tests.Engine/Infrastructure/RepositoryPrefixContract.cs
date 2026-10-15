@@ -18,7 +18,7 @@ internal static class RepositoryPrefixContract
     public const string FirstPrefix = "a_";
     public const string SecondPrefix = "b_";
 
-    public static void VerifySecondPrefixBesideTheFirst(ScenarioContext first, EngineConfig config)
+    public static async Task VerifySecondPrefixBesideTheFirstAsync(ScenarioContext first, EngineConfig config)
     {
         first.CountMigrationRuns().Should().Be(1, "the first repository recorded its run");
 
@@ -26,7 +26,7 @@ internal static class RepositoryPrefixContract
         var second = new RepositoryQueryHelper(config.DatabaseType, config.ConnectionString, config.SchemaName, SecondPrefix);
         try
         {
-            var created = service.Ensure(new RepositoryOptions
+            var created = await service.EnsureAsync(new RepositoryOptions
             {
                 DatabaseType = config.DatabaseType,
                 ConnectionString = config.ConnectionString,

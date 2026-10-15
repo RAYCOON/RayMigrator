@@ -14,13 +14,13 @@ namespace Raycoon.RayMigrator.Tests.Engine.Infrastructure;
 /// </summary>
 internal static class RepositorySchemaServiceContract
 {
-    public static void VerifyEnsure(EngineConfig config)
+    public static async Task VerifyEnsureAsync(EngineConfig config)
     {
         DatabaseCleanupHelper.CleanDatabase(config.DatabaseType, config.ConnectionString, config.SchemaName);
         var service = new RepositorySchemaService(new TemplateCache(false, NullLogger<TemplateCache>.Instance), NullLogger<RepositorySchemaService>.Instance);
         var query = new RepositoryQueryHelper(config.DatabaseType, config.ConnectionString, config.SchemaName);
 
-        var created = service.Ensure(Repository(config));
+        var created = await service.EnsureAsync(Repository(config));
 
         created.Created.Should().BeTrue();
         created.Upgraded.Should().BeFalse();
@@ -32,7 +32,7 @@ internal static class RepositorySchemaServiceContract
         query.CountRows("MigratorMeta").Should().Be(1);
         query.TableExists("MigrationRecordHistory").Should().BeTrue();
 
-        var again = service.Ensure(Repository(config));
+        var again = await service.EnsureAsync(Repository(config));
 
         again.Created.Should().BeFalse();
         again.Upgraded.Should().BeFalse();

@@ -38,13 +38,13 @@ public class TemplateExecutorRepositoryCreatedLoggingTests
     private const string Throw = "<throw>";
 
     [Fact]
-    public void RepositoryCheckCreate_StepFailsButAParallelStartAppliedIt_SkipsTheStepAndContinues()
+    public async Task RepositoryCheckCreate_StepFailsButAParallelStartAppliedIt_SkipsTheStepAndContinues()
     {
         // Arrange: step 1 fails, the re-read shows the repository at the current version (the other process won the race)
         var (executor, logger, context, calls) = CreateExecutor(Results(NoRepository, [Throw, CurrentRepository, .. StepsFrom(2), MetaRegistered]));
 
         // Act
-        executor.RepositoryCheckCreate();
+        await executor.RepositoryCheckCreateAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert
         calls.Count.Should().Be(1 + 1 + 1 + (RepositorySchema.CurrentVersion - 1) + 1,
@@ -55,42 +55,42 @@ public class TemplateExecutorRepositoryCreatedLoggingTests
     }
 
     [Fact]
-    public void RepositoryCheckCreate_StepFailsAndTheVersionIsUnchanged_ThrowsTheStepError()
+    public async Task RepositoryCheckCreate_StepFailsAndTheVersionIsUnchanged_ThrowsTheStepError()
     {
         // Arrange: step 1 fails and the re-read still reports version 0
         var (executor, _, _, calls) = CreateExecutor(NoRepository, Throw, NoRepository);
 
         // Act
-        var act = () => executor.RepositoryCheckCreate();
+        var act = () => executor.RepositoryCheckCreateAsync();
 
         // Assert
-        act.Should().Throw<TemplateExecutionException>().Which.Message.Should().Contain("Repository_Upgrade_1");
+        (await act.Should().ThrowAsync<TemplateExecutionException>()).Which.Message.Should().Contain("Repository_Upgrade_1");
         calls.Count.Should().Be(3, because: "nothing runs after the failed step");
     }
 
     [Fact]
-    public void RepositoryCheckCreate_StepFailsAndTheReReadFails_ThrowsTheStepError()
+    public async Task RepositoryCheckCreate_StepFailsAndTheReReadFails_ThrowsTheStepError()
     {
         // Arrange: step 1 fails and so does the re-read of the version
         var (executor, logger, _, _) = CreateExecutor(NoRepository, Throw, Throw);
 
         // Act
-        var act = () => executor.RepositoryCheckCreate();
+        var act = () => executor.RepositoryCheckCreateAsync();
 
         // Assert
-        act.Should().Throw<TemplateExecutionException>().Which.Message.Should().Contain("Repository_Upgrade_1",
+        (await act.Should().ThrowAsync<TemplateExecutionException>()).Which.Message.Should().Contain("Repository_Upgrade_1",
             because: "the step's own error surfaces, not the failed re-read");
         logger.Entries.Should().Contain(e => e.LogLevel == LogLevel.Debug && e.Message.Contains("Could not re-read"));
     }
 
     [Fact]
-    public void RepositoryCheckCreate_FreshRepository_AppliesEveryStepAndLogsCreated()
+    public async Task RepositoryCheckCreate_FreshRepository_AppliesEveryStepAndLogsCreated()
     {
         // Arrange
         var (executor, logger, context, calls) = CreateExecutor(Results(NoRepository, [.. StepsFrom(1), MetaRegistered]));
 
         // Act
-        executor.RepositoryCheckCreate();
+        await executor.RepositoryCheckCreateAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert
         calls.Count.Should().Be(2 + RepositorySchema.CurrentVersion, because: "the check, every step and the MigratorMeta registration each execute one template");
@@ -100,13 +100,13 @@ public class TemplateExecutorRepositoryCreatedLoggingTests
     }
 
     [Fact]
-    public void RepositoryCheckCreate_CurrentRepository_RegistersTheVersionOnly()
+    public async Task RepositoryCheckCreate_CurrentRepository_RegistersTheVersionOnly()
     {
         // Arrange
         var (executor, logger, context, calls) = CreateExecutor(CurrentRepository, MetaRegistered);
 
         // Act
-        executor.RepositoryCheckCreate();
+        await executor.RepositoryCheckCreateAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert
         calls.Count.Should().Be(2, because: "a repository at the target version runs no step");
@@ -116,13 +116,13 @@ public class TemplateExecutorRepositoryCreatedLoggingTests
     }
 
     [Fact]
-    public void RepositoryCheckCreate_OlderRepository_AppliesTheMissingStepsAndLogsUpgraded()
+    public async Task RepositoryCheckCreate_OlderRepository_AppliesTheMissingStepsAndLogsUpgraded()
     {
         // Arrange: a repository at version 1 while the engine expects CurrentVersion
         var (executor, logger, context, calls) = CreateExecutor(Results("1,1,RayMigrator repository has schema version [1]", [.. StepsFrom(2), MetaRegistered]));
 
         // Act
-        executor.RepositoryCheckCreate();
+        await executor.RepositoryCheckCreateAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert
         calls.Count.Should().Be(1 + (RepositorySchema.CurrentVersion - 1) + 1, because: "only the steps above version 1 run");
@@ -132,16 +132,16 @@ public class TemplateExecutorRepositoryCreatedLoggingTests
     }
 
     [Fact]
-    public void RepositoryCheckCreate_TablesWithoutSchemaVersion_ThrowsBeforeAnyStep()
+    public async Task RepositoryCheckCreate_TablesWithoutSchemaVersion_ThrowsBeforeAnyStep()
     {
         // Arrange
         var (executor, _, context, calls) = CreateExecutor(Results(LegacyRepository, [.. StepsFrom(1), MetaRegistered]));
 
         // Act
-        var act = () => executor.RepositoryCheckCreate();
+        var act = () => executor.RepositoryCheckCreateAsync();
 
         // Assert
-        var ex = act.Should().Throw<RepositorySchemaException>().Which;
+        var ex = (await act.Should().ThrowAsync<RepositorySchemaException>()).Which;
         ex.Message.Should().Contain("before 0.17.0").And.Contain("schema [ray]");
         ex.RepositoryVersion.Should().Be(0);
         ex.SupportedVersion.Should().Be(RepositorySchema.CurrentVersion);
@@ -150,42 +150,42 @@ public class TemplateExecutorRepositoryCreatedLoggingTests
     }
 
     [Fact]
-    public void RepositoryCheckCreate_RepositoryNewerThanEngine_ThrowsBeforeAnyStep()
+    public async Task RepositoryCheckCreate_RepositoryNewerThanEngine_ThrowsBeforeAnyStep()
     {
         // Arrange
         var (executor, _, _, calls) = CreateExecutor($"{RepositorySchema.CurrentVersion + 3},1,RayMigrator repository has schema version [{RepositorySchema.CurrentVersion + 3}]", MetaRegistered);
 
         // Act
-        var act = () => executor.RepositoryCheckCreate();
+        var act = () => executor.RepositoryCheckCreateAsync();
 
         // Assert
-        var ex = act.Should().Throw<RepositorySchemaException>().Which;
+        var ex = (await act.Should().ThrowAsync<RepositorySchemaException>()).Which;
         ex.Message.Should().Contain($"schema version [{RepositorySchema.CurrentVersion + 3}]").And.Contain($"version [{RepositorySchema.CurrentVersion}] at most").And.Contain("RayMigrator [3.0.0]");
         ex.RepositoryVersion.Should().Be(RepositorySchema.CurrentVersion + 3);
         calls.Count.Should().Be(1);
     }
 
     [Fact]
-    public void RepositoryCheckCreate_StepReturnsAnotherCode_Throws()
+    public async Task RepositoryCheckCreate_StepReturnsAnotherCode_Throws()
     {
         // Arrange
         var (executor, _, _, _) = CreateExecutor(NoRepository, "99,wrong step", MetaRegistered);
 
         // Act
-        var act = () => executor.RepositoryCheckCreate();
+        var act = () => executor.RepositoryCheckCreateAsync();
 
         // Assert
-        act.Should().Throw<TemplateResultException>().Which.Message.Should().Contain("step [1]").And.Contain("[99]");
+        (await act.Should().ThrowAsync<TemplateResultException>()).Which.Message.Should().Contain("step [1]").And.Contain("[99]");
     }
 
     [Fact]
-    public void RepositoryCheckCreate_BindsTheVersionAndDatabaseTypeParameters()
+    public async Task RepositoryCheckCreate_BindsTheVersionAndDatabaseTypeParameters()
     {
         // Arrange
         var (executor, _, _, calls) = CreateExecutor(Results(NoRepository, [.. StepsFrom(1), MetaRegistered]));
 
         // Act
-        executor.RepositoryCheckCreate();
+        await executor.RepositoryCheckCreateAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert
         calls[0].Should().BeNull(because: "Repository_CheckCreate takes no parameters");
@@ -202,7 +202,7 @@ public class TemplateExecutorRepositoryCreatedLoggingTests
     }
 
     [Fact]
-    public void RepositoryCheckCreate_SensitiveDataNotRevealed_MasksTheSchemaName()
+    public async Task RepositoryCheckCreate_SensitiveDataNotRevealed_MasksTheSchemaName()
     {
         // Arrange
         using var scope = SensitiveDataMasker.BeginScope(revealSensitiveData: false);
@@ -210,7 +210,7 @@ public class TemplateExecutorRepositoryCreatedLoggingTests
         var (executor, logger, _, _) = CreateExecutor(Results(NoRepository, [.. StepsFrom(1), MetaRegistered]));
 
         // Act
-        executor.RepositoryCheckCreate();
+        await executor.RepositoryCheckCreateAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert
         string line = logger.Entries.Single(e => e.LogLevel == LogLevel.Information).Message;
@@ -218,7 +218,7 @@ public class TemplateExecutorRepositoryCreatedLoggingTests
     }
 
     [Fact]
-    public void RepositoryCheckCreate_SensitiveDataRevealed_ShowsTheSchemaName()
+    public async Task RepositoryCheckCreate_SensitiveDataRevealed_ShowsTheSchemaName()
     {
         // Arrange
         using var scope = SensitiveDataMasker.BeginScope(revealSensitiveData: true);
@@ -226,7 +226,7 @@ public class TemplateExecutorRepositoryCreatedLoggingTests
         var (executor, logger, _, _) = CreateExecutor(Results(NoRepository, [.. StepsFrom(1), MetaRegistered]));
 
         // Act
-        executor.RepositoryCheckCreate();
+        await executor.RepositoryCheckCreateAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert
         logger.Entries.Single(e => e.LogLevel == LogLevel.Information).Message.Should().Contain("schema [ray]");

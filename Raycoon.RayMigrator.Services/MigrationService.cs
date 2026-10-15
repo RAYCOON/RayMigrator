@@ -106,12 +106,12 @@ public class MigrationService : IMigrationService
 
             if (request.RunMode.ShouldWriteRepository())
             {
-                await Task.Run(() => _templateExecutor.RepositoryCheckCreate());
-                await Task.Run(() => _templateExecutor.RepositoryProductCheckInsert());
-                await Task.Run(() => _templateExecutor.RepositoryEnvironmentCheckInsert());
+                await _templateExecutor.RepositoryCheckCreateAsync();
+                await _templateExecutor.RepositoryProductCheckInsertAsync();
+                await _templateExecutor.RepositoryEnvironmentCheckInsertAsync();
 
                 // Check for interrupted migrations
-                var interruptedMigration = await Task.Run(() => _templateExecutor.RepositoryMigrationGetInterrupted());
+                var interruptedMigration = await _templateExecutor.RepositoryMigrationGetInterruptedAsync();
                 if (interruptedMigration != null)
                 {
                     _logger.LogWarning(
@@ -136,7 +136,7 @@ public class MigrationService : IMigrationService
                 _logger.LogInformation("No migration files found for product {Product}", request.ProductAlias);
                 if (request.RunMode.ShouldWriteRepository())
                 {
-                    await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(MigrationRunResult.Ok));
+                    await _templateExecutor.RepositoryMigrationRunUpdateAsync(MigrationRunResult.Ok);
                 }
                 return new MigrationOperationResult
                 {
@@ -152,7 +152,7 @@ public class MigrationService : IMigrationService
             }
 
             // Query existing migrations from repository and filter.
-            // RepositoryMigrationSelect always reads Migrate-mode records (the only ones that exist),
+            // RepositoryMigrationSelectAsync always reads Migrate-mode records (the only ones that exist),
             // so Simulate mode sees the same records as Migrate mode.
             List<MigrationFileInfo> filesToMigrate;
             List<MigrationRecord> existingRecords;
@@ -169,8 +169,7 @@ public class MigrationService : IMigrationService
                     }
                     else
                     {
-                        existingRecords = await Task.Run(() =>
-                            _templateExecutor.RepositoryMigrationSelect());
+                        existingRecords = await _templateExecutor.RepositoryMigrationSelectAsync();
                         filesToMigrate = FilterAlreadyMigratedFiles(migrationFiles, existingRecords, productOptions);
                     }
                 }
@@ -235,7 +234,7 @@ public class MigrationService : IMigrationService
                 _logger.LogInformation("All migration files already applied for product {Product}", request.ProductAlias);
                 if (request.RunMode.ShouldWriteRepository())
                 {
-                    await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(MigrationRunResult.Ok));
+                    await _templateExecutor.RepositoryMigrationRunUpdateAsync(MigrationRunResult.Ok);
                 }
                 return new MigrationOperationResult
                 {
@@ -332,7 +331,7 @@ public class MigrationService : IMigrationService
                                 runResult = MigrationRunResult.Recovered;
                             }
 
-                            await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(runResult, errorMessage: lastErrorMessage));
+                            await _templateExecutor.RepositoryMigrationRunUpdateAsync(runResult, errorMessage: lastErrorMessage);
                         }
 
                         return new MigrationOperationResult
@@ -363,7 +362,7 @@ public class MigrationService : IMigrationService
             var finalResult = failedMigrations > 0 ? MigrationRunResult.PartialSuccess : MigrationRunResult.Ok;
             if (request.RunMode.ShouldWriteRepository())
             {
-                await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(finalResult, errorMessage: failedMigrations > 0 ? lastErrorMessage : null));
+                await _templateExecutor.RepositoryMigrationRunUpdateAsync(finalResult, errorMessage: failedMigrations > 0 ? lastErrorMessage : null);
             }
 
             if (failedMigrations > 0)
@@ -422,7 +421,7 @@ public class MigrationService : IMigrationService
                 {
                     if (_ctxAccessor.Current.MigrationState.MigrationRunId > 0)
                     {
-                        await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(MigrationRunResult.Error, ExtractErrorCode(ex)?.ToString(), ex.Message));
+                        await _templateExecutor.RepositoryMigrationRunUpdateAsync(MigrationRunResult.Error, ExtractErrorCode(ex)?.ToString(), ex.Message);
                     }
                 }
                 catch (Exception finalizeEx)
@@ -509,7 +508,7 @@ public class MigrationService : IMigrationService
                     // OPT-1: Check if a previous run completed all blocks but wasn't finalized
                     if (request.RunMode.ShouldWriteRepository())
                     {
-                        int finalizedId = TryFinalizeCompletedMigration(file, targetOptions.Alias!, existingRecords);
+                        int finalizedId = await TryFinalizeCompletedMigrationAsync(file, targetOptions.Alias!, existingRecords);
                         if (finalizedId > 0)
                         {
                             successfullyMigratedRecords.Add((file, finalizedId, targetOptions.Alias!));
@@ -533,7 +532,7 @@ public class MigrationService : IMigrationService
                     int migrationRecordId = 0;
                     if (request.RunMode.ShouldWriteRepository())
                     {
-                        migrationRecordId = await Task.Run(() => _templateExecutor.RepositoryMigrationInsert(
+                        migrationRecordId = await _templateExecutor.RepositoryMigrationInsertAsync(
                             existingMigrationRecordId,
                             file.Filename,
                             file.ReleaseVersion,
@@ -545,7 +544,7 @@ public class MigrationService : IMigrationService
                             file.FileUpBlocksHash,
                             file.FileUpBlocksTotal,
                             file.FileUpConfigJson,
-                            file.MigrateDownFileExists));
+                            file.MigrateDownFileExists);
 
                         if (existingMigrationRecordId > 0)
                             migrationRecordId = existingMigrationRecordId;
@@ -601,8 +600,8 @@ public class MigrationService : IMigrationService
                             // Ignore mode attempts every block and skips the failed ones, so the committed blocks are
                             // not a contiguous prefix. Store the total so that FindResumableBlock never resumes this
                             // record; the next run re-executes the whole file (#11).
-                            await Task.Run(() => _templateExecutor.RepositoryMigrationUpdate(
-                                migrationRecordId, MigrationStatus.Failed, file.FileUpBlocksTotal));
+                            await _templateExecutor.RepositoryMigrationUpdateAsync(
+                                migrationRecordId, MigrationStatus.Failed, file.FileUpBlocksTotal);
                         }
 
                         break; // Skip remaining targets for this file
@@ -610,8 +609,8 @@ public class MigrationService : IMigrationService
 
                     if (!atomicCommitCompleted && request.RunMode.ShouldWriteRepository())
                     {
-                        await Task.Run(() => _templateExecutor.RepositoryMigrationUpdate(
-                            migrationRecordId, MigrationStatus.Migrated, file.FileUpBlocksTotal));
+                        await _templateExecutor.RepositoryMigrationUpdateAsync(
+                            migrationRecordId, MigrationStatus.Migrated, file.FileUpBlocksTotal);
                     }
 
                     successfullyMigratedRecords.Add((file, migrationRecordId, targetOptions.Alias!));
@@ -663,9 +662,9 @@ public class MigrationService : IMigrationService
                     // A failure before the record insert has no record to mark
                     if (request.RunMode.ShouldWriteRepository() && currentRecordId > 0)
                     {
-                        await Task.Run(() => _templateExecutor.RepositoryMigrationUpdate(
+                        await _templateExecutor.RepositoryMigrationUpdateAsync(
                             currentRecordId, MigrationStatus.Failed,
-                            ignoreErrors ? file.FileUpBlocksTotal : _ctxAccessor.Current.MigrationState.FileBlocksCommitted));
+                            ignoreErrors ? file.FileUpBlocksTotal : _ctxAccessor.Current.MigrationState.FileBlocksCommitted);
                     }
                 }
                 catch (Exception updateEx)
@@ -764,7 +763,7 @@ public class MigrationService : IMigrationService
                     // OPT-1: Check if a previous run completed all blocks but wasn't finalized
                     if (request.RunMode.ShouldWriteRepository())
                     {
-                        int finalizedId = TryFinalizeCompletedMigration(file, targetOptions.Alias!, existingRecords);
+                        int finalizedId = await TryFinalizeCompletedMigrationAsync(file, targetOptions.Alias!, existingRecords);
                         if (finalizedId > 0)
                         {
                             successfullyMigratedRecords.Add((file, finalizedId, targetOptions.Alias!));
@@ -801,7 +800,7 @@ public class MigrationService : IMigrationService
                     int migrationRecordId = 0;
                     if (request.RunMode.ShouldWriteRepository())
                     {
-                        migrationRecordId = await Task.Run(() => _templateExecutor.RepositoryMigrationInsert(
+                        migrationRecordId = await _templateExecutor.RepositoryMigrationInsertAsync(
                             existingMigrationRecordId,
                             file.Filename,
                             file.ReleaseVersion,
@@ -813,7 +812,7 @@ public class MigrationService : IMigrationService
                             file.FileUpBlocksHash,
                             file.FileUpBlocksTotal,
                             file.FileUpConfigJson,
-                            file.MigrateDownFileExists));
+                            file.MigrateDownFileExists);
 
                         if (existingMigrationRecordId > 0)
                             migrationRecordId = existingMigrationRecordId;
@@ -867,8 +866,8 @@ public class MigrationService : IMigrationService
                             // Ignore mode attempts every block and skips the failed ones, so the committed blocks are
                             // not a contiguous prefix. Store the total so that FindResumableBlock never resumes this
                             // record; the next run re-executes the whole file (#11).
-                            await Task.Run(() => _templateExecutor.RepositoryMigrationUpdate(
-                                migrationRecordId, MigrationStatus.Failed, file.FileUpBlocksTotal));
+                            await _templateExecutor.RepositoryMigrationUpdateAsync(
+                                migrationRecordId, MigrationStatus.Failed, file.FileUpBlocksTotal);
                         }
 
                         result.FailCount++;
@@ -889,8 +888,8 @@ public class MigrationService : IMigrationService
 
                     if (!atomicCommitCompleted && request.RunMode.ShouldWriteRepository())
                     {
-                        await Task.Run(() => _templateExecutor.RepositoryMigrationUpdate(
-                            migrationRecordId, MigrationStatus.Migrated, file.FileUpBlocksTotal));
+                        await _templateExecutor.RepositoryMigrationUpdateAsync(
+                            migrationRecordId, MigrationStatus.Migrated, file.FileUpBlocksTotal);
                     }
 
                     successfullyMigratedRecords.Add((file, migrationRecordId, targetOptions.Alias!));
@@ -927,9 +926,9 @@ public class MigrationService : IMigrationService
                         // A failure before the record insert has no record to mark
                         if (request.RunMode.ShouldWriteRepository() && currentRecordId > 0)
                         {
-                            await Task.Run(() => _templateExecutor.RepositoryMigrationUpdate(
+                            await _templateExecutor.RepositoryMigrationUpdateAsync(
                                 currentRecordId, MigrationStatus.Failed,
-                                ignoreErrors ? file.FileUpBlocksTotal : _ctxAccessor.Current.MigrationState.FileBlocksCommitted));
+                                ignoreErrors ? file.FileUpBlocksTotal : _ctxAccessor.Current.MigrationState.FileBlocksCommitted);
                         }
                     }
                     catch (Exception updateEx)
@@ -1410,9 +1409,9 @@ public class MigrationService : IMigrationService
 
             if (request.RunMode.ShouldWriteRepository())
             {
-                await Task.Run(() => _templateExecutor.RepositoryCheckCreate());
-                await Task.Run(() => _templateExecutor.RepositoryProductCheckInsert());
-                await Task.Run(() => _templateExecutor.RepositoryEnvironmentCheckInsert());
+                await _templateExecutor.RepositoryCheckCreateAsync();
+                await _templateExecutor.RepositoryProductCheckInsertAsync();
+                await _templateExecutor.RepositoryEnvironmentCheckInsertAsync();
 
                 var settingsJson = BuildMigrationRunSettingsJson(_ctxAccessor.Current);
                 _logger.LogTrace("MigrationRun settings snapshot:\n{SettingsJson}", settingsJson);
@@ -1420,7 +1419,7 @@ public class MigrationService : IMigrationService
             }
 
             // --- Phase 2: Query migrations for rollback ---
-            // RepositoryMigrationSelect always reads Migrate-mode records (the only ones that exist).
+            // RepositoryMigrationSelectAsync always reads Migrate-mode records (the only ones that exist).
             List<MigrationRecord> existingRecords;
             try
             {
@@ -1432,8 +1431,7 @@ public class MigrationService : IMigrationService
                 }
                 else
                 {
-                    existingRecords = await Task.Run(() =>
-                        _templateExecutor.RepositoryMigrationSelect());
+                    existingRecords = await _templateExecutor.RepositoryMigrationSelectAsync();
                 }
             }
             catch (Exception ex) when (!request.RunMode.ShouldWriteRepository())
@@ -1475,7 +1473,7 @@ public class MigrationService : IMigrationService
                     request.ProductAlias, request.TargetReleaseVersion);
                 if (request.RunMode.ShouldWriteRepository())
                 {
-                    await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(MigrationRunResult.Ok));
+                    await _templateExecutor.RepositoryMigrationRunUpdateAsync(MigrationRunResult.Ok);
                 }
                 return new MigrationOperationResult
                 {
@@ -1521,7 +1519,7 @@ public class MigrationService : IMigrationService
             var finalResult = rollbackResult.RunResult;
             if (request.RunMode.ShouldWriteRepository())
             {
-                await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(finalResult));
+                await _templateExecutor.RepositoryMigrationRunUpdateAsync(finalResult);
             }
 
             _logger.LogInformation("Migrate-Down completed for product {Product}: {Successful}/{Total} rollbacks successful",
@@ -1554,7 +1552,7 @@ public class MigrationService : IMigrationService
                 {
                     if (_ctxAccessor.Current.MigrationState.MigrationRunId > 0)
                     {
-                        await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(MigrationRunResult.Error, ExtractErrorCode(ex)?.ToString(), ex.Message));
+                        await _templateExecutor.RepositoryMigrationRunUpdateAsync(MigrationRunResult.Error, ExtractErrorCode(ex)?.ToString(), ex.Message);
                     }
                 }
                 catch (Exception finalizeEx)
@@ -1658,7 +1656,7 @@ public class MigrationService : IMigrationService
             if (migrationFiles.Count == 0)
             {
                 _logger.LogInformation("No migration files found for product {Product}", request.ProductAlias);
-                await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(MigrationRunResult.Ok));
+                await _templateExecutor.RepositoryMigrationRunUpdateAsync(MigrationRunResult.Ok);
                 return new BaselineResult
                 {
                     Success = true,
@@ -1681,7 +1679,7 @@ public class MigrationService : IMigrationService
             if (filesToBaseline.Count == 0)
             {
                 _logger.LogInformation("No migration files found for {ReleaseScope}", releaseLabel);
-                await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(MigrationRunResult.Ok));
+                await _templateExecutor.RepositoryMigrationRunUpdateAsync(MigrationRunResult.Ok);
                 return new BaselineResult
                 {
                     Success = true,
@@ -1696,13 +1694,13 @@ public class MigrationService : IMigrationService
             }
 
             // Query existing migrations and filter out already-migrated files
-            var existingRecords = await Task.Run(() => _templateExecutor.RepositoryMigrationSelect());
+            var existingRecords = await _templateExecutor.RepositoryMigrationSelectAsync();
             filesToBaseline = FilterAlreadyMigratedFiles(filesToBaseline, existingRecords, productOptions);
 
             if (filesToBaseline.Count == 0)
             {
                 _logger.LogInformation("All files for {ReleaseScope} are already migrated", releaseLabel);
-                await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(MigrationRunResult.Ok));
+                await _templateExecutor.RepositoryMigrationRunUpdateAsync(MigrationRunResult.Ok);
                 return new BaselineResult
                 {
                     Success = true,
@@ -1803,7 +1801,7 @@ public class MigrationService : IMigrationService
                     r.TargetAlias == targetOptions.Alias);
                 int existingMigrationRecordId = existingRecord?.Id ?? 0;
 
-                int migrationRecordId = await Task.Run(() => _templateExecutor.RepositoryMigrationInsert(
+                int migrationRecordId = await _templateExecutor.RepositoryMigrationInsertAsync(
                     existingMigrationRecordId,
                     file.Filename,
                     file.ReleaseVersion,
@@ -1815,7 +1813,7 @@ public class MigrationService : IMigrationService
                     file.FileUpBlocksHash,
                     file.FileUpBlocksTotal,
                     file.FileUpConfigJson,
-                    file.MigrateDownFileExists));
+                    file.MigrateDownFileExists);
 
                 if (existingMigrationRecordId > 0)
                     migrationRecordId = existingMigrationRecordId;
@@ -1823,8 +1821,8 @@ public class MigrationService : IMigrationService
                 baselineInProgress = (file, targetOptions.Alias!, migrationRecordId, baselineStart);
                 ReportFileStarted(MigrationOperation.Baseline, file, targetOptions.Alias!, migrationRecordId, 0, baselineStart);
 
-                await Task.Run(() => _templateExecutor.RepositoryMigrationUpdate(
-                    migrationRecordId, MigrationStatus.Migrated, file.FileUpBlocksTotal));
+                await _templateExecutor.RepositoryMigrationUpdateAsync(
+                    migrationRecordId, MigrationStatus.Migrated, file.FileUpBlocksTotal);
                 baselinedRecords++;
                 baselineInProgress = null;
                 ReportFileCompleted(MigrationOperation.Baseline, file, targetOptions.Alias!, migrationRecordId, FileOutcome.Baselined, baselineStart);
@@ -1834,7 +1832,7 @@ public class MigrationService : IMigrationService
             }
 
             // --- Phase 5: Finalization ---
-            await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(MigrationRunResult.Ok));
+            await _templateExecutor.RepositoryMigrationRunUpdateAsync(MigrationRunResult.Ok);
 
             return new BaselineResult
             {
@@ -1863,7 +1861,7 @@ public class MigrationService : IMigrationService
             {
                 if (_ctxAccessor.Current.MigrationState.MigrationRunId > 0)
                 {
-                    await Task.Run(() => _templateExecutor.RepositoryMigrationRunUpdate(MigrationRunResult.Error, ExtractErrorCode(ex)?.ToString(), ex.Message));
+                    await _templateExecutor.RepositoryMigrationRunUpdateAsync(MigrationRunResult.Error, ExtractErrorCode(ex)?.ToString(), ex.Message);
                 }
             }
             catch (Exception finalizeEx)
@@ -1979,8 +1977,8 @@ public class MigrationService : IMigrationService
                         // RequireRollbackFile=true + file missing = structural error → abort chain regardless of RollbackErrorAction
                         if (runMode.ShouldWriteRepository())
                         {
-                            await Task.Run(() => _templateExecutor.RepositoryMigrationUpdate(
-                                record.Id, MigrationStatus.Failed, record.FileUpBlocksMigrated));
+                            await _templateExecutor.RepositoryMigrationUpdateAsync(
+                                record.Id, MigrationStatus.Failed, record.FileUpBlocksMigrated);
                         }
 
                         ReportRollbackFileCompleted(FileOutcome.RollbackFailed, $"Required rollback file not found: {rollbackFilename}");
@@ -2055,7 +2053,7 @@ public class MigrationService : IMigrationService
                 // Update migration record with rollback metadata (initial)
                 if (runMode.ShouldWriteRepository())
                 {
-                    await Task.Run(() => _templateExecutor.RepositoryMigrationUpdateRollback(
+                    await _templateExecutor.RepositoryMigrationUpdateRollbackAsync(
                         record.Id,
                         MigrationStatus.Executing,
                         rollbackFileInfo.FileUpHash,
@@ -2063,7 +2061,7 @@ public class MigrationService : IMigrationService
                         rollbackFileInfo.FileUpBlocksHash,
                         0,
                         rollbackFileInfo.FileUpBlocksTotal,
-                        rollbackFileInfo.FileUpConfigJson));
+                        rollbackFileInfo.FileUpConfigJson);
                 }
 
                 ReportRollbackFileStarted(rollbackFileInfo.FileUpBlocksTotal, record.FileDownBlocksMigrated ?? 0);
@@ -2135,7 +2133,8 @@ public class MigrationService : IMigrationService
                             try
                             {
                                 await ExecuteRollbackBlocksAtomic(
-                                    rollbackFileInfo, targetDal!, dalSettings, record, runMode, rollbackStartBlock, RollbackOperation(isErrorRecovery));
+                                    rollbackFileInfo, targetDal!, dalSettings, record, runMode, rollbackStartBlock, RollbackOperation(isErrorRecovery),
+                                    CancellationToken.None);
                                 atomicRollbackDone = true;
                             }
                             catch (Exception blockEx)
@@ -2148,7 +2147,7 @@ public class MigrationService : IMigrationService
 
                                 if (runMode.ShouldWriteRepository())
                                 {
-                                    await Task.Run(() => _templateExecutor.RepositoryMigrationUpdateRollback(
+                                    await _templateExecutor.RepositoryMigrationUpdateRollbackAsync(
                                         record.Id,
                                         MigrationStatus.Failed,
                                         rollbackFileInfo.FileUpHash,
@@ -2156,7 +2155,7 @@ public class MigrationService : IMigrationService
                                         rollbackFileInfo.FileUpBlocksHash,
                                         0,
                                         rollbackFileInfo.FileUpBlocksTotal,
-                                        rollbackFileInfo.FileUpConfigJson));
+                                        rollbackFileInfo.FileUpConfigJson);
                                 }
 
                                 ReportRollbackFileCompleted(FileOutcome.RollbackFailed, $"Atomic rollback failed: {blockEx.Message}");
@@ -2187,7 +2186,7 @@ public class MigrationService : IMigrationService
                                     await targetDal!.ExecuteNonQueryAsync(sqlBlock, dalSettings);
 
                                     // Update block progress
-                                    await Task.Run(() => _templateExecutor.RepositoryMigrationUpdateRollback(
+                                    await _templateExecutor.RepositoryMigrationUpdateRollbackAsync(
                                         record.Id,
                                         MigrationStatus.Executing,
                                         rollbackFileInfo.FileUpHash,
@@ -2195,7 +2194,7 @@ public class MigrationService : IMigrationService
                                         rollbackFileInfo.FileUpBlocksHash,
                                         blockIndex + 1,
                                         rollbackFileInfo.FileUpBlocksTotal,
-                                        rollbackFileInfo.FileUpConfigJson));
+                                        rollbackFileInfo.FileUpConfigJson);
                                     ReportBlockCompleted(RollbackOperation(isErrorRecovery), record, rollbackFileInfo.FileUpBlocksTotal, blockIndex + 1, true, null);
                                 }
                                 catch (Exception blockEx)
@@ -2207,7 +2206,7 @@ public class MigrationService : IMigrationService
                                             blockIndex + 1, rollbackFileInfo.FileUpBlocksTotal, record.Id, record.Filename);
 
                                         // Mark as failed - cannot recover from a failed rollback
-                                        await Task.Run(() => _templateExecutor.RepositoryMigrationUpdateRollback(
+                                        await _templateExecutor.RepositoryMigrationUpdateRollbackAsync(
                                             record.Id,
                                             MigrationStatus.Failed,
                                             rollbackFileInfo.FileUpHash,
@@ -2215,7 +2214,7 @@ public class MigrationService : IMigrationService
                                             rollbackFileInfo.FileUpBlocksHash,
                                             blockIndex,
                                             rollbackFileInfo.FileUpBlocksTotal,
-                                            rollbackFileInfo.FileUpConfigJson));
+                                            rollbackFileInfo.FileUpConfigJson);
 
                                         ReportRollbackFileCompleted(FileOutcome.RollbackFailed, $"Rollback block {blockIndex + 1} failed: {blockEx.Message}");
 
@@ -2249,7 +2248,7 @@ public class MigrationService : IMigrationService
                     // At least one block failed with Ignore — mark file as Failed
                     if (runMode.ShouldWriteRepository())
                     {
-                        await Task.Run(() => _templateExecutor.RepositoryMigrationUpdateRollback(
+                        await _templateExecutor.RepositoryMigrationUpdateRollbackAsync(
                             record.Id,
                             MigrationStatus.Failed,
                             rollbackFileInfo.FileUpHash,
@@ -2257,7 +2256,7 @@ public class MigrationService : IMigrationService
                             rollbackFileInfo.FileUpBlocksHash,
                             rollbackFileInfo.FileUpBlocksTotal,
                             rollbackFileInfo.FileUpBlocksTotal,
-                            rollbackFileInfo.FileUpConfigJson));
+                            rollbackFileInfo.FileUpConfigJson);
                     }
 
                     result.AddWarning(record.Filename, "Rollback completed with errors (some blocks failed, RollbackErrorAction=Ignore)");
@@ -2268,7 +2267,7 @@ public class MigrationService : IMigrationService
                     // All rollback blocks successful
                     if (runMode.ShouldWriteRepository())
                     {
-                        await Task.Run(() => _templateExecutor.RepositoryMigrationUpdateRollback(
+                        await _templateExecutor.RepositoryMigrationUpdateRollbackAsync(
                             record.Id,
                             MigrationStatus.NotMigrated,
                             rollbackFileInfo.FileUpHash,
@@ -2276,7 +2275,7 @@ public class MigrationService : IMigrationService
                             rollbackFileInfo.FileUpBlocksHash,
                             rollbackFileInfo.FileUpBlocksTotal,
                             rollbackFileInfo.FileUpBlocksTotal,
-                            rollbackFileInfo.FileUpConfigJson));
+                            rollbackFileInfo.FileUpConfigJson);
                     }
 
                     result.SuccessCount++;
@@ -3211,8 +3210,8 @@ public class MigrationService : IMigrationService
 
             if (runMode.ShouldWriteRepository())
             {
-                await Task.Run(() => _templateExecutor.RepositoryMigrationUpdate(
-                    migrationRecordId, MigrationStatus.Executing, 1));
+                await _templateExecutor.RepositoryMigrationUpdateAsync(
+                    migrationRecordId, MigrationStatus.Executing, 1);
             }
 
             return (file.FileUpBlocksTotal, 0);
@@ -3245,8 +3244,8 @@ public class MigrationService : IMigrationService
         };
 
         // Update repository: mark as executing
-        await Task.Run(() => _templateExecutor.RepositoryMigrationUpdate(
-            migrationRecordId, MigrationStatus.Executing, 1));
+        await _templateExecutor.RepositoryMigrationUpdateAsync(
+            migrationRecordId, MigrationStatus.Executing, 1);
 
         var result = await _cliToolExecutor.ExecuteAsync(request);
 
@@ -3309,8 +3308,8 @@ public class MigrationService : IMigrationService
 
                 if (runMode.ShouldWriteRepository())
                 {
-                    await Task.Run(() => _templateExecutor.RepositoryMigrationUpdate(
-                        migrationRecordId, MigrationStatus.Executing, i + 1));
+                    await _templateExecutor.RepositoryMigrationUpdateAsync(
+                        migrationRecordId, MigrationStatus.Executing, i + 1);
                 }
 
                 succeededBlocks++;
@@ -3342,7 +3341,7 @@ public class MigrationService : IMigrationService
 
         if (useSharedConnection)
         {
-            return await ExecuteSqlBlocksAtomic(file, targetDal!, dalSettings, migrationRecordId, runMode, startFromBlock);
+            return await ExecuteSqlBlocksAtomic(file, targetDal!, dalSettings, migrationRecordId, runMode, startFromBlock, CancellationToken.None);
         }
 
         // Blocks before startFromBlock were committed by a previous run (FindResumableBlock); every block that
@@ -3390,8 +3389,8 @@ public class MigrationService : IMigrationService
             }
 
             // Update block progress in repository
-            await Task.Run(() => _templateExecutor.RepositoryMigrationUpdate(
-                migrationRecordId, MigrationStatus.Executing, blockIndex + 1));
+            await _templateExecutor.RepositoryMigrationUpdateAsync(
+                migrationRecordId, MigrationStatus.Executing, blockIndex + 1);
             ReportBlockCompleted(MigrationOperation.MigrateUp, file, targetOptions.Alias!, migrationRecordId, blockIndex + 1, blockSucceeded, blockError);
         }
 
@@ -3409,7 +3408,8 @@ public class MigrationService : IMigrationService
         DalSettings dalSettings,
         int migrationRecordId,
         MigrationRunMode runMode,
-        int startFromBlock)
+        int startFromBlock,
+        CancellationToken cancellationToken)
     {
         int repoTimeout = (int)_ctxAccessor.Current.RayMigratorOptions.Repository!.DbCommandTimeoutInSeconds!;
         int maxRetries = dalSettings.MaxRetries;
@@ -3430,8 +3430,8 @@ public class MigrationService : IMigrationService
             var committedBlocks = new List<int>();
 
             await using var connection = targetDal.CreateConnection();
-            await connection.OpenAsync();
-            await using var transaction = await connection.BeginTransactionAsync();
+            await connection.OpenAsync(cancellationToken);
+            await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
             try
             {
@@ -3450,22 +3450,22 @@ public class MigrationService : IMigrationService
 
                     await targetDal.ExecuteNonQueryAsync(
                         sqlBlock, connection, transaction,
-                        dalSettings.DbCommandTimeoutInSeconds);
+                        dalSettings.DbCommandTimeoutInSeconds, cancellationToken: cancellationToken);
                     succeededBlocks++;
 
                     // Repository UPDATE on SAME connection+transaction
-                    _templateExecutor.RepositoryMigrationUpdate(
+                    await _templateExecutor.RepositoryMigrationUpdateAsync(
                         migrationRecordId, MigrationStatus.Executing, blockIndex + 1,
-                        connection, transaction, repoTimeout);
+                        connection, transaction, repoTimeout, cancellationToken);
                     committedBlocks.Add(blockIndex + 1);
                 }
 
                 // Final status update INSIDE the transaction (this is what closes the atomicity gap)
                 if (runMode.ShouldWriteRepository())
                 {
-                    _templateExecutor.RepositoryMigrationUpdate(
+                    await _templateExecutor.RepositoryMigrationUpdateAsync(
                         migrationRecordId, MigrationStatus.Migrated, file.FileUpBlocksTotal,
-                        connection, transaction, repoTimeout);
+                        connection, transaction, repoTimeout, cancellationToken);
                 }
 
                 await transaction.CommitAsync();
@@ -3488,7 +3488,7 @@ public class MigrationService : IMigrationService
                     _logger.LogWarning(ex,
                         "Transient error (code: {ErrorCode}) in atomic execution of {Filename}, attempt {Attempt}/{MaxRetries}. Rolling back and retrying entire file.",
                         errorCode, file.Filename, attempt, maxRetries);
-                    await Task.Delay(dalSettings.RetryDelayMs);
+                    await Task.Delay(dalSettings.RetryDelayMs, cancellationToken);
                     continue;
                 }
 
@@ -3509,7 +3509,8 @@ public class MigrationService : IMigrationService
         MigrationRecord record,
         MigrationRunMode runMode,
         int rollbackStartBlock,
-        MigrationOperation operation)
+        MigrationOperation operation,
+        CancellationToken cancellationToken)
     {
         int repoTimeout = (int)_ctxAccessor.Current.RayMigratorOptions.Repository!.DbCommandTimeoutInSeconds!;
         int maxRetries = dalSettings.MaxRetries;
@@ -3525,8 +3526,8 @@ public class MigrationService : IMigrationService
             var committedBlocks = new List<int>();
 
             await using var connection = targetDal.CreateConnection();
-            await connection.OpenAsync();
-            await using var transaction = await connection.BeginTransactionAsync();
+            await connection.OpenAsync(cancellationToken);
+            await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
             try
             {
@@ -3545,10 +3546,10 @@ public class MigrationService : IMigrationService
 
                     await targetDal.ExecuteNonQueryAsync(
                         sqlBlock, connection, transaction,
-                        dalSettings.DbCommandTimeoutInSeconds);
+                        dalSettings.DbCommandTimeoutInSeconds, cancellationToken: cancellationToken);
 
                     // Repository UPDATE on SAME connection+transaction
-                    _templateExecutor.RepositoryMigrationUpdateRollback(
+                    await _templateExecutor.RepositoryMigrationUpdateRollbackAsync(
                         record.Id,
                         MigrationStatus.Executing,
                         rollbackFileInfo.FileUpHash,
@@ -3557,14 +3558,14 @@ public class MigrationService : IMigrationService
                         blockIndex + 1,
                         rollbackFileInfo.FileUpBlocksTotal,
                         rollbackFileInfo.FileUpConfigJson,
-                        connection, transaction, repoTimeout);
+                        connection, transaction, repoTimeout, cancellationToken);
                     committedBlocks.Add(blockIndex + 1);
                 }
 
                 // Final status update INSIDE the transaction (this is what closes the atomicity gap)
                 if (runMode.ShouldWriteRepository())
                 {
-                    _templateExecutor.RepositoryMigrationUpdateRollback(
+                    await _templateExecutor.RepositoryMigrationUpdateRollbackAsync(
                         record.Id,
                         MigrationStatus.NotMigrated,
                         rollbackFileInfo.FileUpHash,
@@ -3573,7 +3574,7 @@ public class MigrationService : IMigrationService
                         rollbackFileInfo.FileUpBlocksTotal,
                         rollbackFileInfo.FileUpBlocksTotal,
                         rollbackFileInfo.FileUpConfigJson,
-                        connection, transaction, repoTimeout);
+                        connection, transaction, repoTimeout, cancellationToken);
                 }
 
                 await transaction.CommitAsync();
@@ -3595,7 +3596,7 @@ public class MigrationService : IMigrationService
                     _logger.LogWarning(ex,
                         "Transient error (code: {ErrorCode}) in atomic rollback of {Filename}, attempt {Attempt}/{MaxRetries}. Rolling back and retrying entire file.",
                         errorCode, record.Filename, attempt, maxRetries);
-                    await Task.Delay(dalSettings.RetryDelayMs);
+                    await Task.Delay(dalSettings.RetryDelayMs, cancellationToken);
                     continue;
                 }
 
@@ -3803,8 +3804,8 @@ public class MigrationService : IMigrationService
     /// </returns>
     private async Task<bool> ResolveRepositoryIdsReadOnlyAsync(string reader)
     {
-        bool productFound = await Task.Run(() => _templateExecutor.RepositoryProductSelect());
-        bool environmentFound = await Task.Run(() => _templateExecutor.RepositoryEnvironmentSelect());
+        bool productFound = await _templateExecutor.RepositoryProductSelectAsync();
+        bool environmentFound = await _templateExecutor.RepositoryEnvironmentSelectAsync();
 
         if (productFound && environmentFound)
             return true;
@@ -3826,7 +3827,7 @@ public class MigrationService : IMigrationService
     /// <c>MigrationState.ProductId</c> / <c>EnvironmentId</c>. Commands whose <see cref="CommandProfile"/> writes the
     /// repository register product and environment (<c>*_CheckInsert</c>); read-only commands (info, validate-hash,
     /// fix --run-mode simulate) only look them up, so a read-only command on a fresh repository leaves no rows behind (#6).
-    /// <c>RepositoryCheckCreate</c> stays unconditional: it is idempotent and the read paths need the tables.
+    /// <c>RepositoryCheckCreateAsync</c> stays unconditional: it is idempotent and the read paths need the tables.
     /// </summary>
     /// <returns>
     /// True when both ids are resolved. False when a read-only command found no product/environment row yet;
@@ -3834,13 +3835,13 @@ public class MigrationService : IMigrationService
     /// </returns>
     private async Task<bool> InitializeRepositoryAsync()
     {
-        await Task.Run(() => _templateExecutor.RepositoryCheckCreate());
+        await _templateExecutor.RepositoryCheckCreateAsync();
 
         var consoleOptions = _ctxAccessor.Current.RayMigratorConsoleOptions;
         if (consoleOptions.GetProfile().WritesRepository)
         {
-            await Task.Run(() => _templateExecutor.RepositoryProductCheckInsert());
-            await Task.Run(() => _templateExecutor.RepositoryEnvironmentCheckInsert());
+            await _templateExecutor.RepositoryProductCheckInsertAsync();
+            await _templateExecutor.RepositoryEnvironmentCheckInsertAsync();
             return true;
         }
 
@@ -3906,7 +3907,8 @@ public class MigrationService : IMigrationService
             return;
 
         int runId = _ctxAccessor.Current.MigrationState.MigrationRunId;
-        _runHeartbeat = new MigrationRunHeartbeat(runId, TimeSpan.FromSeconds(intervalSeconds), _templateExecutor.RepositoryMigrationRunHeartbeat, _logger);
+        _runHeartbeat = new MigrationRunHeartbeat(
+            runId, TimeSpan.FromSeconds(intervalSeconds), () => _templateExecutor.RepositoryMigrationRunHeartbeatAsync(), _logger);
         _logger.LogDebug("Heartbeat of MigrationRun {MigrationRunId} started (every {IntervalSeconds} s)", runId, intervalSeconds);
     }
 
@@ -3936,7 +3938,7 @@ public class MigrationService : IMigrationService
 
     /// <summary>
     /// Attempts to insert a MigrationRun, auto-fixing orphaned runs if a parallel-run lock is detected.
-    /// When RepositoryMigrationRunInsert fails with MigrationAlreadyRunningException, this method
+    /// When RepositoryMigrationRunInsertAsync fails with MigrationAlreadyRunningException, this method
     /// checks for open runs whose last heartbeat is older than Repository.OrphanedRunThresholdInMinutes and fixes them
     /// before retrying the insert once. If no orphaned runs are found, the original exception is rethrown.
     /// </summary>
@@ -3944,12 +3946,12 @@ public class MigrationService : IMigrationService
     {
         // The release the run starts from: a dedicated read, because the run row is also the run lock and the
         // reads that drive the run itself must happen after it.
-        var recordsBeforeRun = await Task.Run(() => _templateExecutor.RepositoryMigrationSelect());
+        var recordsBeforeRun = await _templateExecutor.RepositoryMigrationSelectAsync();
         _ctxAccessor.Current.MigrationState.FromReleaseVersion = GetHighestMigratedRelease(recordsBeforeRun);
 
         try
         {
-            await Task.Run(() => _templateExecutor.RepositoryMigrationRunInsert(settingsJson));
+            await _templateExecutor.RepositoryMigrationRunInsertAsync(settingsJson);
             StartRunHeartbeat();
         }
         catch (MigrationAlreadyRunningException)
@@ -3957,8 +3959,7 @@ public class MigrationService : IMigrationService
             int productId = _ctxAccessor.Current.MigrationState.ProductId;
             int environmentId = _ctxAccessor.Current.MigrationState.EnvironmentId;
 
-            var orphanedRows = await Task.Run(() =>
-                _templateExecutor.RepositoryMigrationRunSelectOrphaned(productId, environmentId));
+            var orphanedRows = await _templateExecutor.RepositoryMigrationRunSelectOrphanedAsync(productId, environmentId);
 
             int thresholdMinutes = OrphanedRunThresholdMinutes;
             var autoFixable = orphanedRows
@@ -3987,16 +3988,14 @@ public class MigrationService : IMigrationService
 
                 // The run is closed first, because the fix refuses a run that wrote a heartbeat since the select; the
                 // records of a run that turns out to be alive must stay as they are.
-                bool closed = await Task.Run(() =>
-                    _templateExecutor.RepositoryMigrationRunFixOrphaned(orphanRunId, thresholdMinutes));
+                bool closed = await _templateExecutor.RepositoryMigrationRunFixOrphanedAsync(orphanRunId, thresholdMinutes);
                 if (!closed)
                 {
                     _logger.LogWarning("MigrationRun {RunId} wrote a heartbeat meanwhile and is alive; it is not fixed", orphanRunId);
                     continue;
                 }
 
-                await Task.Run(() =>
-                    _templateExecutor.RepositoryMigrationRecordFixOrphaned(orphanRunId, MigrationStatus.NotMigrated));
+                await _templateExecutor.RepositoryMigrationRecordFixOrphanedAsync(orphanRunId, MigrationStatus.NotMigrated);
                 fixedRuns++;
 
                 _logger.LogWarning(
@@ -4014,7 +4013,7 @@ public class MigrationService : IMigrationService
             }
 
             // Retry the insert after fixing orphaned runs
-            await Task.Run(() => _templateExecutor.RepositoryMigrationRunInsert(settingsJson));
+            await _templateExecutor.RepositoryMigrationRunInsertAsync(settingsJson);
             StartRunHeartbeat();
             _logger.LogInformation("MigrationRun created successfully after auto-fixing orphaned run(s)");
         }
@@ -4230,7 +4229,7 @@ public class MigrationService : IMigrationService
     /// If found, updates the record to Migrated status in the repository.
     /// Returns the existing record ID if finalized, or -1 if no such record exists.
     /// </summary>
-    internal int TryFinalizeCompletedMigration(
+    internal async Task<int> TryFinalizeCompletedMigrationAsync(
         MigrationFileInfo file,
         string targetAlias,
         List<MigrationRecord> existingRecords)
@@ -4258,7 +4257,7 @@ public class MigrationService : IMigrationService
             file.Filename, targetAlias, completedRecord.FileUpBlocksMigrated,
             completedRecord.FileUpBlocksTotal, completedRecord.Id);
 
-        _templateExecutor.RepositoryMigrationUpdate(
+        await _templateExecutor.RepositoryMigrationUpdateAsync(
             completedRecord.Id, MigrationStatus.Migrated, completedRecord.FileUpBlocksTotal);
 
         return completedRecord.Id;
@@ -5024,7 +5023,7 @@ public class MigrationService : IMigrationService
 
             // --- Phase 3: Query existing records from repository ---
             var existingRecords = repositoryHasProduct
-                ? await Task.Run(() => _templateExecutor.RepositoryMigrationSelect())
+                ? await _templateExecutor.RepositoryMigrationSelectAsync()
                 : new List<MigrationRecord>();
 
             // --- Phase 4: Compare files with repository records ---
@@ -5202,7 +5201,7 @@ public class MigrationService : IMigrationService
             migrationFiles = FilterByTargetGroups(migrationFiles, request.TargetGroupAliases);
 
             // --- Phase 3: Query existing records from repository ---
-            var existingRecords = await Task.Run(() => _templateExecutor.RepositoryMigrationSelect());
+            var existingRecords = await _templateExecutor.RepositoryMigrationSelectAsync();
 
             // --- Phase 4: Compare and update hashes ---
             // One Migrated record per file and target: every target's record is compared and updated (#9).
@@ -5238,11 +5237,11 @@ public class MigrationService : IMigrationService
 
                 foreach (var record in staleRecords)
                 {
-                    await Task.Run(() => _templateExecutor.RepositoryMigrationUpdateHash(
+                    await _templateExecutor.RepositoryMigrationUpdateHashAsync(
                         record.Id,
                         file.FileUpHash,
                         file.FileUpConfigHash,
-                        file.FileUpBlocksHash));
+                        file.FileUpBlocksHash);
                     updatedRecords++;
                 }
 
@@ -5314,7 +5313,7 @@ public class MigrationService : IMigrationService
 
             // --- Phase 2: Query repository ---
             var existingRecords = repositoryHasProduct
-                ? await Task.Run(() => _templateExecutor.RepositoryMigrationSelect())
+                ? await _templateExecutor.RepositoryMigrationSelectAsync()
                 : new List<MigrationRecord>();
 
             // --- Phase 3: File discovery ---
@@ -5354,7 +5353,7 @@ public class MigrationService : IMigrationService
             DateTime? lastMigrationDate = null;
             MigrationRunResult? lastRunResult = null;
             var lastRun = repositoryHasProduct
-                ? (await Task.Run(() => _templateExecutor.RepositoryMigrationRunSelect(1))).FirstOrDefault()
+                ? (await _templateExecutor.RepositoryMigrationRunSelectAsync(1)).FirstOrDefault()
                 : null;
             if (lastRun != null)
             {
@@ -5431,10 +5430,10 @@ public class MigrationService : IMigrationService
             // records of other runs. The history rows carry the run that caused each transition, so they, not the
             // records, say what a run did (#13).
             var rows = repositoryHasProduct
-                ? await Task.Run(() => _templateExecutor.RepositoryMigrationRunSelect(limit))
+                ? await _templateExecutor.RepositoryMigrationRunSelectAsync(limit)
                 : new List<Dictionary<string, object?>>();
             var historyRows = repositoryHasProduct
-                ? await Task.Run(() => _templateExecutor.RepositoryMigrationRecordHistorySelect())
+                ? await _templateExecutor.RepositoryMigrationRecordHistorySelectAsync()
                 : new List<MigrationRecord>();
             var historyByRun = historyRows
                 .GroupBy(h => h.MigrationRunId)
@@ -5538,7 +5537,7 @@ public class MigrationService : IMigrationService
 
             // --- Phase 2: Query orphaned runs ---
             var orphanedRows = repositoryHasProduct && repairs.Contains(FixScope.OrphanedRuns)
-                ? await Task.Run(() => _templateExecutor.RepositoryMigrationRunSelectOrphaned(productId, environmentId))
+                ? await _templateExecutor.RepositoryMigrationRunSelectOrphanedAsync(productId, environmentId)
                 : new List<Dictionary<string, object?>>();
 
             // Environment text is run-constant (WHERE constraint filters by EnvironmentId);
@@ -5587,15 +5586,14 @@ public class MigrationService : IMigrationService
 
                     // Close the run first (mark as Error, set FinishedAt); a run whose heartbeat is younger than
                     // --older-than by now is alive and stays untouched, records included.
-                    bool closed = await Task.Run(() => _templateExecutor.RepositoryMigrationRunFixOrphaned(run.MigrationRunId, request.OlderThanMinutes));
+                    bool closed = await _templateExecutor.RepositoryMigrationRunFixOrphanedAsync(run.MigrationRunId, request.OlderThanMinutes);
                     if (!closed)
                     {
                         _logger.LogInformation("  MigrationRun {RunId} wrote a heartbeat meanwhile and is alive; not fixed", run.MigrationRunId);
                         continue;
                     }
 
-                    int migrationsFixed = await Task.Run(() =>
-                        _templateExecutor.RepositoryMigrationRecordFixOrphaned(run.MigrationRunId, targetStatus));
+                    int migrationsFixed = await _templateExecutor.RepositoryMigrationRecordFixOrphanedAsync(run.MigrationRunId, targetStatus);
 
                     if (migrationsFixed > 0)
                     {

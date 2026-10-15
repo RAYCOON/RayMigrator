@@ -16,6 +16,16 @@ using Raycoon.RayMigrator.Core.Logging;
 
 namespace Raycoon.RayMigrator.Core;
 
+/// <summary>
+/// Runs the repository templates of a run against the repository DAL: every read and write of the repository tables
+/// that the migration service makes, with the parameters taken from the migration context of the run.
+/// </summary>
+/// <remarks>
+/// Every method that reaches the database takes a <see cref="CancellationToken"/> and hands it to the DAL. A failure on
+/// the database becomes a <see cref="TemplateExecutionException"/>, a negative result code a
+/// <see cref="TemplateResultException"/>; a call that fails after the token was cancelled ends with the DAL's
+/// <see cref="OperationCanceledException"/> instead.
+/// </remarks>
 public class TemplateExecutor
 {
     private readonly TemplateCache _templateCache;
@@ -75,20 +85,20 @@ public class TemplateExecutor
     /// <exception cref="RepositorySchemaException">The repository has no schema version but repository tables, or a
     /// schema version newer than this engine supports.</exception>
     /// <exception cref="TemplateExecutionException"></exception>
-    public void RepositoryCheckCreate()
+    public async Task RepositoryCheckCreateAsync(CancellationToken cancellationToken = default)
     {
         var context = _ctxAccessor.Current;
         var schema = new RepositorySchemaExecutor(_templateCache, _logger, _repository, _repositoryDal,
             context.RayMigratorVersion, context.RepositorySchemaTargetVersion, () => _ctxAccessor.Current.Clone);
 
-        context.MigrationState.MigratorMetaId = schema.Ensure().MigratorMetaId;
+        context.MigrationState.MigratorMetaId = (await schema.EnsureAsync(cancellationToken)).MigratorMetaId;
     }
 
     /// <summary>
     /// Checks for existing product-name and optionally creates a new Product-entry in the repository and returns the ProductId.
     /// </summary>
     /// <exception cref="TemplateExecutionException"></exception>
-    public void RepositoryProductCheckInsert()
+    public async Task RepositoryProductCheckInsertAsync(CancellationToken cancellationToken = default)
     {
         var templateType = TemplateType.Repository_Product_CheckInsert;
         var eventId = MigrationEvent.TemplateExecutionRepositoryProductCheckInsert;
@@ -101,7 +111,8 @@ public class TemplateExecutor
         dalParameterList.AddParameter(new DalParameter("NameLower", productName.ToLowerInvariant(), typeof(string)));
 
         var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
-        var templateResponse = ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId);
+        var templateResponse = await ExecuteScalarWithNegativeResultCodeExceptionAsync(
+            template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId, cancellationToken);
 
         _ctxAccessor.Current.MigrationState.ProductId = templateResponse.ResultCode;
     }
@@ -110,7 +121,7 @@ public class TemplateExecutor
     /// Checks for existing environment name and optionally creates a new Environment entry in the repository and returns the EnvironmentId.
     /// </summary>
     /// <exception cref="TemplateExecutionException"></exception>
-    public void RepositoryEnvironmentCheckInsert()
+    public async Task RepositoryEnvironmentCheckInsertAsync(CancellationToken cancellationToken = default)
     {
         var templateType = TemplateType.Repository_Environment_CheckInsert;
         var eventId = MigrationEvent.TemplateExecutionRepositoryEnvironmentCheckInsert;
@@ -123,7 +134,8 @@ public class TemplateExecutor
         dalParameterList.AddParameter(new DalParameter("NameLower", environmentName.ToLowerInvariant(), typeof(string)));
 
         var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
-        var templateResponse = ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId);
+        var templateResponse = await ExecuteScalarWithNegativeResultCodeExceptionAsync(
+            template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId, cancellationToken);
 
         _ctxAccessor.Current.MigrationState.EnvironmentId = templateResponse.ResultCode;
     }
@@ -135,7 +147,7 @@ public class TemplateExecutor
     /// </summary>
     /// <returns>True when the product exists in the repository.</returns>
     /// <exception cref="TemplateExecutionException"></exception>
-    public bool RepositoryProductSelect()
+    public async Task<bool> RepositoryProductSelectAsync(CancellationToken cancellationToken = default)
     {
         var templateType = TemplateType.Repository_Product_Select;
         var eventId = MigrationEvent.TemplateExecutionRepositoryProductSelect;
@@ -148,7 +160,8 @@ public class TemplateExecutor
         dalParameterList.AddParameter(new DalParameter("NameLower", productName.ToLowerInvariant(), typeof(string)));
 
         var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
-        var templateResponse = ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId);
+        var templateResponse = await ExecuteScalarWithNegativeResultCodeExceptionAsync(
+            template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId, cancellationToken);
 
         _ctxAccessor.Current.MigrationState.ProductId = templateResponse.ResultCode;
         return templateResponse.ResultCode > 0;
@@ -161,7 +174,7 @@ public class TemplateExecutor
     /// </summary>
     /// <returns>True when the environment exists in the repository.</returns>
     /// <exception cref="TemplateExecutionException"></exception>
-    public bool RepositoryEnvironmentSelect()
+    public async Task<bool> RepositoryEnvironmentSelectAsync(CancellationToken cancellationToken = default)
     {
         var templateType = TemplateType.Repository_Environment_Select;
         var eventId = MigrationEvent.TemplateExecutionRepositoryEnvironmentSelect;
@@ -174,7 +187,8 @@ public class TemplateExecutor
         dalParameterList.AddParameter(new DalParameter("NameLower", environmentName.ToLowerInvariant(), typeof(string)));
 
         var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
-        var templateResponse = ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId);
+        var templateResponse = await ExecuteScalarWithNegativeResultCodeExceptionAsync(
+            template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId, cancellationToken);
 
         _ctxAccessor.Current.MigrationState.EnvironmentId = templateResponse.ResultCode;
         return templateResponse.ResultCode > 0;
@@ -185,7 +199,7 @@ public class TemplateExecutor
     /// </summary>
     /// <param name="migrationRunSettingsJson">JSON snapshot of all RayMigrator settings at migration start.</param>
     /// <exception cref="TemplateExecutionException"></exception>
-    public void RepositoryMigrationRunInsert(string migrationRunSettingsJson)
+    public async Task RepositoryMigrationRunInsertAsync(string migrationRunSettingsJson, CancellationToken cancellationToken = default)
     {
         var templateType = TemplateType.Repository_MigrationRun_Insert;
         var eventId = MigrationEvent.TemplateExecutionRepositoryMigrationRunInsert;
@@ -217,7 +231,8 @@ public class TemplateExecutor
 
         try
         {
-            var templateResponse = ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId);
+            var templateResponse = await ExecuteScalarWithNegativeResultCodeExceptionAsync(
+                template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId, cancellationToken);
             _ctxAccessor.Current.MigrationState.MigrationRunId = templateResponse.ResultCode;
         }
         catch (TemplateResultException ex) when (ex.ResultCode == -2)
@@ -240,7 +255,11 @@ public class TemplateExecutor
     /// <param name="errorCode">The engine error code of the failure (<c>TemplateResultCode</c>), or null.</param>
     /// <param name="errorMessage">The message of the failure, cut to <see cref="MaxErrorMessageLength"/>, or null.</param>
     /// <exception cref="TemplateExecutionException"></exception>
-    public void RepositoryMigrationRunUpdate(MigrationRunResult runResult, string? errorCode = null, string? errorMessage = null)
+    public async Task RepositoryMigrationRunUpdateAsync(
+        MigrationRunResult runResult,
+        string? errorCode = null,
+        string? errorMessage = null,
+        CancellationToken cancellationToken = default)
     {
         var templateType = TemplateType.Repository_MigrationRun_Update;
         var eventId = MigrationEvent.TemplateExecutionRepositoryMigrationRunUpdate;
@@ -262,7 +281,8 @@ public class TemplateExecutor
         dalParameterList.AddParameter(new DalParameter("ErrorMessage", Truncate(errorMessage, MaxErrorMessageLength), typeof(string)));
 
         var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
-        ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId);
+        await ExecuteScalarWithNegativeResultCodeExceptionAsync(
+            template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId, cancellationToken);
 
         _ctxAccessor.Current.MigrationState.MigrationRunResult = runResult;
     }
@@ -283,7 +303,10 @@ public class TemplateExecutor
     /// <param name="environmentId">The environment ID to query.</param>
     /// <returns>List of raw row dictionaries with orphaned run data.</returns>
     /// <exception cref="TemplateExecutionException"></exception>
-    public List<Dictionary<string, object?>> RepositoryMigrationRunSelectOrphaned(int productId, int environmentId)
+    public async Task<List<Dictionary<string, object?>>> RepositoryMigrationRunSelectOrphanedAsync(
+        int productId,
+        int environmentId,
+        CancellationToken cancellationToken = default)
     {
         var templateType = TemplateType.Repository_MigrationRun_SelectOrphaned;
         var eventId = MigrationEvent.TemplateExecutionRepositoryMigrationRunSelectOrphaned;
@@ -300,9 +323,9 @@ public class TemplateExecutor
         List<Dictionary<string, object?>> rows;
         try
         {
-            rows = _repositoryDal.ExecuteReaderAsync(template.Content, _repository.GetDalSettings(), dalParameterList).GetAwaiter().GetResult();
+            rows = await _repositoryDal.ExecuteReaderAsync(template.Content, _repository.GetDalSettings(), dalParameterList, cancellationToken);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
             string errorMessage = $"Error executing template [{template}] with dal for DB [{_repositoryDal.DatabaseType}]";
             throw new TemplateExecutionException(errorMessage, ex);
@@ -318,7 +341,7 @@ public class TemplateExecutor
     /// </summary>
     /// <returns>True when the row was open and updated; false when the run has already finished.</returns>
     /// <exception cref="TemplateExecutionException"></exception>
-    public bool RepositoryMigrationRunHeartbeat()
+    public async Task<bool> RepositoryMigrationRunHeartbeatAsync(CancellationToken cancellationToken = default)
     {
         var templateType = TemplateType.Repository_MigrationRun_Heartbeat;
         var eventId = MigrationEvent.TemplateExecutionRepositoryMigrationRunHeartbeat;
@@ -338,7 +361,8 @@ public class TemplateExecutor
         settings.MaxRetries = 0;
 
         var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
-        var templateResponse = ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, settings, dalParameterList, null, eventId);
+        var templateResponse = await ExecuteScalarWithNegativeResultCodeExceptionAsync(
+            template, _repositoryDal, settings, dalParameterList, null, eventId, cancellationToken);
 
         return templateResponse.ResultCode > 0;
     }
@@ -357,7 +381,10 @@ public class TemplateExecutor
     /// <paramref name="thresholdMinutes"/> (it beat between the orphan select and this call), the template answered
     /// <c>-31</c> and the row is untouched; the caller must leave the run's records alone as well.
     /// </returns>
-    public bool RepositoryMigrationRunFixOrphaned(int migrationRunId, int thresholdMinutes)
+    public async Task<bool> RepositoryMigrationRunFixOrphanedAsync(
+        int migrationRunId,
+        int thresholdMinutes,
+        CancellationToken cancellationToken = default)
     {
         var templateType = TemplateType.Repository_MigrationRun_FixOrphaned;
         var eventId = MigrationEvent.TemplateExecutionRepositoryMigrationRunFixOrphaned;
@@ -372,7 +399,8 @@ public class TemplateExecutor
         var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
         try
         {
-            ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId);
+            await ExecuteScalarWithNegativeResultCodeExceptionAsync(
+                template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId, cancellationToken);
             return true;
         }
         catch (TemplateResultException ex) when (ex.ResultCode == TemplateResultCode.MigrationRunNotInRunningState)
@@ -391,7 +419,10 @@ public class TemplateExecutor
     /// <param name="status">Target status: NotMigrated (50) or Migrated (100).</param>
     /// <returns>Number of updated MigrationRecord entries (0 = none found, which is not an error).</returns>
     /// <exception cref="TemplateExecutionException"></exception>
-    public int RepositoryMigrationRecordFixOrphaned(int migrationRunId, MigrationStatus status)
+    public async Task<int> RepositoryMigrationRecordFixOrphanedAsync(
+        int migrationRunId,
+        MigrationStatus status,
+        CancellationToken cancellationToken = default)
     {
         var templateType = TemplateType.Repository_MigrationRecord_FixOrphaned;
         var eventId = MigrationEvent.TemplateExecutionRepositoryMigrationFixOrphaned;
@@ -404,7 +435,8 @@ public class TemplateExecutor
         dalParameterList.AddParameter(new DalParameter("MigrationStatusId", (byte)status, typeof(byte)));
 
         var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
-        var templateResponse = ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId);
+        var templateResponse = await ExecuteScalarWithNegativeResultCodeExceptionAsync(
+            template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId, cancellationToken);
 
         return templateResponse.ResultCode;
     }
@@ -414,7 +446,7 @@ public class TemplateExecutor
     /// </summary>
     /// <returns>An InterruptedMigrationInfo object if an interrupted migration is found, null otherwise.</returns>
     /// <exception cref="TemplateExecutionException"></exception>
-    public InterruptedMigrationInfo? RepositoryMigrationGetInterrupted()
+    public async Task<InterruptedMigrationInfo?> RepositoryMigrationGetInterruptedAsync(CancellationToken cancellationToken = default)
     {
         var templateType = TemplateType.Repository_MigrationRecord_GetInterrupted;
         var eventId = MigrationEvent.TemplateExecutionRepositoryMigrationGetInterrupted;
@@ -427,7 +459,8 @@ public class TemplateExecutor
         dalParameterList.AddParameter(new DalParameter("EnvironmentId", _ctxAccessor.Current.MigrationState.EnvironmentId, typeof(int)));
 
         var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
-        var templateResponse = ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId);
+        var templateResponse = await ExecuteScalarWithNegativeResultCodeExceptionAsync(
+            template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId, cancellationToken);
 
         // ResultCode 0 means no interrupted migration found
         if (templateResponse.ResultCode == 0)
@@ -479,7 +512,7 @@ public class TemplateExecutor
     /// <param name="migrateDownFileExists">Whether a down-migration file exists.</param>
     /// <returns>The MigrationRecordId (new or existing).</returns>
     /// <exception cref="TemplateExecutionException"></exception>
-    public int RepositoryMigrationInsert(
+    public async Task<int> RepositoryMigrationInsertAsync(
         int existingMigrationRecordId,
         string filename,
         string releaseVersion,
@@ -491,7 +524,8 @@ public class TemplateExecutor
         string fileUpBlocksHash,
         int fileUpBlocksTotal,
         string? fileUpConfigJson,
-        bool migrateDownFileExists)
+        bool migrateDownFileExists,
+        CancellationToken cancellationToken = default)
     {
         var templateType = TemplateType.Repository_MigrationRecord_Insert;
         var eventId = MigrationEvent.TemplateExecutionRepositoryMigrationInsert;
@@ -519,7 +553,8 @@ public class TemplateExecutor
         dalParameterList.AddParameter(new DalParameter("MigrateDownFileExists", migrateDownFileExists, typeof(bool)));
 
         var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
-        var templateResponse = ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId);
+        var templateResponse = await ExecuteScalarWithNegativeResultCodeExceptionAsync(
+            template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId, cancellationToken);
 
         _ctxAccessor.Current.MigrationState.MigrationRecordId = templateResponse.ResultCode;
         return templateResponse.ResultCode;
@@ -536,7 +571,11 @@ public class TemplateExecutor
     /// block that failed (#11). Ignore-mode failures store the total to opt out of resuming.
     /// </param>
     /// <exception cref="TemplateExecutionException"></exception>
-    public void RepositoryMigrationUpdate(int migrationRecordId, MigrationStatus migrationStatus, int fileUpBlocksMigrated)
+    public async Task RepositoryMigrationUpdateAsync(
+        int migrationRecordId,
+        MigrationStatus migrationStatus,
+        int fileUpBlocksMigrated,
+        CancellationToken cancellationToken = default)
     {
         var templateType = TemplateType.Repository_MigrationRecord_Update;
         var eventId = MigrationEvent.TemplateExecutionRepositoryMigrationUpdate;
@@ -550,7 +589,8 @@ public class TemplateExecutor
         dalParameterList.AddParameter(new DalParameter("FileUpBlocksMigrated", fileUpBlocksMigrated, typeof(int)));
 
         var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
-        ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId);
+        await ExecuteScalarWithNegativeResultCodeExceptionAsync(
+            template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId, cancellationToken);
     }
 
     /// <summary>
@@ -566,7 +606,7 @@ public class TemplateExecutor
     /// <param name="fileDownBlocksTotal">Total number of rollback blocks.</param>
     /// <param name="fileDownConfigJson">JSON of parsed TOML configuration from the rollback file.</param>
     /// <exception cref="TemplateExecutionException"></exception>
-    public void RepositoryMigrationUpdateRollback(
+    public async Task RepositoryMigrationUpdateRollbackAsync(
         int migrationRecordId,
         MigrationStatus migrationStatus,
         string fileDownHash,
@@ -574,7 +614,8 @@ public class TemplateExecutor
         string fileDownBlocksHash,
         int fileDownBlocksMigrated,
         int fileDownBlocksTotal,
-        string? fileDownConfigJson)
+        string? fileDownConfigJson,
+        CancellationToken cancellationToken = default)
     {
         var templateType = TemplateType.Repository_MigrationRecord_UpdateRollback;
         var eventId = MigrationEvent.TemplateExecutionRepositoryMigrationUpdateRollback;
@@ -597,7 +638,8 @@ public class TemplateExecutor
         dalParameterList.AddParameter(new DalParameter("MigrationOperationId", (byte)_ctxAccessor.Current.MigrationState.MigrationOperation, typeof(byte)));
 
         var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
-        ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId);
+        await ExecuteScalarWithNegativeResultCodeExceptionAsync(
+            template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId, cancellationToken);
     }
 
     /// <summary>
@@ -611,13 +653,14 @@ public class TemplateExecutor
     /// <param name="transaction">The shared database transaction.</param>
     /// <param name="repoCommandTimeoutInSeconds">Command timeout for the repository update.</param>
     /// <exception cref="TemplateExecutionException"></exception>
-    public void RepositoryMigrationUpdate(
+    public async Task RepositoryMigrationUpdateAsync(
         int migrationRecordId,
         MigrationStatus migrationStatus,
         int fileUpBlocksMigrated,
         DbConnection connection,
         DbTransaction transaction,
-        int repoCommandTimeoutInSeconds)
+        int repoCommandTimeoutInSeconds,
+        CancellationToken cancellationToken = default)
     {
         var templateType = TemplateType.Repository_MigrationRecord_Update;
         var eventId = MigrationEvent.TemplateExecutionRepositoryMigrationUpdate;
@@ -631,7 +674,8 @@ public class TemplateExecutor
         dalParameterList.AddParameter(new DalParameter("FileUpBlocksMigrated", fileUpBlocksMigrated, typeof(int)));
 
         var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
-        ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, connection, transaction, repoCommandTimeoutInSeconds, dalParameterList, _logger, eventId);
+        await ExecuteScalarWithNegativeResultCodeExceptionAsync(
+            template, _repositoryDal, connection, transaction, repoCommandTimeoutInSeconds, dalParameterList, _logger, eventId, cancellationToken);
     }
 
     /// <summary>
@@ -639,7 +683,7 @@ public class TemplateExecutor
     /// shared connection and transaction for atomic execution with target rollback blocks.
     /// </summary>
     /// <exception cref="TemplateExecutionException"></exception>
-    public void RepositoryMigrationUpdateRollback(
+    public async Task RepositoryMigrationUpdateRollbackAsync(
         int migrationRecordId,
         MigrationStatus migrationStatus,
         string fileDownHash,
@@ -650,7 +694,8 @@ public class TemplateExecutor
         string? fileDownConfigJson,
         DbConnection connection,
         DbTransaction transaction,
-        int repoCommandTimeoutInSeconds)
+        int repoCommandTimeoutInSeconds,
+        CancellationToken cancellationToken = default)
     {
         var templateType = TemplateType.Repository_MigrationRecord_UpdateRollback;
         var eventId = MigrationEvent.TemplateExecutionRepositoryMigrationUpdateRollback;
@@ -673,7 +718,8 @@ public class TemplateExecutor
         dalParameterList.AddParameter(new DalParameter("MigrationOperationId", (byte)_ctxAccessor.Current.MigrationState.MigrationOperation, typeof(byte)));
 
         var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
-        ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, connection, transaction, repoCommandTimeoutInSeconds, dalParameterList, _logger, eventId);
+        await ExecuteScalarWithNegativeResultCodeExceptionAsync(
+            template, _repositoryDal, connection, transaction, repoCommandTimeoutInSeconds, dalParameterList, _logger, eventId, cancellationToken);
     }
 
     /// <summary>
@@ -689,7 +735,7 @@ public class TemplateExecutor
     /// </remarks>
     /// <returns>List of MigrationRecord objects from the repository.</returns>
     /// <exception cref="TemplateExecutionException"></exception>
-    public List<MigrationRecord> RepositoryMigrationSelect()
+    public async Task<List<MigrationRecord>> RepositoryMigrationSelectAsync(CancellationToken cancellationToken = default)
     {
         const MigrationRunMode recordRunMode = MigrationRunMode.Migrate;
         var templateType = TemplateType.Repository_MigrationRecord_Select;
@@ -708,9 +754,9 @@ public class TemplateExecutor
         List<Dictionary<string, object?>> rows;
         try
         {
-            rows = _repositoryDal.ExecuteReaderAsync(template.Content, _repository.GetDalSettings(), dalParameterList).GetAwaiter().GetResult();
+            rows = await _repositoryDal.ExecuteReaderAsync(template.Content, _repository.GetDalSettings(), dalParameterList, cancellationToken);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
             string errorMessage = $"Error executing template [{template}] with dal for DB [{_repositoryDal.DatabaseType}]";
             throw new TemplateExecutionException(errorMessage, ex);
@@ -729,7 +775,7 @@ public class TemplateExecutor
     /// info run history is built from these rows instead of the records (#13).
     /// </summary>
     /// <exception cref="TemplateExecutionException"></exception>
-    public List<MigrationRecord> RepositoryMigrationRecordHistorySelect()
+    public async Task<List<MigrationRecord>> RepositoryMigrationRecordHistorySelectAsync(CancellationToken cancellationToken = default)
     {
         const MigrationRunMode recordRunMode = MigrationRunMode.Migrate;
         var templateType = TemplateType.Repository_MigrationRecordHistory_Select;
@@ -748,9 +794,9 @@ public class TemplateExecutor
         List<Dictionary<string, object?>> rows;
         try
         {
-            rows = _repositoryDal.ExecuteReaderAsync(template.Content, _repository.GetDalSettings(), dalParameterList).GetAwaiter().GetResult();
+            rows = await _repositoryDal.ExecuteReaderAsync(template.Content, _repository.GetDalSettings(), dalParameterList, cancellationToken);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
             string errorMessage = $"Error executing template [{template}] with dal for DB [{_repositoryDal.DatabaseType}]";
             throw new TemplateExecutionException(errorMessage, ex);
@@ -800,11 +846,12 @@ public class TemplateExecutor
     /// <param name="fileUpConfigHash">New SHA256 hash of the TOML config section.</param>
     /// <param name="fileUpBlocksHash">New SHA256 hash of the SQL blocks.</param>
     /// <exception cref="TemplateExecutionException"></exception>
-    public void RepositoryMigrationUpdateHash(
+    public async Task RepositoryMigrationUpdateHashAsync(
         int migrationRecordId,
         string fileUpHash,
         string? fileUpConfigHash,
-        string fileUpBlocksHash)
+        string fileUpBlocksHash,
+        CancellationToken cancellationToken = default)
     {
         var templateType = TemplateType.Repository_MigrationRecord_UpdateHash;
         var eventId = MigrationEvent.TemplateExecutionRepositoryMigrationUpdateHash;
@@ -819,7 +866,8 @@ public class TemplateExecutor
         dalParameterList.AddParameter(new DalParameter("FileUpBlocksHash", fileUpBlocksHash, typeof(string)));
 
         var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
-        ExecuteScalarWithNegativeResultCodeException(template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId);
+        await ExecuteScalarWithNegativeResultCodeExceptionAsync(
+            template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId, cancellationToken);
     }
 
     /// <summary>
@@ -829,7 +877,9 @@ public class TemplateExecutor
     /// <param name="limit">Maximum number of records to return.</param>
     /// <returns>List of dictionaries with MigrationRun data from the repository.</returns>
     /// <exception cref="TemplateExecutionException"></exception>
-    public List<Dictionary<string, object?>> RepositoryMigrationRunSelect(int limit)
+    public async Task<List<Dictionary<string, object?>>> RepositoryMigrationRunSelectAsync(
+        int limit,
+        CancellationToken cancellationToken = default)
     {
         var templateType = TemplateType.Repository_MigrationRun_Select;
         var eventId = MigrationEvent.TemplateExecutionRepositoryMigrationRunSelect;
@@ -847,9 +897,9 @@ public class TemplateExecutor
         List<Dictionary<string, object?>> rows;
         try
         {
-            rows = _repositoryDal.ExecuteReaderAsync(template.Content, _repository.GetDalSettings(), dalParameterList).GetAwaiter().GetResult();
+            rows = await _repositoryDal.ExecuteReaderAsync(template.Content, _repository.GetDalSettings(), dalParameterList, cancellationToken);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
             string errorMessage = $"Error executing template [{template}] with dal for DB [{_repositoryDal.DatabaseType}]";
             throw new TemplateExecutionException(errorMessage, ex);
@@ -863,9 +913,16 @@ public class TemplateExecutor
     /// Executes a template as ExecuteScalar and validates the result.
     /// Throws TemplateExecutionException on negative result codes.
     /// </summary>
-    public TemplateResponse ExecuteScalarWithNegativeResultCodeException(Template template, IDal dal, DalSettings dalSettings, DalParameterList? dalParameterList, ILogger? logger = null, EventId? eventId = null)
+    public async Task<TemplateResponse> ExecuteScalarWithNegativeResultCodeExceptionAsync(
+        Template template,
+        IDal dal,
+        DalSettings dalSettings,
+        DalParameterList? dalParameterList,
+        ILogger? logger = null,
+        EventId? eventId = null,
+        CancellationToken cancellationToken = default)
     {
-        TemplateResponse templateResponse = ExecuteScalar(template, dal, dalSettings, dalParameterList);
+        TemplateResponse templateResponse = await ExecuteScalarAsync(template, dal, dalSettings, dalParameterList, cancellationToken);
 
         if (logger != null)
         {
@@ -878,16 +935,22 @@ public class TemplateExecutor
     /// <summary>
     /// Executes a template as ExecuteScalar and validates the result contract <c>'code[,code...],message'</c>; a
     /// failing execution becomes a <see cref="TemplateExecutionException"/>, a negative code a
-    /// <see cref="TemplateResultException"/>. No context and no logging: the schema steps run through it without a run.
+    /// <see cref="TemplateResultException"/>, a cancellation the DAL's <see cref="OperationCanceledException"/>. No context
+    /// and no logging: the schema steps run through it without a run.
     /// </summary>
-    internal static TemplateResponse ExecuteScalar(Template template, IDal dal, DalSettings dalSettings, DalParameterList? dalParameterList)
+    internal static async Task<TemplateResponse> ExecuteScalarAsync(
+        Template template,
+        IDal dal,
+        DalSettings dalSettings,
+        DalParameterList? dalParameterList,
+        CancellationToken cancellationToken = default)
     {
         object? returnValue;
         try
         {
-            returnValue = dal.ExecuteScalarAsync(template.Content, dalSettings, dalParameterList).GetAwaiter().GetResult();
+            returnValue = await dal.ExecuteScalarAsync(template.Content, dalSettings, dalParameterList, cancellationToken);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
             throw new TemplateExecutionException($"Error executing template [{template}] with dal for DB [{dal.DatabaseType}]", ex);
         }
@@ -901,18 +964,20 @@ public class TemplateExecutor
     /// controls the connection/transaction lifecycle.
     /// Throws TemplateExecutionException on negative result codes.
     /// </summary>
-    public TemplateResponse ExecuteScalarWithNegativeResultCodeException(
+    public async Task<TemplateResponse> ExecuteScalarWithNegativeResultCodeExceptionAsync(
         Template template, IDal dal, DbConnection connection, DbTransaction transaction,
         int commandTimeoutInSeconds, DalParameterList? dalParameterList,
-        ILogger? logger = null, EventId? eventId = null)
+        ILogger? logger = null, EventId? eventId = null,
+        CancellationToken cancellationToken = default)
     {
         object? returnValue;
 
         try
         {
-            returnValue = dal.ExecuteScalarAsync(template.Content, connection, transaction, commandTimeoutInSeconds, dalParameterList).GetAwaiter().GetResult();
+            returnValue = await dal.ExecuteScalarAsync(
+                template.Content, connection, transaction, commandTimeoutInSeconds, dalParameterList, cancellationToken);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
             string errorMessage = $"Error executing template [{template}] with dal for DB [{dal.DatabaseType}]";
             throw new TemplateExecutionException(errorMessage, ex);
@@ -929,11 +994,12 @@ public class TemplateExecutor
     }
 
     /// <summary>
-    ///
+    /// Validates the scalar a template returned against the result contract <c>'code[,code...],message'</c>: the
+    /// leading integer tokens are the codes, the rest is the message.
     /// </summary>
-    /// <param name="inputObject"></param>
-    /// <param name="template"></param>
-    /// <returns></returns>
+    /// <exception cref="TemplateResultException">The result is empty, starts with no integer, or carries a known negative
+    /// code.</exception>
+    /// <exception cref="UndefinedTemplateResultException">The result carries a negative code that is not catalogued.</exception>
     internal static TemplateResponse GetValidatedTemplateResponseFromExecuteScalar(object? inputObject, Template template)
     {
         if (inputObject == null || inputObject.ToString() == null)

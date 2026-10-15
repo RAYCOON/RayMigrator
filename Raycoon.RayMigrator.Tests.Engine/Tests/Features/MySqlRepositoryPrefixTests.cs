@@ -25,6 +25,6 @@ public class MySqlRepositoryPrefixTests : MySqlTestBase
 
         ctx.AssertSuccess(true);
         ctx.AssertRepositoryTableExists("MigrationRecordHistory", true);
-        RepositoryPrefixContract.VerifySecondPrefixBesideTheFirst(ctx, Fixture.EngineConfig);
+        await RepositoryPrefixContract.VerifySecondPrefixBesideTheFirstAsync(ctx, Fixture.EngineConfig);
     }
 }

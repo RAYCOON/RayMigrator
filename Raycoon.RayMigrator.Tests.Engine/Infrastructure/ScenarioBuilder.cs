@@ -590,7 +590,7 @@ public class ScenarioBuilder
         var host = new EngineTestHost();
         try
         {
-            host.Build(configPath, productAlias, command, mode, toRelease, initiator: _initiator);
+            await host.BuildAsync(configPath, productAlias, command, mode, toRelease, initiator: _initiator);
         }
         catch
         {

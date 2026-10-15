@@ -1,7 +1,7 @@
 namespace Raycoon.RayMigrator.Services.Abstractions;
 
 /// <summary>
-/// What <see cref="IRepositorySchemaService.Ensure"/> found and did.
+/// What <see cref="IRepositorySchemaService.EnsureAsync"/> found and did.
 /// </summary>
 /// <param name="DatabaseType">The database type of the repository as the DAL names it.</param>
 /// <param name="VersionBefore">The schema version the repository had; 0 for a fresh repository.</param>

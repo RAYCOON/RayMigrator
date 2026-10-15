@@ -15,7 +15,7 @@ public enum TemplateType
 
     // Schema steps (ADR-024): Repository_Upgrade_{n} creates schema version n on top of version n - 1, step 1 the
     // tables of a fresh repository. One member per version up to RepositorySchema.CurrentVersion; applied in order by
-    // RepositorySchemaExecutor (for a run through TemplateExecutor.RepositoryCheckCreate, for a host through
+    // RepositorySchemaExecutor (for a run through TemplateExecutor.RepositoryCheckCreateAsync, for a host through
     // IRepositorySchemaService), which then registers the engine version through MigratorMeta_CheckInsert
     Repository_Upgrade_1,
     Repository_Upgrade_2,

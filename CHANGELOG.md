@@ -48,6 +48,23 @@ RayMigrator follows Semantic Versioning where applicable.
   The synchronous `ExecuteNonQuery`, which the database log writer calls
   from its own thread, has no token. The engine passes no token yet, so a
   run behaves as before.
+- **Breaking (API):** the repository access is asynchronous. Every public
+  method of `TemplateExecutor` is `…Async`, returns a `Task` and takes
+  `CancellationToken cancellationToken = default` as its last parameter
+  (`RepositoryCheckCreateAsync`, `RepositoryMigrationUpdateAsync`,
+  `ExecuteScalarWithNegativeResultCodeExceptionAsync` and so on); it awaits
+  the DAL instead of blocking on it. A call that fails after the token was
+  cancelled ends with the DAL's `OperationCanceledException` instead of a
+  `TemplateExecutionException`. `IRepositorySchemaService.Ensure` is now
+  `Task<RepositorySchemaResult> EnsureAsync(RepositoryOptions,
+  CancellationToken = default)`, `RepositorySchemaExecutor.Ensure` is
+  `EnsureAsync`, and `DatabaseLogWriter.InitDatabaseLogger` is
+  `InitDatabaseLoggerAsync`; hosts such as RayMigrator Studio await them.
+  `MigrationService` awaits the executor instead of running it through
+  `Task.Run`, also in the atomic path, where the repository updates of a
+  file share the target's connection and transaction, and the run
+  heartbeat writes asynchronously. The engine passes no token yet, so a run
+  behaves as before.
 
 ## [0.19.0] — 2026-10-15
 

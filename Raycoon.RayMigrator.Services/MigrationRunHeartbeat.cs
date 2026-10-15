@@ -10,7 +10,7 @@ namespace Raycoon.RayMigrator.Services;
 /// </summary>
 internal sealed class MigrationRunHeartbeat : IAsyncDisposable
 {
-    private readonly Func<bool> _beat;
+    private readonly Func<Task<bool>> _beat;
     private readonly ILogger _logger;
     private readonly int _migrationRunId;
     private readonly CancellationTokenSource _stop = new();
@@ -28,10 +28,11 @@ internal sealed class MigrationRunHeartbeat : IAsyncDisposable
     /// </summary>
     /// <param name="migrationRunId">The run the heartbeat belongs to, for the log.</param>
     /// <param name="interval">The time between two beats; must be positive.</param>
-    /// <param name="beat">Writes one heartbeat and returns whether the run row was still open.</param>
+    /// <param name="beat">Writes one heartbeat and returns whether the run row was still open. It gets no token: a beat
+    /// in progress when the heartbeat stops is left to finish (see <see cref="DisposeAsync"/>).</param>
     /// <param name="logger">Receives a warning for every failed beat.</param>
     /// <param name="stopTimeout">How long the stop waits for a beat in progress; <see cref="DefaultStopTimeout"/> when null.</param>
-    public MigrationRunHeartbeat(int migrationRunId, TimeSpan interval, Func<bool> beat, ILogger logger, TimeSpan? stopTimeout = null)
+    public MigrationRunHeartbeat(int migrationRunId, TimeSpan interval, Func<Task<bool>> beat, ILogger logger, TimeSpan? stopTimeout = null)
     {
         if (interval <= TimeSpan.Zero)
             throw new ArgumentOutOfRangeException(nameof(interval), interval, "The heartbeat interval must be positive.");
@@ -52,7 +53,7 @@ internal sealed class MigrationRunHeartbeat : IAsyncDisposable
             {
                 try
                 {
-                    if (_beat())
+                    if (await _beat())
                         Beats++;
                 }
                 catch (Exception ex)

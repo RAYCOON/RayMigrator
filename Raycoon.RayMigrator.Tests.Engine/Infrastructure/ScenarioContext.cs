@@ -39,7 +39,7 @@ public class ScenarioContext : IAsyncDisposable
     /// <summary>
     /// Returns the host's migration service and binds the host's MigrationContext to the ambient
     /// <see cref="MigrationLoggingContext"/> of the current async flow. EngineTestHost sets the AsyncLocal inside
-    /// <c>Build</c>, which runs in the builder's async flow and is therefore invisible to the test method; without this
+    /// <c>BuildAsync</c>, which runs in an async flow of its own and is therefore invisible to the test method; without this
     /// binding the enricher sees no context and the DatabaseLogging sink lets every event through (#6).
     /// </summary>
     private IMigrationService Service()
@@ -259,8 +259,8 @@ public class ScenarioContext : IAsyncDisposable
     /// Closes an open run through the executor's orphan fix, as a parallel start and the fix command do; false when
     /// the run is alive (heartbeat younger than <paramref name="thresholdMinutes"/>) and stays open.
     /// </summary>
-    public bool FixOrphanedRun(int migrationRunId, int thresholdMinutes)
-        => _host.Services.GetRequiredService<TemplateExecutor>().RepositoryMigrationRunFixOrphaned(migrationRunId, thresholdMinutes);
+    public Task<bool> FixOrphanedRunAsync(int migrationRunId, int thresholdMinutes)
+        => _host.Services.GetRequiredService<TemplateExecutor>().RepositoryMigrationRunFixOrphanedAsync(migrationRunId, thresholdMinutes);
 
     public void InsertOrphanedMigrationRun(int minutesOld = 120, int? heartbeatMinutesOld = null)
     {
@@ -291,18 +291,16 @@ public class ScenarioContext : IAsyncDisposable
     /// Rebuilds the DI container for a different command/mode without cleaning databases.
     /// Used for multi-step test scenarios (e.g., Migrate-Up then Migrate-Down).
     /// </summary>
-    public Task RebuildForAsync(MigrationCommand command, MigrationRunMode mode, string? toRelease = null, string? environment = null)
+    public async Task RebuildForAsync(MigrationCommand command, MigrationRunMode mode, string? toRelease = null, string? environment = null)
     {
         _environment = environment ?? "Docker";
         _host.Dispose();
         _host = new EngineTestHost();
-        _host.Build(_configPath, _productAlias, command, mode, toRelease, _environment, _initiator);
+        await _host.BuildAsync(_configPath, _productAlias, command, mode, toRelease, _environment, _initiator);
         if (_progressObserver != null)
         {
             _host.MigrationContext.ProgressObserver = _progressObserver;
         }
-
-        return Task.CompletedTask;
     }
 
     /// <summary>

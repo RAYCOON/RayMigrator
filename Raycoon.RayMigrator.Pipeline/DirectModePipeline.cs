@@ -221,7 +221,7 @@ public static class DirectModePipeline
                     var templateCache = host.Services.GetRequiredService<TemplateCache>();
                     var templateExecutor = host.Services.GetRequiredService<TemplateExecutor>();
 
-                    bool hasCreatedRepository = dbLogWriter.InitDatabaseLogger(loggingDatabaseType, templateCache, templateExecutor);
+                    bool hasCreatedRepository = await dbLogWriter.InitDatabaseLoggerAsync(loggingDatabaseType, templateCache, templateExecutor);
                     string initInfoAddon = hasCreatedRepository
                         ? "Infrastructure for database-logging successfully created."
                         : "Infrastructure for database-logging already exists.";

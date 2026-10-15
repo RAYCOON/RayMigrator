@@ -37,7 +37,7 @@ public sealed class RepositorySchemaService : IRepositorySchemaService
     }
 
     /// <inheritdoc/>
-    public RepositorySchemaResult Ensure(RepositoryOptions repository)
+    public async Task<RepositorySchemaResult> EnsureAsync(RepositoryOptions repository, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(repository);
 
@@ -66,8 +66,8 @@ public sealed class RepositorySchemaService : IRepositorySchemaService
 
         SensitiveDataMasker.RegisterSensitiveValues([repository.ConnectionString, repository.SchemaName, repository.TableBaseName]);
 
-        var outcome = new RepositorySchemaExecutor(_templateCache, _logger, repository, dal,
-            AssemblyInfoHelper.GetRayMigratorVersion(), RepositorySchema.CurrentVersion).Ensure();
+        var outcome = await new RepositorySchemaExecutor(_templateCache, _logger, repository, dal,
+            AssemblyInfoHelper.GetRayMigratorVersion(), RepositorySchema.CurrentVersion).EnsureAsync(cancellationToken);
 
         return new RepositorySchemaResult(dal.DatabaseType, outcome.VersionBefore, outcome.VersionAfter, outcome.MigratorMetaId);
     }

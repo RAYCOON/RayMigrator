@@ -20,7 +20,7 @@ public class DatabaseLogWriter
     private readonly LogLevel _minimumLogLevel;
     private readonly DatabaseLoggerQueue _databaseLoggerQueue;
 
-    // Initialized from method-call InitDatabaseLogger()
+    // Initialized from method-call InitDatabaseLoggerAsync()
     private Template? _templateLoggingInsert;
     private volatile bool _isDatabaseLoggingInitialized;
 
@@ -116,7 +116,8 @@ public class DatabaseLogWriter
     }
 
     /// <summary>
-    /// Writes a log entry to the database via DAL.
+    /// Writes a log entry to the database via DAL. Runs on the queue's own thread, outside any async flow, so it calls
+    /// the synchronous <see cref="IDal.ExecuteNonQuery"/>.
     /// </summary>
     private void WriteToDatabase(
         LogLevel logLevel,
@@ -166,14 +167,23 @@ public class DatabaseLogWriter
     /// <summary>
     /// Initializes database logging by creating the required schema and loading templates.
     /// </summary>
+    /// <param name="loggingDatabaseType">The database type of the log tables.</param>
+    /// <param name="templateCache">The templates of the logging database type.</param>
+    /// <param name="templateExecutor">Runs <c>DatabaseLogging_CheckCreate</c>.</param>
+    /// <param name="cancellationToken">Reaches the DAL call that creates the log tables.</param>
     /// <returns>True if the logging infrastructure was newly created, false if it already existed.</returns>
-    public bool InitDatabaseLogger(string loggingDatabaseType, TemplateCache templateCache, TemplateExecutor templateExecutor)
+    public async Task<bool> InitDatabaseLoggerAsync(
+        string loggingDatabaseType,
+        TemplateCache templateCache,
+        TemplateExecutor templateExecutor,
+        CancellationToken cancellationToken = default)
     {
         var templateLoggingCheckCreate = templateCache.GetTemplate(loggingDatabaseType, TemplateType.DatabaseLogging_CheckCreate, _options.DatabaseLogging);
         _templateLoggingInsert = templateCache.GetTemplate(loggingDatabaseType, TemplateType.DatabaseLogging_Insert, _options.DatabaseLogging);
 
         // Create DB logging-infrastructure if needed
-        TemplateResponse templateResponseCheckPrerequisites = templateExecutor.ExecuteScalarWithNegativeResultCodeException(templateLoggingCheckCreate, _dal!, _dalSettings!, null);
+        TemplateResponse templateResponseCheckPrerequisites = await templateExecutor.ExecuteScalarWithNegativeResultCodeExceptionAsync(
+            templateLoggingCheckCreate, _dal!, _dalSettings!, null, cancellationToken: cancellationToken);
 
         _isDatabaseLoggingInitialized = true;
 
