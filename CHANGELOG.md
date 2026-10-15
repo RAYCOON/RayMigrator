@@ -62,6 +62,11 @@ RayMigrator follows Semantic Versioning where applicable.
 - The German help texts (`FieldHelp.de.resx`, `SectionHelp.de.resx` in
   `Raycoon.RayMigrator.Shared`) are written with umlauts and ß instead of
   the transliterations ae, oe, ue and ss.
+- The help texts of `Repository.TableBaseName` and
+  `DatabaseLogging.TableBaseName` suggest the lowercase prefixes `rm_` and
+  `app1_` and name the resulting table names per database. The examples
+  `RM_` and `App1_` were refused by `RULE_4_3` on PostgreSQL, MySQL and
+  MariaDB, whose table names are snake_case.
 
 ## [0.18.0] — 2026-10-15
 
