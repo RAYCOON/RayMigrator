@@ -45,6 +45,17 @@ RayMigrator follows Semantic Versioning where applicable.
   options a host built in memory the same scope through
   `RayMigratorOptionsPreparer.IsolateProduct`; a host that binds a document
   of its own isolates it with `ConfigurationProductScope` first.
+- `MigrationFilesEncoding` defaults to UTF-8. A configuration that leaves
+  the encoding out, or empty, on `ProductDefaults` and on a product no
+  longer fails the data annotations: `[RayEncoding]` writes
+  `EncodingSupport.DefaultEncodingName` (`UTF-8`) into the empty value on
+  both levels, as `[RayRangeInt]` writes its numeric defaults, and a named
+  default still cascades into the products. The files were already read as
+  UTF-8 when the value was missing, and `UTF-8` decodes like the strict
+  UTF-8 the engine used for a missing value, so no hash changes and no
+  `update-hash` is needed. The settings snapshot of a run records `UTF-8`
+  where it recorded `null` before. `RayEncodingAttribute.DefaultValue`
+  exposes the name for hosts that describe the options.
 
 ## [0.18.0] — 2026-10-15
 

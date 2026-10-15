@@ -3,12 +3,18 @@ using System.ComponentModel.DataAnnotations;
 namespace Raycoon.RayMigrator.Core.Configuration.Validation.RayAttributes;
 
 /// <summary>
-/// Attribute for optional validation of connection strings.
+/// Validates the name of a migration files encoding. A value that is left out or empty is set to
+/// <see cref="EncodingSupport.DefaultEncodingName"/> (UTF-8), the way <see cref="RayRangeIntAttribute"/> writes its
+/// default into an empty number, so that the prepared options always name the encoding they read with; a value
+/// that is not a .NET encoding name fails.
 /// </summary>
 public class RayEncodingAttribute : ValidationAttribute
 {
+    /// <summary>The encoding name written into a value that is left out or empty.</summary>
+    public string DefaultValue => EncodingSupport.DefaultEncodingName;
+
     /// <summary>
-    /// Validates whether the provided connection string is valid.
+    /// Validates the encoding name; writes the default into a missing or empty value.
     /// </summary>
     /// <param name="value">The value to be validated.</param>
     /// <param name="validationContext">The context in which the validation is performed.</param>
@@ -19,9 +25,9 @@ public class RayEncodingAttribute : ValidationAttribute
             ? new[] { validationContext.MemberName }
             : null;
 
-        if (value == null)
+        if (value == null || (value is string text && string.IsNullOrWhiteSpace(text)))
         {
-            return new ValidationResult($"Invalid encoding string [null] for property [{validationContext.MemberName}]. Please supply a valid Encoding string like 'UTF-8'.", memberNames);
+            return ValidationContextPropertySetter.SetPropertyValue(DefaultValue, validationContext);
         }
 
         if (value is string encodingString)
@@ -36,7 +42,7 @@ public class RayEncodingAttribute : ValidationAttribute
                 return new ValidationResult($"Invalid encoding string [{value}] for property [{validationContext.MemberName}]. {EncodingSupport.ValidNamesHint}", memberNames);
             }
         }
-        
+
         return ValidationResult.Success;
     }
 }

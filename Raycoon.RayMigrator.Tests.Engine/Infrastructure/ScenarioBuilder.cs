@@ -338,8 +338,9 @@ public class ScenarioBuilder
     }
 
     /// <summary>
-    /// Sets ProductDefaults.MigrationFilesEncoding for the scenario (default UTF-8). Used with
-    /// <see cref="WithFileBytes"/> to provide files in a specific encoding (#4).
+    /// Writes ProductDefaults.MigrationFilesEncoding into the scenario's configuration; without this call the key is
+    /// left out and the engine's default UTF-8 applies. Used with <see cref="WithFileBytes"/> to provide files in a
+    /// specific encoding (#4).
     /// </summary>
     public ScenarioBuilder WithMigrationFilesEncoding(string encodingName)
     {
@@ -650,10 +651,13 @@ public class ScenarioBuilder
             ["MigrationErrorAction"] = (_migrationErrorAction ?? MigrationErrorAction.Terminate).ToString(),
             ["MigrationFilesExtension"] = "sql",
             ["MigrationRollbackFilesPreExtension"] = "rollback",
-            ["MigrationFilesEncoding"] = _migrationFilesEncoding ?? "UTF-8",
             ["RequireRollbackFile"] = _requireRollbackFile ?? true,
             ["TargetGroupDefaults"] = targetGroupDefaults
         };
+
+        // Without the key the engine's own default applies (UTF-8, written by [RayEncoding]); every scenario exercises it.
+        if (_migrationFilesEncoding != null)
+            productDefaults["MigrationFilesEncoding"] = _migrationFilesEncoding;
 
         if (_stopRollbackOnMissingRollbackFile.HasValue)
             productDefaults["StopRollbackOnMissingRollbackFile"] = _stopRollbackOnMissingRollbackFile.Value;

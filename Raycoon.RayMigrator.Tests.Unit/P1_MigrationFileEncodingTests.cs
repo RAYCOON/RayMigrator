@@ -256,6 +256,20 @@ public class MigrationFileEncodingTests : IDisposable
         Read(path, "UTF-16").Should().Be("䄀䈀");
     }
 
+    [Fact]
+    public void GetFileEncoding_MissingAndNamedUtf8_DecodeTheSameTextAndRejectTheSameBytes()
+    {
+        string valid = WriteBytes("utf8.sql", new UTF8Encoding(false).GetBytes(Text));
+        string invalid = WriteBytes("latin1.sql", new byte[] { 0x53, 0x45, 0x4C, 0xFC });
+
+        Read(valid, null).Should().Be(Read(valid, "UTF-8"), "a configuration without an encoding read UTF-8 before the default was written into it, so the hashes stay");
+
+        var missing = () => Read(invalid, null);
+        var named = () => Read(invalid, "UTF-8");
+        missing.Should().Throw<MigrationFileParsingException>().Which.Message.Should().Contain("[FC]");
+        named.Should().Throw<MigrationFileParsingException>().Which.Message.Should().Contain("[FC]");
+    }
+
     #endregion
 
     #region migsettings.txt is always UTF-8

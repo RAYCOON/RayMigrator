@@ -65,6 +65,19 @@ public class EncodingSupportTests
     }
 
     [Fact]
+    public void DefaultEncodingName_IsUtf8_AndDecodesAndFailsLikeTheStrictUtf8OfAMissingValue()
+    {
+        EncodingSupport.DefaultEncodingName.Should().Be("UTF-8");
+        var named = EncodingSupport.GetStrictEncoding(EncodingSupport.DefaultEncodingName);
+        byte[] text = Encoding.UTF8.GetBytes("SELECT 'Grüße – €';");
+
+        named.GetString(text).Should().Be(EncodingSupport.StrictUtf8.GetString(text), "a configuration that names the default reads the same text, so the hashes stay");
+        // The named encoding carries the preamble of Encoding.UTF8; it never writes a file and ReadMigrationText strips a BOM itself.
+        var act = () => named.GetString(new byte[] { 0x41, 0xFC });
+        act.Should().Throw<DecoderFallbackException>("the named default is as strict as the implicit one");
+    }
+
+    [Fact]
     public void EnsureCodePagesRegistered_CalledConcurrently_EveryCallerCanResolveCodePages()
     {
         Parallel.For(0, 32, _ =>
