@@ -7,6 +7,8 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ## [Unreleased]
 
+## [0.18.0] — 2026-10-15
+
 ### Added
 
 - `Raycoon.RayMigrator.Shared` carries the help texts of the configuration:
