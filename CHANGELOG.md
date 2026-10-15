@@ -7,6 +7,18 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ## [Unreleased]
 
+### Added
+
+- `ConfigurationProductScope` in `Raycoon.RayMigrator.Shared` (namespace
+  `Raycoon.RayMigrator.Shared.Configuration`): `Isolate` reduces a merged
+  configuration to the scope of one product, the shared sections and the
+  elements of `Products` whose alias equals the product's (compared like the
+  merger compares aliases, without regard to case); the other products and
+  elements without an alias are left out, elements that repeat the product's
+  alias stay so that the rule catalog reports them. `ProductAliases` lists
+  the product aliases of a document. The engine's loader and RayMigrator
+  Studio apply it to the merged document before a run binds it.
+
 ## [0.18.0] — 2026-10-15
 
 ### Added
