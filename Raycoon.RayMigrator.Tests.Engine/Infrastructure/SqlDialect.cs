@@ -99,6 +99,35 @@ public static class SqlDialect
     }
 
     /// <summary>
+    /// Joins SQL statements into the body of a migration file whose every statement is a block of its own: the engine
+    /// splits a file at a line holding only its block delimiter, GO on SQL Server and a semicolon elsewhere.
+    /// </summary>
+    public static string JoinBlocks(string databaseType, params string[] blocks)
+        => string.Join(databaseType == "SqlServer" ? "\nGO\n" : "\n;\n", blocks);
+
+    /// <summary>Returns an INSERT of one row into the TableA of the fixtures (created by 01_CreateTableA.sql).</summary>
+    public static string GetInsertIntoTableASql(string databaseType, string name, int value)
+    {
+        return databaseType switch
+        {
+            "SqlServer" => $"INSERT INTO [dbo].[TableA] ([Name], [Value]) VALUES ('{name}', {value})",
+            "PostgreSQL" or "MariaDb" or "MySql" or "Sqlite" => $"INSERT INTO tablea (name, value) VALUES ('{name}', {value})",
+            _ => throw new NotSupportedException($"Unsupported database type: {databaseType}")
+        };
+    }
+
+    /// <summary>Returns a DELETE of one row from the TableC of the fixtures (created by Release_2.0/01_CreateTableC.sql).</summary>
+    public static string GetDeleteFromTableCSql(string databaseType, string title)
+    {
+        return databaseType switch
+        {
+            "SqlServer" => $"DELETE FROM [dbo].[TableC] WHERE [Title] = '{title}'",
+            "PostgreSQL" or "MariaDb" or "MySql" or "Sqlite" => $"DELETE FROM tablec WHERE title = '{title}'",
+            _ => throw new NotSupportedException($"Unsupported database type: {databaseType}")
+        };
+    }
+
+    /// <summary>
     /// Returns SQL that keeps a block busy for about <paramref name="seconds"/> seconds, so a run lasts long enough
     /// for its heartbeat to fire. SQLite has no sleep; a recursive CTE burns the time instead.
     /// </summary>

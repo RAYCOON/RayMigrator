@@ -942,6 +942,97 @@ public class RepositoryQueryHelper
     }
 
     /// <summary>
+    /// The terminal transitions of the records of <paramref name="filename"/> in history order (MigrationRecordHistory by
+    /// id): for each row the status it recorded and the operation that caused it. Empty when the file has no history row.
+    /// </summary>
+    public IReadOnlyList<(int MigrationStatusId, int MigrationOperationId)> GetMigrationHistoryStatuses(string filename)
+    {
+        string table = GetQualifiedTableName("MigrationRecordHistory");
+        string status = QuoteColumn("MigrationStatusId");
+        string operation = QuoteColumn("MigrationOperationId");
+        string id = QuoteColumn("Id");
+        string where = $"WHERE {QuoteColumn("Filename")} = '{EscapeSql(filename)}'";
+
+        string sql = _databaseType switch
+        {
+            "SqlServer" => $"SELECT STRING_AGG(CONCAT({status}, ':', {operation}), '|') WITHIN GROUP (ORDER BY {id}) FROM {table} {where}",
+            "PostgreSQL" => $"SELECT string_agg({status}::text || ':' || {operation}::text, '|' ORDER BY {id}) FROM {table} {where}",
+            "MariaDb" or "MySql" => $"SELECT GROUP_CONCAT(CONCAT({status}, ':', {operation}) ORDER BY {id} SEPARATOR '|') FROM {table} {where}",
+            "Sqlite" => $"SELECT group_concat(entry, '|') FROM (SELECT {status} || ':' || {operation} AS entry FROM {table} {where} ORDER BY {id})",
+            _ => throw new NotSupportedException($"Unsupported database type: {_databaseType}")
+        };
+
+        string? result = QueryScalarString(sql);
+        if (string.IsNullOrEmpty(result))
+            return [];
+
+        return result.Split('|')
+            .Select(entry => entry.Split(':'))
+            .Select(parts => (int.Parse(parts[0]), int.Parse(parts[1])))
+            .ToList();
+    }
+
+    /// <summary>
+    /// The columns of the repository index <paramref name="indexName"/> in key order, as the database names them, or an
+    /// empty list when the index does not exist. The name is the full name the templates give the index, prefix included.
+    /// </summary>
+    public IReadOnlyList<string> GetIndexColumns(string indexName)
+    {
+        string name = EscapeSql(indexName);
+        string schema = EscapeSql(_schemaName);
+        string sql = _databaseType switch
+        {
+            "SqlServer" =>
+                "SELECT STRING_AGG(c.name, '|') WITHIN GROUP (ORDER BY ic.key_ordinal) FROM sys.indexes i " +
+                "JOIN sys.index_columns ic ON ic.object_id = i.object_id AND ic.index_id = i.index_id " +
+                "JOIN sys.columns c ON c.object_id = ic.object_id AND c.column_id = ic.column_id " +
+                "JOIN sys.tables t ON t.object_id = i.object_id JOIN sys.schemas s ON s.schema_id = t.schema_id " +
+                $"WHERE s.name = '{schema}' AND i.name = '{name}'",
+            "PostgreSQL" =>
+                "SELECT string_agg(a.attname, '|' ORDER BY k.ord) FROM pg_class ix " +
+                "JOIN pg_namespace n ON n.oid = ix.relnamespace JOIN pg_index i ON i.indexrelid = ix.oid " +
+                "CROSS JOIN LATERAL unnest(i.indkey) WITH ORDINALITY AS k(attnum, ord) " +
+                "JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = k.attnum " +
+                $"WHERE n.nspname = '{schema}' AND ix.relname = '{name}'",
+            "MariaDb" or "MySql" =>
+                "SELECT GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX SEPARATOR '|') FROM information_schema.STATISTICS " +
+                $"WHERE TABLE_SCHEMA = DATABASE() AND INDEX_NAME = '{name}'",
+            "Sqlite" => $"SELECT group_concat(name, '|') FROM (SELECT name FROM pragma_index_info('{name}') ORDER BY seqno)",
+            _ => throw new NotSupportedException($"Unsupported database type: {_databaseType}")
+        };
+
+        string? result = QueryScalarString(sql);
+        return string.IsNullOrEmpty(result) ? [] : result.Split('|');
+    }
+
+    /// <summary>The name of row <paramref name="id"/> of the lookup table <paramref name="tableName"/>, or null when there is none.</summary>
+    public string? GetLookupName(string tableName, int id)
+        => QueryScalarString($"SELECT {QuoteColumn("Name")} FROM {GetQualifiedTableName(tableName)} WHERE {QuoteColumn("Id")} = {id}");
+
+    /// <summary>
+    /// The messages of the MigrationLog entries at <paramref name="logLevelId"/> in the order they were written, each with
+    /// the exception text the database sink appends to the message of an event that carries one. Empty when there is no
+    /// such entry or no log table.
+    /// </summary>
+    public IReadOnlyList<string> GetLogMessages(int logLevelId)
+    {
+        if (!DalFactory.TryGetDal(_databaseType, _repositoryConnectionString, out IDal? dal))
+            return [];
+
+        string sql = $"SELECT {QuoteColumn("Message")} FROM {GetQualifiedTableName("MigrationLog")} " +
+                     $"WHERE {QuoteColumn("LogLevelId")} = {logLevelId} ORDER BY {QuoteColumn("Id")}";
+        try
+        {
+            var rows = dal!.ExecuteReaderAsync(sql, QuerySettings, null).GetAwaiter().GetResult();
+            return rows.Select(row => Convert.ToString(row.Values.FirstOrDefault()) ?? string.Empty).ToList();
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    /// <summary>
     /// Gets a full MigrationRun record by 1-based index (oldest first).
     /// Returns null if no record is found at the given index.
     /// </summary>

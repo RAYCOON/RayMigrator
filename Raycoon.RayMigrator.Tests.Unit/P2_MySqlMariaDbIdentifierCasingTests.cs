@@ -25,6 +25,7 @@ public class MySqlMariaDbIdentifierCasingTests
         "Repository_CheckCreate.sql",
         "Repository_Upgrade_1.sql",
         "Repository_Upgrade_2.sql",
+        "Repository_Upgrade_3.sql",
         "Repository_MigratorMeta_CheckInsert.sql",
         "Repository_Drop.sql",
         "Repository_Environment_CheckInsert.sql",
@@ -67,6 +68,7 @@ public class MySqlMariaDbIdentifierCasingTests
     [InlineData("Repository_CheckCreate.sql")]
     [InlineData("Repository_Upgrade_1.sql")]
     [InlineData("Repository_Upgrade_2.sql")]
+    [InlineData("Repository_Upgrade_3.sql")]
     [InlineData("Repository_MigratorMeta_CheckInsert.sql")]
     [InlineData("Repository_Drop.sql")]
     [InlineData("Repository_Environment_CheckInsert.sql")]
@@ -131,6 +133,7 @@ public class MySqlMariaDbIdentifierCasingTests
     [InlineData("Repository_CheckCreate.sql")]
     [InlineData("Repository_Upgrade_1.sql")]
     [InlineData("Repository_Upgrade_2.sql")]
+    [InlineData("Repository_Upgrade_3.sql")]
     [InlineData("Repository_MigratorMeta_CheckInsert.sql")]
     [InlineData("Repository_Drop.sql")]
     [InlineData("Repository_Environment_CheckInsert.sql")]
@@ -183,31 +186,31 @@ public class MySqlMariaDbIdentifierCasingTests
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// Confirms the count of MySQL templates: exactly 18. If a new template is added without
+    /// Confirms the count of MySQL templates: exactly 26. If a new template is added without
     /// updating this test class the count assertion fails, prompting a review.
     /// </summary>
     [Fact]
-    public void MySqlTemplates_TotalCount_IsTwentyFive()
+    public void MySqlTemplates_TotalCount_IsTwentySix()
     {
         var templatesDir = GetTemplatesDir("MySql");
         var actualFiles = Directory.GetFiles(templatesDir, "*.sql");
 
-        actualFiles.Should().HaveCount(25,
-            "the MySql Templates directory must contain exactly 25 .sql files after DAL-018 (+2 read-only Select templates, #7; +1 history Select template, #13; +3 schema version templates, ADR-024; +1 heartbeat template); " +
+        actualFiles.Should().HaveCount(26,
+            "the MySql Templates directory must contain exactly 26 .sql files after DAL-018 (+2 read-only Select templates, #7; +1 history Select template, #13; +4 schema version templates, ADR-024; +1 heartbeat template); " +
             "if you added a new template, also add it to P2_MySqlMariaDbIdentifierCasingTests");
     }
 
     /// <summary>
-    /// Confirms the count of MariaDB templates: exactly 25. Mirrors MySqlTemplates_TotalCount_IsTwentyFive.
+    /// Confirms the count of MariaDB templates: exactly 26. Mirrors MySqlTemplates_TotalCount_IsTwentySix.
     /// </summary>
     [Fact]
-    public void MariaDbTemplates_TotalCount_IsTwentyFive()
+    public void MariaDbTemplates_TotalCount_IsTwentySix()
     {
         var templatesDir = GetTemplatesDir("MariaDb");
         var actualFiles = Directory.GetFiles(templatesDir, "*.sql");
 
-        actualFiles.Should().HaveCount(25,
-            "the MariaDb Templates directory must contain exactly 25 .sql files after DAL-018 (+2 read-only Select templates, #7; +1 history Select template, #13; +3 schema version templates, ADR-024; +1 heartbeat template); " +
+        actualFiles.Should().HaveCount(26,
+            "the MariaDb Templates directory must contain exactly 26 .sql files after DAL-018 (+2 read-only Select templates, #7; +1 history Select template, #13; +4 schema version templates, ADR-024; +1 heartbeat template); " +
             "if you added a new template, also add it to P2_MySqlMariaDbIdentifierCasingTests");
     }
 

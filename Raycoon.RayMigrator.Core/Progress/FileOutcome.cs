@@ -33,4 +33,11 @@ public enum FileOutcome
 
     /// <summary>Nothing ran on the target: a rollback without a rollback file, or a rollback chain that stopped at one.</summary>
     Skipped = 90,
+
+    /// <summary>
+    /// The run was cancelled while the file ran: the block in progress did not commit, and the record is Failed with
+    /// the blocks that committed before the cancel (none on the atomic path, whose transaction is rolled back). A
+    /// rollback that follows reports its own start and completion.
+    /// </summary>
+    Cancelled = 100,
 }

@@ -32,7 +32,7 @@ public class ValidateHashExitCodeTests
     private static (RayMigratorService Wrapper, RecordingLogger Logger, IMigrationService Service) CreateWrapper(ValidationResult result)
     {
         var migrationService = Substitute.For<IMigrationService>();
-        migrationService.ValidateHashAsync(Arg.Any<ValidateHashRequest>()).Returns(Task.FromResult(result));
+        migrationService.ValidateHashAsync(Arg.Any<ValidateHashRequest>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(result));
 
         var consoleOptions = new RayMigratorConsoleOptions
         {
@@ -91,7 +91,7 @@ public class ValidateHashExitCodeTests
         var exitCode = await wrapper.DoWorkAsync(null!);
 
         exitCode.Should().Be(1, "a modified migrated file must fail the CI gate");
-        await service.Received(1).ValidateHashAsync(Arg.Any<ValidateHashRequest>());
+        await service.Received(1).ValidateHashAsync(Arg.Any<ValidateHashRequest>(), Arg.Any<CancellationToken>());
         logger.Entries.Should().NotContain(e => e.Level == LogLevel.Error,
             "hash issues are a validation outcome, not a command failure (#5)");
         logger.Entries.Should().ContainSingle(e => e.Level == LogLevel.Information && e.Message.Contains("Validate-Hash completed") && e.Message.Contains("Invalid: 1"));

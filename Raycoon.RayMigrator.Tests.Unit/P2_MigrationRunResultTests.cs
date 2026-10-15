@@ -6,8 +6,9 @@ namespace Raycoon.RayMigrator.Tests.Unit;
 /// <summary>
 /// P2: <see cref="MigrationRunResult.PartialSuccess"/> distinguishes a run that finished with skipped or
 /// ignored files from an aborted one, <see cref="MigrationRunResult.Recovered"/> a failed run whose error-recovery
-/// rollback completed cleanly (#18). The values are seeded into the MigrationRunResult lookup table of every DAL
-/// and must never move.
+/// rollback completed cleanly (#18), <see cref="MigrationRunResult.Cancelled"/> a run the host stopped. The values are
+/// seeded into the MigrationRunResult lookup table of every DAL, each by the schema step that introduced it, and must
+/// never move.
 /// </summary>
 public class MigrationRunResultTests
 {
@@ -29,18 +30,28 @@ public class MigrationRunResultTests
     }
 
     [Fact]
-    public void EveryMember_IsSeededByEverySchemaStepOneTemplate()
+    public void Cancelled_IsDefined_BetweenPartialSuccessAndRecovered()
+    {
+        Enum.IsDefined(MigrationRunResult.Cancelled).Should().BeTrue();
+        ((byte)MigrationRunResult.Cancelled).Should().Be(70, "the value is seeded into the MigrationRunResult lookup table by schema step 3");
+    }
+
+    [Fact]
+    public void EveryMember_IsSeededByTheSchemaStepThatIntroducedIt()
     {
         var root = FindRepoRoot();
         foreach (var dal in new[] { "SqlServer", "PostgreSQL", "Sqlite", "MySql", "MariaDb" })
         {
-            var template = File.ReadAllText(Path.Combine(root, $"Raycoon.RayMigrator.Database.{dal}", "Templates", "Repository_Upgrade_1.sql"));
             foreach (var member in Enum.GetValues<MigrationRunResult>().Where(m => m != MigrationRunResult.Undefined))
             {
+                // Cancelled came with step 3; a step never changes, so step 1 seeds the members it knew
+                string step = member == MigrationRunResult.Cancelled ? "Repository_Upgrade_3.sql" : "Repository_Upgrade_1.sql";
+                var template = File.ReadAllText(Path.Combine(root, $"Raycoon.RayMigrator.Database.{dal}", "Templates", step));
+
                 // VALUES rows "(50, 'PartialSuccess'," (SqlServer, PostgreSQL, Sqlite) or the UNION ALL rows of the
                 // MySql/MariaDb derived table ("SELECT 50, 'PartialSuccess'," / "SELECT 10 AS id, 'Running' AS name,").
                 template.Should().MatchRegex($@"(\({(byte)member}, '{member}',|SELECT {(byte)member}( AS id)?, '{member}'( AS name)?,)",
-                    $"Repository_Upgrade_1.sql of {dal} must seed MigrationRunResult.{member}");
+                    $"{step} of {dal} must seed MigrationRunResult.{member}");
             }
         }
     }

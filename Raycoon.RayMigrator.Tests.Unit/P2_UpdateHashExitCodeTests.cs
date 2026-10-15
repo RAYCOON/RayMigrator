@@ -26,7 +26,7 @@ public class UpdateHashExitCodeTests
     private static (RayMigratorService Wrapper, RecordingLogger Logger) CreateWrapper(HashUpdateResult result)
     {
         var migrationService = Substitute.For<IMigrationService>();
-        migrationService.UpdateHashAsync(Arg.Any<UpdateHashRequest>()).Returns(Task.FromResult(result));
+        migrationService.UpdateHashAsync(Arg.Any<UpdateHashRequest>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(result));
 
         var consoleOptions = new RayMigratorConsoleOptions
         {

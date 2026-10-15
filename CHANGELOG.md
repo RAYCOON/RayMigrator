@@ -7,8 +7,127 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ## [Unreleased]
 
+### Added
+
+- A host can cancel a run and choose what the run does when it stops. The
+  methods of `IMigrationService` take `CancellationToken cancellationToken
+  = default`, and `MigrateUpRequest`, `MigrateDownRequest` and
+  `BaselineRequest` take a `RunCancellation` (new in
+  `Raycoon.RayMigrator.Services.Abstractions`): its `Cancel(action,
+  reason)` cancels the run once, the first call decides the
+  `MigrationCancelledAction` (new in `Core.Configuration.Enums`, a value of
+  the run, not a configuration option) and later calls return false;
+  `Token`, `Action`, `Reason` and `RequestedAtUtc` describe the request.
+  The cancelling call runs the callbacks of the token, those of the
+  database providers among them, synchronously on the calling thread and
+  swallows their exceptions: the action and the token are set before, so
+  the run stops at its next checkpoint all the same.
+  The engine links the token of the call with the handle; a cancel through
+  the token alone means `Terminate`. A cancelled run stops at the next
+  block boundary: there are checkpoints before every file, target and
+  block, and the token goes to the target DAL, which interrupts the block
+  in progress where the provider can (SQL Server, PostgreSQL and MariaDB
+  abort the statement; the `KILL QUERY` of MySQL and MariaDB ends a
+  `SLEEP()` early without an error, and the further statements of the block
+  run; SQLite only checks before a block). The
+  interrupted file reports `FileOutcome.Cancelled` (100) and its record is
+  `Failed` with the blocks that committed (none on the atomic path), so the
+  next migrate-up resumes it like a failed file. Then the run takes the
+  action: `Terminate` (10, the default) does nothing else, `RollbackFile`
+  (21), `RollbackRun` (20) and `RollbackRelease` (22) run the rollback
+  chain of `MigrationErrorAction.RollbackErrorOnly`, `Rollback` and
+  `RollbackRelease` with the same rules for missing rollback files and
+  `RollbackErrorAction`; a run cancelled between two files, or in
+  FileByFile order between two targets of a file, has no interrupted file,
+  so `RollbackFile` rolls nothing back and `RollbackRelease` takes the
+  release of the file migrated last; a file stopped between two of its
+  targets counts as a finished file in the result and in
+  `RunCompletedEvent`, since it migrated on the targets it ran on. This
+  rollback cannot be cancelled again. The run is recorded as the new
+  `MigrationRunResult.Cancelled` (70) with the new engine code
+  `TemplateResultCode.Cancelled` (1004) and the message `Cancelled on
+  request (<action>): <outcome>`, plus the reason; when the rollback
+  reported a failure or a warning, the run is `Error` with
+  `TemplateResultCode.CancelledRollbackIncomplete` (1005), the same rule
+  that decides `Recovered` against `Error` after a failure. Migrate-down,
+  baseline and an error recovery that is already running stop at the next
+  block or file and ignore the action (logged when it is not `Terminate`):
+  the record in progress of a migrate-down or an error recovery is `Failed`
+  with its rollback blocks and the next migrate-down continues it, and the
+  records a baseline wrote stay. A migrate-up that failed at a file and
+  whose error recovery the cancel stopped stays `Error` with the code of
+  that failure, not `Cancelled`: the run failed before the cancel, which
+  only stopped the handling of the failure, so error rates, the exit code of
+  the CLI (1, not 130) and the operator see the failed file. Its message
+  names the failure first, then where the cancel stopped the recovery and
+  what that leaves, then the reason: `The error recovery was cancelled on
+  request in the rollback of <file> on target <target> after j of J rollback
+  block(s); migrate-down continues that rollback, and migrate-up refuses
+  <file> until it has completed`, `… before its first rollback: nothing was
+  rolled back, <file> stays Failed with the blocks it committed, and the
+  files this run migrated stay Migrated` or `… after i of m rollback(s): the
+  files it did not reach keep their state`. The first block of a rollback
+  file, an atomic rollback and a rollback through a CLI tool always
+  complete, so a record never ends `Failed` without rollback progress. A
+  migrate-up refuses to start while a file it would run has a record
+  `Failed`, or `Executing` in a run that has ended, with some but not all of
+  its rollback blocks (left by such a cancel, by a failed rollback block
+  after the first or by a repository write that failed), because it would
+  run the file again from its first
+  block on a target that kept part of it: no file runs, the run is
+  `Error`, and the message names the release, file and target of each
+  such record, its `k of n rollback blocks` and that migrate-down
+  continues the rollback at block k+1. The run returns `Success = false`
+  with `Result = Cancelled` (or `Error`) instead of throwing, and
+  `RunCompletedEvent` reports it. update-hash and fix stop before the next
+  record or run and return `Success = false`, `ErrorCode = Cancelled` and
+  what they did so far (update-hash counts a file in `UpdatedFiles` and
+  `UpdatedFileNames` once its first record is updated, so a cancel between
+  the records of a file reports it); validate-hash, status and history throw
+  `OperationCanceledException`. Simulate and Validate persist nothing, and
+  neither does a run cancelled before its run row: it is `Cancelled` with
+  `MigrationRunId` 0, and a rollback action reports that there is nothing
+  to roll back. The repository writes of a run on the repository's own
+  connection never take its token, so a record and its history row always
+  change together; on the atomic path the record updates share the
+  transaction of the file and take the token with it, so a cancel rolls
+  back the blocks of the file and their updates as one. Every write after
+  the stop runs to its end.
+- `RepositoryQueryHelper` (`Raycoon.RayMigrator.Testing`) reads what the
+  cancellation tests check: `GetMigrationHistoryStatuses(filename)`, the
+  status and operation of each history row of a file in history order;
+  `GetIndexColumns(indexName)`, the columns of a repository index in key
+  order; `GetLookupName(tableName, id)`, the name of a lookup row; and
+  `GetLogMessages(logLevelId)`, the messages of the log entries at one
+  level with the exception text the database sink appends.
+- `BaselineResult.Result` names the result the run row records (`Ok`,
+  `Error` or `Cancelled`), and `RunCompletedEvent.Result` carries it for
+  baseline as well; it was null for baseline before.
+
 ### Changed
 
+- **Breaking (schema):** repository schema version 3. The next command
+  applies `Repository_Upgrade_3` (every DAL, idempotent and serialised like
+  step 2): the lookup row `Cancelled` (70) in `MigrationRunResult` and four
+  indexes for the readers of the repository,
+  `ix_{TableBaseName}MigrationRun_Product_Environment_StartedAt`
+  (`ProductId`, `EnvironmentId`, `StartedAt`),
+  `ix_{TableBaseName}MigrationRecordHistory_MigrationRunId`,
+  `ix_{TableBaseName}MigrationRecordHistory_HistorizedAt` and
+  `ix_{TableBaseName}MigrationRecord_Product_Environment` (`ProductId`,
+  `EnvironmentId`), in snake_case on PostgreSQL, MySQL and MariaDB.
+  `RepositorySchema.CurrentVersion` and `RepositoryReadModel.SchemaVersion`
+  are 3, `TemplateType` has `Repository_Upgrade_3`; an external DAL ships
+  the template too. Engines before this version refuse a repository of
+  schema version 3. The data stays.
+- **Breaking (API):** every method of `IMigrationService` takes
+  `CancellationToken cancellationToken = default` as its last parameter
+  (`GetHistoryAsync(productAlias, limit, cancellationToken)`); callers
+  compile unchanged, implementations must add the parameter.
+- A migrate-up that stops at a failed file records the engine error code of
+  the failure in `MigrationRun.ErrorCode` and in the `ErrorCode` of its
+  `MigrationOperationResult`, like a failure outside a file did before, also
+  when a cancel stopped its error recovery.
 - **Breaking (API / external DALs):** the asynchronous members of `IDal`
   take `CancellationToken cancellationToken = default` as their last
   parameter: `ExecuteNonQueryAsync`, `ExecuteScalarAsync`,
@@ -46,8 +165,7 @@ RayMigrator follows Semantic Versioning where applicable.
   to 180 seconds. The templates of earlier versions had the same gap; a
   cancel makes it routine.
   The synchronous `ExecuteNonQuery`, which the database log writer calls
-  from its own thread, has no token. The engine passes no token yet, so a
-  run behaves as before.
+  from its own thread, has no token.
 - **Breaking (API):** the repository access is asynchronous. Every public
   method of `TemplateExecutor` is `…Async`, returns a `Task` and takes
   `CancellationToken cancellationToken = default` as its last parameter
@@ -63,8 +181,29 @@ RayMigrator follows Semantic Versioning where applicable.
   `MigrationService` awaits the executor instead of running it through
   `Task.Run`, also in the atomic path, where the repository updates of a
   file share the target's connection and transaction, and the run
-  heartbeat writes asynchronously. The engine passes no token yet, so a run
-  behaves as before.
+  heartbeat writes asynchronously.
+
+### Fixed
+
+- A CLI tool in `Stdin` mode that exits before it read the whole migration
+  file is judged by its exit code: a failure code fails the file with the
+  exit code and the error output of the tool, as any other tool failure
+  does, and a success code fails it with `CLI tool '<path>' exited with code
+  <n> before it read all of '<file>' from its standard input.`, because the
+  tool cannot have run the whole file. Before, the write of the file met
+  the closed pipe, and its `IOException` failed the file whatever the tool
+  reported. Every version with CLI tools in `Stdin` mode has the fault.
+- `CliToolExecutor` kills the tool and the processes it started when the
+  caller cancels; before, only the timeout killed it and a cancelled run
+  left the tool running. A tool that fails, or that did not get the whole
+  file in `Stdin` mode, after the cancel counts as cancelled and not as a
+  tool failure for `MigrationErrorAction`: Ctrl+C reaches the whole process
+  group on Linux and macOS, so the tool gets the signal as well, and the
+  cancel may cut off the write of the file. A tool is not started when the
+  token is already cancelled, the write to its standard input observes the
+  token, and its output is read without the token, so a cancel that arrives
+  after the tool got the whole file and
+  exited keeps its result.
 
 ## [0.19.0] — 2026-10-15
 

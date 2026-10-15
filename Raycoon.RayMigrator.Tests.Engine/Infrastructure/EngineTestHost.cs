@@ -19,6 +19,7 @@ using Raycoon.RayMigrator.Shared;
 using Raycoon.RayMigrator.Shared.Configuration;
 using Raycoon.RayMigrator.Shared.Exceptions;
 using Serilog;
+using Serilog.Core;
 using Serilog.Events;
 
 namespace Raycoon.RayMigrator.Tests.Engine.Infrastructure;
@@ -35,11 +36,31 @@ public sealed class EngineTestHost : IDisposable
     private RayMigratorOptions? _rayMigratorOptions;
     private global::Serilog.Core.Logger? _serilogLogger;
     private DatabaseLogWriter? _dbLogWriter;
+    private readonly LogObserverSink _logObserverSink = new();
 
     public IServiceProvider Services => _host!.Services;
     public IMigrationService MigrationService => _scope!.ServiceProvider.GetRequiredService<IMigrationService>();
     public MigrationContext MigrationContext => Services.GetRequiredService<MigrationContext>();
     public RayMigratorOptions RayMigratorOptions => _rayMigratorOptions!;
+
+    /// <summary>
+    /// Receives every log event of the host that passes the Serilog minimum level of the scenario, on the thread that logs
+    /// it and before the logging call returns, so that a test can act at an exact point of a command that reports no
+    /// progress events (update-hash, fix).
+    /// </summary>
+    public Action<LogEvent>? LogObserver
+    {
+        get => _logObserverSink.Observer;
+        set => _logObserverSink.Observer = value;
+    }
+
+    /// <summary>Hands each event to <see cref="Observer"/>; Serilog calls a sink synchronously on the logging thread.</summary>
+    private sealed class LogObserverSink : ILogEventSink
+    {
+        public Action<LogEvent>? Observer { get; set; }
+
+        public void Emit(LogEvent logEvent) => Observer?.Invoke(logEvent);
+    }
 
     /// <summary>
     /// Builds the host with full DI configuration analogous to Program.cs.
@@ -104,7 +125,8 @@ public sealed class EngineTestHost : IDisposable
         var serilogConfiguration = new LoggerConfiguration()
             .ReadFrom.Configuration(rayMigratorSection)
             .Enrich.FromLogContext()
-            .Enrich.With(new MigrationContextEnricher());
+            .Enrich.With(new MigrationContextEnricher())
+            .WriteTo.Sink(_logObserverSink);
 
         RayMigratorDatabaseSink? databaseSink = null;
         // Database logging is on unless the section says Enabled: false; without a section it goes into the repository.

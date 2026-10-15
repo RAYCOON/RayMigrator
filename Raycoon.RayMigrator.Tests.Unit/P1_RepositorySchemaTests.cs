@@ -97,6 +97,24 @@ public class RepositorySchemaTests
     }
 
     [Theory]
+    [InlineData("SqlServer", "ix_{CFG:TableBaseName}MigrationRun_Product_Environment_StartedAt", "ix_{CFG:TableBaseName}MigrationRecord_Product_Environment")]
+    [InlineData("Sqlite", "ix_{CFG:TableBaseName}MigrationRun_Product_Environment_StartedAt", "ix_{CFG:TableBaseName}MigrationRecord_Product_Environment")]
+    [InlineData("PostgreSQL", "ix_{CFG:TableBaseName}migration_run_product_environment_started_at", "ix_{CFG:TableBaseName}migration_record_product_environment")]
+    [InlineData("MySql", "ix_{CFG:TableBaseName}migration_run_product_environment_started_at", "ix_{CFG:TableBaseName}migration_record_product_environment")]
+    [InlineData("MariaDb", "ix_{CFG:TableBaseName}migration_run_product_environment_started_at", "ix_{CFG:TableBaseName}migration_record_product_environment")]
+    public void StepThree_EveryEngine_AddsCancelledAndTheReaderIndexes(string engine, string runIndex, string recordIndex)
+    {
+        // Act
+        var step = ReadTemplate(engine, "Repository_Upgrade_3.sql");
+
+        // Assert
+        step.Should().Contain("(70, 'Cancelled', 'Migration(s) stopped on request before completion')",
+            because: "the run result Cancelled needs its lookup row before a run can record it");
+        step.Should().Contain(runIndex).And.Contain(recordIndex);
+        step.Should().Contain("3,RayMigrator repository schema version [3] applied", because: "the step reports its number");
+    }
+
+    [Theory]
     [MemberData(nameof(Engines))]
     public void DatabaseLoggingCheckCreate_EveryEngine_SeedsTheNewEvents(string engine)
     {

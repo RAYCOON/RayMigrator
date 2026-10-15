@@ -22,6 +22,17 @@ public enum MigrationRunResult : byte
     PartialSuccess = 50,
 
     /// <summary>
+    /// The host cancelled the run and the engine stopped it at the next block or file boundary: a migrate-up whose
+    /// <see cref="MigrationCancelledAction"/> completed (<see cref="MigrationCancelledAction.Terminate"/>, or a rollback
+    /// without a failure or warning), or a migrate-down or baseline that stopped. A cancelled migrate-up whose rollback
+    /// reported a failure or a warning (a failed rollback block, a missing rollback file, rollback errors that
+    /// RollbackErrorAction=Ignore skipped) is persisted as <see cref="Error"/>, and so is a migrate-up that
+    /// failed at a file before the cancel stopped its error recovery, with the code of that failure. The interrupted
+    /// file is <see cref="MigrationStatus.Failed"/> with the blocks that committed before the cancel.
+    /// </summary>
+    Cancelled = 70,
+
+    /// <summary>
     /// A migrate-up failed and the configured error recovery (<see cref="MigrationErrorAction.Rollback"/>,
     /// <see cref="MigrationErrorAction.RollbackRelease"/> or <see cref="MigrationErrorAction.RollbackErrorOnly"/>)
     /// completed without a failure or warning: every record the recovery touched is

@@ -13,7 +13,7 @@ public static class RepositorySchema
     /// The newest schema version this engine knows. Every DAL ships <c>Repository_Upgrade_1</c> to
     /// <c>Repository_Upgrade_{CurrentVersion}</c>.
     /// </summary>
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
 
     /// <summary>
     /// The template that creates schema version <paramref name="version"/> on top of the version before it.

@@ -25,6 +25,7 @@ public class PostgreSqlIdentifierCasingTests
         "Repository_CheckCreate.sql",
         "Repository_Upgrade_1.sql",
         "Repository_Upgrade_2.sql",
+        "Repository_Upgrade_3.sql",
         "Repository_MigratorMeta_CheckInsert.sql",
         "Repository_Drop.sql",
         "Repository_Environment_CheckInsert.sql",
@@ -66,6 +67,7 @@ public class PostgreSqlIdentifierCasingTests
     [InlineData("Repository_CheckCreate.sql")]
     [InlineData("Repository_Upgrade_1.sql")]
     [InlineData("Repository_Upgrade_2.sql")]
+    [InlineData("Repository_Upgrade_3.sql")]
     [InlineData("Repository_MigratorMeta_CheckInsert.sql")]
     [InlineData("Repository_Drop.sql")]
     [InlineData("Repository_Environment_CheckInsert.sql")]
@@ -118,17 +120,17 @@ public class PostgreSqlIdentifierCasingTests
     }
 
     /// <summary>
-    /// Confirms the count of PG templates: exactly 18. If a new template is added without
+    /// Confirms the count of PG templates: exactly 26. If a new template is added without
     /// updating this test class the count assertion fails, prompting a review.
     /// </summary>
     [Fact]
-    public void PgTemplates_TotalCount_IsTwentyFive()
+    public void PgTemplates_TotalCount_IsTwentySix()
     {
         var templatesDir = GetTemplatesDir("PostgreSQL");
         var actualFiles = Directory.GetFiles(templatesDir, "*.sql");
 
-        actualFiles.Should().HaveCount(25,
-            "the PostgreSQL Templates directory must contain exactly 25 .sql files after DAL-017 (+2 read-only Select templates, #7; +1 history Select template, #13; +3 schema version templates, ADR-024; +1 heartbeat template); " +
+        actualFiles.Should().HaveCount(26,
+            "the PostgreSQL Templates directory must contain exactly 26 .sql files after DAL-017 (+2 read-only Select templates, #7; +1 history Select template, #13; +4 schema version templates, ADR-024; +1 heartbeat template); " +
             "if you added a new template, also add it to P2_PostgreSqlIdentifierCasingTests");
     }
 

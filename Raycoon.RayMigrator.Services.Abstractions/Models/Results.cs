@@ -123,6 +123,12 @@ public class BaselineResult : OperationResult
 
     /// <summary>Records written: one per file and target that was pending. Also set when the baseline failed midway.</summary>
     public int BaselinedRecords { get; set; }
+
+    /// <summary>
+    /// The result the run row records: <see cref="MigrationRunResult.Ok"/>, <see cref="MigrationRunResult.Error"/>, or
+    /// <see cref="MigrationRunResult.Cancelled"/> when the host cancelled the baseline before the next file.
+    /// </summary>
+    public MigrationRunResult Result { get; set; }
 }
 
 /// <summary>

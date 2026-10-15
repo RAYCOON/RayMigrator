@@ -19,6 +19,7 @@ public enum TemplateType
     // IRepositorySchemaService), which then registers the engine version through MigratorMeta_CheckInsert
     Repository_Upgrade_1,
     Repository_Upgrade_2,
+    Repository_Upgrade_3,
     Repository_MigratorMeta_CheckInsert,
 
     Repository_MigrationRun_Insert,

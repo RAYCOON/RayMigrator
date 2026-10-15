@@ -7,6 +7,7 @@ using Raycoon.RayMigrator.Core.Configuration.Enums;
 using Raycoon.RayMigrator.Core.Progress;
 using Raycoon.RayMigrator.Services.Abstractions;
 using Raycoon.RayMigrator.Testing;
+using Serilog.Events;
 
 namespace Raycoon.RayMigrator.Tests.Engine.Infrastructure;
 
@@ -19,6 +20,7 @@ public class ScenarioContext : IAsyncDisposable
 {
     private EngineTestHost _host;
     private IMigrationProgressObserver? _progressObserver;
+    private Action<LogEvent>? _logObserver;
     private readonly RepositoryQueryHelper _queryHelper;
     private readonly EngineConfig _engineConfig;
     private readonly string _workDir;
@@ -80,11 +82,25 @@ public class ScenarioContext : IAsyncDisposable
     /// Executes Migrate-Up, optionally limited to a specific release.
     /// <paramref name="runMode"/> defaults to the run mode the host was built with; an explicit value that differs
     /// from it rebuilds the host first, so the request and the context never disagree about the run mode (#6).
+    /// <paramref name="cancellation"/> is the handle a test cancels the run with; the call itself gets the test's token.
     /// </summary>
-    public async Task<MigrationOperationResult> MigrateUpAsync(
+    public Task<MigrationOperationResult> MigrateUpAsync(
         string? toRelease = null, bool allowOutOfOrder = false,
         string[]? targetGroupAliases = null, MigrationRunMode? runMode = null,
-        string[]? targetGroupMigrationOrder = null)
+        string[]? targetGroupMigrationOrder = null, RunCancellation? cancellation = null)
+        => MigrateUpCoreAsync(toRelease, allowOutOfOrder, targetGroupAliases, runMode, targetGroupMigrationOrder, cancellation,
+            TestContext.Current.CancellationToken);
+
+    /// <summary>
+    /// Executes Migrate-Up with <paramref name="cancellationToken"/> as the token of the call and no
+    /// <see cref="RunCancellation"/>: a cancel of the token alone stops the run with Terminate.
+    /// </summary>
+    public Task<MigrationOperationResult> MigrateUpWithTokenAsync(CancellationToken cancellationToken, string? toRelease = null)
+        => MigrateUpCoreAsync(toRelease, false, null, null, null, null, cancellationToken);
+
+    private async Task<MigrationOperationResult> MigrateUpCoreAsync(
+        string? toRelease, bool allowOutOfOrder, string[]? targetGroupAliases, MigrationRunMode? runMode,
+        string[]? targetGroupMigrationOrder, RunCancellation? cancellation, CancellationToken cancellationToken)
     {
         var effectiveRunMode = await AlignHostRunModeAsync(MigrationCommand.MigrateUp, runMode, toRelease);
 
@@ -101,9 +117,10 @@ public class ScenarioContext : IAsyncDisposable
             RevealSensitiveData = false,
             AllowOutOfOrder = allowOutOfOrder,
             TargetGroupAliases = targetGroupAliases,
-            TargetGroupMigrationOrder = targetGroupMigrationOrder
+            TargetGroupMigrationOrder = targetGroupMigrationOrder,
+            Cancellation = cancellation
         };
-        var result = await Service().MigrateUpAsync(request);
+        var result = await Service().MigrateUpAsync(request, cancellationToken);
         _lastResult = result;
         return result;
     }
@@ -115,7 +132,7 @@ public class ScenarioContext : IAsyncDisposable
     /// </summary>
     public async Task<MigrationOperationResult> MigrateDownAsync(
         string toRelease, string[]? targetGroupAliases = null, MigrationRunMode? runMode = null,
-        bool revealSensitiveData = false)
+        bool revealSensitiveData = false, RunCancellation? cancellation = null)
     {
         var effectiveRunMode = await AlignHostRunModeAsync(MigrationCommand.MigrateDown, runMode, toRelease);
 
@@ -130,9 +147,10 @@ public class ScenarioContext : IAsyncDisposable
             RunMode = effectiveRunMode,
             ShowInfo = false,
             RevealSensitiveData = revealSensitiveData,
-            TargetGroupAliases = targetGroupAliases
+            TargetGroupAliases = targetGroupAliases,
+            Cancellation = cancellation
         };
-        var result = await Service().MigrateDownAsync(request);
+        var result = await Service().MigrateDownAsync(request, TestContext.Current.CancellationToken);
         _lastResult = result;
         return result;
     }
@@ -141,7 +159,7 @@ public class ScenarioContext : IAsyncDisposable
     /// Executes Baseline, optionally limited to a specific release and/or target groups.
     /// </summary>
     public async Task<BaselineResult> BaselineAsync(string? toRelease = null, string[]? targetGroupAliases = null,
-        string[]? targetGroupMigrationOrder = null, bool revealSensitiveData = false)
+        string[]? targetGroupMigrationOrder = null, bool revealSensitiveData = false, RunCancellation? cancellation = null)
     {
         await AlignHostRunModeAsync(MigrationCommand.Baseline, null, toRelease);
 
@@ -156,9 +174,10 @@ public class ScenarioContext : IAsyncDisposable
             ShowInfo = false,
             RevealSensitiveData = revealSensitiveData,
             TargetGroupAliases = targetGroupAliases,
-            TargetGroupMigrationOrder = targetGroupMigrationOrder
+            TargetGroupMigrationOrder = targetGroupMigrationOrder,
+            Cancellation = cancellation
         };
-        var result = await Service().BaselineAsync(request);
+        var result = await Service().BaselineAsync(request, TestContext.Current.CancellationToken);
         _lastResult = result;
         return result;
     }
@@ -177,15 +196,16 @@ public class ScenarioContext : IAsyncDisposable
             RevealSensitiveData = false,
             TargetGroupAliases = targetGroupAliases
         };
-        var result = await Service().ValidateHashAsync(request);
+        var result = await Service().ValidateHashAsync(request, TestContext.Current.CancellationToken);
         _lastResult = result;
         return result;
     }
 
     /// <summary>
-    /// Updates stored hashes for migration files in the repository.
+    /// Updates stored hashes for migration files in the repository, with <paramref name="cancellationToken"/> or the
+    /// token of the test.
     /// </summary>
-    public async Task<HashUpdateResult> UpdateHashAsync(string[]? targetGroupAliases = null)
+    public async Task<HashUpdateResult> UpdateHashAsync(string[]? targetGroupAliases = null, CancellationToken? cancellationToken = null)
     {
         var request = new UpdateHashRequest
         {
@@ -194,7 +214,7 @@ public class ScenarioContext : IAsyncDisposable
             RevealSensitiveData = false,
             TargetGroupAliases = targetGroupAliases
         };
-        var result = await Service().UpdateHashAsync(request);
+        var result = await Service().UpdateHashAsync(request, cancellationToken ?? TestContext.Current.CancellationToken);
         _lastResult = result;
         return result;
     }
@@ -205,7 +225,7 @@ public class ScenarioContext : IAsyncDisposable
     /// </summary>
     public async Task<MigrationStatusInfo> InfoAsync()
     {
-        var result = await Service().GetStatusAsync(_productAlias);
+        var result = await Service().GetStatusAsync(_productAlias, TestContext.Current.CancellationToken);
         return result;
     }
 
@@ -214,7 +234,7 @@ public class ScenarioContext : IAsyncDisposable
     /// </summary>
     public async Task<MigrationHistory> GetHistoryAsync(int limit = 100)
     {
-        var result = await Service().GetHistoryAsync(_productAlias, limit);
+        var result = await Service().GetHistoryAsync(_productAlias, limit, TestContext.Current.CancellationToken);
         return result;
     }
 
@@ -226,7 +246,8 @@ public class ScenarioContext : IAsyncDisposable
     public async Task<FixIssuesResult> FixIssuesAsync(
         FixScope scope = FixScope.OrphanedRuns,
         int olderThanMinutes = 0,
-        MigrationStatus assumedMigrationStatus = MigrationStatus.NotMigrated)
+        MigrationStatus assumedMigrationStatus = MigrationStatus.NotMigrated,
+        CancellationToken? cancellationToken = null)
     {
         var request = new FixIssuesRequest
         {
@@ -239,7 +260,7 @@ public class ScenarioContext : IAsyncDisposable
             ShowInfo = false,
             RevealSensitiveData = false
         };
-        var result = await Service().FixIssuesAsync(request);
+        var result = await Service().FixIssuesAsync(request, cancellationToken ?? TestContext.Current.CancellationToken);
         _lastResult = result;
         return result;
     }
@@ -288,6 +309,16 @@ public class ScenarioContext : IAsyncDisposable
     }
 
     /// <summary>
+    /// Sets the observer of the host's log events, and of every host a later rebuild creates; it runs on the thread that
+    /// logs, before the logging call returns (<see cref="EngineTestHost.LogObserver"/>).
+    /// </summary>
+    public void UseLogObserver(Action<LogEvent> observer)
+    {
+        _logObserver = observer;
+        _host.LogObserver = observer;
+    }
+
+    /// <summary>
     /// Rebuilds the DI container for a different command/mode without cleaning databases.
     /// Used for multi-step test scenarios (e.g., Migrate-Up then Migrate-Down).
     /// </summary>
@@ -301,6 +332,8 @@ public class ScenarioContext : IAsyncDisposable
         {
             _host.MigrationContext.ProgressObserver = _progressObserver;
         }
+
+        _host.LogObserver = _logObserver;
     }
 
     /// <summary>
@@ -556,6 +589,9 @@ public class ScenarioContext : IAsyncDisposable
     /// </summary>
     public MigrationRunRecordDto? GetMigrationRun(int runIndex) => _queryHelper.GetMigrationRunByIndex(runIndex);
 
+    /// <summary>The MigrationRecord row of <paramref name="filename"/>, or null when the file has none.</summary>
+    public MigrationRecordDto? GetMigrationRecord(string filename) => _queryHelper.GetMigrationRecordByFilename(filename);
+
     /// <summary>
     /// Gets the FileUpConfigJson for a Migration record matching the given filename.
     /// </summary>
@@ -565,6 +601,24 @@ public class ScenarioContext : IAsyncDisposable
     /// Counts all MigrationHistory records in the repository.
     /// </summary>
     public int CountMigrationHistory() => _queryHelper.CountMigrationHistory();
+
+    /// <summary>The history rows of <paramref name="filename"/> in order: the status each recorded and the operation that caused it.</summary>
+    public IReadOnlyList<(MigrationStatus Status, MigrationOperation Operation)> GetMigrationHistory(string filename)
+        => _queryHelper.GetMigrationHistoryStatuses(filename)
+            .Select(h => ((MigrationStatus)h.MigrationStatusId, (MigrationOperation)h.MigrationOperationId))
+            .ToList();
+
+    /// <summary>The columns of the repository index <paramref name="indexName"/> in key order; empty when it does not exist.</summary>
+    public IReadOnlyList<string> GetRepositoryIndexColumns(string indexName) => _queryHelper.GetIndexColumns(indexName);
+
+    /// <summary>The name of row <paramref name="id"/> of the repository lookup table <paramref name="tableName"/>, or null.</summary>
+    public string? GetRepositoryLookupName(string tableName, int id) => _queryHelper.GetLookupName(tableName, id);
+
+    /// <summary>
+    /// The messages of the MigrationLog entries at <paramref name="logLevelId"/> in the order they were written, with the
+    /// exception text the database sink appends; call <see cref="FlushDatabaseLog"/> first.
+    /// </summary>
+    public IReadOnlyList<string> GetLogMessages(int logLevelId) => _queryHelper.GetLogMessages(logLevelId);
 
     /// <summary>
     /// Counts all MigrationLog entries in the repository.

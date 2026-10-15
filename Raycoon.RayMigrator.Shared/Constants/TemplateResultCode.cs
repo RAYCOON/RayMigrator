@@ -61,6 +61,21 @@ public static class TemplateResultCode
     /// <summary>Configuration validation error.</summary>
     public const int ConfigurationValidationFailed = 1003;
 
+    /// <summary>
+    /// The host cancelled the run and the engine stopped it: the run of a migrate-up, migrate-down or baseline is
+    /// <c>MigrationRunResult.Cancelled</c>, its <c>MigrationCancelledAction</c> completed. Also the <c>ErrorCode</c> of an
+    /// update-hash or fix that stopped early. The read commands (validate-hash, status, history) throw an
+    /// <c>OperationCanceledException</c> instead.
+    /// </summary>
+    public const int Cancelled = 1004;
+
+    /// <summary>
+    /// The host cancelled a migrate-up and the rollback its <c>MigrationCancelledAction</c> started did not complete
+    /// cleanly: it reported a failure or a warning (a failed rollback block, a missing rollback file, rollback errors that
+    /// RollbackErrorAction=Ignore skipped). The run is <c>MigrationRunResult.Error</c>.
+    /// </summary>
+    public const int CancelledRollbackIncomplete = 1005;
+
     // ===== Known Code Registry =====
 
     private static readonly HashSet<int> KnownNegativeCodes =

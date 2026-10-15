@@ -16,6 +16,12 @@ public class MigrateUpRequest
     public bool AllowOutOfOrder { get; set; } = false;
     public string[]? TargetGroupAliases { get; set; }
     public string[]? TargetGroupMigrationOrder { get; set; }
+    /// <summary>
+    /// The handle the host cancels this run with, or null. The run stops at the next block boundary and takes the
+    /// action the first <see cref="RunCancellation.Cancel"/> chose; the token of the call cancels with
+    /// <see cref="MigrationCancelledAction.Terminate"/>.
+    /// </summary>
+    public RunCancellation? Cancellation { get; set; }
 }
 
 /// <summary>
@@ -30,6 +36,12 @@ public class MigrateDownRequest
     public bool ShowInfo { get; set; } = true;
     public bool RevealSensitiveData { get; set; } = false;
     public string[]? TargetGroupAliases { get; set; }
+    /// <summary>
+    /// The handle the host cancels this run with, or null. A migrate-down stops at the next rollback block and
+    /// ignores the action the handle carries: the record in progress stays Failed with its rollback blocks, and the
+    /// next migrate-down continues it.
+    /// </summary>
+    public RunCancellation? Cancellation { get; set; }
 }
 
 /// <summary>
@@ -67,6 +79,11 @@ public class BaselineRequest
     public bool RevealSensitiveData { get; set; } = false;
     public string[]? TargetGroupAliases { get; set; }
     public string[]? TargetGroupMigrationOrder { get; set; }
+    /// <summary>
+    /// The handle the host cancels this run with, or null. A baseline stops before the next file and ignores the
+    /// action the handle carries; the records it wrote stay Migrated.
+    /// </summary>
+    public RunCancellation? Cancellation { get; set; }
 }
 
 /// <summary>
