@@ -74,8 +74,9 @@ public sealed class RepositorySchemaService : IRepositorySchemaService
 
     /// <summary>
     /// The rules of the catalog that judge a repository on its own: the schema name where the engine needs one
-    /// (RULE_4_2), a lowercase prefix on the engines that fold identifiers (RULE_4_3) and the length of the prefix
-    /// (RULE_4_4). A repository the service created must pass the validation of every later run.
+    /// (RULE_4_2), a lowercase prefix on the engines that fold identifiers (RULE_4_3), the length of the prefix
+    /// (RULE_4_4) and its characters (RULE_4_5). A repository the service created must pass the validation of every
+    /// later run.
     /// </summary>
     private static void ValidateWithCatalog(RepositoryOptions repository)
     {

@@ -197,4 +197,49 @@ public class SchemaRuleTests
 
         report.Issues.Should().Contain(i => i.Code == RuleIds.RULE_4_4 && i.Path == "DatabaseLogging > TableBaseName");
     }
+
+    [Theory]
+    [InlineData("SqlServer", "rm-")]
+    [InlineData("SqlServer", "rm ")]
+    [InlineData("PostgreSQL", "größe_")]
+    [InlineData("Sqlite", "a.b")]
+    public void TableBaseName_WithACharacterOutsideLettersDigitsAndUnderscore_IsError(string databaseType, string prefix)
+    {
+        var input = new ValidationInput
+        {
+            Repository = new RepositoryInput
+            {
+                DatabaseType = databaseType,
+                ConnectionString = "Server=.;Database=x;",
+                SchemaName = databaseType == "Sqlite" ? null : "dbo",
+                TableBaseName = prefix,
+            },
+        };
+
+        var report = RuleCatalog.RunAll(input);
+
+        report.Issues.Should().Contain(i => i.Code == RuleIds.RULE_4_5 && i.Severity == ValidationSeverity.Error && i.Path == "Repository > TableBaseName" && i.Message.Contains(prefix));
+    }
+
+    [Theory]
+    [InlineData("rm_")]
+    [InlineData("Ray2")]
+    [InlineData("")]
+    public void TableBaseName_OfLettersDigitsAndUnderscores_IsAccepted(string prefix)
+    {
+        var input = new ValidationInput
+        {
+            Repository = new RepositoryInput
+            {
+                DatabaseType = "SqlServer",
+                ConnectionString = "Server=.;Database=x;",
+                SchemaName = "dbo",
+                TableBaseName = prefix,
+            },
+        };
+
+        var report = RuleCatalog.RunAll(input);
+
+        report.Issues.Should().NotContain(i => i.Code == RuleIds.RULE_4_5);
+    }
 }

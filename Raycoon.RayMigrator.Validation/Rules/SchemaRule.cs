@@ -9,14 +9,15 @@ namespace Raycoon.RayMigrator.Validation.Rules;
 /// <item><see cref="RuleIds.RULE_4_1"/> — SchemaName on schemaless DB (Sqlite) is a Warning</item>
 /// <item><see cref="RuleIds.RULE_4_2"/> — SchemaName is required for SqlServer and PostgreSQL (Error)</item>
 /// <item><see cref="RuleIds.RULE_4_3"/> — TableBaseName must be lowercase for PostgreSQL, MariaDB, MySQL (Error)</item>
-/// <item><see cref="RuleIds.RULE_4_4"/> — TableBaseName has at most <see cref="MaxTableBaseNameLength"/> characters (Error)</item>
+/// <item><see cref="RuleIds.RULE_4_4"/> — TableBaseName has at most <see cref="MaxTableBaseNameLength"/> bytes in UTF-8 (Error)</item>
+/// <item><see cref="RuleIds.RULE_4_5"/> — TableBaseName consists of ASCII letters, digits and underscores (Error)</item>
 /// </list>
 /// </summary>
 internal sealed class SchemaRule : IValidationRule
 {
     /// <summary>
     /// The longest prefixed name of the repository, <c>ix_{prefix}migration_record_history_migration_record_id</c>,
-    /// has 47 characters plus the prefix; 16 keeps it within the 63 characters PostgreSQL allows (MySQL and MariaDB: 64).
+    /// has 47 characters plus the prefix; 16 keeps it within the 63 bytes PostgreSQL allows (MySQL and MariaDB: 64 characters).
     /// </summary>
     public const int MaxTableBaseNameLength = 16;
 
@@ -88,6 +89,14 @@ internal sealed class SchemaRule : IValidationRule
                 ValidationMessages.Format(ValidationMessages.LowercaseTableBaseNameRequired, repo.TableBaseName, repo.DatabaseType));
         }
 
+        if (!string.IsNullOrEmpty(repo.TableBaseName) && !repo.TableBaseName.All(IsIdentifierCharacter))
+        {
+            report.AddError(
+                RuleIds.RULE_4_5,
+                $"{path} > TableBaseName",
+                ValidationMessages.Format(ValidationMessages.TableBaseNameInvalidCharacters, repo.TableBaseName));
+        }
+
         if (repo.TableBaseName is { } prefix && System.Text.Encoding.UTF8.GetByteCount(prefix) > MaxTableBaseNameLength)
         {
             report.AddError(
@@ -96,4 +105,8 @@ internal sealed class SchemaRule : IValidationRule
                 ValidationMessages.Format(ValidationMessages.TableBaseNameTooLong, prefix, System.Text.Encoding.UTF8.GetByteCount(prefix), MaxTableBaseNameLength));
         }
     }
+
+    /// <summary>The characters every engine accepts in an unquoted identifier: the prefix is written without quotes or brackets.</summary>
+    private static bool IsIdentifierCharacter(char c) =>
+        c is (>= 'a' and <= 'z') or (>= 'A' and <= 'Z') or (>= '0' and <= '9') or '_';
 }

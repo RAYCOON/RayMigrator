@@ -39,7 +39,7 @@ RayMigrator follows Semantic Versioning where applicable.
   and `Repository_MigratorMeta_CheckInsert`, and returns
   `RepositorySchemaResult` (version before and after, `MigratorMetaId`,
   `Created`, `Upgraded`). The rules of the catalog that judge the repository
-  alone (RULE_4_2, RULE_4_3, RULE_4_4) run before anything is created, so a
+  alone (RULE_4_2 to RULE_4_5) run before anything is created, so a
   repository the service creates passes the validation of every later run. The steps themselves moved from `TemplateExecutor`
   into `RepositorySchemaExecutor` (`Raycoon.RayMigrator.Infrastructure`);
   `TemplateExecutor.RepositoryCheckCreate` runs them with the values of the
@@ -73,9 +73,16 @@ RayMigrator follows Semantic Versioning where applicable.
   prefixes can now share one database or schema; before, the second one
   failed on the first name that already existed (SQL Server and PostgreSQL in
   `Repository_CheckCreate`, MySQL and MariaDB in step 1). A repository created
-  by 0.17.0 keeps its names and keeps working. New rule RULE_4_4 (Error):
-  `TableBaseName` has at most 16 bytes in UTF-8 (16 ASCII characters), so that the longest prefixed
-  index name fits the identifier limit of PostgreSQL, MySQL and MariaDB.
+  by 0.17.0 keeps its names and keeps working, but it still owns the
+  unprefixed key names: a new repository without a prefix in the same schema
+  collides with it until the old one is recreated. New rules: RULE_4_4
+  (Error), `TableBaseName` has at most 16 bytes in UTF-8 (16 ASCII
+  characters), so that the longest prefixed index name fits the identifier
+  limit of PostgreSQL, MySQL and MariaDB; RULE_4_5 (Error), `TableBaseName`
+  consists of ASCII letters, digits and underscores, the characters that need
+  no quoting on any engine (the SQL Server templates write the prefixed names
+  without brackets, so a prefix such as `rm-`, which passed before, is refused
+  with a message instead of failing inside `Repository_CheckCreate`).
 - **Breaking (API):** the Admin-DB bootstrap contract is gone:
   `RayMigratorBootstrapOptions`, `AdminDbOptions` and `OperatingMode` left
   `Raycoon.RayMigrator.Core`, `OptionsSourceResult.PreBuiltOptions` and the
