@@ -58,7 +58,7 @@ raymigrator migrate-up --product <alias> --environment <env> [--run-mode <mode>]
 
 ### Option Details
 
-**--product**: Matched case-sensitively against product aliases in the configuration. If the value does not match but a case-insensitive match is found, RayMigrator suggests the correct casing before exiting with an error.
+**--product**: Matched case-sensitively against product aliases in the configuration. If the value does not match but a case-insensitive match is found, RayMigrator suggests the correct casing before exiting with an error. The run loads only the shared sections and this product of the merged configuration (ADR-026): the other products are neither validated nor resolved, so a fault in one of them does not stop the run. A value that matches none of the configured aliases, in any case, fails while the files are loaded, with the aliases they name.
 
 **--environment**: Matched case-sensitively. Used to load `appsettings.{Environment}.json` and `appsettings.{Product}.{Environment}.json` configuration files.
 

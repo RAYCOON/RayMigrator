@@ -107,8 +107,15 @@ switches; it overrides configured values only through `--stop-rollback-on-missin
 | Defaults cascade | `ProductDefaults` to `ProductOptions`; `TargetGroupDefaults` to `TargetGroupOptions`; `TargetDefaults` to `TargetOptions`; `UseCliToolAlias` additionally product to target group to target; only null or blank values are filled | `ProductDefaultsPostConfigureOptions.MergeDefaults` |
 | Directory and file | six `migsettings` levels, then the TOML header; arrays replace | `LoadMigSettingsDefaults`, `ResolveMigSettingsForFile`, `ParseTomlConfig` |
 
+A run binds and validates in the scope of its product (ADR-026): `JsonOptionsSource` reduces the merged document to the shared
+sections (`Repository`, `DatabaseLogging`, `ProductDefaults`, `Serilog`, `CliTools`) and the elements of `Products` whose alias is the
+`--product` of the run (`ConfigurationProductScope` in `Shared`) before the document is bound, and `IMigrationContextFactory.Create`
+does the same for options a host built in memory (`RayMigratorOptionsPreparer.IsolateProduct`); a fault in another product does not
+reach the run, and a product the files do not name fails while they are loaded.
+
 Validation runs in three stages at startup: data annotations (`[Required]`, `[RegularExpression]`, `[RayEnum]`, `[RayRangeInt]`,
-`[RayEncoding]`, `[RayConnectionString]`, `[RayDirectoryExists]`; `RayRangeInt` also writes its default into a null property),
+`[RayEncoding]`, `[RayConnectionString]`, `[RayDirectoryExists]`; `RayRangeInt` writes its numeric default and `RayEncoding` the
+encoding default `UTF-8` into a null property),
 then `RuleCatalog.RunAll(ValidationInput)` invoked by `RayMigratorOptionsValidator` through `OptionsValidationInputAdapter`, then
 engine aware checks outside the catalog (`SchemaNameValidator`, `ConnectionValidator`,
 `TemplateCache.ValidateConfigurationAgainstTemplateCache`). Rule ids follow `RULE_{group}_{n}` as declared in `RuleIds`

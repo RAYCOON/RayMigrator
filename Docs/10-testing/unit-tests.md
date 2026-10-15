@@ -200,6 +200,7 @@ Raycoon.RayMigrator.Tests.Unit/
 ├── P1_FilterByTargetReleaseTests.cs
 ├── P1_FlatLayoutAmbiguityTests.cs
 ├── P1_HandleMigrationErrorBehaviorTests.cs
+├── P1_JsonOptionsSourceProductScopeTests.cs
 ├── P1_MigrationContextCloneTests.cs
 ├── P1_MigrationErrorActionIgnoreTests.cs
 ├── P1_MigrationErrorActionInheritanceTests.cs
@@ -212,6 +213,7 @@ Raycoon.RayMigrator.Tests.Unit/
 ├── P1_PostgreSqlTypeConventionsTests.cs
 ├── P1_ProductCheckInsertTests.cs
 ├── P1_ProductDefaultsPostConfigureOptionsTests.cs
+├── P1_ProductScopeOfAHostTests.cs
 ├── P1_RayAttributeTests.cs
 ├── P1_RayMigratorOptionsValidatorTests.cs
 ├── P1_RepositoryQueryHelperToSnakeCaseTests.cs
@@ -267,6 +269,7 @@ Raycoon.RayMigrator.Tests.Unit/
 | `P0_ConfigDirTests` | `ConfigDirTests` | `--config-dir` CLI option and `JsonOptionsSource` configDir parameter: null/empty/whitespace fallback to CWD, non-existent directory validation, file resolution from custom directory, `{ENV:VAR}` resolution, `CommandLineConfiguration` parsing with `--config-dir` and `-cd` aliases across all commands |
 | `P0_ConfigurationFileChainTests` | `ConfigurationFileChainTests` | `ConfigurationFileChain` (Shared): the four hierarchy file names in merge order, `TryClassify` round trip, product versus environment for single-segment names, rejection of unrelated names (#23) |
 | `P0_ConfigurationJsonMergerTests` | `ConfigurationJsonMergerTests` | `ConfigurationJsonMerger` (Shared): alias-keyed arrays merge by alias (case-insensitive, nested, base order kept, new aliases appended, omitted elements kept), other arrays replaced, explicit null, key casing, four-file precedence, arguments untouched, comments and trailing commas (#23) |
+| `P0_ConfigurationProductScopeTests` | `ConfigurationProductScopeTests` | `ConfigurationProductScope` (Shared, ADR-026): `Isolate` keeps the elements of `Products` whose alias equals the product (without case, spelling kept), duplicates of that alias and every other section and key, drops the other products and elements without a string alias, leaves the input unchanged and documents without a `Products` array as they are; `ProductAliases` in order |
 | `P0_ConfigurationHelpTests` | `ConfigurationHelpTests` | `ConfigurationHelp` (Shared): every section and field help key resolves in English and German, unknown keys yield null, `JsonPath` attached |
 | `P0_JsonPathRegistryTests` | `JsonPathRegistryTests` | `JsonPathRegistry` (Shared): config path and inheritance metadata per field key, every non-concept help key registered, reverse lookup of a path |
 | `P0_ConfigurationJsonDiffTests` | `ConfigurationJsonDiffTests` | `ConfigurationJsonDiff` (Shared): `Diff` yields the smallest document that merges back to the target, `TryCommon` the part all documents agree on, both alias-aware; round trip over the golden merge cases (#23 Part B) |
@@ -335,7 +338,8 @@ Raycoon.RayMigrator.Tests.Unit/
 | `P1_PostgreSqlTypeConventionsTests` | `PostgreSqlTypeConventionsTests` | DAL-012 (`TIMESTAMPTZ`, plain `NOW()`) and DAL-013 (`TEXT` replaces arbitrary `VARCHAR(n)`) for PostgreSQL templates |
 | `P1_ProductCheckInsertTests` | `ProductCheckInsertTests` | `Repository_Product_CheckInsert` feature: TemplateType enum membership, MigrationEvent EventId, `MigrationState.ProductId`, `TemplateResultCode.ProductNameEmpty`, and SQL template structural patterns across all 5 engines (NameLower lookup — case-insensitive `ToLowerInvariant()` pre-computed in C#, anti-regression check for removed `@Description` parameter, TOML header DatabaseType/TemplateType) |
 | `P1_ProductDefaultsPostConfigureOptionsTests` | `ProductDefaultsPostConfigureOptionsTests` | `ProductDefaultsPostConfigureOptions` merging logic |
-| `P1_RayAttributeTests` | `RayEnumAttributeTests`, `RayRangeIntAttributeTests`, `RayConnectionStringAttributeTests`, `RayEncodingAttributeTests`, `RayDirectoryExistsAttributeTests` | Custom validation attributes (`RayAttributes`) |
+| `P1_ProductScopeOfAHostTests` | `ProductScopeOfAHostTests` | The product scope of options a host built in memory (ADR-026): `RayMigratorOptionsPreparer.IsolateProduct` keeps every element of the alias and removes the others, refuses an unknown product with the aliases of the options and leaves options without products to the preparer; `Prepare` fails on a broken second product without isolation and passes with it; `MigrationContextFactory.Create` runs the product beside a broken one and names the aliases for an unknown product; `ProductAliasGuard.NotFoundMessage` hints at the case, lists the aliases or says there are none |
+| `P1_RayAttributeTests` | `RayEnumAttributeTests`, `RayRangeIntAttributeTests`, `RayConnectionStringAttributeTests`, `RayEncodingAttributeTests`, `RayDirectoryExistsAttributeTests` | Custom validation attributes (`RayAttributes`); `[RayEncoding]` writes `UTF-8` into a value that is left out or empty and exposes it as `DefaultValue` |
 | `P1_RayMigratorOptionsValidatorTests` | `RayMigratorOptionsValidatorTests` | `RayMigratorOptions` validation rules |
 | `P1_RepositoryQueryHelperToSnakeCaseTests` | `RepositoryQueryHelperToSnakeCaseTests` | `RepositoryQueryHelper.ToSnakeCase` mapping (DAL-017): mechanical PascalCase → snake_case conversion with the brand-token `RayMigrator` collapsed to `raymigrator` |
 | `P1_RepositoryTemplatePrefixTests` | `RepositoryTemplatePrefixTests` | Every `pk_`, `fk_`, `ix_` and `uix_` name in `Repository_CheckCreate`, `Repository_Upgrade_1`, `Repository_Upgrade_2` and `DatabaseLogging_CheckCreate` of all five engines continues with `{CFG:TableBaseName}` (`pk_{CFG:TableBaseName}migration_run`), so that repositories with different prefixes can share one database or schema; spot checks of single key names per engine |
@@ -360,7 +364,8 @@ Raycoon.RayMigrator.Tests.Unit/
 | `P1_TransientErrorCodesFileTests` | `TransientErrorCodesFileTests` | `TransientErrorCodesFile` parser and loader for `TransientErrorCodes.txt`: comments, blank lines, trimming, whitespace inside a code throws with the line number, missing file falls back (ADR-022) |
 | `P1_TryFinalizeCompletedMigrationTests` | `TryFinalizeCompletedMigrationTests` | Migration finalization (status updates after execution) |
 | `P1_UseCliToolAliasInheritanceTests` | `UseCliToolAliasInheritanceTests` | `UseCliToolAlias` inheritance cascade via `ProductDefaultsPostConfigureOptions.MergeDefaults` (ProductDefaults -> Product -> TargetGroup -> Target, explicit values not overridden) |
-| `P1_JsonOptionsSourceAliasMergeTests` | `JsonOptionsSourceAliasMergeTests` | `JsonOptionsSource.LoadAsync` with real files: overrides by alias, reversed order, non-alias arrays replaced, `{ENV:}` after the merge, diagnostics from the shared chain, comments accepted, error paths; golden cases under `Testing/ConfigMergeCases/` shared with the wizard suite (#23) |
+| `P1_JsonOptionsSourceAliasMergeTests` | `JsonOptionsSourceAliasMergeTests` | `JsonOptionsSource` with real files: the merged order and the overrides by alias through `MergeConfigurationFiles`, the loaded product through the section of `LoadAsync` (reversed order, non-alias arrays replaced, `{ENV:}` after the merge), diagnostics from the shared chain, comments accepted, error paths; golden cases under `Testing/ConfigMergeCases/` shared with the wizard suite (#23) |
+| `P1_JsonOptionsSourceProductScopeTests` | `JsonOptionsSourceProductScopeTests` | `JsonOptionsSource.LoadAsync` hands the pipeline the product of the run only (ADR-026): the bound section, the section as written and the host configuration carry the shared sections and that product, a placeholder of another product is neither resolved nor reported, an unknown product fails while loading with the aliases of the files, another case of the alias loads the product for the guard, elements without an alias are left out, files without any product alias load as before |
 | `P1_ConfigExportCasesTests` | `ConfigExportCasesTests` | The engine's loader reads the file families of the golden export cases (`Testing/ConfigExportCases/`) back to the effective configuration of every combination (#23 Part B) |
 
 ### P2 — Secondary Features and Utilities

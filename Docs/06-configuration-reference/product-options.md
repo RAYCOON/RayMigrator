@@ -12,7 +12,7 @@ Products represent separate applications or systems with their own migration set
 | `RollbackErrorAction` | string | No | - | Error handling during rollback (inherited from `ProductDefaults`). Matching is case-insensitive: `Terminate`, `terminate` and `TERMINATE` are equivalent. |
 | `MigrationFilesExtension` | string | No | - | Migration file extension (inherited from `ProductDefaults`) |
 | `MigrationRollbackFilesPreExtension` | string | No | - | Rollback file naming (inherited from `ProductDefaults`) |
-| `MigrationFilesEncoding` | string | No | - | File encoding (inherited from `ProductDefaults`) |
+| `MigrationFilesEncoding` | string | No | `UTF-8` | File encoding (inherited from `ProductDefaults`; when neither level names one, the engine writes `UTF-8` into the prepared options and reads the files as UTF-8) |
 | `RequireRollbackFile` | bool? | No | - | Require a rollback file for every migration file (inherited from `ProductDefaults`) |
 | `StopRollbackOnMissingRollbackFile` | bool? | No | `true` | When `RequireRollbackFile=false`, controls whether an error-recovery rollback chain stops (`true`) or continues (`false`) when a rollback file is missing. No effect on migrate-down. (inherited from `ProductDefaults`) |
 | `UseCliToolAlias` | string | No | `null` | CLI tool alias for migration execution instead of the DAL (inherited from `ProductDefaults`). References a `CliTools[].Alias` defined at the `RayMigrator` root level. Can be overridden per TargetGroup or Target. |
