@@ -61,7 +61,7 @@ dotnet test Raycoon.RayMigrator.Tests.Unit.ConfigWizard.Core/ --framework net10.
 dotnet test Raycoon.RayMigrator.Tests.Unit.ConfigWizard.Web/ --framework net10.0
 ```
 
-CI (`build-test.yml`) runs `Tests.Unit` on every push to `develop`. Run the other three locally when you touch Validation or the wizard.
+CI (`build-test.yml`) runs `Tests.Unit` on every push to `develop`. Run the other three locally when you touch Validation, the wizard or the help texts under `Shared/Configuration/Help/` (the wizard suite checks the encodings the field help advertises).
 
 ### Engine tests (Docker)
 

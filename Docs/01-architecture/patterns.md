@@ -35,7 +35,7 @@ services.AddOptions<RayMigratorOptions>()
 
 // PostConfigure merges ProductDefaults into Products/TargetGroups.
 // The static MergeDefaults method can also be called directly
-// after building RayMigratorOptions from an alternative source.
+// by a host that builds RayMigratorOptions in memory.
 // Copies: MigrationErrorAction, RollbackErrorAction, encoding, extensions,
 //         RequireRollbackFile, StopRollbackOnMissingRollbackFile, UseCliToolAlias → Product level
 //         TargetMigrationOrder, HashValidationScope, StopRollbackOnMissingRollbackFile, UseCliToolAlias → TargetGroup level
@@ -76,16 +76,6 @@ RayMigratorOptions
 └── CliTools[] (CliToolOptions)
 ```
 
-**Bootstrap Options**: Before loading the full `RayMigratorOptions`, RayMigrator loads a minimal `RayMigratorBootstrapOptions` to determine the operating mode:
-
-```csharp
-public class RayMigratorBootstrapOptions
-{
-    public AdminDbOptions? AdminDb { get; set; }
-    public SerilogOptions? Serilog { get; set; }
-}
-```
-
 ## Repository Pattern
 
 **Purpose**: Abstract data access for migration tracking.
@@ -109,6 +99,7 @@ Repository_MigrationRun_Update.sql      - Update run result/status
 Repository_MigrationRun_Select.sql      - Query migration runs (history)
 Repository_MigrationRun_SelectOrphaned.sql - Find orphaned runs (Fix command)
 Repository_MigrationRun_FixOrphaned.sql - Mark orphaned runs as Error
+Repository_MigrationRun_Heartbeat.sql   - Refresh LastHeartbeatAt of a running run
 Repository_MigrationRecord_Insert.sql         - Create migration record with block tracking
 Repository_MigrationRecord_Update.sql         - Update migration block progress/status
 Repository_MigrationRecord_UpdateRollback.sql - Update rollback fields (FileDown*)
@@ -122,7 +113,8 @@ DatabaseLogging_Insert.sql              - Insert log entry
 ```
 
 **Tables**:
-- `MigratorMeta` - Repository versioning
+- `RepositorySchemaVersion` - Applied schema versions of the repository (ADR-024)
+- `MigratorMeta` - RayMigrator versions that used the repository
 - `Product` - Registered products (`Name` + `NameLower` with unique index)
 - `Environment` - Registered environments (`Name` + `NameLower` with unique index)
 - `MigrationRun` - Migration run sessions
@@ -132,6 +124,7 @@ DatabaseLogging_Insert.sql              - Insert log entry
 - `MigrationRunMode` - Lookup: run modes (Migrate, Simulate, ...)
 - `MigrationOperation` - Lookup: operation types (MigrateUp, MigrateDown, ...)
 - `MigrationRunResult` - Lookup: run results (Running=10, PartialSuccess=50, Recovered=80, Error=90, Ok=100)
+- `MigrationRunSource` - Lookup: where a run was started (Cli=10, Ci=20, Studio=30; schema version 2)
 - `MigrationStatus` - Lookup: migration status values
 
 ## Template Pattern
@@ -161,23 +154,27 @@ public class TemplateExecutor
     private RepositoryOptions _repository { get => /* InitializeFromContext() if needed */ }
     private IDal _repositoryDal { get => /* InitializeFromContext() if needed */ }
 
-    public void RepositoryCheckCreate()
+    public void RepositoryProductCheckInsert()
     {
         // 1. Get template from cache ({ENV:*} already replaced during cache init)
-        var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
+        var template = _templateCache.GetRepositoryTemplate(TemplateType.Repository_Product_CheckInsert, _repository);
         //    → {CFG:*} placeholders replaced here via reflection-based property matching
 
         // 2. Build parameter list
         DalParameterList dalParameterList = new DalParameterList();
-        dalParameterList.AddParameter(new DalParameter("RepositoryDatabaseType", ...));
+        dalParameterList.AddParameter(new DalParameter("Name", productName, typeof(string)));
+        dalParameterList.AddParameter(new DalParameter("NameLower", productName.ToLowerInvariant(), typeof(string)));
 
         // 3. Execute via DAL (returns "ResultCode,ResultMessage" string)
         var templateResponse = ExecuteScalarWithNegativeResultCodeException(
             template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId);
 
         // 4. Use result (TemplateResponse has ResultCode + ResultMessage)
-        _ctxAccessor.Current.MigrationState.MigratorMetaId = templateResponse.ResultCode;
+        _ctxAccessor.Current.MigrationState.ProductId = templateResponse.ResultCode;
     }
+
+    // The schema steps (Repository_CheckCreate, Repository_Upgrade_{n}, Repository_MigratorMeta_CheckInsert)
+    // run in RepositorySchemaExecutor; RepositoryCheckCreate() hands it the values of the current context
 }
 ```
 
@@ -211,16 +208,17 @@ public class TemplateCache
 RayMigrator SQL Template
 ================================================================================
 [RayMigratorTemplate]
-TemplateType   = "Repository_CheckCreate"
+TemplateType   = "Repository_Upgrade_1"
 DatabaseType   = "SqlServer"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-09-09.1"
+Version        = "2026-10-14.1"
 */
 
 CREATE TABLE [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRecord] (
-    Id INT IDENTITY(1,1) PRIMARY KEY,
+    Id INT IDENTITY(1,1) NOT NULL,
     ProductId INT NOT NULL,
     -- ...
+    CONSTRAINT pk_{CFG:TableBaseName}MigrationRecord PRIMARY KEY ( Id )
 );
 ```
 
@@ -293,9 +291,10 @@ public static IServiceCollection AddRayMigratorServices(this IServiceCollection 
     if (hostMode == RayMigratorHostMode.Cli)
         services.AddSingleton<IMigrationContextAccessor, SingletonMigrationContextAccessor>();
     else
-        services.AddScoped<IMigrationContextAccessor, AsyncLocalMigrationContextAccessor>();
+        services.AddSingleton<IMigrationContextAccessor, AsyncLocalMigrationContextAccessor>();   // static AsyncLocal isolates each flow
 
     services.AddSingleton<IMigrationContextFactory, MigrationContextFactory>();
+    services.AddSingleton<IRepositorySchemaService, RepositorySchemaService>();   // needs the host's TemplateCache
     return services;
 }
 ```
@@ -305,9 +304,11 @@ A factory creates `MigrationContext` instances (CLI creates one at startup):
 ```csharp
 public interface IMigrationContextFactory
 {
-    MigrationContext Create(RayMigratorOptions options, string product, string environment,
-        MigrationCommand command, MigrationRunMode runMode, string version,
-        string? targetReleaseVersion = null, bool revealSensitiveData = false);
+    // Options a host built in memory: prepared (placeholders, defaults, data annotations, rule catalog), then activated
+    MigrationContext Create(RayMigratorOptions options, RayMigratorConsoleOptions consoleOptions);
+
+    // Options the CLI pipeline already bound and validated
+    MigrationContext CreateFromValidatedOptions(RayMigratorOptions options, RayMigratorConsoleOptions consoleOptions);
 }
 ```
 
@@ -363,13 +364,13 @@ DataAccessLayers/
 │   └── *.sql (25 template files)
 ├── MariaDb/
 │   ├── Raycoon.RayMigrator.Database.MariaDb.dll
-│   └── *.sql (21 template files)
+│   └── *.sql (25 template files)
 ├── MySql/
 │   ├── Raycoon.RayMigrator.Database.MySql.dll
-│   └── *.sql (21 template files)
+│   └── *.sql (25 template files)
 └── Sqlite/
     ├── Raycoon.RayMigrator.Database.Sqlite.dll
-    └── *.sql (21 template files)
+    └── *.sql (25 template files)
 ```
 
 ```csharp
@@ -467,19 +468,20 @@ A `MigrationContextFactory` creates `MigrationContext` instances:
 ```csharp
 public interface IMigrationContextFactory
 {
-    MigrationContext Create(
-        RayMigratorOptions options, string product, string environment,
-        MigrationCommand command, MigrationRunMode runMode, string version,
-        string? targetReleaseVersion = null, bool revealSensitiveData = false);
+    MigrationContext Create(RayMigratorOptions options, RayMigratorConsoleOptions consoleOptions);
+    MigrationContext CreateFromValidatedOptions(RayMigratorOptions options, RayMigratorConsoleOptions consoleOptions);
 }
 
-public class MigrationContextFactory : IMigrationContextFactory
+public sealed class MigrationContextFactory : IMigrationContextFactory
 {
-    public MigrationContext Create(/* ... */)
+    public MigrationContext Create(RayMigratorOptions options, RayMigratorConsoleOptions consoleOptions)
     {
-        var consoleOptions = new RayMigratorConsoleOptions { /* ... */ };
-        return new MigrationContext(options, consoleOptions, version);
+        RayMigratorOptionsPreparer.Prepare(options);
+        return Activate(new MigrationContext(options, consoleOptions, AssemblyInfoHelper.GetRayMigratorVersion()));
     }
+
+    // CreateFromValidatedOptions skips the preparation. Activate makes the context current (accessor and
+    // logging context), fills the DAL properties and checks the schema names.
 }
 ```
 
@@ -597,7 +599,7 @@ private async Task HandleMigrationError(
 
 **Implementation**:
 
-Configuration loading is handled by `IOptionsSource` implementations. The `JsonOptionsSource` builds the configuration hierarchy from multiple JSON files, conditionally adding files only if they exist on disk. It tracks which files were searched to provide helpful diagnostics on startup.
+Configuration loading of the CLI is handled by `IOptionsSource`, whose one implementation `JsonOptionsSource` builds the configuration hierarchy from multiple JSON files, conditionally adding files only if they exist on disk. It tracks which files were searched to provide helpful diagnostics on startup.
 
 The base path for file lookup is resolved via `ResolveBasePath(configDir)`: when the `--config-dir` global option is provided, that directory is used; otherwise the current working directory is used.
 

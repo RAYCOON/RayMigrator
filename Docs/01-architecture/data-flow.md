@@ -26,8 +26,8 @@ sequenceDiagram
     Note over Svc: Phase 1 - Initialization
     Svc->>Ctx: Validate request, set MigrationRunResult=Running,<br/>MigrationOperation=MigrateUp
     Svc->>Tmpl: RepositoryCheckCreate()
-    Tmpl->>Repo: Execute SQL template
-    Repo-->>Tmpl: VersionId
+    Tmpl->>Repo: Schema steps via RepositorySchemaExecutor:<br/>Repository_CheckCreate, missing Repository_Upgrade_n,<br/>Repository_MigratorMeta_CheckInsert
+    Repo-->>Tmpl: MigratorMetaId
 
     Svc->>Tmpl: RepositoryProductCheckInsert()
     Tmpl->>Repo: Ensure product exists
@@ -87,7 +87,7 @@ flowchart TD
 
     E --> F["RunDirectMode(JsonOptionsSource)"]
     F --> G["JsonOptionsSource.LoadAsync()<br/>Load appsettings.json hierarchy"]
-    G --> H["DirectModePipeline.ExecuteAsync()<br/>Unified DI host, service execution"]
+    G --> H["DirectModePipeline.ExecuteAsync()<br/>DI host, service execution"]
 ```
 
 ## Configuration Loading Flow (Standalone Mode)
@@ -136,7 +136,7 @@ sequenceDiagram
 
     Note over Cache: All templates loaded at startup<br/>{ENV:*} already replaced during init
 
-    Svc->>Exec: RepositoryCheckCreate()
+    Svc->>Exec: RepositoryProductCheckInsert()
 
     Exec->>Cache: GetRepositoryTemplate(templateType, repositoryOptions)
     Note over Cache: Replace {CFG:*} via<br/>reflection-based property matching
@@ -149,6 +149,8 @@ sequenceDiagram
     Exec->>Exec: Parse into TemplateResponse
     Exec-->>Svc: TemplateResponse (ResultCode, ResultMessage)
 ```
+
+The schema steps behind `RepositoryCheckCreate()` take the same path inside `RepositorySchemaExecutor`, which executes through the static `TemplateExecutor.ExecuteScalar` and needs no migration context; `IRepositorySchemaService` runs them for a host without a run.
 
 ## Migration File Discovery Flow
 

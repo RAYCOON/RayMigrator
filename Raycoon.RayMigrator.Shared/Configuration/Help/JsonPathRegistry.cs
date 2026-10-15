@@ -1,10 +1,9 @@
-using Raycoon.RayMigrator.ConfigWizard.Core.Models;
-
-namespace Raycoon.RayMigrator.ConfigWizard.Core.Services;
+namespace Raycoon.RayMigrator.Shared.Configuration.Help;
 
 /// <summary>
-/// Language-independent registry of JSON configuration paths for wizard field keys.
-/// All paths are relative to the RayMigrator root section.
+/// Language-independent registry of the configuration paths behind the field help keys of
+/// <see cref="ConfigurationHelp"/>. All paths are relative to the <c>RayMigrator</c> root section; alias-keyed
+/// arrays appear as <c>[]</c>. The reverse lookup finds the help key of a path.
 /// </summary>
 public static class JsonPathRegistry
 {
@@ -18,9 +17,11 @@ public static class JsonPathRegistry
         ["Repository_Timeout"] = new("Repository.DbCommandTimeoutInSeconds"),
         ["Repository_MaxRetries"] = new("Repository.DbCommandMaxRetries"),
         ["Repository_Wait"] = new("Repository.DbCommandWaitTimeInMsBeforeRetry"),
+        ["Repository_HeartbeatIntervalInSeconds"] = new("Repository.HeartbeatIntervalInSeconds"),
+        ["Repository_OrphanedRunThresholdInMinutes"] = new("Repository.OrphanedRunThresholdInMinutes"),
 
         // ── DatabaseLogging (no inheritance) ─────────────────────
-        ["DatabaseLogging_Enable"] = new("DatabaseLogging"),
+        ["DatabaseLogging_Enable"] = new("DatabaseLogging.Enabled"),
         ["DatabaseLogging_DatabaseType"] = new("DatabaseLogging.DatabaseType"),
         ["DatabaseLogging_ConnectionString"] = new("DatabaseLogging.ConnectionString"),
         ["DatabaseLogging_SchemaName"] = new("DatabaseLogging.SchemaName"),
@@ -49,7 +50,7 @@ public static class JsonPathRegistry
             InheritedByPaths: ["Products[].RequireRollbackFile"]),
         ["ProductDefaults_StopRollbackOnMissingRollbackFile"] = new(
             "ProductDefaults.StopRollbackOnMissingRollbackFile",
-            InheritedByPaths: ["Products[].StopRollbackOnMissingRollbackFile"]),
+            InheritedByPaths: ["Products[].StopRollbackOnMissingRollbackFile", "ProductDefaults.TargetGroupDefaults.StopRollbackOnMissingRollbackFile", "Products[].TargetGroups[].StopRollbackOnMissingRollbackFile"]),
         ["ProductDefaults_UseCliToolAlias"] = new(
             "ProductDefaults.UseCliToolAlias",
             InheritedByPaths: ["Products[].UseCliToolAlias"]),
@@ -119,8 +120,81 @@ public static class JsonPathRegistry
     };
 
     /// <summary>
+    /// Every path a key describes: its own path first, then the paths that inherit from it (the help of a default
+    /// describes the field that overrides it) and the path it inherits from (the help of a field describes the
+    /// default behind it) when no key owns those paths itself.
+    /// </summary>
+    private static readonly Dictionary<string, string> KeysByPath = BuildKeysByPath();
+
+    private static Dictionary<string, string> BuildKeysByPath()
+    {
+        var keys = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (key, info) in Registry)
+            keys[info.ConfigPath] = key;
+        foreach (var (key, info) in Registry)
+        {
+            foreach (string path in info.InheritedByPaths ?? [])
+                keys.TryAdd(path, key);
+        }
+        foreach (var (key, info) in Registry)
+        {
+            if (info.InheritedFromPath is not null)
+                keys.TryAdd(info.InheritedFromPath, key);
+        }
+
+        return keys;
+    }
+
+    /// <summary>
     /// Returns path metadata for a field key, or null if the field has no JSON path.
     /// </summary>
     public static JsonPathInfo? GetPathInfo(string fieldKey) =>
         Registry.GetValueOrDefault(fieldKey);
+
+    /// <summary>
+    /// Finds the field help key of a configuration path (case-insensitive), for example
+    /// <c>Products[].TargetGroups[].Targets[].ConnectionString</c> yields <c>Target_ConnectionString</c>. A path with
+    /// aliases or indexes (<c>Products[Shop].Alias</c>, <c>Products[0].Alias</c>) is read as its schema path. A field
+    /// that overrides a default (<c>Products[].MigrationErrorAction</c>) yields the key of that default, a default
+    /// without a key of its own (<c>ProductDefaults.TargetGroupDefaults.TargetDefaults.DbCommandTimeoutInSeconds</c>)
+    /// the key of the field that inherits it.
+    /// </summary>
+    public static bool TryGetFieldKey(string configPath, out string fieldKey)
+    {
+        if (!string.IsNullOrWhiteSpace(configPath) && KeysByPath.TryGetValue(SchemaPath(configPath), out var key))
+        {
+            fieldKey = key;
+            return true;
+        }
+
+        fieldKey = string.Empty;
+        return false;
+    }
+
+    /// <summary>The path with every bracket selector emptied: <c>Products[Shop].TargetGroups[0]</c> becomes <c>Products[].TargetGroups[]</c>.</summary>
+    private static string SchemaPath(string path)
+    {
+        if (!path.Contains('['))
+            return path.Trim();
+        var builder = new System.Text.StringBuilder(path.Length);
+        bool inBracket = false;
+        foreach (char c in path.Trim())
+        {
+            if (c == '[')
+            {
+                inBracket = true;
+                builder.Append("[]");
+            }
+            else if (c == ']')
+            {
+                inBracket = false;
+            }
+            else if (!inBracket)
+            {
+                builder.Append(c);
+            }
+        }
+
+        return builder.ToString();
+    }
 }

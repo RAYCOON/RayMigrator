@@ -6,7 +6,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_Upgrade_2"
 DatabaseType   = "SqlServer"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-10-13.1"
+Version        = "2026-10-14.1"
 
 [Description]
 Function = """
@@ -65,7 +65,7 @@ BEGIN TRY
 				Id                   tinyint      NOT NULL,
 				Name                 nvarchar(100)     NOT NULL,
 				Description          nvarchar(1000)      NULL,
-				CONSTRAINT pk_MigrationRunSource PRIMARY KEY  ( Id )
+				CONSTRAINT pk_{CFG:TableBaseName}MigrationRunSource PRIMARY KEY  ( Id )
 			);
 
 			execute sys.sp_addextendedproperty  @name=N'MS_Description', @value=N'Cli = 10, Ci = 20, Studio = 30' , @level0type=N'SCHEMA',@level0name=N'{CFG:SchemaName}', @level1type=N'TABLE',@level1name=N'{CFG:TableBaseName}MigrationRunSource';
@@ -90,11 +90,11 @@ BEGIN TRY
 				LastHeartbeatAt      datetime2(3)       NULL;
 		END;
 
-		IF OBJECT_ID('{CFG:SchemaName}.fk_MigrationRun_MigrationOperation', 'F') IS NULL
-			ALTER TABLE [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRun] ADD CONSTRAINT fk_MigrationRun_MigrationOperation FOREIGN KEY ( MigrationOperationId ) REFERENCES [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationOperation]( Id ) ON DELETE NO ACTION ON UPDATE NO ACTION;
+		IF OBJECT_ID('{CFG:SchemaName}.fk_{CFG:TableBaseName}MigrationRun_MigrationOperation', 'F') IS NULL
+			ALTER TABLE [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRun] ADD CONSTRAINT fk_{CFG:TableBaseName}MigrationRun_MigrationOperation FOREIGN KEY ( MigrationOperationId ) REFERENCES [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationOperation]( Id ) ON DELETE NO ACTION ON UPDATE NO ACTION;
 
-		IF OBJECT_ID('{CFG:SchemaName}.fk_MigrationRun_MigrationRunSource', 'F') IS NULL
-			ALTER TABLE [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRun] ADD CONSTRAINT fk_MigrationRun_MigrationRunSource FOREIGN KEY ( MigrationRunSourceId ) REFERENCES [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRunSource]( Id ) ON DELETE NO ACTION ON UPDATE NO ACTION;
+		IF OBJECT_ID('{CFG:SchemaName}.fk_{CFG:TableBaseName}MigrationRun_MigrationRunSource', 'F') IS NULL
+			ALTER TABLE [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRun] ADD CONSTRAINT fk_{CFG:TableBaseName}MigrationRun_MigrationRunSource FOREIGN KEY ( MigrationRunSourceId ) REFERENCES [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRunSource]( Id ) ON DELETE NO ACTION ON UPDATE NO ACTION;
 
 		INSERT INTO [{CFG:SchemaName}].[{CFG:TableBaseName}RepositorySchemaVersion] ([Version], [AppliedAt], [RayMigratorVersion])
 		VALUES (2, SYSUTCDATETIME(), @RayMigratorVersion);

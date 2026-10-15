@@ -6,7 +6,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_CheckCreate"
 DatabaseType   = "PostgreSQL"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-10-13.1"
+Version        = "2026-10-14.1"
 
 [Description]
 Function = """
@@ -57,7 +57,7 @@ BEGIN
         version                INT            NOT NULL,
         applied_at             TIMESTAMPTZ    NOT NULL,
         raymigrator_version    TEXT           NOT NULL,
-        CONSTRAINT pk_repository_schema_version PRIMARY KEY (version)
+        CONSTRAINT pk_{CFG:TableBaseName}repository_schema_version PRIMARY KEY (version)
     );
 
     SELECT COALESCE(MAX(version), 0) INTO v_schema_version

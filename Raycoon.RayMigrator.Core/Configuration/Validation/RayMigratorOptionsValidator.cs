@@ -76,11 +76,11 @@ public class RayMigratorOptionsValidator : IValidateOptions<RayMigratorOptions>
     }
 
     /// <summary>
-    /// Kept for diagnostic tooling: returns the full rule-catalog report (warnings + errors)
-    /// without mapping to <see cref="ValidateOptionsResult"/>. <paramref name="sectionAsWritten"/> has the
-    /// meaning of the constructor parameter.
+    /// The full rule-catalog report (warnings and errors with code, severity and path) of prepared options,
+    /// without mapping to <see cref="ValidateOptionsResult"/>; for hosts that show findings instead of failing.
+    /// <paramref name="sectionAsWritten"/> has the meaning of the constructor parameter.
     /// </summary>
-    internal static ValidationReport GetReport(RayMigratorOptions options, IConfigurationSection? sectionAsWritten = null)
+    public static ValidationReport GetReport(RayMigratorOptions options, IConfigurationSection? sectionAsWritten = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         var input = OptionsValidationInputAdapter.ToInput(options, sectionAsWritten);

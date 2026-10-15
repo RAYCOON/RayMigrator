@@ -39,6 +39,7 @@ public class ScenarioBuilder
     private RunInitiatorValues? _initiator;
     private int? _heartbeatIntervalSeconds;
     private int? _orphanedRunThresholdMinutes;
+    private string _tableBaseName = "";
 
     public ScenarioBuilder(EngineConfig engineConfig)
     {
@@ -72,6 +73,16 @@ public class ScenarioBuilder
     public ScenarioBuilder WithDatabaseLoggingMinimumLevelOnly(string minimumLevel)
     {
         _databaseLoggingLevelOnly = minimumLevel;
+        return this;
+    }
+
+    /// <summary>
+    /// Gives the repository (and the database log, when it is written explicitly) a table prefix
+    /// (<c>Repository.TableBaseName</c>); the cleanup and the query helper of the scenario use the same prefix.
+    /// </summary>
+    public ScenarioBuilder WithTableBaseName(string tableBaseName)
+    {
+        _tableBaseName = tableBaseName;
         return this;
     }
 
@@ -527,7 +538,7 @@ public class ScenarioBuilder
         GenerateConfig(configPath, workDir, productAlias);
 
         // 5. Clean databases
-        DatabaseCleanupHelper.CleanDatabase(_engineConfig.DatabaseType, _engineConfig.ConnectionString, _engineConfig.SchemaName);
+        DatabaseCleanupHelper.CleanDatabase(_engineConfig.DatabaseType, _engineConfig.ConnectionString, _engineConfig.SchemaName, _tableBaseName);
         if (_mainTargetConnectionString != null && _mainTargetConnectionString != _engineConfig.ConnectionString)
             DatabaseCleanupHelper.CleanDatabase(_engineConfig.DatabaseType, _mainTargetConnectionString, _engineConfig.SchemaName);
         if (_secondConnectionString != null)
@@ -541,7 +552,7 @@ public class ScenarioBuilder
         host.Build(configPath, productAlias, command, mode, toRelease, initiator: _initiator);
 
         // 7. Create query helper
-        var queryHelper = new RepositoryQueryHelper(_engineConfig.DatabaseType, _engineConfig.ConnectionString, _engineConfig.SchemaName);
+        var queryHelper = new RepositoryQueryHelper(_engineConfig.DatabaseType, _engineConfig.ConnectionString, _engineConfig.SchemaName, _tableBaseName);
 
         // 8. Return context
         return new ScenarioContext(host, queryHelper, _engineConfig, workDir, configPath, productAlias, _initiator);
@@ -675,7 +686,7 @@ public class ScenarioBuilder
             ["DatabaseType"] = _engineConfig.DatabaseType,
             ["ConnectionString"] = _engineConfig.ConnectionString,
             ["SchemaName"] = _engineConfig.SchemaName,
-            ["TableBaseName"] = "",
+            ["TableBaseName"] = _tableBaseName,
             ["DbCommandTimeoutInSeconds"] = 60,
             ["DbCommandMaxRetries"] = 100,
             ["DbCommandWaitTimeInMsBeforeRetry"] = 250
@@ -727,7 +738,7 @@ public class ScenarioBuilder
                 ["DatabaseType"] = _engineConfig.DatabaseType,
                 ["ConnectionString"] = _engineConfig.ConnectionString,
                 ["SchemaName"] = _engineConfig.SchemaName,
-                ["TableBaseName"] = "",
+                ["TableBaseName"] = _tableBaseName,
                 ["MinimumLevel"] = _databaseLoggingMinLevel,
                 ["DbCommandTimeoutInSeconds"] = 20
             };

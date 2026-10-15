@@ -152,7 +152,7 @@ public class OptionsEnumCaseInsensitivityTests
 
     #endregion
 
-    #region Fail fast on unparseable non-null values (Admin-DB / pre-built options bypass validation)
+    #region Fail fast on unparseable non-null values (pre-built options bypass validation)
 
     [Fact]
     public void Product_MigrationErrorAction_Typo_Throws_InsteadOfReturningUndefined()

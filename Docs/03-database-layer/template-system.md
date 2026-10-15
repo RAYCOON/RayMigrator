@@ -60,7 +60,7 @@ RayMigrator uses SQL templates with placeholder substitution for database-agnost
 | `Repository_MigrationRecord_GetInterrupted` | Active | Active | Active | Active | Active |
 | `Repository_MigrationRecordHistory_Select` | Active | Active | Active | Active | Active |
 
-> **Note:** The 21 templates listed above are shared by all DAL plugins, including the SQLite DAL.
+> **Note:** The 25 templates listed above are shared by all DAL plugins, including the SQLite DAL.
 
 ## Template Location
 
@@ -197,48 +197,40 @@ RayMigrator SQL Template
 TemplateType   = "Repository_CheckCreate"
 DatabaseType   = "SqlServer"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-09-09.1"
+Version        = "2026-10-14.1"
 
 [Description]
 Function = """
-Checks for repository existence and completeness. Creates RayMigrator
-infrastructure on the target database if necessary. Returns the VersionId.
+Reports the schema version of the repository (ADR-024). Creates the schema and the
+RepositorySchemaVersion table when they do not exist; creates nothing else. The engine
+applies the missing Repository_Upgrade_{n} steps afterwards.
 """
 
 Behaviour = """
-- Return value >= 0: Success (logged at Debug level)
-- Return value < 0: Error (logged at Error level, migration aborted)
-- Creates schema if not exists
-- Creates all 11 repository tables with master data
-- Inserts new MigratorMeta record on first run or version change
+- First code: highest applied schema version, 0 when the repository has none
+- Second code: 1 when the MigratorMeta table exists, 0 otherwise. With version 0 this
+  means a repository of a RayMigrator before 0.17.0, which the engine refuses
+- Idempotent; a parallel start on the same repository is serialised with sp_getapplock
 """
 
 [ConfigPlaceholders]
-# Replaced when loading the template (compile-time)
 SchemaName    = "Database schema from Repository configuration (e.g., 'ray')"
 TableBaseName = "Table name prefix from Repository configuration (e.g., '' or 'RM_')"
 
 [Parameters]
-# SQL parameters bound at runtime
-RayMigratorVersion     = "VARCHAR(20) | REQUIRED | The RayMigrator application version (e.g., '3.0.0')"
-RepositoryDatabaseType = "VARCHAR(20) | REQUIRED | The database type for the repository (e.g., 'SqlServer')"
+# none
 
 [ReturnValues]
-# Format: SELECT 'VersionId,RepositoryWasCreated,message' (RepositoryWasCreated: 1 = created in this run, 0 = existed before)
-Success_N           = "N (VersionId),0,RayMigrator repository already exists. Using VersionId [N]."
-Success_N_Created   = "N (VersionId),1,RayMigrator repository-tables with master data and new VersionId [N] successfully created"
-Success_N_NewVer    = "N (VersionId),0,RayMigrator repository already exists. New VersionId [N] created."
-Error_-10_Incomplete        = "-10,RayMigrator repository incomplete or corrupt. Repository contains [X] tables instead of [11]."
-Error_-11_PartialNoVersion  = "-11,RayMigrator repository incomplete or corrupt. Repository contains [X] tables instead of the expected amount of [0]."
-Error_-12_MultipleVersions  = "-12,Multiple [MigratorMeta]-entries found for RayMigratorVersion [...] RepositoryDatabaseType [...]."
+# Format: SELECT 'schemaVersion,unversionedTables,message'
+Success_N        = "N (schema version),0|1,RayMigrator repository has schema version [N]"
+Success_Legacy   = "0,1,RayMigrator repository tables exist without a schema version"
+Success_None     = "0,0,RayMigrator repository does not exist yet"
 
 [ModificationNotes]
-Note1 = "SELECT result format: 'VersionId,RepositoryWasCreated,message' - RayMigrator logs the repository creation from the second value (#27); DO NOT change this format"
-Note2 = "No commas allowed in error messages"
-Note3 = "Use SYSUTCDATETIME() for all timestamps"
-Note4 = "MigratorMeta lists the RayMigrator versions that used the repository; the first row is the version that created it and therefore identifies the schema. There is no RepositoryVersion constant and no in-place upgrade."
-Note5 = "Tables created: MigratorMeta, Product, Environment, MigrationRun, MigrationRunMeta, MigrationRecord, MigrationRecordHistory, MigrationRunMode, MigrationOperation, MigrationRunResult, MigrationStatus"
-Note6 = "ResultCode catalog: see TemplateResultCode.cs in Shared project"
+Note1 = "SELECT result format: 'schemaVersion,unversionedTables,message' - DO NOT change this format"
+Note2 = "No commas allowed in messages"
+Note3 = "Creates only the schema and the RepositorySchemaVersion table; the repository tables come from Repository_Upgrade_1"
+Note4 = "ResultCode catalog: see TemplateResultCode.cs in Shared project"
 ================================================================================
 */
 ```
@@ -260,9 +252,9 @@ SELECT '1,1,RayMigrator repository has schema version [1]';
 
 **Format**: `{ResultCode}[,{Code}...],{Message}`
 
-- `ResultCode >= 0`: Success (code can carry additional info like VersionId)
+- `ResultCode >= 0`: Success (the code can carry a value such as a new record id or the `MigratorMetaId`)
 - `ResultCode < 0`: Error (triggers migration abort)
-- Further integer codes before the message carry template-specific information. `Repository_CheckCreate` returns the schema version as its first code and `unversionedTables` as its second (`1` when the `MigratorMeta` table exists, which with version `0` marks a repository of a RayMigrator before 0.17.0); `TemplateExecutor.RepositoryCheckCreate` decides from them which `Repository_Upgrade_{n}` steps to run and whether to refuse the repository (ADR-024). The parser takes every leading integer token as a code and the rest as the message, so a message must not start with an integer followed by a comma.
+- Further integer codes before the message carry template-specific information. `Repository_CheckCreate` returns the schema version as its first code and `unversionedTables` as its second (`1` when the `MigratorMeta` table exists, which with version `0` marks a repository of a RayMigrator before 0.17.0); `RepositorySchemaExecutor` decides from them which `Repository_Upgrade_{n}` steps to run and whether to refuse the repository (ADR-024). The parser takes every leading integer token as a code and the rest as the message, so a message must not start with an integer followed by a comma.
 
 ## Template Class
 
@@ -303,15 +295,18 @@ The constructor stores references but does **not** resolve the repository DAL im
 public class TemplateExecutor
 {
     // Repository Setup
-    public void RepositoryCheckCreate();
+    public void RepositoryCheckCreate();   // schema steps through RepositorySchemaExecutor (values of the current context)
     public void RepositoryProductCheckInsert();
     public void RepositoryEnvironmentCheckInsert();
+    public bool RepositoryProductSelect();       // read-only lookup (Simulate and read-only commands)
+    public bool RepositoryEnvironmentSelect();
 
     // Migration Run Operations
     public void RepositoryMigrationRunInsert(string migrationRunSettingsJson);
-    public void RepositoryMigrationRunUpdate(MigrationRunResult runResult);
+    public void RepositoryMigrationRunUpdate(MigrationRunResult runResult, string? errorCode = null, string? errorMessage = null);
+    public bool RepositoryMigrationRunHeartbeat();
     public List<Dictionary<string, object?>> RepositoryMigrationRunSelectOrphaned(int productId, int environmentId);
-    public void RepositoryMigrationRunFixOrphaned(int migrationRunId);
+    public bool RepositoryMigrationRunFixOrphaned(int migrationRunId, int thresholdMinutes);
     public List<Dictionary<string, object?>> RepositoryMigrationRunSelect(int limit);
 
     // Fix Operations
@@ -350,12 +345,17 @@ public class TemplateExecutor
     // Always queries MigrationRunModeId = Migrate: records are only written in Migrate mode,
     // so Simulate and validate-hash (Validate) read the same records as Migrate (#5)
     public List<MigrationRecord> RepositoryMigrationSelect();
+    public List<MigrationRecord> RepositoryMigrationRecordHistorySelect();
     public InterruptedMigrationInfo? RepositoryMigrationGetInterrupted();
 
     // Core Execution — standard (DAL manages connection)
     public TemplateResponse ExecuteScalarWithNegativeResultCodeException(
         Template template, IDal dal, DalSettings dalSettings,
         DalParameterList? dalParameterList, ILogger? logger = null, EventId? eventId = null);
+
+    // The execution and result validation behind it, without context and logging; the schema steps share it
+    internal static TemplateResponse ExecuteScalar(
+        Template template, IDal dal, DalSettings dalSettings, DalParameterList? dalParameterList);
 
     // Core Execution — shared-connection overload (caller controls connection/transaction)
     public TemplateResponse ExecuteScalarWithNegativeResultCodeException(
@@ -384,21 +384,20 @@ Templates return a comma-separated string `"ResultCode[,Code...],ResultMessage"`
 
 **Location**: `Raycoon.RayMigrator.Infrastructure/TemplateCache.cs` (namespace: `Raycoon.RayMigrator.Core.Templates`)
 
-The cache is eagerly initialized at construction time (not lazy-loaded). The `_options` field is nullable to support deferred validation when Products/Repository configuration is not yet known (e.g., Admin-DB mode).
+The cache is eagerly initialized at construction time (not lazy-loaded). It takes no options: a host builds one cache per process and validates every configuration it runs against it.
 
 ```csharp
 public class TemplateCache
 {
-    private readonly RayMigratorOptions? _options;  // nullable: options may not be available at construction time
+    private readonly bool _revealSensitiveData;
+    private readonly ILogger _logger;
     private Dictionary<string, Dictionary<TemplateType, Template>> _templateDictionary;
 
-    public TemplateCache(IOptions<RayMigratorOptions>? options, bool revealSensitiveData,
-        ILogger<TemplateCache> logger, bool validateConfiguration = true)
+    public TemplateCache(bool revealSensitiveData, ILogger<TemplateCache> logger)
     {
-        _options = options?.Value;
+        _revealSensitiveData = revealSensitiveData;
+        _logger = logger;
         Initialize();                            // Load all templates from filesystem, replace {ENV:*}
-        if (validateConfiguration && _options != null)
-            ValidateConfigurationAgainstTemplateCache(_options); // Verify configured DB types exist
     }
 
     // Returns a Template with {CFG:*} placeholders replaced from the options object
@@ -411,8 +410,8 @@ public class TemplateCache
     // Returns only the content string with {CFG:*} replaced
     public string GetTemplateContent<T>(string databaseType, TemplateType templateType, T propertyClass);
 
-    // Validates configured DatabaseTypes against loaded templates. Can be called on-demand
-    // when Products/Repository config becomes available (e.g., from Admin-DB).
+    // Validates configured DatabaseTypes against loaded templates. The host calls it for every
+    // configuration it runs (the CLI pipeline once, after the options are bound).
     public void ValidateConfigurationAgainstTemplateCache(RayMigratorOptions options);
 
     // Returns all available DatabaseType names from loaded DAL templates (e.g., "SqlServer", "PostgreSQL")
@@ -424,10 +423,8 @@ public class TemplateCache
 
 | Parameter | Purpose |
 |-----------|---------|
-| `options` | RayMigrator configuration. Can be `null` when validation is deferred (Admin-DB mode). |
 | `revealSensitiveData` | Whether to include sensitive data (paths, env values) in log output. |
 | `logger` | Logger instance for template loading diagnostics. |
-| `validateConfiguration` | When `true` (default), validates that configured DatabaseTypes have matching templates at construction time. Set to `false` when Products/Repository config is not yet known. |
 
 ### Validation
 
@@ -448,7 +445,7 @@ Each template file maps to a `TemplateType` enum value (unrecognized filenames a
 
 ## Example: Repository_CheckCreate and the schema steps
 
-The `Version` header of a template is the revision of that file and is maintained per file and per engine; it is not written to the database. The schema version of a repository lives in its `RepositorySchemaVersion` table (ADR-024): `Repository_CheckCreate` creates that table when it is missing and reports the highest applied version, the steps `Repository_Upgrade_{n}` create the schema on top of each other (step 1 the 11 repository tables with their master data) and write their version row, and `Repository_MigratorMeta_CheckInsert` registers the RayMigrator version in `MigratorMeta` (`@RayMigratorVersion`, bound by `TemplateExecutor`). A schema change ships as a new step template in every DAL and a bump of `RepositorySchema.CurrentVersion`; the next command of the newer RayMigrator applies the missing steps and the data stays. Only a repository without a schema version (created before 0.17.0) must be recreated once.
+The `Version` header of a template is the revision of that file and is maintained per file and per engine; it is not written to the database. The schema version of a repository lives in its `RepositorySchemaVersion` table (ADR-024): `Repository_CheckCreate` creates that table when it is missing and reports the highest applied version, the steps `Repository_Upgrade_{n}` create the schema on top of each other (step 1 the 11 repository tables with their master data) and write their version row, and `Repository_MigratorMeta_CheckInsert` registers the RayMigrator version in `MigratorMeta` (`@RayMigratorVersion`, bound by `RepositorySchemaExecutor`). A schema change ships as a new step template in every DAL and a bump of `RepositorySchema.CurrentVersion`; the next command of the newer RayMigrator (or a host through `IRepositorySchemaService.Ensure`) applies the missing steps and the data stays. Only a repository without a schema version (created before 0.17.0) must be recreated once.
 
 ### SQL Server Version
 
@@ -457,7 +454,7 @@ The `Version` header of a template is the revision of that file and is maintaine
 [RayMigratorTemplate]
 TemplateType = "Repository_CheckCreate"
 DatabaseType = "SqlServer"
-Version = "2026-10-13.1"
+Version = "2026-10-14.1"
 */
 
 SET NOCOUNT ON;
@@ -476,7 +473,7 @@ BEGIN TRY
 	IF OBJECT_ID('{CFG:SchemaName}.{CFG:TableBaseName}RepositorySchemaVersion', 'U') IS NULL
 		CREATE TABLE [{CFG:SchemaName}].[{CFG:TableBaseName}RepositorySchemaVersion] (
 			Version int NOT NULL, AppliedAt datetime2(3) NOT NULL, RayMigratorVersion nvarchar(100) NOT NULL,
-			CONSTRAINT pk_RepositorySchemaVersion PRIMARY KEY ( Version ));
+			CONSTRAINT pk_{CFG:TableBaseName}RepositorySchemaVersion PRIMARY KEY ( Version ));
 
 	DECLARE @SchemaVersion INT = (SELECT COALESCE(MAX([Version]), 0) FROM [{CFG:SchemaName}].[{CFG:TableBaseName}RepositorySchemaVersion]);
 	DECLARE @UnversionedTables INT = CASE WHEN OBJECT_ID('{CFG:SchemaName}.{CFG:TableBaseName}MigratorMeta', 'U') IS NULL THEN 0 ELSE 1 END;
@@ -492,7 +489,7 @@ BEGIN CATCH
 END CATCH;
 ```
 
-`Repository_Upgrade_1.sql` runs under the same lock, creates the 11 tables only when `MigratorMeta` does not exist, inserts the lookup master data, writes `(1, SYSUTCDATETIME(), @RayMigratorVersion)` into `RepositorySchemaVersion` unless row 1 exists, and returns `'1,RayMigrator repository schema version [1] applied: 11 tables with master data'`.
+`Repository_Upgrade_1.sql` runs under the same lock, creates the 11 tables only when `MigratorMeta` does not exist (every key, foreign key and index name starts with `pk_{CFG:TableBaseName}`, `fk_{CFG:TableBaseName}`, `ix_{CFG:TableBaseName}` or `uix_{CFG:TableBaseName}`), inserts the lookup master data, writes `(1, SYSUTCDATETIME(), @RayMigratorVersion)` into `RepositorySchemaVersion` unless row 1 exists, and returns `'1,RayMigrator repository schema version [1] applied: 11 tables with master data'`.
 
 ### PostgreSQL Version
 
@@ -501,7 +498,7 @@ END CATCH;
 [RayMigratorTemplate]
 TemplateType = "Repository_CheckCreate"
 DatabaseType = "PostgreSQL"
-Version = "2026-10-13.1"
+Version = "2026-10-14.1"
 */
 
 DO $$
@@ -515,7 +512,7 @@ BEGIN
 
     CREATE TABLE IF NOT EXISTS {CFG:SchemaName}.{CFG:TableBaseName}repository_schema_version (
         version INT NOT NULL, applied_at TIMESTAMPTZ NOT NULL, raymigrator_version TEXT NOT NULL,
-        CONSTRAINT pk_repository_schema_version PRIMARY KEY (version));
+        CONSTRAINT pk_{CFG:TableBaseName}repository_schema_version PRIMARY KEY (version));
 
     SELECT COALESCE(MAX(version), 0) INTO v_schema_version FROM {CFG:SchemaName}.{CFG:TableBaseName}repository_schema_version;
     SELECT CASE WHEN EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = '{CFG:SchemaName}' AND table_name = '{CFG:TableBaseName}migrator_meta') THEN 1 ELSE 0 END INTO v_unversioned_tables;

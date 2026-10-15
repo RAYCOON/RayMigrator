@@ -6,7 +6,7 @@ RayMigrator SQL Template
 TemplateType   = "DatabaseLogging_CheckCreate"
 DatabaseType   = "PostgreSQL"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-09-09.1"
+Version        = "2026-10-14.1"
 
 [Description]
 Function = """
@@ -65,7 +65,7 @@ BEGIN
         id                     INT          NOT NULL,
         name                   TEXT         NOT NULL,
         description            TEXT             NULL,
-        CONSTRAINT pk_migration_event PRIMARY KEY (id)
+        CONSTRAINT pk_{CFG:TableBaseName}migration_event PRIMARY KEY (id)
     );
 
     CREATE TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_log (
@@ -85,7 +85,7 @@ BEGIN
         file_block_id          INT              NULL,
         message                TEXT             NULL,
         created_at             TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-        CONSTRAINT pk_migration_log PRIMARY KEY (id)
+        CONSTRAINT pk_{CFG:TableBaseName}migration_log PRIMARY KEY (id)
     );
 
     -- Master data: migration_event

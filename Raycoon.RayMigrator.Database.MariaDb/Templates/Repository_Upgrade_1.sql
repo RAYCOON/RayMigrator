@@ -6,7 +6,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_Upgrade_1"
 DatabaseType   = "MariaDb"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-10-13.1"
+Version        = "2026-10-14.1"
 
 [Description]
 Function = """
@@ -117,11 +117,11 @@ CREATE TABLE IF NOT EXISTS {CFG:TableBaseName}migration_run (
     duration_in_ms          BIGINT           NULL,
     PRIMARY KEY (id),
     INDEX ix_{CFG:TableBaseName}migration_run_environment_id (environment_id),
-    CONSTRAINT fk_migration_run_product FOREIGN KEY (product_id) REFERENCES {CFG:TableBaseName}product(id),
-    CONSTRAINT fk_migration_run_environment FOREIGN KEY (environment_id) REFERENCES {CFG:TableBaseName}environment(id),
-    CONSTRAINT fk_migration_run_migrator_meta FOREIGN KEY (migrator_meta_id) REFERENCES {CFG:TableBaseName}migrator_meta(id),
-    CONSTRAINT fk_migration_run_migration_run_result FOREIGN KEY (migration_run_result_id) REFERENCES {CFG:TableBaseName}migration_run_result(id),
-    CONSTRAINT fk_migration_run_migration_run_mode FOREIGN KEY (migration_run_mode_id) REFERENCES {CFG:TableBaseName}migration_run_mode(id)
+    CONSTRAINT fk_{CFG:TableBaseName}migration_run_product FOREIGN KEY (product_id) REFERENCES {CFG:TableBaseName}product(id),
+    CONSTRAINT fk_{CFG:TableBaseName}migration_run_environment FOREIGN KEY (environment_id) REFERENCES {CFG:TableBaseName}environment(id),
+    CONSTRAINT fk_{CFG:TableBaseName}migration_run_migrator_meta FOREIGN KEY (migrator_meta_id) REFERENCES {CFG:TableBaseName}migrator_meta(id),
+    CONSTRAINT fk_{CFG:TableBaseName}migration_run_migration_run_result FOREIGN KEY (migration_run_result_id) REFERENCES {CFG:TableBaseName}migration_run_result(id),
+    CONSTRAINT fk_{CFG:TableBaseName}migration_run_migration_run_mode FOREIGN KEY (migration_run_mode_id) REFERENCES {CFG:TableBaseName}migration_run_mode(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS {CFG:TableBaseName}migration_run_meta (
@@ -129,7 +129,7 @@ CREATE TABLE IF NOT EXISTS {CFG:TableBaseName}migration_run_meta (
     migration_run_settings_json TEXT             NULL,
     description                 TEXT             NULL,
     PRIMARY KEY (migration_run_id),
-    CONSTRAINT fk_migration_run_meta_migration_run FOREIGN KEY (migration_run_id) REFERENCES {CFG:TableBaseName}migration_run(id)
+    CONSTRAINT fk_{CFG:TableBaseName}migration_run_meta_migration_run FOREIGN KEY (migration_run_id) REFERENCES {CFG:TableBaseName}migration_run(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS {CFG:TableBaseName}migration_record (
@@ -163,12 +163,12 @@ CREATE TABLE IF NOT EXISTS {CFG:TableBaseName}migration_record (
     duration_in_ms            BIGINT           NULL,
     PRIMARY KEY (id),
     INDEX ix_{CFG:TableBaseName}migration_record_environment_id (environment_id),
-    CONSTRAINT fk_migration_record_product FOREIGN KEY (product_id) REFERENCES {CFG:TableBaseName}product(id),
-    CONSTRAINT fk_migration_record_environment FOREIGN KEY (environment_id) REFERENCES {CFG:TableBaseName}environment(id),
-    CONSTRAINT fk_migration_record_migration_run FOREIGN KEY (migration_run_id) REFERENCES {CFG:TableBaseName}migration_run(id),
-    CONSTRAINT fk_migration_record_migration_run_mode FOREIGN KEY (migration_run_mode_id) REFERENCES {CFG:TableBaseName}migration_run_mode(id),
-    CONSTRAINT fk_migration_record_migration_operation FOREIGN KEY (migration_operation_id) REFERENCES {CFG:TableBaseName}migration_operation(id),
-    CONSTRAINT fk_migration_record_migration_status FOREIGN KEY (migration_status_id) REFERENCES {CFG:TableBaseName}migration_status(id)
+    CONSTRAINT fk_{CFG:TableBaseName}migration_record_product FOREIGN KEY (product_id) REFERENCES {CFG:TableBaseName}product(id),
+    CONSTRAINT fk_{CFG:TableBaseName}migration_record_environment FOREIGN KEY (environment_id) REFERENCES {CFG:TableBaseName}environment(id),
+    CONSTRAINT fk_{CFG:TableBaseName}migration_record_migration_run FOREIGN KEY (migration_run_id) REFERENCES {CFG:TableBaseName}migration_run(id),
+    CONSTRAINT fk_{CFG:TableBaseName}migration_record_migration_run_mode FOREIGN KEY (migration_run_mode_id) REFERENCES {CFG:TableBaseName}migration_run_mode(id),
+    CONSTRAINT fk_{CFG:TableBaseName}migration_record_migration_operation FOREIGN KEY (migration_operation_id) REFERENCES {CFG:TableBaseName}migration_operation(id),
+    CONSTRAINT fk_{CFG:TableBaseName}migration_record_migration_status FOREIGN KEY (migration_status_id) REFERENCES {CFG:TableBaseName}migration_status(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS {CFG:TableBaseName}migration_record_history (
@@ -205,9 +205,9 @@ CREATE TABLE IF NOT EXISTS {CFG:TableBaseName}migration_record_history (
     PRIMARY KEY (id),
     INDEX ix_{CFG:TableBaseName}migration_record_history_migration_record_id (migration_record_id),
     INDEX ix_{CFG:TableBaseName}migration_record_history_environment_id (environment_id),
-    CONSTRAINT fk_migration_record_history_migration_run FOREIGN KEY (migration_run_id) REFERENCES {CFG:TableBaseName}migration_run(id),
-    CONSTRAINT fk_migration_record_history_product FOREIGN KEY (product_id) REFERENCES {CFG:TableBaseName}product(id),
-    CONSTRAINT fk_migration_record_history_environment FOREIGN KEY (environment_id) REFERENCES {CFG:TableBaseName}environment(id)
+    CONSTRAINT fk_{CFG:TableBaseName}migration_record_history_migration_run FOREIGN KEY (migration_run_id) REFERENCES {CFG:TableBaseName}migration_run(id),
+    CONSTRAINT fk_{CFG:TableBaseName}migration_record_history_product FOREIGN KEY (product_id) REFERENCES {CFG:TableBaseName}product(id),
+    CONSTRAINT fk_{CFG:TableBaseName}migration_record_history_environment FOREIGN KEY (environment_id) REFERENCES {CFG:TableBaseName}environment(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 -- Master data (idempotent: existing rows are kept)
 INSERT IGNORE INTO {CFG:TableBaseName}migration_run_mode (id, name, description) VALUES

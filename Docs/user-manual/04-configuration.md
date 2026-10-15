@@ -14,7 +14,7 @@ By the end of this chapter you will understand:
 
 ## Configuration File Hierarchy
 
-In Standalone mode, RayMigrator loads configuration from up to four JSON files, merged in a specific order. Each subsequent file overrides values from the previous one.
+RayMigrator loads configuration from up to four JSON files, merged in a specific order. Each subsequent file overrides values from the previous one.
 
 | Order | File | Purpose |
 |-------|------|---------|

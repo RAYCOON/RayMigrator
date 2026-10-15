@@ -6,7 +6,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_Upgrade_1"
 DatabaseType   = "PostgreSQL"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-10-13.1"
+Version        = "2026-10-14.1"
 
 [Description]
 Function = """
@@ -60,28 +60,28 @@ BEGIN
             id                     SMALLINT       NOT NULL,
             name                   TEXT           NOT NULL,
             description            TEXT               NULL,
-            CONSTRAINT pk_migration_operation PRIMARY KEY (id)
+            CONSTRAINT pk_{CFG:TableBaseName}migration_operation PRIMARY KEY (id)
         );
 
         CREATE TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_run_result (
             id                     SMALLINT       NOT NULL,
             name                   TEXT           NOT NULL,
             description            TEXT               NULL,
-            CONSTRAINT pk_migration_run_result PRIMARY KEY (id)
+            CONSTRAINT pk_{CFG:TableBaseName}migration_run_result PRIMARY KEY (id)
         );
 
         CREATE TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_run_mode (
             id                     SMALLINT       NOT NULL,
             name                   TEXT           NOT NULL,
             description            TEXT               NULL,
-            CONSTRAINT pk_migration_run_mode PRIMARY KEY (id)
+            CONSTRAINT pk_{CFG:TableBaseName}migration_run_mode PRIMARY KEY (id)
         );
 
         CREATE TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_status (
             id                     SMALLINT       NOT NULL,
             name                   TEXT           NOT NULL,
             description            TEXT               NULL,
-            CONSTRAINT pk_migration_status PRIMARY KEY (id)
+            CONSTRAINT pk_{CFG:TableBaseName}migration_status PRIMARY KEY (id)
         );
 
         CREATE TABLE {CFG:SchemaName}.{CFG:TableBaseName}migrator_meta (
@@ -89,7 +89,7 @@ BEGIN
             raymigrator_version            TEXT       NOT NULL,
             repository_database_type       TEXT       NOT NULL,
             created_at                     TIMESTAMPTZ NOT NULL,
-            CONSTRAINT pk_migrator_meta PRIMARY KEY (id)
+            CONSTRAINT pk_{CFG:TableBaseName}migrator_meta PRIMARY KEY (id)
         );
 
         CREATE TABLE {CFG:SchemaName}.{CFG:TableBaseName}product (
@@ -97,7 +97,7 @@ BEGIN
             name                   TEXT           NOT NULL,
             name_lower             TEXT           NOT NULL,
             created_at             TIMESTAMPTZ    NOT NULL,
-            CONSTRAINT pk_product PRIMARY KEY (id)
+            CONSTRAINT pk_{CFG:TableBaseName}product PRIMARY KEY (id)
         );
 
         CREATE UNIQUE INDEX uix_{CFG:TableBaseName}product_name_lower ON {CFG:SchemaName}.{CFG:TableBaseName}product (name_lower);
@@ -107,7 +107,7 @@ BEGIN
             name                   TEXT           NOT NULL,
             name_lower             TEXT           NOT NULL,
             created_at             TIMESTAMPTZ    NOT NULL,
-            CONSTRAINT pk_environment PRIMARY KEY (id)
+            CONSTRAINT pk_{CFG:TableBaseName}environment PRIMARY KEY (id)
         );
 
         CREATE UNIQUE INDEX uix_{CFG:TableBaseName}environment_name_lower ON {CFG:SchemaName}.{CFG:TableBaseName}environment (name_lower);
@@ -124,7 +124,7 @@ BEGIN
             started_at             TIMESTAMPTZ    NOT NULL,
             finished_at            TIMESTAMPTZ        NULL,
             duration_in_ms         BIGINT             NULL,
-            CONSTRAINT pk_migration_run PRIMARY KEY (id)
+            CONSTRAINT pk_{CFG:TableBaseName}migration_run PRIMARY KEY (id)
         );
 
         CREATE INDEX ix_{CFG:TableBaseName}migration_run_migrator_meta_id
@@ -142,7 +142,7 @@ BEGIN
             migration_run_id             INT            NOT NULL,
             migration_run_settings_json  TEXT               NULL,
             description                  TEXT               NULL,
-            CONSTRAINT pk_migration_run_meta PRIMARY KEY (migration_run_id)
+            CONSTRAINT pk_{CFG:TableBaseName}migration_run_meta PRIMARY KEY (migration_run_id)
         );
 
         CREATE TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_record (
@@ -174,7 +174,7 @@ BEGIN
             started_at                TIMESTAMPTZ        NULL,
             finished_at               TIMESTAMPTZ        NULL,
             duration_in_ms            BIGINT             NULL,
-            CONSTRAINT pk_migration_record PRIMARY KEY (id)
+            CONSTRAINT pk_{CFG:TableBaseName}migration_record PRIMARY KEY (id)
         );
 
         CREATE INDEX ix_{CFG:TableBaseName}migration_record_product_id
@@ -221,28 +221,28 @@ BEGIN
             finished_at               TIMESTAMPTZ        NULL,
             duration_in_ms            BIGINT             NULL,
             historized_at             TIMESTAMPTZ    NOT NULL  DEFAULT NOW(),
-            CONSTRAINT pk_migration_record_history PRIMARY KEY (id)
+            CONSTRAINT pk_{CFG:TableBaseName}migration_record_history PRIMARY KEY (id)
         );
 
         CREATE INDEX ix_{CFG:TableBaseName}migration_record_history_migration_record_id
             ON {CFG:SchemaName}.{CFG:TableBaseName}migration_record_history (migration_record_id);
 
         -- Foreign keys
-        ALTER TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_record ADD CONSTRAINT fk_migration_record_product FOREIGN KEY (product_id) REFERENCES {CFG:SchemaName}.{CFG:TableBaseName}product(id) ON DELETE NO ACTION ON UPDATE NO ACTION;
-        ALTER TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_record ADD CONSTRAINT fk_migration_record_environment FOREIGN KEY (environment_id) REFERENCES {CFG:SchemaName}.{CFG:TableBaseName}environment(id) ON DELETE NO ACTION ON UPDATE NO ACTION;
-        ALTER TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_record ADD CONSTRAINT fk_migration_record_migration_run FOREIGN KEY (migration_run_id) REFERENCES {CFG:SchemaName}.{CFG:TableBaseName}migration_run(id) ON DELETE NO ACTION ON UPDATE NO ACTION;
-        ALTER TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_record ADD CONSTRAINT fk_migration_record_migration_run_mode FOREIGN KEY (migration_run_mode_id) REFERENCES {CFG:SchemaName}.{CFG:TableBaseName}migration_run_mode(id) ON DELETE NO ACTION ON UPDATE NO ACTION;
-        ALTER TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_record ADD CONSTRAINT fk_migration_record_migration_operation FOREIGN KEY (migration_operation_id) REFERENCES {CFG:SchemaName}.{CFG:TableBaseName}migration_operation(id) ON DELETE NO ACTION ON UPDATE NO ACTION;
-        ALTER TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_record ADD CONSTRAINT fk_migration_record_migration_status FOREIGN KEY (migration_status_id) REFERENCES {CFG:SchemaName}.{CFG:TableBaseName}migration_status(id) ON DELETE NO ACTION ON UPDATE NO ACTION;
-        ALTER TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_record_history ADD CONSTRAINT fk_migration_record_history_migration_run FOREIGN KEY (migration_run_id) REFERENCES {CFG:SchemaName}.{CFG:TableBaseName}migration_run(id) ON DELETE NO ACTION ON UPDATE NO ACTION;
-        ALTER TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_record_history ADD CONSTRAINT fk_migration_record_history_product FOREIGN KEY (product_id) REFERENCES {CFG:SchemaName}.{CFG:TableBaseName}product(id) ON DELETE NO ACTION ON UPDATE NO ACTION;
-        ALTER TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_record_history ADD CONSTRAINT fk_migration_record_history_environment FOREIGN KEY (environment_id) REFERENCES {CFG:SchemaName}.{CFG:TableBaseName}environment(id) ON DELETE NO ACTION ON UPDATE NO ACTION;
-        ALTER TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_run ADD CONSTRAINT fk_migration_run_product FOREIGN KEY (product_id) REFERENCES {CFG:SchemaName}.{CFG:TableBaseName}product(id) ON DELETE NO ACTION ON UPDATE NO ACTION;
-        ALTER TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_run ADD CONSTRAINT fk_migration_run_environment FOREIGN KEY (environment_id) REFERENCES {CFG:SchemaName}.{CFG:TableBaseName}environment(id) ON DELETE NO ACTION ON UPDATE NO ACTION;
-        ALTER TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_run ADD CONSTRAINT fk_migration_run_migration_run_result FOREIGN KEY (migration_run_result_id) REFERENCES {CFG:SchemaName}.{CFG:TableBaseName}migration_run_result(id) ON DELETE NO ACTION ON UPDATE NO ACTION;
-        ALTER TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_run ADD CONSTRAINT fk_migration_run_migration_run_mode FOREIGN KEY (migration_run_mode_id) REFERENCES {CFG:SchemaName}.{CFG:TableBaseName}migration_run_mode(id) ON DELETE NO ACTION ON UPDATE NO ACTION;
-        ALTER TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_run ADD CONSTRAINT fk_migration_run_migrator_meta FOREIGN KEY (migrator_meta_id) REFERENCES {CFG:SchemaName}.{CFG:TableBaseName}migrator_meta(id) ON DELETE NO ACTION ON UPDATE NO ACTION;
-        ALTER TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_run_meta ADD CONSTRAINT fk_migration_run_meta_migration_run FOREIGN KEY (migration_run_id) REFERENCES {CFG:SchemaName}.{CFG:TableBaseName}migration_run(id) ON DELETE NO ACTION ON UPDATE NO ACTION;
+        ALTER TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_record ADD CONSTRAINT fk_{CFG:TableBaseName}migration_record_product FOREIGN KEY (product_id) REFERENCES {CFG:SchemaName}.{CFG:TableBaseName}product(id) ON DELETE NO ACTION ON UPDATE NO ACTION;
+        ALTER TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_record ADD CONSTRAINT fk_{CFG:TableBaseName}migration_record_environment FOREIGN KEY (environment_id) REFERENCES {CFG:SchemaName}.{CFG:TableBaseName}environment(id) ON DELETE NO ACTION ON UPDATE NO ACTION;
+        ALTER TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_record ADD CONSTRAINT fk_{CFG:TableBaseName}migration_record_migration_run FOREIGN KEY (migration_run_id) REFERENCES {CFG:SchemaName}.{CFG:TableBaseName}migration_run(id) ON DELETE NO ACTION ON UPDATE NO ACTION;
+        ALTER TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_record ADD CONSTRAINT fk_{CFG:TableBaseName}migration_record_migration_run_mode FOREIGN KEY (migration_run_mode_id) REFERENCES {CFG:SchemaName}.{CFG:TableBaseName}migration_run_mode(id) ON DELETE NO ACTION ON UPDATE NO ACTION;
+        ALTER TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_record ADD CONSTRAINT fk_{CFG:TableBaseName}migration_record_migration_operation FOREIGN KEY (migration_operation_id) REFERENCES {CFG:SchemaName}.{CFG:TableBaseName}migration_operation(id) ON DELETE NO ACTION ON UPDATE NO ACTION;
+        ALTER TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_record ADD CONSTRAINT fk_{CFG:TableBaseName}migration_record_migration_status FOREIGN KEY (migration_status_id) REFERENCES {CFG:SchemaName}.{CFG:TableBaseName}migration_status(id) ON DELETE NO ACTION ON UPDATE NO ACTION;
+        ALTER TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_record_history ADD CONSTRAINT fk_{CFG:TableBaseName}migration_record_history_migration_run FOREIGN KEY (migration_run_id) REFERENCES {CFG:SchemaName}.{CFG:TableBaseName}migration_run(id) ON DELETE NO ACTION ON UPDATE NO ACTION;
+        ALTER TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_record_history ADD CONSTRAINT fk_{CFG:TableBaseName}migration_record_history_product FOREIGN KEY (product_id) REFERENCES {CFG:SchemaName}.{CFG:TableBaseName}product(id) ON DELETE NO ACTION ON UPDATE NO ACTION;
+        ALTER TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_record_history ADD CONSTRAINT fk_{CFG:TableBaseName}migration_record_history_environment FOREIGN KEY (environment_id) REFERENCES {CFG:SchemaName}.{CFG:TableBaseName}environment(id) ON DELETE NO ACTION ON UPDATE NO ACTION;
+        ALTER TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_run ADD CONSTRAINT fk_{CFG:TableBaseName}migration_run_product FOREIGN KEY (product_id) REFERENCES {CFG:SchemaName}.{CFG:TableBaseName}product(id) ON DELETE NO ACTION ON UPDATE NO ACTION;
+        ALTER TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_run ADD CONSTRAINT fk_{CFG:TableBaseName}migration_run_environment FOREIGN KEY (environment_id) REFERENCES {CFG:SchemaName}.{CFG:TableBaseName}environment(id) ON DELETE NO ACTION ON UPDATE NO ACTION;
+        ALTER TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_run ADD CONSTRAINT fk_{CFG:TableBaseName}migration_run_migration_run_result FOREIGN KEY (migration_run_result_id) REFERENCES {CFG:SchemaName}.{CFG:TableBaseName}migration_run_result(id) ON DELETE NO ACTION ON UPDATE NO ACTION;
+        ALTER TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_run ADD CONSTRAINT fk_{CFG:TableBaseName}migration_run_migration_run_mode FOREIGN KEY (migration_run_mode_id) REFERENCES {CFG:SchemaName}.{CFG:TableBaseName}migration_run_mode(id) ON DELETE NO ACTION ON UPDATE NO ACTION;
+        ALTER TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_run ADD CONSTRAINT fk_{CFG:TableBaseName}migration_run_migrator_meta FOREIGN KEY (migrator_meta_id) REFERENCES {CFG:SchemaName}.{CFG:TableBaseName}migrator_meta(id) ON DELETE NO ACTION ON UPDATE NO ACTION;
+        ALTER TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_run_meta ADD CONSTRAINT fk_{CFG:TableBaseName}migration_run_meta_migration_run FOREIGN KEY (migration_run_id) REFERENCES {CFG:SchemaName}.{CFG:TableBaseName}migration_run(id) ON DELETE NO ACTION ON UPDATE NO ACTION;
 
         -- Table and column comments (equivalent to SQL Server extended properties)
         COMMENT ON TABLE {CFG:SchemaName}.{CFG:TableBaseName}migration_operation IS 'Rollback (MigrateDown) = 5, MigrateDown = 50, MigrateUp = 100, Baseline = 110';

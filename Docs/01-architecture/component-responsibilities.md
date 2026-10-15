@@ -12,7 +12,7 @@ Detailed breakdown of each component's responsibilities and key classes.
 - Initialize `SensitiveDataMasker` with the `RevealSensitiveData` flag from the parsed options
 - Resolve the environment from the `--environment` argument, cross-checked against `DOTNET_ENVIRONMENT`, via `EnvironmentResolver`
 - Dispatch to `RunDirectMode()` with `JsonOptionsSource` (constructed from `rayMigratorConsoleOptions.ConfigDir`)
-- `RunDirectMode()` loads the configuration via `IOptionsSource.LoadAsync()` and then delegates to `DirectModePipeline.ExecuteAsync()` for unified host build and service execution
+- `RunDirectMode()` loads the configuration via `IOptionsSource.LoadAsync()` and then delegates to `DirectModePipeline.ExecuteAsync()` for host build and service execution
 - Converts exceptions into exit codes (parser failure = 5, `ApplicationStartupException` = 1, other exceptions = 100)
 
 ### `AssemblyInfoHelper` (Console)
@@ -34,14 +34,14 @@ Detailed breakdown of each component's responsibilities and key classes.
 ### `DirectModePipeline`
 **Location**: `Raycoon.RayMigrator.Pipeline/DirectModePipeline.cs`
 
-**Purpose**: Unified execution pipeline for Standalone mode. Handles the complete lifecycle after options have been loaded: Serilog creation, DI host build, DatabaseLogWriter init, DAL properties, connection validation, `RayMigratorService` execution, and shutdown.
+**Purpose**: Execution pipeline of the CLI after the options have been loaded from the appsettings hierarchy. Handles the complete lifecycle: Serilog creation, DI host build, DatabaseLogWriter init, DAL properties, connection validation, `RayMigratorService` execution, and shutdown. The options are always bound from the configuration section; a host that builds options in memory goes through `IMigrationContextFactory` instead.
 
 **Key Steps**:
 1. Early configuration validation (check for Serilog section)
 2. Create Serilog logger via `SerilogFactory.Create()`
 3. Log environment variable replacements
 4. Build DI host with `Host.CreateDefaultBuilder(args)`
-5. Resolve `DatabaseLogWriter` (triggers options validation in JSON mode)
+5. Resolve `DatabaseLogWriter` (triggers options validation)
 6. Register sensitive data for masking
 7. Validate product alias against configured products (with case-sensitivity hints)
 8. Resolve `MigrationContext`, set `MigrationLoggingContext.Current`
@@ -117,7 +117,6 @@ public interface IMigrationService
 
 **Dependencies**:
 - `ILogger<MigrationService>` (injected)
-- `IOptions<RayMigratorOptions>` (injected)
 - `TemplateExecutor` (injected)
 - `IMigrationContextAccessor` (injected) — accesses the current `MigrationContext` via `_ctxAccessor.Current`
 - `IServiceProvider` (injected)
@@ -163,6 +162,11 @@ All request types are in `Models/Requests.cs`, all result types are in `Models/R
 | `MigrationRunInfo` | Information about a migration run (MigrationRunId, Environment, StartedAt, CompletedAt, Operation, Result, RunMode, TotalMigrations, SuccessfulMigrations, FailedMigrations, FromRelease, ToRelease). |
 | `FixIssuesResult` | Result of Fix command (WasSimulated, OrphanedRunsFound, OrphanedRunsFixed, OrphanedRuns: List<OrphanedRunInfo>). |
 | `OrphanedRunInfo` | Information about an orphaned MigrationRun entry (MigrationRunId, Environment, EnvironmentId, StartedAt, MinutesRunning, MigrationRunModeId, WasFixed). |
+
+### `IRepositorySchemaService`
+**Location**: `Raycoon.RayMigrator.Services.Abstractions/IRepositorySchemaService.cs`; implemented by `RepositorySchemaService` (`Raycoon.RayMigrator.Services/RepositorySchemaService.cs`)
+
+**Purpose**: Creates or upgrades the schema of a repository from its `RepositoryOptions` alone, without a product, an environment or a migration context, for hosts that manage repositories (RayMigrator Studio). `RepositorySchemaResult Ensure(RepositoryOptions repository)` validates the options like the context factory validates the repository of a run, runs the schema steps of ADR-024 through `RepositorySchemaExecutor` and returns `RepositorySchemaResult` (`DatabaseType`, `VersionBefore`, `VersionAfter`, `MigratorMetaId`, `Created`, `Upgraded`). Registered as singleton by `AddRayMigratorServices`; it needs the host's `TemplateCache`.
 
 ### CLI Tool Execution
 
@@ -212,8 +216,6 @@ The constructor also eagerly initializes `ProductTargetGroupOptionsEnumerable` f
 
 | Class | Purpose |
 |-------|---------|
-| `RayMigratorBootstrapOptions` | Bootstrap configuration for mode detection (AdminDb, Serilog) |
-| `AdminDbOptions` | Admin database connection settings (Provider, ConnectionString, SchemaName). Part of Engine's Core NuGet contract; consumed by RayMigrator Studio. Not active in standalone CLI mode. |
 | `RayMigratorOptions` | Root configuration from appsettings.json |
 | `RayMigratorConsoleOptions` | CLI parameters (command, product, environment, run mode, target release, target group aliases, target group execution order, hash validation scope, fix options, allow out of order, stop rollback on missing rollback file, config dir, etc.) |
 | `CommandLineConfiguration` | System.CommandLine root command definition and argument parsing |
@@ -277,14 +279,14 @@ public string TargetAlias { get; set; }
 | Class | Purpose |
 |-------|---------|
 | `SingletonMigrationContextAccessor` | CLI mode: wraps a single `MigrationContext` instance (registered as Singleton) |
-| `AsyncLocalMigrationContextAccessor` | Uses `AsyncLocal<T>` for per-request `MigrationContext` isolation (registered as Scoped) |
+| `AsyncLocalMigrationContextAccessor` | API mode: uses a static `AsyncLocal<T>` for per-flow `MigrationContext` isolation (registered as Singleton) |
 
 ### `IMigrationContextFactory`
 **Location**: `Raycoon.RayMigrator.Core/IMigrationContextFactory.cs`
 
 **Purpose**: Factory for creating `MigrationContext` instances.
 
-**Implementation**: `MigrationContextFactory` — creates a `MigrationContext` from `RayMigratorOptions`, product, environment, command, run mode, version, and optional parameters. The command is a parameter since #6 (it used to be hard-coded to `MigrateUp`), so a programmatic `MigrateDown` is stamped correctly into the MigrationRun settings snapshot.
+**Implementation**: `MigrationContextFactory` — creates a `MigrationContext` from `RayMigratorOptions` and `RayMigratorConsoleOptions`: `Create` prepares options a host built in memory (placeholders, defaults, data annotations, rule catalog), `CreateFromValidatedOptions` takes the options the CLI pipeline bound and validated. Both fill the DAL properties, check the schema names and make the context current. The command comes from the console options and is stamped into the MigrationRun settings snapshot (#6).
 
 ### `RayMigratorHostMode`
 **Location**: `Raycoon.RayMigrator.Core/RayMigratorHostMode.cs`
@@ -323,8 +325,8 @@ public string TargetAlias { get; set; }
 | Class | Purpose |
 |-------|---------|
 | `Template` | Represents a loaded SQL template with `TemplateType`, `DatabaseType`, `Filename`, and `Content` properties. |
-| `TemplateResponse` | Result of a template execution, containing `ResultCode` (int) and `ResultMessage` (string?). |
-| `TemplateType` | Enum defining all SQL template types (21 values + Undefined). |
+| `TemplateResponse` | Result of a template execution, containing `ResultCode` (int), `ResultCodes` (int[], every leading code) and `ResultMessage` (string?). |
+| `TemplateType` | Enum defining all SQL template types (25 values + Undefined). |
 
 ### `MigrationLoggingContext`
 **Location**: `Raycoon.RayMigrator.Core/MigrationLoggingContext.cs`
@@ -337,8 +339,8 @@ public string TargetAlias { get; set; }
 
 | Class | Purpose |
 |-------|---------|
-| `IOptionsSource` | Interface for loading `RayMigratorOptions` from different sources (JSON files or alternative stores). Defines `LoadAsync(product, environment)` returning `OptionsSourceResult`. |
-| `OptionsSourceResult` | Result of configuration loading. Contains `RayMigratorConfigSection`, `RayMigratorConfigSectionAsWritten` (the section before placeholder resolution, JSON mode), `PreBuiltOptions` (pre-built mode), `ReplacedEnvironmentVariables`, `HostConfiguration` (JSON mode), `ModeName`, and `ConfigFileDiagnostics`. |
+| `IOptionsSource` | Interface for loading the configuration of the CLI pipeline. Defines `LoadAsync(product, environment)` returning `OptionsSourceResult`; the one implementation is `JsonOptionsSource` (appsettings.json hierarchy). A host that builds options in memory goes through `IMigrationContextFactory` instead. |
+| `OptionsSourceResult` | Result of configuration loading. Contains `RayMigratorConfigSection`, `RayMigratorConfigSectionAsWritten` (the section before placeholder resolution), `ReplacedEnvironmentVariables`, `HostConfiguration`, `ModeName`, and `ConfigFileDiagnostics`. |
 
 ### `EnvironmentResolver`
 **Location**: `Raycoon.RayMigrator.Core/Configuration/EnvironmentResolver.cs`
@@ -369,7 +371,7 @@ Validation is split across two projects. The **shared rule catalog** lives in `R
 
 | Class | Purpose |
 |-------|---------|
-| `RayMigratorOptionsValidator` | `IValidateOptions<RayMigratorOptions>` — wires the engine into the shared catalog. Delegates to `OptionsValidationInputAdapter` to flatten `RayMigratorOptions` into `ValidationInput` (connection strings taken from the section as written, so `RULE_7_3` sees placeholders instead of resolved credentials, #30), runs `RuleCatalog.RunAll`, emits warnings via static `Serilog.Log`, and fails `ValidateOptionsResult` on any error-severity issues. Registered in DI and triggered via `.ValidateOnStart()` in `DirectModePipeline`. |
+| `RayMigratorOptionsValidator` | `IValidateOptions<RayMigratorOptions>` — wires the engine into the shared catalog. Delegates to `OptionsValidationInputAdapter` to flatten `RayMigratorOptions` into `ValidationInput` (connection strings taken from the section as written, so `RULE_7_3` sees placeholders instead of resolved credentials, #30), runs `RuleCatalog.RunAll`, emits warnings via static `Serilog.Log`, and fails `ValidateOptionsResult` on any error-severity issues. Registered in DI and triggered via `.ValidateOnStart()` in `DirectModePipeline`. The public static `GetReport(options, sectionAsWritten)` returns the full report (warnings and errors with code, severity and path) for hosts that show findings instead of failing. |
 | `OptionsValidationInputAdapter` | Static mapper `RayMigratorOptions` → `ValidationInput`. Assumes defaults have already been merged by `ProductDefaultsPostConfigureOptions`. |
 | `ProductDefaultsPostConfigureOptions` | `IPostConfigureOptions<RayMigratorOptions>` — merges `ProductDefaults` into each `Product`, `TargetGroup`, and `Target`. Runs before `RayMigratorOptionsValidator`. Delegates to the public static `MergeDefaults(RayMigratorOptions)` method. |
 | `SchemaNameValidator` | Static pipeline-level check that validates `SchemaName` against `DalSpecificProperties.SupportsSchema` after DAL discovery. Complements (does not overlap) the catalog's structural `RULE_4_1` / `RULE_4_2` by bringing in DAL-specific knowledge. |
@@ -447,13 +449,16 @@ All methods are **synchronous** (they internally call async DAL methods with `.G
 
 **Key Methods**:
 ```csharp
-void RepositoryCheckCreate()
+void RepositoryCheckCreate()   // schema steps through RepositorySchemaExecutor with the values of the current context
 void RepositoryProductCheckInsert()
 void RepositoryEnvironmentCheckInsert()
+bool RepositoryProductSelect()
+bool RepositoryEnvironmentSelect()
 void RepositoryMigrationRunInsert(string migrationRunSettingsJson)
-void RepositoryMigrationRunUpdate(MigrationRunResult runResult)
+void RepositoryMigrationRunUpdate(MigrationRunResult runResult, string? errorCode = null, string? errorMessage = null)
+bool RepositoryMigrationRunHeartbeat()
 List<Dictionary<string, object?>> RepositoryMigrationRunSelectOrphaned(int productId, int environmentId)
-void RepositoryMigrationRunFixOrphaned(int migrationRunId)
+bool RepositoryMigrationRunFixOrphaned(int migrationRunId, int thresholdMinutes)
 int RepositoryMigrationRecordFixOrphaned(int migrationRunId, MigrationStatus status)
 InterruptedMigrationInfo? RepositoryMigrationGetInterrupted()
 int RepositoryMigrationInsert(int existingMigrationRecordId, string filename, string releaseVersion,
@@ -469,8 +474,10 @@ void RepositoryMigrationUpdateRollback(int migrationRecordId, MigrationStatus mi
 void RepositoryMigrationUpdateRollback(int migrationRecordId, MigrationStatus migrationStatus, string fileDownHash, string? fileDownConfigHash, string fileDownBlocksHash, int fileDownBlocksMigrated, int fileDownBlocksTotal, string? fileDownConfigJson, DbConnection connection, DbTransaction transaction, int repoCommandTimeoutInSeconds)
 void RepositoryMigrationUpdateHash(int migrationRecordId, string fileUpHash, string? fileUpConfigHash, string fileUpBlocksHash)
 List<MigrationRecord> RepositoryMigrationSelect()   // always reads Migrate-mode records, independent of the command's run mode
+List<MigrationRecord> RepositoryMigrationRecordHistorySelect()
 List<Dictionary<string, object?>> RepositoryMigrationRunSelect(int limit)
 TemplateResponse ExecuteScalarWithNegativeResultCodeException(Template template, IDal dal, DalSettings dalSettings, DalParameterList? dalParameterList, ILogger? logger = null, EventId? eventId = null)
+internal static TemplateResponse ExecuteScalar(Template template, IDal dal, DalSettings dalSettings, DalParameterList? dalParameterList)   // no context, no logging; shared with the schema steps
 ```
 
 **Constructor**: Takes `TemplateCache`, `ILogger<TemplateExecutor>`, `IMigrationContextAccessor`. Context access is **deferred** to first use (not constructor time). The `_repository` and `_repositoryDal` fields are lazily initialized via `InitializeFromContext()` on first access.
@@ -479,6 +486,11 @@ TemplateResponse ExecuteScalarWithNegativeResultCodeException(Template template,
 1. `{ENV:VariableName}` → Replaced during `TemplateCache.Initialize()` (at startup); missing variables throw `ConfigurationValidationException`
 2. `{CFG:PropertyName}` → Replaced per `GetRepositoryTemplate<T>()` / `GetTemplate<T>()` call; unreplaced placeholders throw `ConfigurationValidationException`
 3. `@Parameter` → SQL parameter via `DalParameterList`
+
+### `RepositorySchemaExecutor`
+**Location**: `Raycoon.RayMigrator.Infrastructure/RepositorySchemaExecutor.cs` (namespace: `Raycoon.RayMigrator.Core`)
+
+**Purpose**: The schema steps of one repository (ADR-024) without a migration context: `Repository_CheckCreate`, every missing `Repository_Upgrade_{n}` up to the target version and `Repository_MigratorMeta_CheckInsert`. `Ensure()` returns `RepositorySchemaOutcome(VersionBefore, VersionAfter, MigratorMetaId)` and refuses a repository without a schema version but with tables, or with a newer version, with `RepositorySchemaException`. The constructor takes the `TemplateCache`, a logger, the `RepositoryOptions`, the repository DAL, the engine version and the target version. `TemplateExecutor.RepositoryCheckCreate` runs it with the values of the current context, `RepositorySchemaService` with the repository options alone; it executes through `TemplateExecutor.ExecuteScalar`.
 
 ### `TemplateCache`
 **Location**: `Raycoon.RayMigrator.Infrastructure/TemplateCache.cs` (namespace: `Raycoon.RayMigrator.Core.Templates`)
@@ -492,7 +504,7 @@ Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DataAccessLayers")
 
 **Public Methods**:
 ```csharp
-// Called on-demand when Products/Repository configuration becomes available (deferred validation mode)
+// Called by the host for every configuration it runs (the CLI pipeline once, after the options are bound)
 public void ValidateConfigurationAgainstTemplateCache(RayMigratorOptions options)
 
 // Returns all loaded DAL type names (e.g. "SqlServer", "PostgreSQL", "MariaDb", "MySql", "Sqlite")
@@ -585,7 +597,7 @@ Each DAL is a separate project (not a subdirectory of the Database project):
 
 **Source Location**: Each DAL project's `Templates/` directory (e.g., `Raycoon.RayMigrator.Database.SqlServer/Templates/`). At build time, templates are copied to the output directory under `DataAccessLayers/{DatabaseType}/` (flat layout, no `Templates/` subdirectory at runtime).
 
-21 templates per DAL, matching all non-Undefined `TemplateType` enum values. See [Template System](../03-database-layer/template-system.md) for the complete list.
+25 templates per DAL, matching all non-Undefined `TemplateType` enum values. See [Template System](../03-database-layer/template-system.md) for the complete list.
 
 ## Core Layer: Enumerations and Constants
 
@@ -594,8 +606,8 @@ Each DAL is a separate project (not a subdirectory of the Database project):
 | Enum | Values |
 |------|--------|
 | `MigrationCommand` | None (0), MigrateUp (1), MigrateDown (2), ValidateHash (3), UpdateHash (4), Info (5), Baseline (6), FixIssues (7) |
-| `OperatingMode` | Standalone, ManagedLocal, ManagedRemote |
 | `MigrationRunMode` | Undefined (0), Validate (10), Simulate (20), Migrate (100) |
+| `MigrationRunSource` | Undefined (0), Cli (10), Ci (20), Studio (30) |
 | `MigrationOperation` | Undefined (0), Rollback (5), MigrateDown (50), MigrateUp (100), Baseline (110) |
 | `MigrationRunResult` | Undefined (0), Running (10), PartialSuccess (50), Recovered (80), Error (90), Ok (100) |
 | `MigrationStatus` | Undefined (0), Pending (10), Executing (20), Failed (30), NotMigrated (50), Migrated (100) |
@@ -612,7 +624,7 @@ Each DAL is a separate project (not a subdirectory of the Database project):
 
 | Enum | Values |
 |------|--------|
-| `TemplateType` | Undefined (0), DatabaseLogging_CheckCreate, DatabaseLogging_Insert, Repository_CheckCreate, Repository_Drop, Repository_MigrationRun_Insert, Repository_MigrationRun_Update, Repository_MigrationRun_SelectOrphaned, Repository_MigrationRun_FixOrphaned, Repository_MigrationRecord_FixOrphaned, Repository_Product_CheckInsert, Repository_Environment_CheckInsert, Repository_Product_Select, Repository_Environment_Select, Repository_MigrationRecord_Insert, Repository_MigrationRecord_Update, Repository_MigrationRecord_UpdateHash, Repository_MigrationRecord_UpdateRollback, Repository_MigrationRecord_Select, Repository_MigrationRecord_GetInterrupted, Repository_MigrationRun_Select, Repository_MigrationRecordHistory_Select |
+| `TemplateType` | Undefined (0), Repository_Product_CheckInsert, Repository_Environment_CheckInsert, DatabaseLogging_CheckCreate, DatabaseLogging_Insert, Repository_CheckCreate, Repository_Drop, Repository_Upgrade_1, Repository_Upgrade_2, Repository_MigratorMeta_CheckInsert, Repository_MigrationRun_Insert, Repository_MigrationRun_Update, Repository_MigrationRun_Select, Repository_MigrationRun_SelectOrphaned, Repository_MigrationRun_FixOrphaned, Repository_MigrationRun_Heartbeat, Repository_MigrationRecord_Insert, Repository_MigrationRecord_Update, Repository_MigrationRecord_UpdateHash, Repository_MigrationRecord_UpdateRollback, Repository_MigrationRecord_Select, Repository_MigrationRecord_GetInterrupted, Repository_MigrationRecord_FixOrphaned, Repository_MigrationRecordHistory_Select, Repository_Product_Select, Repository_Environment_Select (declaration order; one `Repository_Upgrade_{n}` per schema version up to `RepositorySchema.CurrentVersion`) |
 
 ## Read Model Package Components
 
@@ -646,6 +658,11 @@ The package `Raycoon.RayMigrator.Repository.ReadModel` (ADR-025) is the contract
 **Purpose**: Provides assembly version information shared across projects. Key methods: `GetRayMigratorVersion()` (the InformationalVersion of the engine assembly, never the entry assembly, so a host such as RayMigrator Studio reports the engine version), `FormatVersion(string)` (bare version for release builds, `<version>-dev+<7-char hash>` for builds outside the release workflows), `GetAsciiLogoLines(string version)`, `GetAsciiHeader()`.
 
 > **Note**: The Console project has its own local `AssemblyInfoHelper` class (`Raycoon.RayMigrator.Console/AssemblyInfoHelper.cs`) with `GetAssemblyInfo()` and `GetRayMigratorVersion()` methods that delegate to `Shared.AssemblyInfoHelper`. This is used for startup banner display.
+
+### Configuration help
+**Location**: `Raycoon.RayMigrator.Shared/Configuration/Help/` (namespace `Raycoon.RayMigrator.Shared.Configuration.Help`)
+
+**Purpose**: The help texts of the configuration in English and German, read by the Config Wizard and RayMigrator Studio. `ConfigurationHelp` returns `SectionHelp` and `FieldHelp` records from the `SectionHelp*.resx` and `FieldHelp*.resx` resources (field keys like `Repository_DatabaseType`); `JsonPathRegistry` maps a field key to its configuration path (`JsonPathInfo`, with the paths it inherits from and passes on) and back (`TryGetFieldKey`).
 
 ### Constants
 **Location**: `Raycoon.RayMigrator.Shared/Constants/`

@@ -1,14 +1,6 @@
 # Configuration System
 
-RayMigrator uses the .NET Options Pattern with a hierarchical configuration system. Currently, all configuration is loaded from JSON config files (Standalone mode). The `OperatingMode` enum defines additional modes (ManagedLocal, ManagedRemote) for use by RayMigrator Studio. See [Execution Modes](execution-modes.md#operating-mode) for the full operating mode reference.
-
-## Operating Modes
-
-The `OperatingMode` enum (`Raycoon.RayMigrator.Core/Configuration/Enums/OperatingMode.cs`) defines three modes:
-
-1. **Standalone** (default, currently active in Engine) -- All configuration (Products, Targets, Repository, etc.) is loaded from `appsettings.json` files. `Program.Main` creates a `JsonOptionsSource` and calls `RunDirectMode()`.
-2. **ManagedLocal** (implemented in RayMigrator Studio) -- Configuration loaded from a local Admin-DB. The `AdminDbOptions` class and `RayMigratorBootstrapOptions` are part of Engine's Core NuGet package; the actual Admin-DB services and schema live in Studio.
-3. **ManagedRemote** (implemented in RayMigrator Studio) -- CLI operates as a thin client sending HTTP requests to a remote API server.
+RayMigrator uses the .NET Options Pattern with a hierarchical configuration system. The CLI loads all configuration (Products, Targets, Repository, etc.) from the `appsettings.json` hierarchy: `Program.Main` creates a `JsonOptionsSource` and calls `RunDirectMode()`. A host that runs the engine in-process (RayMigrator Studio, an integration test) builds `RayMigratorOptions` in memory instead; see [Options Built in Memory](#options-built-in-memory).
 
 ## Configuration File Hierarchy
 
@@ -138,7 +130,7 @@ Namespace: `Raycoon.RayMigrator.Core.Configuration.Enums`
 
 Product, TargetGroup, and Target settings inherit from their corresponding defaults via `ProductDefaultsPostConfigureOptions` (an `IPostConfigureOptions<RayMigratorOptions>` implementation). This runs after configuration binding and copies default values into any product/targetgroup/target property that was not explicitly set.
 
-The class also exposes a `static MergeDefaults(RayMigratorOptions)` method that can be called directly by external code (e.g., from RayMigrator Studio) after building `RayMigratorOptions` from an alternative source (bypassing the `IPostConfigureOptions` pipeline).
+The class also exposes a `static MergeDefaults(RayMigratorOptions)` method that a host can call directly after building `RayMigratorOptions` in memory (bypassing the `IPostConfigureOptions` pipeline).
 
 The inheritance cascade:
 
@@ -233,7 +225,7 @@ For full details on placeholder syntax, resolution, and setting environment vari
 
 ## Loading Process
 
-### Standalone Mode (JSON Config)
+### CLI (JSON Config)
 
 ```mermaid
 sequenceDiagram
@@ -272,37 +264,36 @@ sequenceDiagram
     Pipe->>Ctx: Create MigrationContext(options, consoleOptions, version)
 ```
 
-### ManagedLocal Mode (Admin-DB)
+### Options Built in Memory
 
-> **Implementation Status**: The `OperatingMode.ManagedLocal` enum value and `AdminDbOptions` configuration class exist in Engine's Core layer (part of the NuGet contract), but the Admin-DB operating mode is implemented in **RayMigrator Studio**, not in Engine. When Studio uses ManagedLocal mode, it supplies a pre-built `RayMigratorOptions` via the `PreBuiltOptions` field of `OptionsSourceResult`, and the `DirectModePipeline` handles the rest of the lifecycle identically to Standalone mode. A host that runs the engine in-process creates its context through `IMigrationContextFactory.Create`, which prepares in-memory options with `RayMigratorOptionsPreparer` (see [Validation](#validation)).
+A host that runs the engine in-process does not go through `JsonOptionsSource` and `DirectModePipeline`: it builds `RayMigratorOptions` in memory and creates the context of each run through `IMigrationContextFactory.Create`, which prepares the options with `RayMigratorOptionsPreparer` (see [Validation](#validation) and [Hosting the engine in-process](migration-context.md#hosting-the-engine-in-process)). To create or upgrade a repository before any product runs against it, the host passes its `RepositoryOptions` to `IRepositorySchemaService.Ensure`, which validates them the way the context factory validates the repository of a run (see [Creating or upgrading a repository without a run](migration-context.md#creating-or-upgrading-a-repository-without-a-run)).
 
 ## Options Source Abstraction
 
-Configuration loading is abstracted behind the `IOptionsSource` interface (namespace `Raycoon.RayMigrator.Core.Configuration.Sources`), allowing the same `DirectModePipeline` to handle different configuration sources:
+Configuration loading for the CLI is abstracted behind the `IOptionsSource` interface (namespace `Raycoon.RayMigrator.Core.Configuration.Sources`); `DirectModePipeline` runs on the `OptionsSourceResult` it returns:
 
 - **`JsonOptionsSource`** (Pipeline project) -- Loads from `appsettings.json` file hierarchy, resolves `{ENV:*}` placeholders, returns an `OptionsSourceResult` with `HostConfiguration` set for DI binding. This is the only implementation in Engine.
 
 The `OptionsSourceResult` (namespace `Raycoon.RayMigrator.Core.Configuration.Sources`) carries all data needed by the `DirectModePipeline`:
 
 - `RayMigratorConfigSection` (`IConfigurationSection`, required) -- Used for Serilog configuration reading and verbose output
-- `RayMigratorConfigSectionAsWritten` (`IConfigurationSection?`) -- The same section before `{ENV:*}` placeholders were resolved (JSON mode); `RayMigratorOptionsValidator` reads the connection strings from it for `RULE_7_3` (#30)
-- `PreBuiltOptions` (`RayMigratorOptions?`) -- Pre-built options supplied by the caller; when null, options are resolved via DI binding from the `HostConfiguration`
+- `RayMigratorConfigSectionAsWritten` (`IConfigurationSection?`) -- The same section before `{ENV:*}` placeholders were resolved; `RayMigratorOptionsValidator` reads the connection strings from it for `RULE_7_3` (#30)
 - `ReplacedEnvironmentVariables` (`List<EnvironmentVariableWithMetadata>`) -- Environment variables replaced during loading
-- `HostConfiguration` (`IConfigurationRoot?`) -- Configuration root to add to the DI host builder (JSON mode)
+- `HostConfiguration` (`IConfigurationRoot?`) -- Configuration root to add to the DI host builder
 - `ModeName` (`string`, required) -- Display name for log messages (e.g., "Standalone mode")
-- `ConfigFileDiagnostics` (`List<(string Filename, bool Found)>?`) -- Configuration file search diagnostics for error messages (JSON mode only)
+- `ConfigFileDiagnostics` (`List<(string Filename, bool Found)>?`) -- Configuration file search diagnostics for error messages
 
 ## Validation
 
 Options are validated at startup via three layered mechanisms, wired up in `DirectModePipeline.cs`:
 
-1. **Data annotation validation** (`.ValidateDataAnnotations()`): property-level attributes on `RayMigratorOptions` and its subtypes — `[Required]`, `[RegularExpression]`, `[ValidateObjectMembers]`, `[ValidateEnumeratedItems]`, plus custom attributes (`[RayRangeInt]`, `[RayEnum]`, `[RayEncoding]`, `[RayConnectionString]`, `[RayDirectoryExists]`). These cover single-property shape checks, including WASM-unsafe ones like ADO.NET connection-string parsing and filesystem existence. `[RayEnum]` matches case-insensitively, and the `*Enum` getters on the options classes apply the same rule when they convert the validated string, so `"Rollback"` and `"rollback"` are equivalent everywhere. A non-empty value that is not an allowed member is reported before this step by `ProductDefaultsPostConfigureOptions`, which probes every enum getter once after merging the defaults and throws a single `ConfigurationValidationException` listing all invalid values with their location; the getters themselves throw the same exception for pre-built options that bypass validation (Admin-DB mode) instead of silently falling back to `Undefined`.
+1. **Data annotation validation** (`.ValidateDataAnnotations()`): property-level attributes on `RayMigratorOptions` and its subtypes — `[Required]`, `[RegularExpression]`, `[ValidateObjectMembers]`, `[ValidateEnumeratedItems]`, plus custom attributes (`[RayRangeInt]`, `[RayEnum]`, `[RayEncoding]`, `[RayConnectionString]`, `[RayDirectoryExists]`). These cover single-property shape checks, including WASM-unsafe ones like ADO.NET connection-string parsing and filesystem existence. `[RayEnum]` matches case-insensitively, and the `*Enum` getters on the options classes apply the same rule when they convert the validated string, so `"Rollback"` and `"rollback"` are equivalent everywhere. A non-empty value that is not an allowed member is reported before this step by `ProductDefaultsPostConfigureOptions`, which probes every enum getter once after merging the defaults and throws a single `ConfigurationValidationException` listing all invalid values with their location; the getters themselves throw the same exception for options that bypassed validation instead of silently falling back to `Undefined`.
 2. **Shared rule catalog** (`RayMigratorOptionsValidator`, an `IValidateOptions<RayMigratorOptions>` implementation): delegates to the `RuleCatalog` in `Raycoon.RayMigrator.Validation` via `OptionsValidationInputAdapter`. Covers all cross-field and cross-section rules (duplicate aliases, CLI-tool parameter completeness, schema requirements, default-cascade completeness, connection-string hygiene). The validator receives the section as written in addition to the bound options, so `RULE_7_3` checks the connection strings before placeholder resolution. The same catalog runs inside the ConfigWizard's Overview panel, so engine startup and wizard preview agree on what is valid.
 3. **`.ValidateOnStart()`**: forces both mechanisms above to run during `host.Build()` rather than lazily on first `IOptions<T>.Value`. A misconfigured production deployment fails fast with `OptionsValidationException` carrying rule-code-prefixed messages (`[RULE_3_8] Products > MyApp > ... : ...`) instead of surfacing the error on the first DB call.
 
 Warnings (non-blocking issues from the shared catalog) are emitted to the static `Serilog.Log` channel at `Warning` level before validation decides pass/fail; only errors cause `host.Build()` to throw.
 
-**Options built in memory** (a host such as RayMigrator Studio, or a test): `RayMigratorOptionsPreparer.Prepare(options)` (namespace `Raycoon.RayMigrator.Core.Configuration.Validation`) gives an options object the same treatment, in the same order, without the options framework: `{ENV:VARIABLE}` placeholders are resolved in every string of the graph (`EnvironmentVariableReplacer.ReplaceWithEnvironmentVariables(RayMigratorOptions)`; a missing variable throws and names the variable and the path), `ProductDefaultsPostConfigureOptions` merges the defaults and probes the enum values, `DataAnnotationValidateOptions` runs the attributes and writes the `RayRangeInt` defaults back, and `RayMigratorOptionsValidator` applies the rule catalog. Every finding of the failing step is reported in one `ConfigurationValidationException`. The resolved values and the configuration's secrets are registered with `SensitiveDataMasker`. `IMigrationContextFactory.Create` calls the preparer; `CreateFromValidatedOptions` skips it for options the options framework already validated. The `PreBuiltOptions` branch of `DirectModePipeline` still runs only the enum probe before it registers the options with `Options.Create(...)`; it exists for the CLI's ManagedLocal mode and is not the path a host should take.
+**Options built in memory** (a host such as RayMigrator Studio, or a test): `RayMigratorOptionsPreparer.Prepare(options)` (namespace `Raycoon.RayMigrator.Core.Configuration.Validation`) gives an options object the same treatment, in the same order, without the options framework: `{ENV:VARIABLE}` placeholders are resolved in every string of the graph (`EnvironmentVariableReplacer.ReplaceWithEnvironmentVariables(RayMigratorOptions)`; a missing variable throws and names the variable and the path), `ProductDefaultsPostConfigureOptions` merges the defaults and probes the enum values, `DataAnnotationValidateOptions` runs the attributes and writes the `RayRangeInt` defaults back, and `RayMigratorOptionsValidator` applies the rule catalog. Every finding of the failing step is reported in one `ConfigurationValidationException`. The resolved values and the configuration's secrets are registered with `SensitiveDataMasker`. `IMigrationContextFactory.Create` calls the preparer; `CreateFromValidatedOptions` skips it for options the options framework already validated. A host that shows the findings instead of refusing the options gets the full rule-catalog report of prepared options from `RayMigratorOptionsValidator.GetReport(options, sectionAsWritten)`: a `ValidationReport` with every warning and error, each with code, severity and path.
 
 Namespaces:
 - Custom attributes: `Raycoon.RayMigrator.Core.Configuration.Validation.RayAttributes`

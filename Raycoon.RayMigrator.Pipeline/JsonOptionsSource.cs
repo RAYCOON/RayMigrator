@@ -102,7 +102,6 @@ public class JsonOptionsSource : IOptionsSource
         {
             RayMigratorConfigSection = rayMigratorConfigurationSection,
             RayMigratorConfigSectionAsWritten = rayMigratorConfigurationSectionAsWritten,
-            PreBuiltOptions = null, // JSON mode: resolved via DI
             ReplacedEnvironmentVariables = replacedEnvironmentVariables,
             HostConfiguration = hostConfiguration,
             ModeName = "Standalone mode",

@@ -16,39 +16,30 @@ public enum RayMigratorHostMode
 
 ### CLI Direct Mode (`DirectModePipeline.ExecuteAsync`)
 
-The unified `DirectModePipeline` (in `Raycoon.RayMigrator.Pipeline`) handles DI registration. The `IOptionsSource` implementation determines how `RayMigratorOptions` are loaded:
+`DirectModePipeline` (in `Raycoon.RayMigrator.Pipeline`) handles the DI registration of the CLI. `JsonOptionsSource`, the one `IOptionsSource` implementation, loads the appsettings hierarchy; the pipeline binds `RayMigratorOptions` from its configuration section:
 
 ```csharp
 // DirectModePipeline.ExecuteAsync — called by Program.RunDirectMode()
 host = Host.CreateDefaultBuilder(args)
     .ConfigureAppConfiguration((context, builder) =>
     {
-        // JSON mode: add configuration to the host builder
+        // Add the loaded configuration to the host builder
         if (sourceResult.HostConfiguration != null)
             builder.AddConfiguration(sourceResult.HostConfiguration);
     })
     .UseSerilog()
     .ConfigureServices((context, services) =>
     {
-        // Register RayMigratorOptions differently based on source
-        if (sourceResult.PreBuiltOptions != null)
-        {
-            // Pre-built mode: register pre-built options directly
-            services.AddSingleton(Options.Create(sourceResult.PreBuiltOptions));
-        }
-        else
-        {
-            // JSON mode: bind from configuration section with validation
-            services.AddOptions<RayMigratorOptions>()
-                .Configure(options => sourceResult.RayMigratorConfigSection.Bind(options))
-                .ValidateDataAnnotations()
-                .ValidateOnStart();
-            services.AddTransient<IPostConfigureOptions<RayMigratorOptions>,
-                ProductDefaultsPostConfigureOptions>();
-            // The validator checks connection strings as written, so RULE_7_3 sees {ENV:...} placeholders (#30)
-            services.AddSingleton<IValidateOptions<RayMigratorOptions>>(
-                new RayMigratorOptionsValidator(sourceResult.RayMigratorConfigSectionAsWritten));
-        }
+        // Bind the options from the configuration section with validation
+        services.AddOptions<RayMigratorOptions>()
+            .Configure(options => sourceResult.RayMigratorConfigSection.Bind(options))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+        services.AddTransient<IPostConfigureOptions<RayMigratorOptions>,
+            ProductDefaultsPostConfigureOptions>();
+        // The validator checks connection strings as written, so RULE_7_3 sees {ENV:...} placeholders (#30)
+        services.AddSingleton<IValidateOptions<RayMigratorOptions>>(
+            new RayMigratorOptionsValidator(sourceResult.RayMigratorConfigSectionAsWritten));
 
         // Console parameters
         services.AddSingleton(consoleOptions);
@@ -59,30 +50,27 @@ host = Host.CreateDefaultBuilder(args)
         // Service layer (CLI mode — SingletonMigrationContextAccessor)
         services.AddRayMigratorServices(RayMigratorHostMode.Cli);
 
-        // Infrastructure — TemplateCache with explicit revealSensitiveData
+        // Infrastructure — TemplateCache with explicit revealSensitiveData, validated against the bound options
         services.AddSingleton<TemplateCache>(serviceProvider =>
         {
-            var opts = serviceProvider.GetRequiredService<IOptions<RayMigratorOptions>>();
+            var opts = serviceProvider.GetRequiredService<IOptions<RayMigratorOptions>>().Value;
             var tcLogger = serviceProvider.GetRequiredService<ILogger<TemplateCache>>();
-            return new TemplateCache(opts, consoleOptions.RevealSensitiveData, tcLogger);
+            var templateCache = new TemplateCache(consoleOptions.RevealSensitiveData, tcLogger);
+            templateCache.ValidateConfigurationAgainstTemplateCache(opts);
+            return templateCache;
         });
         services.AddSingleton<TemplateExecutor>();
 
         // Console client
         services.AddScoped<RayMigratorService>();
 
-        // Core - MigrationContext created and set on singleton accessor
+        // Core - MigrationContext created by the factory, which fills the DAL properties, checks the
+        // schema names and makes the context current on the singleton accessor
         services.AddSingleton<MigrationContext>(serviceProvider =>
         {
             var opts = serviceProvider.GetRequiredService<IOptions<RayMigratorOptions>>().Value;
-            string rayMigratorVersion = Raycoon.RayMigrator.Shared.AssemblyInfoHelper.GetRayMigratorVersion();
-            var migCtx = new MigrationContext(opts, consoleOptions, rayMigratorVersion);
-
-            // Set context on the singleton accessor so all services can access it
-            var accessor = serviceProvider.GetRequiredService<IMigrationContextAccessor>();
-            accessor.Current = migCtx;
-
-            return migCtx;
+            var factory = serviceProvider.GetRequiredService<IMigrationContextFactory>();
+            return factory.CreateFromValidatedOptions(opts, consoleOptions);
         });
     })
     .Build();
@@ -96,8 +84,9 @@ Services that maintain state throughout the application lifetime:
 
 | Service | Lifetime | Rationale |
 |---------|----------|-----------|
-| `IMigrationContextAccessor` | Singleton (`SingletonMigrationContextAccessor`) | CLI: wraps single context |
+| `IMigrationContextAccessor` | Singleton (`SingletonMigrationContextAccessor`; `AsyncLocalMigrationContextAccessor` in API mode) | CLI: wraps single context; API: one context per async flow |
 | `IMigrationContextFactory` | Singleton | Stateless factory, creates `MigrationContext` instances |
+| `IRepositorySchemaService` | Singleton (`RepositorySchemaService`) | Creates or upgrades a repository without a run; depends on the host's `TemplateCache` |
 | `MigrationContext` | Singleton | Created once and set on accessor |
 | `RayMigratorConsoleOptions` | Singleton | CLI parameters, single instance |
 | `TemplateCache` | Singleton | Cache loaded templates for performance |
@@ -130,7 +119,7 @@ Services created per operation:
 Configuration sections are bound to strongly-typed options classes with DataAnnotations validation. The binding is the CLI pipeline's way of loading and validating the files; the services never consume `IOptions<RayMigratorOptions>`. They read the configuration of the current run from `MigrationContext.RayMigratorOptions`, which the context factory receives from the pipeline (`CreateFromValidatedOptions`) or prepares itself for a host that built the options in memory (`Create`, see [MigrationContext](../02-core-concepts/migration-context.md#hosting-the-engine-in-process)).
 
 ```csharp
-// Registration with validation (JSON mode)
+// Registration with validation
 services.AddOptions<RayMigratorOptions>()
     .Configure(options => sourceResult.RayMigratorConfigSection.Bind(options))
     .ValidateDataAnnotations()
@@ -145,24 +134,9 @@ services.AddTransient<IPostConfigureOptions<RayMigratorOptions>,
 // RayMigrator section as written, so RULE_7_3 inspects connection strings before placeholder resolution.
 services.AddSingleton<IValidateOptions<RayMigratorOptions>>(
     new RayMigratorOptionsValidator(sourceResult.RayMigratorConfigSectionAsWritten));
-
-// Pre-built mode: pre-built options, no PostConfigure needed
-// (MergeDefaults was already called by the options provider)
-services.AddSingleton(Options.Create(rayMigratorOptions));
-
-// Injection
-public class MigrationService
-{
-    private readonly RayMigratorOptions _options;
-
-    public MigrationService(IOptions<RayMigratorOptions> options)
-    {
-        _options = options.Value;
-    }
-}
 ```
 
-`ProductDefaultsPostConfigureOptions` delegates to the static `MergeDefaults(RayMigratorOptions)` method, which can also be called directly after building `RayMigratorOptions` from an alternative source. This avoids duplicating the merge logic.
+`ProductDefaultsPostConfigureOptions` delegates to the static `MergeDefaults(RayMigratorOptions)` method, which `RayMigratorOptionsPreparer` also runs for options a host built in memory (`IMigrationContextFactory.Create`). This avoids duplicating the merge logic.
 
 ### Static Factory Pattern for Database Access
 
@@ -188,17 +162,20 @@ Services expose interfaces from abstraction assemblies:
 ```
 Raycoon.RayMigrator.Services.Abstractions
 ├── IMigrationService.cs
+├── IRepositorySchemaService.cs
 └── Models/
     ├── Requests.cs    (MigrateUpRequest, MigrateDownRequest, ValidateHashRequest,
     │                    UpdateHashRequest, BaselineRequest, FixIssuesRequest)
-    └── Results.cs     (OperationResult, MigrationOperationResult, MigrationFileResult,
-                         ValidationResult, HashValidationIssue, HashUpdateResult,
-                         BaselineResult, MigrationStatusInfo, TargetGroupStatus,
-                         MigrationHistory, MigrationRunInfo, FixIssuesResult, OrphanedRunInfo)
+    ├── Results.cs     (OperationResult, MigrationOperationResult, MigrationFileResult,
+    │                    ValidationResult, HashValidationIssue, HashUpdateResult,
+    │                    BaselineResult, MigrationStatusInfo, TargetGroupStatus,
+    │                    MigrationHistory, MigrationRunInfo, FixIssuesResult, OrphanedRunInfo)
+    └── RepositorySchemaResult.cs
 
 Raycoon.RayMigrator.Services
 ├── CliToolExecutor.cs  (ICliToolExecutor, CliToolExecutor, CliToolExecutionRequest,
 │                         CliToolExecutionResult)
+├── RepositorySchemaService.cs
 └── ServiceCollectionExtensions.cs
 ```
 
@@ -219,31 +196,35 @@ public static class ServiceCollectionExtensions
         // Register CLI tool executor for external SQL tool execution
         services.AddScoped<ICliToolExecutor, CliToolExecutor>();
 
-        // Register context accessor based on host mode
+        // Register context accessor based on host mode. Both are singletons: the API accessor isolates
+        // per async flow through a static AsyncLocal, so a scoped registration would isolate nothing
         if (hostMode == RayMigratorHostMode.Cli)
         {
             services.AddSingleton<IMigrationContextAccessor, SingletonMigrationContextAccessor>();
         }
         else
         {
-            services.AddScoped<IMigrationContextAccessor, AsyncLocalMigrationContextAccessor>();
+            services.AddSingleton<IMigrationContextAccessor, AsyncLocalMigrationContextAccessor>();
         }
 
-        // Register context factory (always singleton, stateless)
+        // Register the context factory, the entry point of every host for one run
         services.AddSingleton<IMigrationContextFactory, MigrationContextFactory>();
+
+        // Register the schema service for hosts that create or upgrade a repository without a run
+        services.AddSingleton<IRepositorySchemaService, RepositorySchemaService>();
 
         return services;
     }
 }
 ```
 
-> **Note**: Infrastructure services (`TemplateCache`, `TemplateExecutor`) are registered directly in `DirectModePipeline` (CLI), not in this extension method. `TemplateCache` is always Singleton. `TemplateExecutor` is Singleton in CLI mode. Database layer uses the static `DalFactory` -- no DI registration needed.
+> **Note**: Infrastructure services (`TemplateCache`, `TemplateExecutor`) are registered directly in `DirectModePipeline` (CLI), not in this extension method. `TemplateCache` is always Singleton. `TemplateExecutor` is Singleton in CLI mode. `RepositorySchemaService` takes the `TemplateCache` in its constructor, so a host registers the cache before it resolves `IRepositorySchemaService`. Database layer uses the static `DalFactory` -- no DI registration needed.
 
 ## Constructor Injection Examples
 
 ### MigrationContext (Created via factory or directly)
 
-In CLI mode, `MigrationContext` is created directly in the DI factory and set on `IMigrationContextAccessor`:
+In CLI mode, the DI factory of `MigrationContext` calls `IMigrationContextFactory.CreateFromValidatedOptions`, which creates the context and sets it on `IMigrationContextAccessor`:
 
 ```csharp
 public class MigrationContext
@@ -293,7 +274,6 @@ public class MigrationContext
 public class MigrationService : IMigrationService
 {
     private readonly ILogger<MigrationService> _logger;
-    private readonly IOptions<RayMigratorOptions> _options;
     private readonly TemplateExecutor _templateExecutor;
     private readonly IMigrationContextAccessor _ctxAccessor;
     private readonly IServiceProvider _serviceProvider;
@@ -301,14 +281,12 @@ public class MigrationService : IMigrationService
 
     public MigrationService(
         ILogger<MigrationService> logger,
-        IOptions<RayMigratorOptions> options,
         TemplateExecutor templateExecutor,
         IMigrationContextAccessor ctxAccessor,
         IServiceProvider serviceProvider,
         ICliToolExecutor cliToolExecutor)
     {
         _logger = logger;
-        _options = options;
         _templateExecutor = templateExecutor;
         _ctxAccessor = ctxAccessor;
         _serviceProvider = serviceProvider;

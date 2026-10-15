@@ -68,11 +68,14 @@ Authoritative pages: [File naming](https://github.com/RAYCOON/RayMigrator/blob/m
 ### Migration repository schema
 
 The repository has 13 tables (canonical names below; PostgreSQL, MariaDB and MySQL use unquoted `snake_case`, SQL Server and
-SQLite PascalCase), prefixed by `TableBaseName` and placed in `SchemaName` where the engine supports schemas. The schema is
+SQLite PascalCase), prefixed by `TableBaseName` and placed in `SchemaName` where the engine supports schemas. The prefix is also part of every
+index and constraint name (`pk_{prefix}...`, likewise `fk_`, `ix_`, `uix_`), so repositories with different prefixes can share one database or schema; it
+has at most 16 bytes in UTF-8 (16 ASCII characters) (`RULE_4_4`) to keep the longest name within the 63 characters PostgreSQL allows. The schema is
 versioned (ADR-024): `Repository_CheckCreate` creates only `RepositorySchemaVersion` and reports the version found, the numbered
 steps `Repository_Upgrade_{n}` create the other 12 tables with their lookup seeds (step 1 the first 11, step 2 `MigrationRunSource` and the
 run details of `MigrationRun`) and every later change, and the first command of a newer engine applies the missing steps. A repository without a version row (created before 0.17.0) or with a version
-newer than the engine is refused.
+newer than the engine is refused. A host creates or upgrades a repository without a run through `IRepositorySchemaService`, which runs the
+same steps through `RepositorySchemaExecutor`.
 
 | Table | Purpose |
 |-------|---------|
@@ -163,8 +166,7 @@ Authoritative page: [File discovery](https://github.com/RAYCOON/RayMigrator/blob
 
 ### Execution modes
 
-Three orthogonal enums describe how a run executes; a fourth, `OperatingMode` (`Standalone`, `ManagedLocal`, `ManagedRemote`), is
-a contract for RayMigrator Studio; the engine never reads it and always behaves as `Standalone`.
+Three orthogonal settings describe how a run executes.
 
 | Enum | Values | Effect |
 |------|--------|--------|
@@ -208,7 +210,7 @@ Authoritative pages: [DAL architecture](https://github.com/RAYCOON/RayMigrator/b
 ### Plugin and Command Registration
 
 Both extension points follow a fixed checklist without touching existing code paths. A new engine: derive from `DalBase` with
-`[DatabaseType]` and the connection string constructor, override `IsTransient`, write the 21 templates in the engine's dialect
+`[DatabaseType]` and the connection string constructor, override `IsTransient`, write the 25 templates in the engine's dialect
 with `AS "PascalCase"` reader aliases, and set `RayMigratorDatabaseType` in the project so build output and NuGet `contentFiles`
 land in `DataAccessLayers/{Type}/`. A new CLI command: add a `MigrationCommand` value and its `CommandProfile` row in
 `GetProfile`, request and result DTOs in `Raycoon.RayMigrator.Services.Abstractions`, a method on `IMigrationService`, a
@@ -357,9 +359,9 @@ Authoritative pages: [Security policy](https://github.com/RAYCOON/RayMigrator/bl
 `DirectModePipeline` builds a standard `IHost`: `RayMigratorOptions` with `ValidateDataAnnotations` and `ValidateOnStart`, the
 singletons `DatabaseLogWriter`, `TemplateCache`, `TemplateExecutor` and `MigrationContext`, the scoped `RayMigratorService`, and
 `AddRayMigratorServices(RayMigratorHostMode.Cli)` from `Raycoon.RayMigrator.Services`, which registers `IMigrationService` and
-`ICliToolExecutor` as scoped, `IMigrationContextFactory` as singleton and the accessor per host mode:
-`SingletonMigrationContextAccessor` for `Cli`, `AsyncLocalMigrationContextAccessor` (scoped, `AsyncLocal` backed, one context per
-request) for `Api` as used by RayMigrator Studio. Services read `IMigrationContextAccessor.Current` instead of receiving
+`ICliToolExecutor` as scoped, `IMigrationContextFactory` and `IRepositorySchemaService` as singletons and the accessor per host mode,
+also a singleton: `SingletonMigrationContextAccessor` for `Cli`, `AsyncLocalMigrationContextAccessor` (`AsyncLocal` backed, one
+context per async flow) for `Api` as used by RayMigrator Studio. Services read `IMigrationContextAccessor.Current` instead of receiving
 `MigrationContext` directly, and `TemplateExecutor` resolves the repository `IDal` lazily on first use. `MigrationContext` carries
 the immutable options plus the mutable `MigrationState` (ids, current file and block, `MigrationRunResult`, `MigrationOperation`);
 `Clone` yields a snapshot for logging.
@@ -373,7 +375,7 @@ Authoritative pages: [Dependency injection](https://github.com/RAYCOON/RayMigrat
 | Engine | `Raycoon.RayMigrator.Tests.Engine` | real engines from `Testing/Docker/docker-compose.yml` (SQLite as a temp file); fixtures per engine skip with `Assert.SkipUnless(Fixture.IsDatabaseAvailable, ...)`; traits `MigrateUp`, `MigrateDown`, `Compound`, `Features`, `CliTool`, `CliToolDocker` |
 
 `Raycoon.RayMigrator.Testing` is the packable helper library (`DockerHealthCheck`, `DatabaseCleanupHelper`,
-`RepositoryQueryHelper`) that queries and cleans repositories through `IDal`. The engine suite's own infrastructure lives in
+`RepositoryQueryHelper`) that queries and cleans repositories through `IDal`, with or without a table prefix. The engine suite's own infrastructure lives in
 `Raycoon.RayMigrator.Tests.Engine/Infrastructure`: `EngineTestHost` rebuilds the `DirectModePipeline` DI wiring without CLI
 parsing, `ScenarioBuilder` copies the per engine migration set and mutates it (`InjectError`, `RemoveRollback`, `SetFileToml`,
 `WithMigrationErrorAction`, `WithMultiTarget`, ...). `Build & Test` (`.github/workflows/build-test.yml`) runs only

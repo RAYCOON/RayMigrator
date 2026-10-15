@@ -116,12 +116,12 @@ public class EnvironmentIdFkTests
     #region Repository_Upgrade_1 — FK constraints for Environment
 
     [Theory]
-    [InlineData("SqlServer", "fk_MigrationRun_Environment")]
-    [InlineData("SqlServer", "fk_MigrationRecord_Environment")]
-    [InlineData("SqlServer", "fk_MigrationRecordHistory_Environment")]
-    [InlineData("Sqlite", "fk_MigrationRun_Environment")]
-    [InlineData("Sqlite", "fk_MigrationRecord_Environment")]
-    [InlineData("Sqlite", "fk_MigrationRecordHistory_Environment")]
+    [InlineData("SqlServer", "fk_{CFG:TableBaseName}MigrationRun_Environment")]
+    [InlineData("SqlServer", "fk_{CFG:TableBaseName}MigrationRecord_Environment")]
+    [InlineData("SqlServer", "fk_{CFG:TableBaseName}MigrationRecordHistory_Environment")]
+    [InlineData("Sqlite", "fk_{CFG:TableBaseName}MigrationRun_Environment")]
+    [InlineData("Sqlite", "fk_{CFG:TableBaseName}MigrationRecord_Environment")]
+    [InlineData("Sqlite", "fk_{CFG:TableBaseName}MigrationRecordHistory_Environment")]
     public void Upgrade1_PascalCaseEngines_ContainsEnvironmentFkConstraints(string engine, string constraintName)
     {
         var content = ReadTemplate(engine, "Repository_Upgrade_1.sql");
@@ -131,15 +131,15 @@ public class EnvironmentIdFkTests
     }
 
     [Theory]
-    [InlineData("PostgreSQL", "fk_migration_run_environment")]
-    [InlineData("PostgreSQL", "fk_migration_record_environment")]
-    [InlineData("PostgreSQL", "fk_migration_record_history_environment")]
-    [InlineData("MariaDb", "fk_migration_run_environment")]
-    [InlineData("MariaDb", "fk_migration_record_environment")]
-    [InlineData("MariaDb", "fk_migration_record_history_environment")]
-    [InlineData("MySql", "fk_migration_run_environment")]
-    [InlineData("MySql", "fk_migration_record_environment")]
-    [InlineData("MySql", "fk_migration_record_history_environment")]
+    [InlineData("PostgreSQL", "fk_{CFG:TableBaseName}migration_run_environment")]
+    [InlineData("PostgreSQL", "fk_{CFG:TableBaseName}migration_record_environment")]
+    [InlineData("PostgreSQL", "fk_{CFG:TableBaseName}migration_record_history_environment")]
+    [InlineData("MariaDb", "fk_{CFG:TableBaseName}migration_run_environment")]
+    [InlineData("MariaDb", "fk_{CFG:TableBaseName}migration_record_environment")]
+    [InlineData("MariaDb", "fk_{CFG:TableBaseName}migration_record_history_environment")]
+    [InlineData("MySql", "fk_{CFG:TableBaseName}migration_run_environment")]
+    [InlineData("MySql", "fk_{CFG:TableBaseName}migration_record_environment")]
+    [InlineData("MySql", "fk_{CFG:TableBaseName}migration_record_history_environment")]
     public void Upgrade1_SnakeCaseEngines_ContainsEnvironmentFkConstraints(string engine, string constraintName)
     {
         var content = ReadTemplate(engine, "Repository_Upgrade_1.sql");

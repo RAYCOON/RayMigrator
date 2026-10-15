@@ -4,7 +4,7 @@
 
 The Config-Wizard ecosystem consists of two projects:
 
-- **`Raycoon.RayMigrator.ConfigWizard.Core`** — shared domain library. Zero NuGet dependencies; one project reference to the WASM-safe `Raycoon.RayMigrator.Validation` shared rule catalog. Provides all models, services, and validation adapters. Used by the Web wizard and independently unit-tested.
+- **`Raycoon.RayMigrator.ConfigWizard.Core`** — shared domain library. Zero NuGet dependencies; project references to the WASM-safe `Raycoon.RayMigrator.Validation` shared rule catalog and to `Raycoon.RayMigrator.Shared` (file roles, alias merge, configuration help texts). Provides the wizard's models, services, and validation adapters. Used by the Web wizard and independently unit-tested.
 - **`Raycoon.RayMigrator.ConfigWizard.Web`** — Blazor WASM standalone wizard. Consumes Core models and services; adds Blazor components, `WizardStateService`, and Web-specific infrastructure services.
 
 ## Models
@@ -96,7 +96,7 @@ ConfigurationModel  (Raycoon.RayMigrator.ConfigWizard.Core)
 
 `CliToolModel` holds `Alias`, `ExecutablePath`, `ArgumentTemplate`, `InputMode` (`"File"` or `"Stdin"`, default: `"File"`), `SuccessExitCodes` (`List<string>`, default: `["0"]`), and `CliToolTimeoutInSeconds` (default: `120`).
 
-**Round-trip safety**: `LoadFromJson` stores a deep clone of the full parsed document in `model.PreservedDocument`. When `ToJson` is called, it starts from the preserved document and only replaces the managed sections. The Core serializer manages 6 sections: `Repository`, `DatabaseLogging`, `ProductDefaults`, `Products`, `Serilog`, `CliTools`. Unknown keys at the `RayMigrator` level (e.g. `AdminDb`, `ApiUrl`) are preserved unchanged.
+**Round-trip safety**: `LoadFromJson` stores a deep clone of the full parsed document in `model.PreservedDocument`. When `ToJson` is called, it starts from the preserved document and only replaces the managed sections. The Core serializer manages 6 sections: `Repository`, `DatabaseLogging`, `ProductDefaults`, `Products`, `Serilog`, `CliTools`. Unknown keys at the `RayMigrator` level (e.g. `ApiUrl`) are preserved unchanged.
 
 ### OverridableValue&lt;T&gt;
 

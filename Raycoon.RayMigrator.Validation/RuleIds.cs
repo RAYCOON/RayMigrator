@@ -28,6 +28,8 @@ public static class RuleIds
     public const string RULE_4_1 = "RULE_4_1";   // SCHEMA_ON_SCHEMALESS_DB
     public const string RULE_4_2 = "RULE_4_2";   // SCHEMA_MISSING_FOR_SCHEMA_DB
     public const string RULE_4_3 = "RULE_4_3";   // LOWERCASE_TABLEBASENAME_REQUIRED
+    public const string RULE_4_4 = "RULE_4_4";   // TABLEBASENAME_TOO_LONG
+    public const string RULE_4_5 = "RULE_4_5";   // TABLEBASENAME_INVALID_CHARACTERS
     public const string RULE_7_1 = "RULE_7_1";   // REPO_AND_TARGET_SAME_DB
     public const string RULE_7_2 = "RULE_7_2";   // DUPLICATE_TARGET_CONNECTION
     public const string RULE_7_3 = "RULE_7_3";   // HARDCODED_CREDENTIALS

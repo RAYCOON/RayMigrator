@@ -4,7 +4,7 @@ Guidance for Claude Code when working in this repository. Keep it short; details
 
 ## What this is
 
-RayMigrator is a database migration framework for SQL Server, PostgreSQL, MariaDB, MySQL and SQLite. The repository builds the `raymigrator` CLI, the engine as NuGet packages, and a Blazor WebAssembly Config Wizard. A separate repository, **RayMigrator-Studio**, consumes the engine packages (`Core`, `Pipeline`, `OperatingMode.ManagedLocal/ManagedRemote`, `RayMigratorBootstrapOptions`). Verify Studio usage before deleting or changing "unused" public types.
+RayMigrator is a database migration framework for SQL Server, PostgreSQL, MariaDB, MySQL and SQLite. The repository builds the `raymigrator` CLI, the engine as NuGet packages, and a Blazor WebAssembly Config Wizard. A separate repository, **RayMigrator-Studio**, consumes the engine packages (`Core`, `Shared`, `Infrastructure`, `Services`, `Services.Abstractions`, `Database`, `Database.Common`, the five DALs, `Repository.ReadModel`, `Validation` and `Testing`; not `Pipeline`). Verify Studio usage before deleting or changing "unused" public types.
 
 ## Rules
 

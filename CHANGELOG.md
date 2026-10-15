@@ -7,6 +7,95 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ## [Unreleased]
 
+### Added
+
+- `Raycoon.RayMigrator.Shared` carries the help texts of the configuration:
+  `ConfigurationHelp` (section and field help in English and German from
+  `Configuration/Help/*.resx`), `JsonPathRegistry` (field key to
+  configuration path, now with the reverse lookup `TryGetFieldKey`) and the
+  records `FieldHelp`, `SectionHelp` and `JsonPathInfo`, all in the namespace
+  `Raycoon.RayMigrator.Shared.Configuration.Help`. New field help for
+  `Repository.HeartbeatIntervalInSeconds` and
+  `Repository.OrphanedRunThresholdInMinutes`. `TryGetFieldKey` finds the key
+  of every option of the engine: through the inheritance of the defaults
+  (`Products[].MigrationErrorAction` yields the key of
+  `ProductDefaults.MigrationErrorAction`, the `TargetDefaults` fields the key
+  of the target field that inherits them) and behind aliases and indexes
+  (`Products[Shop].Alias`). `DatabaseLogging_Enable` names
+  `DatabaseLogging.Enabled`. RayMigrator Studio reads the texts from the
+  package; the Config Wizard keeps using them.
+- `RayMigratorOptionsValidator.GetReport` is public: a host gets the full
+  rule-catalog report (code, severity, path and message of every warning and
+  error) of prepared options instead of one failure string.
+- `IRepositorySchemaService` (`Raycoon.RayMigrator.Services.Abstractions`,
+  registered by `AddRayMigratorServices`) creates or upgrades a repository
+  from its `RepositoryOptions` alone: no product, no environment, no
+  migration context. `Ensure` validates the options like the context factory
+  validates the repository of a run (data annotations with their defaults, a
+  DAL for the database type, the schema name against the DAL capabilities),
+  resolves `{ENV:VAR}` placeholders with the environment of the process and
+  refuses a missing variable like the preparer of a run, runs
+  `Repository_CheckCreate`, the missing `Repository_Upgrade_{n}` steps
+  and `Repository_MigratorMeta_CheckInsert`, and returns
+  `RepositorySchemaResult` (version before and after, `MigratorMetaId`,
+  `Created`, `Upgraded`). The rules of the catalog that judge the repository
+  alone (RULE_4_2 to RULE_4_5) run before anything is created, so a
+  repository the service creates passes the validation of every later run. The steps themselves moved from `TemplateExecutor`
+  into `RepositorySchemaExecutor` (`Raycoon.RayMigrator.Infrastructure`);
+  `TemplateExecutor.RepositoryCheckCreate` runs them with the values of the
+  current context as before; the executor refuses repository options that
+  lack their command settings or prefix with an `ArgumentException`. A host
+  that managed repositories through a synthetic product can drop it.
+- The testing package handles repositories with a table prefix:
+  `DatabaseCleanupHelper.CleanDatabase` and `CleanAllDatabases` take the
+  `tableBaseName` as an optional last parameter and name the repository
+  tables through `RepositoryNaming` in FK-safe drop order (SQL Server also
+  drops the foreign keys and tables another prefix left in the schema), and
+  `RepositoryQueryHelper` takes the prefix as an optional constructor
+  parameter and applies it to every repository table. The engine tests'
+  `ScenarioBuilder` has `WithTableBaseName`.
+
+### Changed
+
+- **Breaking (binary):** `DatabaseCleanupHelper.CleanDatabase`,
+  `CleanAllDatabases` and the constructor of `RepositoryQueryHelper` in the
+  testing package gained an optional `tableBaseName` parameter; code that
+  recompiles is unaffected, an assembly compiled against 0.17.0 throws
+  `MissingMethodException` until it is rebuilt.
+- A repository without a `TableBaseName` runs with no prefix, as documented:
+  the preparer of a run writes the empty string into a missing prefix instead
+  of leaving the templates with an unreplaced `{CFG:TableBaseName}`.
+- **Breaking (schema):** the primary key and foreign key names of the
+  repository and log tables carry the table prefix like the index names
+  (`pk_{TableBaseName}MigrationRun`, `fk_{TableBaseName}MigrationRun_Product`
+  and their snake_case forms; the SQL Server log table's key is
+  `pk_{TableBaseName}MigrationLog`). Two repositories with different
+  prefixes can now share one database or schema; before, the second one
+  failed on the first name that already existed (SQL Server and PostgreSQL in
+  `Repository_CheckCreate`, MySQL and MariaDB in step 1). A repository created
+  by 0.17.0 keeps its names and keeps working, but it still owns the
+  unprefixed key names: a new repository without a prefix in the same schema
+  collides with it until the old one is recreated. New rules: RULE_4_4
+  (Error), `TableBaseName` has at most 16 bytes in UTF-8 (16 ASCII
+  characters), so that the longest prefixed index name fits the identifier
+  limit of PostgreSQL, MySQL and MariaDB; RULE_4_5 (Error), `TableBaseName`
+  consists of ASCII letters, digits and underscores, the characters that need
+  no quoting on any engine (the SQL Server templates write the prefixed names
+  without brackets, so a prefix such as `rm-`, which passed before, is refused
+  with a message instead of failing inside `Repository_CheckCreate`).
+- **Breaking (API):** the Admin-DB bootstrap contract is gone:
+  `RayMigratorBootstrapOptions`, `AdminDbOptions` and `OperatingMode` left
+  `Raycoon.RayMigrator.Core`, `OptionsSourceResult.PreBuiltOptions` and the
+  pre-built branch of `DirectModePipeline` are removed. Nothing read them:
+  the engine always loaded the appsettings hierarchy, and RayMigrator Studio
+  builds its options in memory and runs them through
+  `IMigrationContextFactory` (ADR-023).
+- **Breaking (API):** `ContextHelpProvider`, `JsonPathRegistry` and the help
+  records left `Raycoon.RayMigrator.ConfigWizard.Core` for the Shared package
+  (`ContextHelpProvider` is now `ConfigurationHelp`); the unread
+  `ValidationMessages*.resx` resources are gone. The wizard projects are not
+  packaged, so no NuGet consumer is affected.
+
 ## [0.17.0] — 2026-10-13
 
 ### Added

@@ -75,7 +75,7 @@ Objects are merged recursively. Properties from later files override earlier one
 
 ### Arrays
 
-Arrays whose elements carry an `Alias` are **merged by alias**, never by position. This is the rule for `Products`, `TargetGroups`, `Targets` and `CliTools` today and for any future array whose every element is a JSON object with a string `Alias`. The same merger is used by the engine, by RayMigrator Studio (standalone mode) and by the Config Wizard, so what the wizard shows is what the engine runs.
+Arrays whose elements carry an `Alias` are **merged by alias**, never by position. This is the rule for `Products`, `TargetGroups`, `Targets` and `CliTools` today and for any future array whose every element is a JSON object with a string `Alias`. The same merger is used by the engine, by RayMigrator Studio and by the Config Wizard, so what the wizard shows is what the engine runs.
 
 - An element in a later file is matched with the element of the **same `Alias`** in the earlier file (case-insensitive) and merged property by property; nested alias arrays (`TargetGroups` inside a product, `Targets` inside a target group) merge by alias at every level.
 - An element whose alias is **new** in the later file is appended after the elements of the earlier file.
@@ -295,7 +295,6 @@ Configuration is validated at startup:
 
 ## Related Documentation
 
-- [Bootstrap Options](bootstrap-options.md) - Bootstrap options and Serilog initialization
 - [Configuration System](../02-core-concepts/configuration-system.md) - Options classes hierarchy and loading sequence diagram
 - [Repository Options](repository-options.md)
 - [Product Options](product-options.md)

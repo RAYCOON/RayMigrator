@@ -1,24 +1,9 @@
 # Execution Modes
 
-RayMigrator supports different execution modes that control how migrations are applied to target databases. This covers three orthogonal dimensions:
+RayMigrator supports different execution modes that control how migrations are applied to target databases. This covers two orthogonal dimensions:
 
-1. **Operating Mode** (`OperatingMode` enum) — How the CLI connects to infrastructure (Standalone, ManagedLocal, or ManagedRemote)
-2. **Target Migration Order** — How files and targets are iterated within a TargetGroup (FileByFile or TargetByTarget)
-3. **Run Mode** (`MigrationRunMode` enum) — Whether SQL is actually executed (Validate, Simulate, or Migrate)
-
-## Operating Mode
-
-The `OperatingMode` enum defines three possible modes for RayMigrator:
-
-| Mode | Description |
-|------|-------------|
-| **Standalone** | All configuration (products, targets, repository, etc.) loaded from `appsettings.json` files. This is the default and currently the only active mode. |
-| **ManagedLocal** | Configuration loaded from a local Admin-DB. Products, environments, targets, and repository config come from the Admin-DB; Serilog config still from `appsettings.json`. |
-| **ManagedRemote** | CLI operates as a thin client, sending HTTP requests to a remote RayMigrator API server instead of accessing databases directly. |
-
-Source: `Raycoon.RayMigrator.Core/Configuration/Enums/OperatingMode.cs`
-
-> **Implementation Status**: The Engine's `Program.Main` only wires up **Standalone** mode — it always creates a `JsonOptionsSource` and calls `RunDirectMode()`. The `ManagedLocal` and `ManagedRemote` enum values and supporting types (`AdminDbOptions`, `RayMigratorBootstrapOptions`) are consumed by **RayMigrator Studio** (a separate repository) for its Admin-DB and API hosting. These types are part of Engine's Core NuGet contract.
+1. **Target Migration Order** — How files and targets are iterated within a TargetGroup (FileByFile or TargetByTarget)
+2. **Run Mode** (`MigrationRunMode` enum) — Whether SQL is actually executed (Validate, Simulate, or Migrate)
 
 ## Release-Based Execution Order
 

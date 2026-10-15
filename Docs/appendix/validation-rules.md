@@ -56,6 +56,8 @@ Implementation lives in the `Raycoon.RayMigrator.Validation` project:
 | RULE_4_1 | SCHEMA_ON_SCHEMALESS_DB | Warning | Setting `SchemaName` for `Sqlite` has no effect — SQLite has no schema concept. |
 | RULE_4_2 | SCHEMA_MISSING_FOR_SCHEMA_DB | Error | `Repository.SchemaName` is required for `SqlServer` and `PostgreSQL`. Also flags a missing `Repository` section or missing `DatabaseType`/`ConnectionString`. |
 | RULE_4_3 | LOWERCASE_TABLEBASENAME_REQUIRED | Error | `TableBaseName` must be all-lowercase for `PostgreSQL`, `MariaDb`, and `MySql` — unquoted PostgreSQL identifiers fold to lowercase, and the MariaDB/MySQL repository schema is stored as lowercase. |
+| RULE_4_5 | TABLEBASENAME_INVALID_CHARACTERS | Error | `TableBaseName` consists of ASCII letters, digits and underscores (`Repository` and `DatabaseLogging`): the prefix becomes part of unquoted identifiers on PostgreSQL, MySQL and MariaDB and of unbracketed names on SQL Server, so a hyphen, a blank or a non-ASCII letter would break the templates. |
+| RULE_4_4 | TABLEBASENAME_TOO_LONG | Error | `TableBaseName` has at most 16 bytes in UTF-8 (16 ASCII characters) (`Repository` and `DatabaseLogging`). The prefix is part of every index and constraint name; the longest, `ix_{prefix}migration_record_history_migration_record_id`, must stay within the 63 bytes PostgreSQL allows (MySQL and MariaDB: 64). |
 
 ### Group 7 — Connection-string hygiene
 
@@ -92,6 +94,6 @@ These run **outside** the shared catalog because they rely on APIs that are unav
    - `Raycoon.RayMigrator.Validation.Helpers.CliToolPlaceholderExtractor` — for placeholder extraction (WASM-safe, shared).
    - `Raycoon.RayMigrator.ConfigWizard.Core.Services.WizardCliToolParameterResolver` — for wizard-side preset fallback.
 
-## Admin-DB / Studio configs (out of scope)
+## Options built in memory
 
-The `PreBuiltOptions` branch in `DirectModePipeline` (used by RayMigrator-Studio) does **not** invoke `IValidateOptions<RayMigratorOptions>`. If future Studio code needs validation, call `RayMigratorOptionsValidator.Validate(null, preBuiltOptions)` explicitly at the Studio boundary.
+A host that builds `RayMigratorOptions` in memory (RayMigrator Studio, a test) runs the same catalog: `IMigrationContextFactory.Create` prepares the options with `RayMigratorOptionsPreparer`, which fails with a `ConfigurationValidationException` listing every error with its rule code (see [Configuration System — Validation](../02-core-concepts/configuration-system.md#validation)). `RayMigratorOptionsValidator.GetReport(options, sectionAsWritten)` returns the full `ValidationReport` of prepared options, warnings and errors with code, severity and path, for a host that shows the findings instead of refusing the options.

@@ -12,8 +12,8 @@ run time interaction is the subject of the [Runtime View](06-Runtime-View.md).
 
 ## 5.1 Whitebox Overall System
 
-RayMigrator is one solution with 24 projects named `Raycoon.RayMigrator.*`:
-15 NuGet packages, the executable (assembly name `raymigrator`), the two
+RayMigrator is one solution with 25 projects named `Raycoon.RayMigrator.*`:
+16 NuGet packages, the executable (assembly name `raymigrator`), the two
 Config Wizard projects, the MIT licensed DAL skeleton and five test projects.
 The diagram shows the `ProjectReference` edges that define the layering;
 references that only repeat a transitive path (for example `Console` to
@@ -25,10 +25,10 @@ flowchart TB
     CON[Console layer<br/>Raycoon.RayMigrator.Console<br/>Program, exit codes]
     PIPE[Pipeline layer<br/>Raycoon.RayMigrator.Pipeline<br/>DirectModePipeline, JsonOptionsSource,<br/>RayMigratorService, SerilogFactory]
     subgraph L_SVC[Service layer]
-        SVC[Raycoon.RayMigrator.Services<br/>MigrationService, CliToolExecutor]
-        SVCA[Raycoon.RayMigrator.Services.Abstractions<br/>IMigrationService, requests, results]
+        SVC[Raycoon.RayMigrator.Services<br/>MigrationService, CliToolExecutor,<br/>RepositorySchemaService]
+        SVCA[Raycoon.RayMigrator.Services.Abstractions<br/>IMigrationService, IRepositorySchemaService,<br/>requests, results]
     end
-    INFRA[Infrastructure layer<br/>Raycoon.RayMigrator.Infrastructure<br/>TemplateCache, TemplateExecutor,<br/>DatabaseLogWriter, ConnectionValidator]
+    INFRA[Infrastructure layer<br/>Raycoon.RayMigrator.Infrastructure<br/>TemplateCache, TemplateExecutor,<br/>RepositorySchemaExecutor, DatabaseLogWriter,<br/>ConnectionValidator]
     CORE[Core layer<br/>Raycoon.RayMigrator.Core<br/>RayMigratorOptions, enums,<br/>MigrationContext, CommandLineConfiguration]
     READMODEL[Read model<br/>Raycoon.RayMigrator.Repository.ReadModel<br/>RepositoryNaming, row records,<br/>RepositoryRowMapper]
     subgraph L_DB[Database layer]
@@ -44,7 +44,7 @@ flowchart TB
         COMMON[Raycoon.RayMigrator.Database.Common<br/>IDal, DalBase, DatabaseTypeAttribute]
     end
     subgraph L_LEAF[Leaf packages]
-        SHARED[Raycoon.RayMigrator.Shared<br/>exceptions, constants, AssemblyInfoHelper]
+        SHARED[Raycoon.RayMigrator.Shared<br/>exceptions, constants, AssemblyInfoHelper,<br/>configuration merge and help texts]
         VAL[Raycoon.RayMigrator.Validation<br/>RuleCatalog, rules, ValidationInput]
     end
     subgraph L_CW[Config Wizard]
@@ -79,6 +79,7 @@ flowchart TB
     TESTING --> DB
     CWW --> CWC
     CWC --> VAL
+    CWC --> SHARED
     TESTS --> CON
     TESTS --> TESTING
     TESTS --> EX
@@ -104,17 +105,17 @@ The prefix `Raycoon.RayMigrator.` is omitted in the reference column.
 |---------|-------|----------------|----------|------------------|---------------------------|
 | `Raycoon.RayMigrator.Console` | Console | Parses the command line, resolves the environment, loads JSON options and hands over to the pipeline; owns the exit codes `0`, `1`, `5`, `100`. | no | `Program`, `AssemblyInfoHelper` | Pipeline, Core, Database.Common, Database, the five `Database.{Engine}`, Infrastructure, Shared, Services, Services.Abstractions |
 | `Raycoon.RayMigrator.Pipeline` | Pipeline | Builds the DI host, creates the Serilog logger, validates product alias, schema names and connections, dispatches the command to the service layer. | yes | `DirectModePipeline`, `JsonOptionsSource`, `RayMigratorService`, `SerilogFactory` | Core, Database, Database.Common, Infrastructure, Services, Services.Abstractions, Shared |
-| `Raycoon.RayMigrator.Services` | Service | Implements the migration logic: file discovery, TOML parsing, block execution, hashing, rollback, repository bookkeeping, external CLI tool execution. | yes | `MigrationService`, `CliToolExecutor`, `ICliToolExecutor`, `ServiceCollectionExtensions` | Services.Abstractions, Core, Infrastructure, Database |
-| `Raycoon.RayMigrator.Services.Abstractions` | Service | Contract of the service layer: the `IMigrationService` interface plus request and result DTOs. | yes | `IMigrationService`, `MigrateUpRequest`, `MigrationOperationResult`, `OperationResult` | Core |
-| `Raycoon.RayMigrator.Infrastructure` | Infrastructure | Executes the repository SQL templates, caches templates per engine, validates connections at startup and hosts the database logging sink. | yes | `TemplateCache`, `TemplateExecutor`, `DatabaseLogWriter`, `RayMigratorDatabaseSink` | Core, Database, Shared |
+| `Raycoon.RayMigrator.Services` | Service | Implements the migration logic: file discovery, TOML parsing, block execution, hashing, rollback, repository bookkeeping, external CLI tool execution; creates contexts for hosts and creates or upgrades a repository without a run. | yes | `MigrationService`, `CliToolExecutor`, `ICliToolExecutor`, `MigrationContextFactory`, `RepositorySchemaService`, `ServiceCollectionExtensions` | Services.Abstractions, Core, Infrastructure, Database |
+| `Raycoon.RayMigrator.Services.Abstractions` | Service | Contract of the service layer: the `IMigrationService` interface plus request and result DTOs, and `IRepositorySchemaService` with its `RepositorySchemaResult`. | yes | `IMigrationService`, `IRepositorySchemaService`, `MigrateUpRequest`, `MigrationOperationResult`, `OperationResult`, `RepositorySchemaResult` | Core |
+| `Raycoon.RayMigrator.Infrastructure` | Infrastructure | Executes the repository SQL templates, runs the schema steps of a repository, caches templates per engine, validates connections at startup and hosts the database logging sink. | yes | `TemplateCache`, `TemplateExecutor`, `RepositorySchemaExecutor`, `DatabaseLogWriter`, `RayMigratorDatabaseSink` | Core, Database, Shared |
 | `Raycoon.RayMigrator.Core` | Core | Domain model: options hierarchy, enums, `MigrationContext` and its accessor, command line definition, environment resolution, validation glue, template types. | yes | `RayMigratorOptions`, `MigrationContext`, `IMigrationContextAccessor`, `CommandLineConfiguration` | Database.Common, Shared, Validation |
 | `Raycoon.RayMigrator.Database` | Database | Static discovery and caching of DAL instances by `DatabaseType` and connection string. | yes | `DalFactory` | Shared, Database.Common |
 | `Raycoon.RayMigrator.Database.Common` | Database | Plugin contract: `IDal`, the `DalBase` base class, parameter and settings types, retry helper, discovery attribute. | yes | `IDal`, `DalBase`, `DalSpecificProperties`, `DatabaseTypeAttribute` | none |
-| `Raycoon.RayMigrator.Database.SqlServer`, `.PostgreSQL`, `.MariaDb`, `.MySql`, `.Sqlite` | Database | One DAL class and 21 SQL templates per engine on top of `Microsoft.Data.SqlClient`, `Npgsql`, `MySqlConnector` (both MariaDB and MySQL), `Microsoft.Data.Sqlite`. | yes | `DalSqlServer`, `DalPostgreSql`, `DalMariaDb`, `DalMySql`, `DalSqlite` | Database.Common, Shared |
+| `Raycoon.RayMigrator.Database.SqlServer`, `.PostgreSQL`, `.MariaDb`, `.MySql`, `.Sqlite` | Database | One DAL class and 25 SQL templates per engine on top of `Microsoft.Data.SqlClient`, `Npgsql`, `MySqlConnector` (both MariaDB and MySQL), `Microsoft.Data.Sqlite`. | yes | `DalSqlServer`, `DalPostgreSql`, `DalMariaDb`, `DalMySql`, `DalSqlite` | Database.Common, Shared |
 | `Raycoon.RayMigrator.Database.Example` | Database | MIT licensed skeleton with `DalExample` and placeholder templates for external plugin authors. | no | `DalExample` | Database.Common, Shared |
-| `Raycoon.RayMigrator.Shared` | Leaf | Exceptions, `InternalConstants`, `TemplateResultCode`, version and banner helper. | yes | `ApplicationStartupException`, `MigrationAlreadyRunningException`, `AssemblyInfoHelper`, `TemplateResultCode` | none |
+| `Raycoon.RayMigrator.Shared` | Leaf | Exceptions, `InternalConstants`, `TemplateResultCode`, version and banner helper; the appsettings hierarchy (`ConfigurationFileChain`, `ConfigurationJsonMerger`, `ConfigurationJsonDiff`) and the help texts of the configuration (`ConfigurationHelp`, `JsonPathRegistry`, `.resx` in English and German). | yes | `ApplicationStartupException`, `MigrationAlreadyRunningException`, `AssemblyInfoHelper`, `TemplateResultCode`, `ConfigurationJsonMerger`, `ConfigurationHelp` | none |
 | `Raycoon.RayMigrator.Validation` | Leaf | Engine independent configuration rule catalog shared with the Config Wizard; no NuGet or project dependency, WebAssembly safe. | yes | `RuleCatalog`, `ValidationInput`, `ValidationReport`, `RuleIds` | none |
-| `Raycoon.RayMigrator.ConfigWizard.Core` | Config Wizard | IO free model and services of the wizard: configuration model, serializer, merger, validator, scaffolder, defaults promotion, help texts. | no | `ConfigurationModel`, `WizardState`, `ConfigurationSerializer`, `ConfigurationValidator` | Validation |
+| `Raycoon.RayMigrator.ConfigWizard.Core` | Config Wizard | IO free model and services of the wizard: configuration model, serializer, merger, validator, scaffolder, defaults promotion; the help texts come from `Shared`. | no | `ConfigurationModel`, `WizardState`, `ConfigurationSerializer`, `ConfigurationValidator` | Validation, Shared |
 | `Raycoon.RayMigrator.ConfigWizard.Web` | Config Wizard | Blazor WebAssembly user interface (`net10.0` only) with MudBlazor components, state service, ZIP export and localization. | no | `WizardStateService`, `ZipExportService`, `FileInteropService`, `LocalizationService` | ConfigWizard.Core |
 | `Raycoon.RayMigrator.Repository.ReadModel` | Engine | Technology-neutral read model of the repository (ADR-025): table and column names per engine, one record per table, a row mapper for ADO.NET results, the schema version. No EF Core, no driver. | yes | `RepositoryNaming`, `RepositoryRows`, `RepositoryRowMapper`, `MigrationRunRow`, `MigrationRecordRow`, `MigrationLogRow`, `RepositoryReadModel` | Core |
 | `Raycoon.RayMigrator.Testing` | Testing | Reusable helpers for integration tests: Docker health check, database cleanup, repository queries through `IDal`. | yes | `DatabaseCleanupHelper`, `DockerHealthCheck`, `RepositoryQueryHelper`, `MigrationRecordDto` | Database, Repository.ReadModel |
@@ -130,9 +131,10 @@ The prefix `Raycoon.RayMigrator.` is omitted in the reference column.
 | `IMigrationService` (`MigrateUpAsync`, `MigrateDownAsync`, `ValidateHashAsync`, `UpdateHashAsync`, `BaselineAsync`, `GetStatusAsync`, `GetHistoryAsync`, `FixIssuesAsync`) | `Raycoon.RayMigrator.Services.Abstractions` | `MigrationService` | `RayMigratorService`, `EngineTestHost` |
 | `ICliToolExecutor` | `Raycoon.RayMigrator.Services` | `CliToolExecutor` | `MigrationService` |
 | `DirectModePipeline.ExecuteAsync(args, OptionsSourceResult, RayMigratorConsoleOptions, assemblyInfo, environment, environmentOrigin)` | `Raycoon.RayMigrator.Pipeline` | static class | `Program.RunDirectMode` in `Raycoon.RayMigrator.Console` |
-| `IOptionsSource.LoadAsync(product, environment)` returning `OptionsSourceResult` | `Raycoon.RayMigrator.Core` | `JsonOptionsSource` | `Program` (Console); alternative sources may be supplied by other hosts |
+| `IOptionsSource.LoadAsync(product, environment)` returning `OptionsSourceResult` | `Raycoon.RayMigrator.Core` | `JsonOptionsSource` | `Program` (Console); the CLI pipeline only, a host passes options built in memory to `IMigrationContextFactory` instead |
 | `IMigrationContextAccessor` | `Raycoon.RayMigrator.Core` | `SingletonMigrationContextAccessor` (CLI), `AsyncLocalMigrationContextAccessor` (API hosts) | `MigrationService`, `TemplateExecutor`, `DirectModePipeline` |
 | `IMigrationContextFactory.Create(...)` | `Raycoon.RayMigrator.Core` | `MigrationContextFactory` | registered by `ServiceCollectionExtensions.AddRayMigratorServices`; used by external hosts such as RayMigrator Studio (`EngineTestHost` constructs `MigrationContext` directly) |
+| `IRepositorySchemaService.Ensure(RepositoryOptions)` returning `RepositorySchemaResult` | `Raycoon.RayMigrator.Services.Abstractions` | `RepositorySchemaService` | registered by `ServiceCollectionExtensions.AddRayMigratorServices` (needs the host's `TemplateCache`); hosts that create or upgrade a repository without a run, such as RayMigrator Studio |
 | `TemplateExecutor` and `TemplateCache` (classes, no interface) | `Raycoon.RayMigrator.Infrastructure`, namespaces `Raycoon.RayMigrator.Core` and `Raycoon.RayMigrator.Core.Templates` | concrete classes | `MigrationService`, `DatabaseLogWriter.InitDatabaseLogger`, `DirectModePipeline` |
 | `RuleCatalog.RunAll(ValidationInput)` returning `ValidationReport` | `Raycoon.RayMigrator.Validation` | static class over nine `internal sealed` rules implementing `IValidationRule` | `RayMigratorOptionsValidator` (engine), `ConfigurationValidator` via `WizardValidationInputAdapter` (wizard) |
 | `ILogEventSink`, `ILogEventEnricher` (Serilog) | Serilog | `RayMigratorDatabaseSink`, `MigrationContextEnricher` | `SerilogFactory.Create` |
@@ -167,8 +169,9 @@ Authoritative pages:
 ### 5.2.2 Pipeline layer (`Raycoon.RayMigrator.Pipeline`)
 
 Purpose: everything between "options are loaded" and "the service method
-returns", independent of how the options were obtained. Four classes, no
-folders; the flow is linear: `JsonOptionsSource` produces an
+returns" for the CLI; a host that builds its options in memory uses
+`IMigrationContextFactory` instead (5.2.3). Four classes, no folders; the
+flow is linear: `JsonOptionsSource` produces an
 `OptionsSourceResult`, `DirectModePipeline.ExecuteAsync` creates the logger
 through `SerilogFactory.Create`, builds the host and resolves
 `RayMigratorService`, whose `DoWorkAsync` calls `IMigrationService` and
@@ -189,19 +192,24 @@ passed in. Authoritative pages:
 ### 5.2.3 Service layer (`Raycoon.RayMigrator.Services`, `Raycoon.RayMigrator.Services.Abstractions`)
 
 Purpose: the migration logic behind a host agnostic contract. The abstractions
-package holds `IMigrationService.cs`, `Models/Requests.cs`
-(`MigrateUpRequest`, `MigrateDownRequest`, `ValidateHashRequest`,
+package holds `IMigrationService.cs`, `IRepositorySchemaService.cs`,
+`Models/Requests.cs` (`MigrateUpRequest`, `MigrateDownRequest`, `ValidateHashRequest`,
 `UpdateHashRequest`, `BaselineRequest`, `FixIssuesRequest`) and
 `Models/Results.cs` (`OperationResult` with `MigrationOperationResult`,
 `ValidationResult`, `HashUpdateResult`, `BaselineResult`, `FixIssuesResult`,
-plus `MigrationStatusInfo` and `MigrationHistory`). The implementation
-package has three files.
+plus `MigrationStatusInfo` and `MigrationHistory`) and
+`Models/RepositorySchemaResult.cs` (versions before and after, the
+`MigratorMetaId`, `Created` and `Upgraded`). The implementation package has
+six files.
 
 | Inner component | Responsibility |
 |-----------------|----------------|
 | `MigrationService` (one file, about 5200 lines) | Implements all eight `IMigrationService` methods. Responsibility groups, named by their methods: file discovery (`DiscoverAndPrepareMigrationFiles`, `ParseMigrationFile`, `ValidateTargetGroupAliasCasing`, `ValidateFlatLayoutAmbiguity`, `LoadMigSettingsDefaults`, `ResolveMigSettingsForFile`, `IsEnvironmentSpecificFile`, `DetectOutOfOrderFiles`); TOML parsing without a library (`ExtractTomlAndSql`, `ParseTomlConfig`, `ParseTomlEnum<T>`, `SerializeTomlAsJson`); block handling (`SplitSqlIntoBlocks`, `ShouldSkipBlockSplitting`, `GetBlockDelimiter`, `ReplaceEnvironmentVariablesInSqlBlock`); execution per loop order (`ExecuteTargetGroupFileByFile`, `ExecuteTargetGroupTargetByTarget`), the atomic shared connection path (`CanUseSharedConnection`, `ExecuteRollbackBlocksAtomic`) and resume (`FindResumableBlock`, `TryFinalizeCompletedMigration`); hashing and filtering (`HashesDiffer`, `FilterAlreadyMigratedFiles`, `FilterByTargetRelease`, `FilterByTargetGroups`, `ResolveHashValidationScope`); error handling and rollback (`HandleMigrationError`, `RollbackSingleMigration`, `ExecuteRollbackForMigrations`, `GetRollbackFilename`); run handling and the lock (`InitializeRepositoryAsync`, `ResolveRepositoryIdsReadOnlyAsync`, `RepositoryMigrationRunInsertWithAutoFix`, `BuildMigrationRunSettingsJson`, `DeriveRunOperation`); CLI tool routing (`ResolveUseCliToolAlias`, `GetCliToolByAlias`, `ResolveCliToolArguments`); repair (`RepairsFor`). Many helpers are `internal static` so that `Raycoon.RayMigrator.Tests.Unit` covers them without a database. |
 | `CliToolExecutor` | `ICliToolExecutor` implementation over `System.Diagnostics.Process`: `CliToolExecutionRequest` in, `CliToolExecutionResult` out; handles `CliToolInputMode` `File` and `Stdin`, the timeout and `ExitCodeMatcher`. |
-| `ServiceCollectionExtensions` | `AddRayMigratorServices(RayMigratorHostMode)` registers `IMigrationService` and `ICliToolExecutor` as scoped, the context accessor as singleton (`Cli`) or scoped (`Api`), and `IMigrationContextFactory` as singleton. |
+| `MigrationContextFactory` | Implementation of `IMigrationContextFactory` (interface in Core): `Create` prepares options built in memory with `RayMigratorOptionsPreparer`, `CreateFromValidatedOptions` skips that step for the CLI; both fill the DAL properties, check the schema names, register the secrets with the masker and make the context current for the calling async flow (ADR-023). |
+| `MigrationRunHeartbeat` | Internal timer loop that refreshes `MigrationRun.LastHeartbeatAt` every `Repository.HeartbeatIntervalInSeconds` while a run executes; a failing beat is logged as a warning and never ends the run. |
+| `RepositorySchemaService` | `IRepositorySchemaService` implementation: validates the `RepositoryOptions` the way the context factory validates the repository of a run (data annotations with their defaults, a DAL and templates for the database type, the schema name against the DAL capabilities), masks the secrets for the log and runs `RepositorySchemaExecutor` (5.2.5) without a product or a context. |
+| `ServiceCollectionExtensions` | `AddRayMigratorServices(RayMigratorHostMode)` registers `IMigrationService` and `ICliToolExecutor` as scoped and the context accessor (`SingletonMigrationContextAccessor` for `Cli`, `AsyncLocalMigrationContextAccessor` for `Api`), `IMigrationContextFactory` and `IRepositorySchemaService` as singletons; the schema service needs the host's `TemplateCache`. |
 
 The service never branches on an engine name: repository operations go
 through `TemplateExecutor`, target SQL through the `IDal` from `DalFactory`,
@@ -222,13 +230,13 @@ and the unused `CultureDependentSorting` helper.
 
 | Folder or class group | Responsibility |
 |-----------------------|----------------|
-| `Configuration/Options/` | `RayMigratorOptions` with `RepositoryOptions`, `DatabaseLoggingOptions`, `SerilogOptions`, `ProductDefaultOptions`, `TargetGroupDefaultOptions`, `TargetDefaultsOptions`, `ProductOptions`, `TargetGroupOptions`, `TargetOptions`, `CliToolOptions`, `ExitCodeMatcher`; `RayMigratorConsoleOptions` (parsed CLI values); `RayMigratorBootstrapOptions` and `AdminDbOptions` (Studio contract); `CommandLineConfiguration` (System.CommandLine root with the seven subcommands). |
-| `Configuration/Enums/` | `MigrationCommand`, `MigrationRunMode`, `MigrationOperation`, `MigrationRunResult`, `MigrationStatus`, `MigrationErrorAction`, `RollbackErrorAction`, `TargetMigrationOrder`, `HashValidationScope`, `FixScope`, `OperatingMode`, `CliToolInputMode`. |
+| `Configuration/Options/` | `RayMigratorOptions` with `RepositoryOptions`, `DatabaseLoggingOptions`, `SerilogOptions`, `ProductDefaultOptions`, `TargetGroupDefaultOptions`, `TargetDefaultsOptions`, `ProductOptions`, `TargetGroupOptions`, `TargetOptions`, `CliToolOptions`, `ExitCodeMatcher`; `RayMigratorConsoleOptions` (parsed CLI values); `CommandLineConfiguration` (System.CommandLine root with the seven subcommands). |
+| `Configuration/Enums/` | `MigrationCommand`, `MigrationRunMode`, `MigrationOperation`, `MigrationRunResult`, `MigrationStatus`, `MigrationErrorAction`, `RollbackErrorAction`, `TargetMigrationOrder`, `HashValidationScope`, `FixScope`, `CliToolInputMode`. |
 | `Configuration/` root | `CommandProfile` record struct (its `GetProfile` lives in `Extensions/MigrationCommandExtensions`: which commands connect to targets, write the repository, write the database log); `EnvironmentResolver`; `SensitiveDataMasker`; `ConfigurationConstants`; `EncodingSupport`; `ConfigurationHelper`. |
 | `Configuration/Validation/` | Engine side glue to the shared rule catalog: `RayMigratorOptionsValidator` (`IValidateOptions`), `OptionsValidationInputAdapter`, `ProductDefaultsPostConfigureOptions.MergeDefaults`, `SchemaNameValidator`, custom attributes under `RayAttributes/`. |
 | `Configuration/Sources/`, `Configuration/Replacer/` | `IOptionsSource`, `OptionsSourceResult`; `EnvironmentVariableReplacer`, `EnvironmentVariableWithMetadata`. |
-| State machine and context | `MigrationContext` (options, `MigrationState`, `DalSpecificPropertiesDictionary`, `Clone`), `MigrationState` (ids, current file and block, `MigrationRunResult`, `MigrationOperation`, `MigrationStatus`), `MigrationStateSnapshot`, `MigrationLoggingContext` (static `AsyncLocal`), `IMigrationContextAccessor` with both accessors, `IMigrationContextFactory` with `MigrationContextFactory`, `RayMigratorHostMode`. |
-| `Models/`, `Recovery/`, `Templates/`, `Logging/` | `MigrationFileInfo`, `MigrationRecord`; `InterruptedMigrationInfo`; `Template`, `TemplateResponse`, `TemplateType` (21 template kinds plus `Undefined`); `MigrationEvent` with the `EventId` constants. |
+| State machine and context | `MigrationContext` (options, `MigrationState`, `DalSpecificPropertiesDictionary`, `Clone`), `MigrationState` (ids, current file and block, `MigrationRunResult`, `MigrationOperation`, `MigrationStatus`), `MigrationStateSnapshot`, `MigrationLoggingContext` (static `AsyncLocal`), `IMigrationContextAccessor` with both accessors, `IMigrationContextFactory` (implemented by `MigrationContextFactory` in Services), `RayMigratorHostMode`. |
+| `Models/`, `Recovery/`, `Templates/`, `Logging/` | `MigrationFileInfo`, `MigrationRecord`; `InterruptedMigrationInfo`; `Template`, `TemplateResponse`, `TemplateType` (25 template kinds plus `Undefined`); `MigrationEvent` with the `EventId` constants. |
 | `Extensions/` | `StringExtensions` (SHA-256, path helpers), `MigrationRunModeExtensions`, `MigrationCommandExtensions`, `RayMigratorOptionsExtensions`, `EnumTypeExtensions`, `ExceptionExtensions`. |
 
 Authoritative pages:
@@ -248,14 +256,15 @@ tools (`CliToolExecutor`) and the migration file system access
 | Inner component | Namespace | Responsibility |
 |-----------------|-----------|----------------|
 | `TemplateCache.cs` | `Raycoon.RayMigrator.Core.Templates` | Loads every `*.sql` under `DataAccessLayers/{Type}/` next to the binary at construction, resolves `{ENV:*}` once, validates that each discovered type has all `TemplateType` templates, and resolves `{CFG:*}` per call in `GetTemplate<T>`, `GetRepositoryTemplate<T>`, `GetTemplateContent<T>`; `GetAvailableDatabaseTypes`, `ValidateConfigurationAgainstTemplateCache`. |
-| `TemplateExecutor.cs` | `Raycoon.RayMigrator.Core` | One synchronous method per repository operation (`RepositoryCheckCreate`, `RepositoryMigrationRunInsert`, `RepositoryMigrationInsert`, `RepositoryMigrationUpdate`, `RepositoryMigrationRecordHistorySelect`, ...) that fetches the template, binds a `DalParameterList`, executes through the repository `IDal` obtained lazily from `DalFactory`, and parses `ResultCode,ResultMessage` into `TemplateResponse`; negative codes become exceptions. |
+| `TemplateExecutor.cs` | `Raycoon.RayMigrator.Core` | One synchronous method per repository operation (`RepositoryCheckCreate`, `RepositoryMigrationRunInsert`, `RepositoryMigrationInsert`, `RepositoryMigrationUpdate`, `RepositoryMigrationRecordHistorySelect`, ...) that fetches the template, binds a `DalParameterList`, executes through the repository `IDal` obtained lazily from `DalFactory`, and parses `ResultCode,ResultMessage` into `TemplateResponse`; negative codes become exceptions. `RepositoryCheckCreate` runs the schema steps through `RepositorySchemaExecutor` with the values of the current context. |
+| `RepositorySchemaExecutor.cs`, `RepositorySchemaOutcome.cs` | `Raycoon.RayMigrator.Core` | The schema steps of one repository without a migration context (ADR-024): `Repository_CheckCreate`, every missing `Repository_Upgrade_{n}` up to the target version, `Repository_MigratorMeta_CheckInsert`; refuses a repository with tables but no schema version or with a newer version (`RepositorySchemaException`) and returns the versions before and after and the `MigratorMetaId`. Used by `TemplateExecutor.RepositoryCheckCreate` and by `RepositorySchemaService`. |
 | `ConnectionValidator.cs` | `Raycoon.RayMigrator.Core.Configuration.Validation` | `ValidateTargetConnections` and `ValidateDatabaseLoggerConnection`; whether a connection is actually opened depends on `CommandProfile.ConnectsToTargets` and `WritesDatabaseLog`. |
 | `RepositoryExtensions.cs` | `Raycoon.RayMigrator.Core.Extensions` | `GetDalSettings()` builds `DalSettings` (timeout, retries) from `RepositoryOptions`. |
 | `Logging/DatabaseLogWriter.cs` | `Raycoon.RayMigrator.Infrastructure.Logging` | Owns the logging `IDal`, `InitDatabaseLogger` (runs `DatabaseLogging_CheckCreate` through `TemplateExecutor`), `EnqueueLogEntry`, `Flush`. |
 | `Logging/DatabaseLoggerQueue.cs` | same | `BlockingCollection` backed background writer with deterministic `Flush()`. |
 | `Logging/RayMigratorDatabaseSink.cs`, `Logging/MigrationContextEnricher.cs` | same | Serilog `ILogEventSink` that forwards to `DatabaseLogWriter`; `ILogEventEnricher` that reads `MigrationLoggingContext.Current` and adds run, target group, target, file and block ids. |
 
-The four files with `Raycoon.RayMigrator.Core` namespaces are the one
+The six files with `Raycoon.RayMigrator.Core` namespaces are the one
 documented deviation from the layering: consumers see Core types but must
 reference `Raycoon.RayMigrator.Infrastructure`. Authoritative pages:
 [Template executor](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/04-service-layer/template-executor.md),
@@ -289,8 +298,8 @@ flowchart TB
 |----------------|-------------------------------|
 | `Raycoon.RayMigrator.Database.Common` | The contract package. `IDal` defines `DatabaseType`, `DalSpecificProperties`, `ExecuteNonQueryAsync`, `ExecuteNonQuery`, `ExecuteScalarAsync`, `ExecuteReaderAsync`, `IsConnectionValid`, `CheckConnectionStringOrValidateConnection`, parameter mapping, and the shared connection trio `CreateConnection`, `ExecuteNonQueryAsync(DbConnection, DbTransaction, ...)`, `ExecuteScalarAsync(DbConnection, DbTransaction, ...)`. `DalBase` adds `IsTransient`, the `ExecuteWithRetryAsync` helpers over `RetryHelper` (linear backoff, `RetryExhaustedException`), type and parameter mapping. `DalSpecificProperties` carries `SqlBlockDelimiter`, `SupportsSchema`, `SupportsTransactionalDdl`, identifier quotes, `DefaultSchema`, `FoldsUnquotedIdentifiersToLower`. `DatabaseTypeAttribute` is the discovery key. |
 | `Raycoon.RayMigrator.Database` | `DalFactory` only. The static constructor loads every runtime library named `Raycoon.RayMigrator.*` from `DependencyContext.Default` (works in single file publish) and every `*.dll` under `DataAccessLayers/*/`, collects non-abstract `IDal` classes with `[DatabaseType]` into a type map (`TryAdd`, first wins), and `TryGetDal` creates instances with `Activator.CreateInstance(type, connectionString)` cached per `{databaseType}_{connectionString}`; an unknown type throws `ConfigurationValidationException`. The package depends on `Microsoft.Extensions.DependencyModel`. |
-| Built-in plugins `Database.SqlServer`, `.PostgreSQL`, `.MariaDb`, `.MySql`, `.Sqlite` | Each project contains exactly one DAL class and a `Templates/` folder with the 21 files named `Repository_*.sql` and `DatabaseLogging_*.sql` (one per `TemplateType`). `RayMigratorDatabaseType` in the `.csproj` names the `DataAccessLayers/{Type}/` folder; the `CopyDalToDataAccessLayers` target and the `Content` items with `contentFiles` packaging put assembly and templates there for build, publish and NuGet consumers. |
-| `Raycoon.RayMigrator.Database.Example` | `DalExample` with `[DatabaseType("Example")]`, every abstract member stubbed, and 22 placeholder templates (the 21 required ones plus `Repository_MigrationRecordHistory_Archive.sql`, which `TemplateCache` ignores). Own MIT `LICENSE.md`; `IsPackable` is `false` and the ADO.NET provider reference is a commented example. |
+| Built-in plugins `Database.SqlServer`, `.PostgreSQL`, `.MariaDb`, `.MySql`, `.Sqlite` | Each project contains exactly one DAL class and a `Templates/` folder with the 25 files named `Repository_*.sql` and `DatabaseLogging_*.sql` (one per `TemplateType`). `RayMigratorDatabaseType` in the `.csproj` names the `DataAccessLayers/{Type}/` folder; the `CopyDalToDataAccessLayers` target and the `Content` items with `contentFiles` packaging put assembly and templates there for build, publish and NuGet consumers. |
+| `Raycoon.RayMigrator.Database.Example` | `DalExample` with `[DatabaseType("Example")]`, every abstract member stubbed, and 26 placeholder templates (the 25 required ones plus `Repository_MigrationRecordHistory_Archive.sql`, which `TemplateCache` ignores). Own MIT `LICENSE.md`; `IsPackable` is `false` and the ADO.NET provider reference is a commented example. |
 | External plugins | A class library referencing the `Database.Common` and `Shared` packages, deployed as `DataAccessLayers/{Type}/` with assembly, provider assemblies and templates; discovered by the file system scan without any registration. |
 
 Authoritative pages:
@@ -309,7 +318,7 @@ reference.
 | `RuleCatalog`, `RuleIds`, `Rules/IValidationRule` | `RunAll(ValidationInput)` executes a fixed, hand registered list of rules (no reflection) and returns a `ValidationReport` of `ValidationIssue` records with `ValidationSeverity` and a rule id such as `RULE_3_8`. |
 | `Rules/` | `AliasUniquenessRule`, `TargetGroupMigrationOrderRule`, `SemanticContradictionsRule`, `CliToolDefinitionsRule`, `CliToolReferencesRule`, `CliToolParametersRule`, `SchemaRule`, `ConnectionStringRule`, `DefaultCascadeRule`; each owns one rule id category (alias uniqueness, target group order, contradictory error and rollback settings, CLI tool definitions, references and parameters, schema names, connection strings, defaults cascade). |
 | `Models/` | `ValidationInput` with `RepositoryInput`, `ProductDefaultsInput`, `ProductInput`, `TargetGroupInput`, `TargetInput`, `CliToolInput`; adapters in Core (`OptionsValidationInputAdapter`) and in the wizard (`WizardValidationInputAdapter`) flatten their own models into it. |
-| `Helpers/`, `Messages/` | `ExitCodeExpressionValidator` (single source of truth for `SuccessExitCodes` expressions, used by `ExitCodeMatcher`), `CliToolPlaceholderExtractor`; `ValidationMessages`, an internal class of constant format strings (the localized `.resx` texts belong to the Config Wizard Core). |
+| `Helpers/`, `Messages/` | `ExitCodeExpressionValidator` (single source of truth for `SuccessExitCodes` expressions, used by `ExitCodeMatcher`), `CliToolPlaceholderExtractor`; `ValidationMessages`, an internal class of constant format strings; the rule messages are English only, and the wizard shows them unchanged. |
 
 Rules that need engine knowledge stay outside the catalog: `SchemaNameValidator`
 (needs `DalSpecificProperties.SupportsSchema`) and `ConnectionValidator` (opens
@@ -322,7 +331,13 @@ connections) live in Core and Infrastructure. The full rule list is in
 `TemplateResultException`, `MigrationExecutionException`,
 `CliToolExecutionException`, `MigrationAlreadyRunningException`,
 `MigrationRecoveryException` and others), `Constants/InternalConstants.cs`,
-`Constants/TemplateResultCode.cs` and `AssemblyInfoHelper`.
+`Constants/TemplateResultCode.cs`, `AssemblyInfoHelper`, the hierarchy and merge
+code under `Configuration/` (`ConfigFileRole`, `ConfigurationFileChain`,
+`ConfigurationJsonMerger`, `ConfigurationJsonDiff`, `AliasComparer`) and, since
+0.18.0, the help texts of the configuration under `Configuration/Help/`
+(`ConfigurationHelp`, `JsonPathRegistry`, `FieldHelp`, `SectionHelp`,
+`JsonPathInfo`, the `.resx` files in English and German), which the wizard
+and RayMigrator Studio read.
 
 ### 5.2.8 Config Wizard (`Raycoon.RayMigrator.ConfigWizard.Core`, `Raycoon.RayMigrator.ConfigWizard.Web`)
 
@@ -333,8 +348,8 @@ without a browser); Web is the user interface
 
 | Building block | Inner components | Responsibility |
 |----------------|------------------|----------------|
-| `ConfigWizard.Core/Models/` | `ConfigurationModel` with `RepositoryModel`, `DatabaseLoggingModel`, `ProductDefaultsModel`, `ProductModel`, `TargetGroupModel`, `TargetModel`, `SerilogModel`, `CliToolModel`, `OverridableValue<T>`, `ConfigFileRole`; `WizardState`, `WizardSetupAnswers`, `ProductEnvironmentEntry`; `WizardValidationResult`, `ValidationCapability`; help records in `HelpModels.cs`. | In-memory representation of one configuration file and of the whole file family; `PreservedDocument` keeps unknown JSON keys for round trips. |
-| `ConfigWizard.Core/Services/` | `ConfigurationSerializer`, `ConfigFileMerger`, `ConfigurationFileParser`, `ConfigurationValidator` with `WizardValidationInputAdapter`, `ValidationReportToWizardResultMapper`, `WizardOnlyChecks`, `AdoNetChecks`, `FilesystemChecks`; `InheritanceResolver`, `DefaultsPromoter`, `HierarchyFactoring`, `ConfigurationScaffolder`, `EnvironmentSkeletonGenerator`, `EnvFileGenerator`, `CliToolPresetProvider`, `WizardCliToolParameterResolver`, `ContextHelpProvider`, `JsonPathRegistry`. | Static, IO free services: JSON round trip, merge semantics identical to the engine (shared code), validation through `RuleCatalog` plus wizard only checks, defaults promotion, factoring of the export into the hierarchy (ADR-021), scaffolding, help texts from `Resources/*.resx` in English and German. |
+| `ConfigWizard.Core/Models/` | `ConfigurationModel` with `RepositoryModel`, `DatabaseLoggingModel`, `ProductDefaultsModel`, `ProductModel`, `TargetGroupModel`, `TargetModel`, `SerilogModel`, `CliToolModel`, `OverridableValue<T>`, `ConfigFileRole`; `WizardState`, `WizardSetupAnswers`, `ProductEnvironmentEntry`; `WizardValidationResult`, `ValidationCapability`. | In-memory representation of one configuration file and of the whole file family; `PreservedDocument` keeps unknown JSON keys for round trips. |
+| `ConfigWizard.Core/Services/` | `ConfigurationSerializer`, `ConfigFileMerger`, `ConfigurationFileParser`, `ConfigurationValidator` with `WizardValidationInputAdapter`, `ValidationReportToWizardResultMapper`, `WizardOnlyChecks`, `AdoNetChecks`, `FilesystemChecks`; `InheritanceResolver`, `DefaultsPromoter`, `HierarchyFactoring`, `ConfigurationScaffolder`, `EnvironmentSkeletonGenerator`, `EnvFileGenerator`, `CliToolPresetProvider`, `WizardCliToolParameterResolver`. | Static, IO free services: JSON round trip, merge semantics identical to the engine (shared code), validation through `RuleCatalog` plus wizard only checks, defaults promotion, factoring of the export into the hierarchy (ADR-021), scaffolding; the help texts come from `Raycoon.RayMigrator.Shared` (`ConfigurationHelp`). |
 | `ConfigWizard.Web` | `Program.cs`; `Pages/WizardPage.razor`; `Components/Phase1/WelcomeMask`, `Phase2/WizardHost`, `Phase3/OverviewHost`, `Hub/HubPage`, `Sections/*`, `Shared/*`; `Services/WizardStateService`, `ZipExportService`, `FileInteropService`, `LocalizationService`, `WizardMudLocalizer`, `TermsAcceptanceService`, `JsonHighlightService`; `wwwroot/js/fileInterop.js`, `wwwroot/staticwebapp.config.json`. | Phase driven UI (`WizardPhase` `Start`, `Hub`, `GuidedConfig`, `Overview`; `WizardStepId` for the six stepper steps), scoped `WizardStateService` per browser tab, export of the pruned file family plus `example.env` as `raymigrator-config.zip`. |
 
 Output artefacts are only files: `appsettings.json`,
@@ -346,29 +361,33 @@ is `DbConnectionStringBuilder` parsing in `AdoNetChecks` and
 `WizardOnlyChecks`, gated by `ValidationCapability.AdoNetParsing`; the Web
 project calls the `ConfigurationValidator.ValidateAll(model)` overload, which
 runs with `Structural` only because `Filesystem` and `AdoNetParsing` are
-unavailable in WebAssembly. Neither project references any engine package
-besides `Validation`. Authoritative pages:
+unavailable in WebAssembly. Core references `Validation` and `Shared` and no
+other engine package; the Web project references Core only. Authoritative pages:
 [Config Wizard architecture](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/12-config-wizard/architecture.md),
 [Services reference](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/12-config-wizard/services.md),
 [File hierarchy](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/12-config-wizard/file-hierarchy.md).
 
 ### 5.2.9 Testing support and test projects
 
-`Raycoon.RayMigrator.Testing` is a packable library (references only
-`Raycoon.RayMigrator.Database`) for integration tests against real engines:
+`Raycoon.RayMigrator.Testing` is a packable library (references
+`Raycoon.RayMigrator.Database` and `Raycoon.RayMigrator.Repository.ReadModel`)
+for integration tests against real engines:
 `DockerHealthCheck.IsDatabaseAvailable`, `DatabaseCleanupHelper.CleanDatabase`
 and `CleanAllDatabases`, and `RepositoryQueryHelper` (`CountRows`,
 `TableExists`, `CountMigrationsWithStatus`, `GetLatestMigrationRunResultId`,
 `CountLogEntries`, `ProductExists`, ...) returning `MigrationRecordDto` and
-`MigrationRunRecordDto`. All helpers obtain their `IDal` from `DalFactory`.
+`MigrationRunRecordDto`. The cleanup and the query helper take the table
+prefix of the repository as an optional `tableBaseName` parameter; the cleanup
+names the repository tables through `RepositoryNaming` of the read model
+package. All helpers obtain their `IDal` from `DalFactory`.
 
 | Test project | Kind | Structure and notable contents |
 |--------------|------|--------------------------------|
-| `Raycoon.RayMigrator.Tests.Unit` | Unit, no database, runs in CI | About 100 flat test files prefixed by priority `P0_` to `P3_` (for example `P0_SplitSqlIntoBlocksTests`, `P0_TomlParsingTests`, `P1_CanUseSharedConnectionTests`, `P1_DalFactoryTests`); `Helpers/` with `CapturingLogger`, `ProfileTestContext`, `TestFactories`; references every engine project including `Database.Example` and `Testing`. |
+| `Raycoon.RayMigrator.Tests.Unit` | Unit, no database, runs in CI | About 120 flat test files prefixed by priority `P0_` to `P3_` (for example `P0_SplitSqlIntoBlocksTests`, `P0_TomlParsingTests`, `P1_CanUseSharedConnectionTests`, `P1_DalFactoryTests`); `Helpers/` with `CapturingLogger`, `ProfileTestContext`, `TestFactories`; references every engine project including `Database.Example` and `Testing`. |
 | `Raycoon.RayMigrator.Tests.Unit.Validation` | Unit | `RuleCatalogTests`, one test class per rule under `Rules/`, `Helpers/InputFactory`. |
-| `Raycoon.RayMigrator.Tests.Unit.ConfigWizard.Core` | Unit | One or more test classes per Core service (serializer, merger, parser, validator, promoter, scaffolder, help provider). |
+| `Raycoon.RayMigrator.Tests.Unit.ConfigWizard.Core` | Unit | One or more test classes per Core service (serializer, merger, parser, validator, promoter, scaffolder); the help texts of the Shared package are tested in `Tests.Unit` (`P0_ConfigurationHelpTests`, `P0_JsonPathRegistryTests`). |
 | `Raycoon.RayMigrator.Tests.Unit.ConfigWizard.Web` | Unit (`Microsoft.NET.Sdk.Razor`) | `WizardStateServiceTests`, `ZipExportServiceTests`, `LocalizationServiceTests`, `TermsAcceptanceServiceTests`, `WizardHostStepIndexTests`. |
-| `Raycoon.RayMigrator.Tests.Engine` | Engine tests against Docker containers and a SQLite file, local duty before a release | `Fixtures/` (`SqlServerFixture`, `PostgreSqlFixture`, `MariaDbFixture`, `MySqlFixture`, `SqliteFixture` with `IsDatabaseAvailable`), `Collections/` (xUnit collection per engine), `Infrastructure/` (`EngineTestHost` rebuilding the `DirectModePipeline` DI wiring without CLI parsing, `ScenarioBuilder` and `ScenarioContext` for injecting errors and TOML into copied migration files, `SqlDialect`, engine test bases, `MigrationRecordExpectation`, `MigrationRunExpectation`, `DockerExecHelper`, `CliToolConfigHelper`), `Tests/{MigrateUp,MigrateDown,Compound,Features,CliTool}` with traits `MigrateUp`, `MigrateDown`, `Compound`, `Features`, `CliTool`, `CliToolDocker`, and `MigrationFiles/` per engine. |
+| `Raycoon.RayMigrator.Tests.Engine` | Engine tests against Docker containers and a SQLite file, local duty before a release | `Fixtures/` (`SqlServerFixture`, `PostgreSqlFixture`, `MariaDbFixture`, `MySqlFixture`, `SqliteFixture` with `IsDatabaseAvailable`), `Collections/` (xUnit collection per engine), `Infrastructure/` (`EngineTestHost` rebuilding the `DirectModePipeline` DI wiring without CLI parsing, `ScenarioBuilder` and `ScenarioContext` for injecting errors and TOML into copied migration files, `SqlDialect`, engine test bases, `MigrationRecordExpectation`, `MigrationRunExpectation`, `DockerExecHelper`, `CliToolConfigHelper`, and the contracts that the per engine feature classes share: `ReadModelContract`, `RepositorySchemaServiceContract`, `RepositoryPrefixContract`), `Tests/{MigrateUp,MigrateDown,Compound,Features,CliTool}` with traits `MigrateUp`, `MigrateDown`, `Compound`, `Features`, `CliTool`, `CliToolDocker`, and `MigrationFiles/` per engine. |
 
 The unit suite is the CI gate; the engine suite is run locally before a
 release (see [Architecture Constraints](02-Architecture-Constraints.md#22-organizational-constraints)).
@@ -391,7 +410,7 @@ constructor `DalPostgreSql(string connectionString)`, which fills
 | Dialect facts and retry | `DalSpecificProperties`; `IsTransient` override maps `PostgresException.SqlState` to the transient SQLSTATE list that `RetryHelper` reacts to. |
 | Managed lifecycle calls | `ExecuteNonQueryAsync`, `ExecuteNonQuery`, `ExecuteScalarAsync`, `ExecuteReaderAsync`: thin wrappers calling `ExecuteWithRetryAsync` or `ExecuteWithRetry` around private `*Internal` methods that open an `NpgsqlConnection`, begin a transaction per `IDalSettings.UseTransaction`, bind parameters and dispose everything; `CheckConnectionStringOrValidateConnection` serves `ConnectionValidator` (`IsConnectionValid` has no caller). |
 | Shared connection calls | `CreateConnection`, `ExecuteNonQueryAsync(DbConnection, DbTransaction, ...)`, `ExecuteScalarAsync(DbConnection, DbTransaction, ...)`: no retry, no connection management; used by the atomic path in `MigrationService`. |
-| `Templates/` | The 21 PostgreSQL templates (`snake_case` identifiers, `pg_advisory_xact_lock` in `Repository_MigrationRun_Insert.sql`), copied to `DataAccessLayers/PostgreSQL/` by the `CopyDalToDataAccessLayers` target. |
+| `Templates/` | The 25 PostgreSQL templates (`snake_case` identifiers, `pg_advisory_xact_lock` in `Repository_MigrationRun_Insert.sql`), copied to `DataAccessLayers/PostgreSQL/` by the `CopyDalToDataAccessLayers` target. |
 
 The other four plugins have the same shape and differ only in provider,
 transient error codes, dialect facts and template bodies (see

@@ -576,20 +576,6 @@ Represents the status of a single migration record in the repository. The `--las
 
 Source: `Raycoon.RayMigrator.Core/Configuration/Enums/MigrationStatus.cs`
 
-### OperatingMode
-
-Determines how RayMigrator loads configuration and executes commands. See [Execution Modes](../02-core-concepts/execution-modes.md#operating-mode) for details.
-
-> There is no CLI option or configuration key for it: the Engine always runs `Standalone`. The enum is part of the Core package contract consumed by RayMigrator Studio, which implements the managed modes (#20).
-
-| Name | Description |
-|------|-------------|
-| `Standalone` | All configuration loaded from JSON files (`appsettings.json` hierarchy). No Admin-DB. This is the default mode. |
-| `ManagedLocal` | Configuration loaded from a local Admin-DB. Products, Environments, Targets, and Repository config come from the Admin-DB. Serilog configuration still read from `appsettings.json`. |
-| `ManagedRemote` | CLI operates as a Thin Client, sending HTTP requests to a remote RayMigrator API server instead of accessing databases directly. |
-
-Source: `Raycoon.RayMigrator.Core/Configuration/Enums/OperatingMode.cs`
-
 ### MigrationOperation
 
 Represents the type of migration operation (displayed in the Info command's migration run history table).

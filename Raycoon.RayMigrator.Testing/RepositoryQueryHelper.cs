@@ -5,13 +5,16 @@ using Raycoon.RayMigrator.Database.Common;
 namespace Raycoon.RayMigrator.Testing;
 
 /// <summary>
-/// Provides direct SQL queries against the repository and target databases for test assertions.
+/// Provides direct SQL queries against the repository and target databases for test assertions. Repository tables
+/// are addressed by their PascalCase name (<c>MigrationRun</c>); the helper applies the engine's casing, the schema
+/// and the table prefix (<c>TableBaseName</c>) of the repository.
 /// </summary>
 public class RepositoryQueryHelper
 {
     private readonly string _databaseType;
     private readonly string _repositoryConnectionString;
     private readonly string _schemaName;
+    private readonly string _tableBaseName;
     private readonly DalSpecificProperties? _dalProps;
 
     private static readonly DalSettings QuerySettings = new()
@@ -20,11 +23,12 @@ public class RepositoryQueryHelper
         DbCommandTimeoutInSeconds = 30
     };
 
-    public RepositoryQueryHelper(string databaseType, string repositoryConnectionString, string schemaName)
+    public RepositoryQueryHelper(string databaseType, string repositoryConnectionString, string schemaName, string tableBaseName = "")
     {
         _databaseType = databaseType;
         _repositoryConnectionString = repositoryConnectionString;
         _schemaName = schemaName;
+        _tableBaseName = tableBaseName;
 
         if (DalFactory.TryGetDal(databaseType, repositoryConnectionString, out IDal? dal))
         {
@@ -100,9 +104,10 @@ public class RepositoryQueryHelper
         // MariaDB/MySQL repository tables use snake_case after DAL-018.
         string tableNameForQuery = _databaseType switch
         {
-            "PostgreSQL" when useRepositorySchema  => ToSnakeCase(tableName),
+            "PostgreSQL" when useRepositorySchema  => _tableBaseName + ToSnakeCase(tableName),
             "PostgreSQL" when !useRepositorySchema => tableName.ToLowerInvariant(),
-            "MariaDb" or "MySql" when useRepositorySchema => ToSnakeCase(tableName),
+            "MariaDb" or "MySql" when useRepositorySchema => _tableBaseName + ToSnakeCase(tableName),
+            _ when useRepositorySchema             => _tableBaseName + tableName,
             _                                      => tableName
         };
         string sql = _databaseType switch
@@ -839,14 +844,14 @@ public class RepositoryQueryHelper
     {
         return _databaseType switch
         {
-            "SqlServer" => $"[{_schemaName}].[{tableName}]",
+            "SqlServer" => $"[{_schemaName}].[{_tableBaseName}{tableName}]",
             // DAL-017: PostgreSQL uses unquoted snake_case identifiers for repository tables.
-            "PostgreSQL" => $"{_schemaName}.{ToSnakeCase(tableName)}",
+            "PostgreSQL" => $"{_schemaName}.{_tableBaseName}{ToSnakeCase(tableName)}",
             // DAL-018: MariaDB/MySQL use snake_case identifiers for repository tables.
             // Note: no explicit schema qualifier — the connection's current DATABASE() acts as the schema.
-            "MariaDb" or "MySql" => $"`{ToSnakeCase(tableName)}`",
-            "Sqlite" => tableName,
-            _ => tableName
+            "MariaDb" or "MySql" => $"`{_tableBaseName}{ToSnakeCase(tableName)}`",
+            "Sqlite" => $"\"{_tableBaseName}{tableName}\"",
+            _ => _tableBaseName + tableName
         };
     }
 

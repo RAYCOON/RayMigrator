@@ -1,21 +1,21 @@
 using System.Globalization;
 using System.Resources;
-using Raycoon.RayMigrator.ConfigWizard.Core.Models;
-
-namespace Raycoon.RayMigrator.ConfigWizard.Core.Services;
+namespace Raycoon.RayMigrator.Shared.Configuration.Help;
 
 /// <summary>
-/// Provides multilingual context help for wizard sections and fields using .resx resources.
+/// Help texts for the sections and fields of the RayMigrator configuration in English and German, read from the
+/// .resx resources of this assembly. Field keys use underscores (<c>Repository_DatabaseType</c>); the
+/// <see cref="JsonPathRegistry"/> maps them to configuration paths. Shared by the Config Wizard and Studio.
 /// </summary>
-public static class ContextHelpProvider
+public static class ConfigurationHelp
 {
     private static readonly ResourceManager SectionHelpResources =
-        new("Raycoon.RayMigrator.ConfigWizard.Core.Resources.SectionHelp",
-            typeof(ContextHelpProvider).Assembly);
+        new("Raycoon.RayMigrator.Shared.Configuration.Help.SectionHelp",
+            typeof(ConfigurationHelp).Assembly);
 
     private static readonly ResourceManager FieldHelpResources =
-        new("Raycoon.RayMigrator.ConfigWizard.Core.Resources.FieldHelp",
-            typeof(ContextHelpProvider).Assembly);
+        new("Raycoon.RayMigrator.Shared.Configuration.Help.FieldHelp",
+            typeof(ConfigurationHelp).Assembly);
 
     private static readonly string[] SectionKeys =
     {
@@ -29,6 +29,7 @@ public static class ContextHelpProvider
         // Repository
         "Repository_DatabaseType", "Repository_ConnectionString", "Repository_SchemaName",
         "Repository_TableBaseName", "Repository_Timeout", "Repository_MaxRetries", "Repository_Wait",
+        "Repository_HeartbeatIntervalInSeconds", "Repository_OrphanedRunThresholdInMinutes",
         // DatabaseLogging
         "DatabaseLogging_Enable", "DatabaseLogging_DatabaseType", "DatabaseLogging_ConnectionString",
         "DatabaseLogging_SchemaName", "DatabaseLogging_MinimumLevel", "DatabaseLogging_Timeout",
@@ -61,7 +62,7 @@ public static class ContextHelpProvider
     };
 
     /// <summary>
-    /// Returns section-level help for a wizard step.
+    /// Returns the help of a section, or null when the key is unknown.
     /// </summary>
     public static SectionHelp? GetSectionHelp(string sectionKey, CultureInfo? culture = null)
     {
@@ -77,7 +78,7 @@ public static class ContextHelpProvider
     }
 
     /// <summary>
-    /// Returns field-level help for a specific field.
+    /// Returns the help of a field, or null when the key is unknown.
     /// The fieldKey uses underscore as separator (e.g. "Repository_DatabaseType").
     /// </summary>
     public static FieldHelp? GetFieldHelp(string fieldKey, CultureInfo? culture = null)
@@ -102,12 +103,12 @@ public static class ContextHelpProvider
     }
 
     /// <summary>
-    /// Returns all section help keys (for completeness checks in tests).
+    /// Returns all section help keys.
     /// </summary>
     public static IReadOnlyList<string> GetAllSectionKeys() => SectionKeys;
 
     /// <summary>
-    /// Returns all field help keys (for completeness checks in tests).
+    /// Returns all field help keys.
     /// </summary>
     public static IReadOnlyList<string> GetAllFieldKeys() => FieldKeys;
 }

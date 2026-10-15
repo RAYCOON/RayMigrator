@@ -1,12 +1,9 @@
 namespace Raycoon.RayMigrator.Core.Configuration.Sources;
 
 /// <summary>
-/// Abstraction for loading RayMigrator configuration from different sources.
-/// Each implementation encapsulates how RayMigratorOptions are loaded:
-/// <list type="bullet">
-///   <item><description>JSON files (appsettings.json hierarchy)</description></item>
-///   <item><description>Admin-DB (SQLite/SQL Server/PostgreSQL/MariaDB/MySQL)</description></item>
-/// </list>
+/// Abstraction for loading RayMigrator configuration for the CLI pipeline. The one implementation reads the
+/// appsettings.json hierarchy (<c>JsonOptionsSource</c>); a host that builds options in memory goes through
+/// <c>IMigrationContextFactory</c> instead.
 /// </summary>
 public interface IOptionsSource
 {

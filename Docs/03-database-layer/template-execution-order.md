@@ -52,11 +52,14 @@ This phase executes unless the `DatabaseLogging` section says `Enabled: false`, 
    | 70 | ValidateConnectionStrings |
    | 80 | RayMigratorServiceStart |
    | 100 | TemplateExecutionRepositoryCheckCreate |
+   | 101 | TemplateExecutionRepositoryUpgrade |
+   | 102 | TemplateExecutionRepositoryMigratorMetaCheckInsert |
    | 110 | TemplateExecutionRepositoryMigrationRunInsert |
    | 111 | TemplateExecutionRepositoryMigrationRunUpdate |
    | 112 | TemplateExecutionRepositoryMigrationRunSelectOrphaned |
    | 113 | TemplateExecutionRepositoryMigrationRunFixOrphaned |
    | 114 | TemplateExecutionRepositoryMigrationFixOrphaned |
+   | 115 | TemplateExecutionRepositoryMigrationRunHeartbeat |
    | 120 | TemplateExecutionRepositoryProductCheckInsert |
    | 121 | TemplateExecutionRepositoryEnvironmentCheckInsert |
    | 122 | TemplateExecutionRepositoryProductSelect |
@@ -88,13 +91,13 @@ This template is **not executed immediately**. It is first used when the Serilog
 
 ## Phase 2: Repository Infrastructure
 
-**Call site:** `MigrationService.MigrateUpAsync()` -> `TemplateExecutor.RepositoryCheckCreate()`
+**Call site:** `MigrationService.MigrateUpAsync()` -> `TemplateExecutor.RepositoryCheckCreate()` -> `RepositorySchemaExecutor.Ensure()`
 **Target database:** Repository database (from `Repository` configuration section)
 
 ### Template 3: `Repository_CheckCreate`, `Repository_Upgrade_{n}` and `Repository_MigratorMeta_CheckInsert`
 
 **Files:** `DataAccessLayers/{DB}/Repository_CheckCreate.sql`, `Repository_Upgrade_{n}.sql`, `Repository_MigratorMeta_CheckInsert.sql`
-**Purpose:** Brings the repository to the schema version of the engine and registers the engine version (ADR-024). `TemplateExecutor.RepositoryCheckCreate` orchestrates the three templates:
+**Purpose:** Brings the repository to the schema version of the engine and registers the engine version (ADR-024). `RepositorySchemaExecutor` orchestrates the three templates; `TemplateExecutor.RepositoryCheckCreate` runs it with the repository, the target version and the engine version of the current context. A host runs the same steps without a run through `IRepositorySchemaService.Ensure(RepositoryOptions)`.
 
 1. `Repository_CheckCreate` (no parameters) creates the schema (SQL Server, PostgreSQL) and the `RepositorySchemaVersion` table when they are missing and returns `'schemaVersion,unversionedTables,message'`: the highest applied version (`0` = none) and `1` when the `MigratorMeta` table exists. Version `0` with existing tables marks a repository of a RayMigrator before 0.17.0, which is refused with `RepositorySchemaException`; a version above `RepositorySchema.CurrentVersion` is refused as well. Neither case writes anything.
 2. Every missing `Repository_Upgrade_{n}` from version + 1 to the target version runs in order (parameter `@RayMigratorVersion`, EventId `101`). Each step is idempotent per engine, serialised against a parallel start, returns its own version number and writes its row of `RepositorySchemaVersion`. A fresh repository runs every step from 1. A created or upgraded repository is logged at Information level.
@@ -122,14 +125,14 @@ This template is **not executed immediately**. It is first used when the Serilog
    - `MigrationRecord` (`Id` IDENTITY, `ProductId` FK, `EnvironmentId` FK, `MigrationRunId` FK, various FKs, `ReleaseVersion`, `TargetGroupAlias`, `TargetAlias`, `Filename`, `FileOrderId`, hash fields, block tracking fields, timestamps)
    - `MigrationRecordHistory` (mirrors `MigrationRecord` with additional `MigrationRecordId` FK and `HistorizedAt`)
 
-4. **Indexes:** Three indexes are created on all engines — shown here in canonical (SQL Server/SQLite) PascalCase; PostgreSQL, MariaDB, and MySQL use the snake_case equivalents: `uix_product_name_lower`, `uix_environment_name_lower`, `ix_migration_record_history_migration_record_id`.
+4. **Indexes:** Three indexes are created on all engines — shown here in canonical (SQL Server/SQLite) PascalCase and without the `{CFG:TableBaseName}` prefix that the templates write after every `ix_` and `uix_` (`uix_{CFG:TableBaseName}Product_NameLower`); PostgreSQL, MariaDB, and MySQL use the snake_case equivalents: `uix_product_name_lower`, `uix_environment_name_lower`, `ix_migration_record_history_migration_record_id`.
    - `uix_Product_NameLower` on `Product(NameLower)` (unique, case-insensitive deduplication)
    - `uix_Environment_NameLower` on `Environment(NameLower)` (unique, case-insensitive deduplication)
    - `ix_MigrationRecordHistory` on `MigrationRecordHistory(MigrationRecordId)` (fast lookup by source record)
 
    **PostgreSQL only** additionally creates FK-column indexes (snake_case names per DAL-017): `ix_migration_run_migrator_meta_id`, `ix_migration_run_product_id`, `ix_migration_run_environment_id`, `ix_migration_run_migration_run_mode_id`, `ix_migration_run_migration_run_result_id`, `ix_migration_record_product_id`, `ix_migration_record_environment_id`, `ix_migration_record_migration_run_id`, `ix_migration_record_migration_run_mode_id`, `ix_migration_record_migration_operation_id`, `ix_migration_record_migration_status_id`. MySQL/MariaDB InnoDB auto-indexes FK columns; PostgreSQL and SQL Server do not (FK indexing on SQL Server is a candidate for future work).
 
-5. **15 Foreign Keys** between the tables
+5. **15 Foreign Keys** between the tables, named `fk_{CFG:TableBaseName}...`; SQL Server and PostgreSQL name the primary keys `pk_{CFG:TableBaseName}...` (MySQL, MariaDB and SQLite leave them unnamed)
 
 6. **Extended Properties** (SQL Server only) - Documents enum values directly in the database
 
@@ -174,7 +177,7 @@ This template is **not executed immediately**. It is first used when the Serilog
 
 8. **RepositorySchemaVersion row 1** with `AppliedAt` and the `RayMigratorVersion` that applied the step
 
-**What schema step 2 (`Repository_Upgrade_2`) adds:** the lookup table `MigrationRunSource` (Cli = 10, Ci = 20, Studio = 30) and the nullable run detail columns `MigrationOperationId`, `MigrationRunSourceId`, `InitiatedBy`, `InitiatedBySubject`, `Host`, `ErrorCode`, `ErrorMessage` and `LastHeartbeatAt` on `MigrationRun` with foreign keys to `MigrationOperation` and `MigrationRunSource`, plus version row 2.
+**What schema step 2 (`Repository_Upgrade_2`) adds:** the lookup table `MigrationRunSource` (Cli = 10, Ci = 20, Studio = 30) and the nullable run detail columns `MigrationOperationId`, `MigrationRunSourceId`, `InitiatedBy`, `InitiatedBySubject`, `Host`, `ErrorCode`, `ErrorMessage` and `LastHeartbeatAt` on `MigrationRun` with foreign keys to `MigrationOperation` and `MigrationRunSource` (named `fk_{CFG:TableBaseName}...` except on SQLite, which declares them unnamed on the added columns; PostgreSQL also indexes the two columns), plus version row 2.
 
 **Return values:** `Repository_CheckCreate` returns `'schemaVersion,unversionedTables,message'`; `Repository_Upgrade_{n}` returns `'n,message'`; `Repository_MigratorMeta_CheckInsert` returns the `MigratorMetaId` (positive integer, `-12` when several `MigratorMeta` rows match), stored in `MigrationContext.MigrationState.MigratorMetaId`
 
@@ -305,7 +308,7 @@ Called immediately after Product registration by every `MigrationService` entry 
 |---|----------|-----------|---------|---------|
 | 1 | `DatabaseLogging_CheckCreate` | Logging DB | `DirectModePipeline.cs` startup (when `DatabaseLogging` configured) | Creates schema + `MigrationEvent` + `MigrationLog` tables |
 | 2 | `DatabaseLogging_Insert` | Logging DB | From startup onward, async (when `DatabaseLogging` configured) | Writes log entries (loaded in Phase 1, executed after `SetWriter`) |
-| 3 | `Repository_CheckCreate` | Repository DB | `MigrateUpAsync` | Creates schema + 11 tables + 15 FKs + master data + VersionId |
+| 3 | `Repository_CheckCreate`, `Repository_Upgrade_{n}`, `Repository_MigratorMeta_CheckInsert` | Repository DB | `MigrateUpAsync` (`TemplateExecutor.RepositoryCheckCreate` -> `RepositorySchemaExecutor`) | Reports the schema version, applies the missing steps (step 1: schema + 11 tables + 15 FKs + master data), registers the engine version, returns MigratorMetaId |
 | 4 | `Repository_Product_CheckInsert` | Repository DB | `MigrateUpAsync` | Registers the product, returns ProductId |
 | 4b | `Repository_Environment_CheckInsert` | Repository DB | All repository-writing entry points (after Product check-insert): `MigrateUpAsync` / `MigrateDownAsync` / `BaselineAsync` / `UpdateHashAsync` / `FixIssuesAsync` in `Migrate` run mode | Registers the environment, returns EnvironmentId |
 | 4a/4b (read-only) | `Repository_Product_Select`, `Repository_Environment_Select` | Repository DB | `MigrateUpAsync` / `MigrateDownAsync` / `FixIssuesAsync` in `Simulate` run mode, `ValidateHashAsync`, `GetStatusAsync`, `GetHistoryAsync`, instead of the two CheckInsert templates | Resolves ProductId/EnvironmentId read-only; `0` when not registered, in which case all files are treated as pending (#6, #7) |

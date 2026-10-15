@@ -2,12 +2,13 @@ using System.Globalization;
 using Microsoft.JSInterop;
 using Raycoon.RayMigrator.ConfigWizard.Core.Models;
 using Raycoon.RayMigrator.ConfigWizard.Core.Services;
+using Raycoon.RayMigrator.Shared.Configuration.Help;
 
 namespace Raycoon.RayMigrator.ConfigWizard.Web.Services;
 
 /// <summary>
 /// Manages UI language selection and provides localized strings.
-/// Wraps Core's ContextHelpProvider for section/field help and adds Web-specific UI strings.
+/// Wraps the shared ConfigurationHelp for section/field help and adds Web-specific UI strings.
 /// </summary>
 public class LocalizationService
 {
@@ -111,10 +112,10 @@ public class LocalizationService
 
     // Core help provider wrappers
     public SectionHelp? GetSectionHelp(string sectionKey) =>
-        ContextHelpProvider.GetSectionHelp(sectionKey, Culture);
+        ConfigurationHelp.GetSectionHelp(sectionKey, Culture);
 
     public FieldHelp? GetFieldHelp(string fieldKey) =>
-        ContextHelpProvider.GetFieldHelp(fieldKey, Culture);
+        ConfigurationHelp.GetFieldHelp(fieldKey, Culture);
 
     // Web UI strings
     public string Get(string key)

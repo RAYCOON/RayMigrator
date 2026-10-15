@@ -190,6 +190,23 @@ A host (RayMigrator Studio, an integration test) runs one operation per context.
 
 Per process, not per run: one `TemplateCache` (`new TemplateCache(revealSensitiveData, logger)`, then `ValidateConfigurationAgainstTemplateCache(options)` for each configuration the host runs), the `DatabaseLogWriter` and its Serilog sink when database logging is wanted, and the Serilog logger with `MigrationContextEnricher`, which reads `MigrationLoggingContext.Current` and stamps every event with run, release, target group, target, file and block.
 
+#### Creating or upgrading a repository without a run
+
+A host that manages repositories (RayMigrator Studio registers them before any product runs against them) creates or upgrades a repository through `IRepositorySchemaService` (`Raycoon.RayMigrator.Services.Abstractions`, registered by `AddRayMigratorServices`, implemented by `RepositorySchemaService`):
+
+```csharp
+RepositorySchemaResult result = schemaService.Ensure(new RepositoryOptions
+{
+    DatabaseType = "PostgreSQL",
+    ConnectionString = connectionString,
+    SchemaName = "ray",
+    TableBaseName = ""
+});
+// result.Created, result.Upgraded, result.VersionBefore, result.VersionAfter, result.MigratorMetaId
+```
+
+`Ensure` needs no product, no environment and no context. It validates the options the way the context factory validates the repository of a run (the data annotations write the documented defaults into null command settings, the database type must have a DAL and templates, the schema name is checked against the DAL capabilities), masks the secrets of the options for the log, and runs the schema steps of ADR-024 through `RepositorySchemaExecutor`: `Repository_CheckCreate`, every missing `Repository_Upgrade_{n}` up to `RepositorySchema.CurrentVersion`, `Repository_MigratorMeta_CheckInsert`. A repository with tables but no schema version or with a newer version is refused with `RepositorySchemaException` before anything is written. The service depends on the host's `TemplateCache`, so register the cache before resolving it.
+
 Process-global state a host shares between runs: `SensitiveDataMasker` (per-flow scopes isolate runs; `Initialize` sets the global mode the CLI uses), `MigrationLoggingContext` and `AsyncLocalMigrationContextAccessor` (both `AsyncLocal`, isolated per async flow), `DalFactory` (type map and DAL instances per database type and connection string, safe to share). The repository lock allows one run per product and environment; runs of different combinations may execute in parallel in separate scopes and async flows. `DirectModePipeline` stays CLI-only: it replaces the static `Log.Logger`, writes to the console and returns an exit code.
 
 ### `ProgressObserver`

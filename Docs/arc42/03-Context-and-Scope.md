@@ -81,9 +81,10 @@ repository connection or use a separate one.
 | External DAL plugin assemblies | Assemblies implementing `IDal` with `[DatabaseType]` and their SQL templates under `DataAccessLayers/{Type}/` | Connection string passed to the plugin constructor, template execution calls | Discovered by `DalFactory` at startup; the same mechanism loads the five built in plugins. See [External DAL development](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/09-extending/external-dal-development.md). |
 | Distribution channels | None at runtime | Release archives per RID on GitHub Releases, library packages on NuGet.org | Mentioned for completeness; how they are built is covered in the [Deployment View](07-Deployment-View.md). |
 
-RayMigrator Studio is not a communication partner of the engine: the
-`OperatingMode` values `ManagedLocal` and `ManagedRemote` are a contract only,
-and the engine reads neither an admin database nor an API
+RayMigrator Studio is not a communication partner of the engine: it
+references the engine packages and runs the engine in its own process, with
+options it builds in memory (`IMigrationContextFactory`) and repositories it
+creates through `IRepositorySchemaService`; the engine calls no API
 (see [Introduction and Goals](01-Introduction-and-Goals.md#what-raymigrator-deliberately-is-not)).
 
 ### CLI commands as the business interface
@@ -161,14 +162,16 @@ flowchart LR
 | External CLI tool execution | `System.Diagnostics.Process` with redirected stdout, stderr and optional stdin (UTF-8 without BOM); timeout via `CliToolTimeoutInSeconds`, then kill | Executable plus rendered `ArgumentTemplate`; exit code matched by `ExitCodeMatcher` against `SuccessExitCodes` | `Raycoon.RayMigrator.Services` (`CliToolExecutor`) | [CLI tools options](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/06-configuration-reference/cli-tools-options.md) |
 | Console and file logging | Serilog 4.4.0 with `Serilog.Sinks.Console`, `Serilog.Sinks.File`, `Raycoon.Serilog.Sinks.SQLite`; `Serilog.Settings.Configuration` reads the `RayMigrator.Serilog` node | Output templates; rolling text files; local SQLite log file | `Raycoon.RayMigrator.Pipeline` (`SerilogFactory`), sinks referenced by `Raycoon.RayMigrator.Console` | [Logging options](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/06-configuration-reference/logging-options.md) |
 | Database logging | Custom Serilog sink `RayMigratorDatabaseSink` and `MigrationContextEnricher`; asynchronous `DatabaseLoggerQueue`; writes through `IDal` | `DatabaseLogging_Insert` template per engine | `Raycoon.RayMigrator.Infrastructure` (`DatabaseLogWriter`) | [Logging schema](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/03-database-layer/logging-schema.md) |
-| Config Wizard | Blazor WebAssembly on `net10.0`, MudBlazor; hosted as static files on Azure Static Web Apps | HTTPS delivery of the app; in the browser: file upload via `InputFile`, ZIP download via JS interop (`downloadFileFromBytes`), `localStorage` for the language only, terms acceptance is kept in memory | `Raycoon.RayMigrator.ConfigWizard.Web`, `Raycoon.RayMigrator.ConfigWizard.Core`, `Raycoon.RayMigrator.Validation` | [Config Wizard overview](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/12-config-wizard/overview.md) |
-| Library consumption | 15 packable projects (`Raycoon.RayMigrator.Core`, `.Pipeline`, `.Services`, `.Services.Abstractions`, `.Infrastructure`, `.Database`, `.Database.Common`, the five `.Database.{Engine}` plugins, `.Shared`, `.Validation`, `.Testing`) | NuGet packages with `LICENSE.md` and `NUGET_README.md` | External DAL plugins reference `Raycoon.RayMigrator.Database.Common` and `Raycoon.RayMigrator.Shared` | [NUGET_README.md](https://github.com/RAYCOON/RayMigrator/blob/main/NUGET_README.md), [Deployment View](07-Deployment-View.md) |
+| Config Wizard | Blazor WebAssembly on `net10.0`, MudBlazor; hosted as static files on Azure Static Web Apps | HTTPS delivery of the app; in the browser: file upload via `InputFile`, ZIP download via JS interop (`downloadFileFromBytes`), `localStorage` for the language only, terms acceptance is kept in memory | `Raycoon.RayMigrator.ConfigWizard.Web`, `Raycoon.RayMigrator.ConfigWizard.Core`, `Raycoon.RayMigrator.Validation`, `Raycoon.RayMigrator.Shared` | [Config Wizard overview](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/12-config-wizard/overview.md) |
+| Library consumption | 16 packable projects (`Raycoon.RayMigrator.Core`, `.Pipeline`, `.Services`, `.Services.Abstractions`, `.Infrastructure`, `.Database`, `.Database.Common`, the five `.Database.{Engine}` plugins, `.Repository.ReadModel`, `.Shared`, `.Validation`, `.Testing`) | NuGet packages with `LICENSE.md` and `NUGET_README.md` | External DAL plugins reference `Raycoon.RayMigrator.Database.Common` and `Raycoon.RayMigrator.Shared` | [NUGET_README.md](https://github.com/RAYCOON/RayMigrator/blob/main/NUGET_README.md), [Deployment View](07-Deployment-View.md) |
 
 The Config Wizard has no server side and opens no database connection: the
 Web project references only `Microsoft.AspNetCore.Components.WebAssembly`
 (plus its `DevServer` in Debug builds), `MudBlazor` and the
-`ConfigWizard.Core` project, and the Core project references nothing but
-`Raycoon.RayMigrator.Validation`. Its only outbound links are to
+`ConfigWizard.Core` project, and the Core project references only
+`Raycoon.RayMigrator.Validation` and `Raycoon.RayMigrator.Shared` (the
+hierarchy merge code and the help texts), neither of which has a package
+dependency. The wizard's only outbound links are to
 `raymigrator.com` (terms of use, imprint), to `LICENSE.md` on GitHub and to
 Google Fonts in `index.html`.
 
