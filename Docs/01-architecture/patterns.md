@@ -106,7 +106,7 @@ Repository_MigrationRecord_Update.sql         - Update migration block progress/
 Repository_MigrationRecord_UpdateRollback.sql - Update rollback fields (FileDown*)
 Repository_MigrationRecord_UpdateHash.sql     - Update hash fields (update-hash command)
 Repository_MigrationRecord_Select.sql         - Query migrations
-Repository_MigrationRecord_FixOrphaned.sql    - Fix orphaned migration entries
+Repository_MigrationRecord_FixOrphaned.sql    - Settle the open records of an orphaned run by their progress
 Repository_MigrationRecord_GetInterrupted.sql - Find interrupted migrations for recovery
 Repository_MigrationRecordHistory_Select.sql - Query terminal state transitions (info run history)
 Repository_MigrationRecordHistory_Delete.sql - Delete one batch of old history rows (retention, ADR-027)

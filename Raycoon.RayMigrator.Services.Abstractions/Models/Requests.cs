@@ -104,7 +104,14 @@ public class FixIssuesRequest
     /// <c>MigrationContext</c> was built with (#17, #22).
     /// </summary>
     public MigrationRunMode RunMode { get; set; } = MigrationRunMode.Migrate;
-    public MigrationStatus AssumedMigrationStatus { get; set; } = MigrationStatus.NotMigrated;
+    /// <summary>
+    /// The status the repair gives the open (Pending, Executing) records of an orphaned run. Null, the default, keeps the
+    /// progress of each file: Failed after some committed blocks, so that the next migrate-up resumes after them, Migrated
+    /// when every block committed, NotMigrated without progress; for a rollback that was running Failed with its rollback
+    /// blocks, which migrate-down continues when some ran, or NotMigrated when every rollback block ran. NotMigrated or
+    /// Migrated is set on every open record of the run (<c>--last-migration-status</c>).
+    /// </summary>
+    public MigrationStatus? AssumedMigrationStatus { get; set; }
     public bool ShowInfo { get; set; } = true;
     public bool RevealSensitiveData { get; set; } = false;
 }

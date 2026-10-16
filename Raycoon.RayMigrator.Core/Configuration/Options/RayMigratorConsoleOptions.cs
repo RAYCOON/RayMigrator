@@ -72,7 +72,8 @@ public class RayMigratorConsoleOptions
     public int? FixOlderThanMinutes { get; init; }
 
     /// <summary>
-    /// Fix command: Status to assign to orphaned migrations (Migrated or NotMigrated)
+    /// Fix command: the status of <c>--last-migration-status</c> (Migrated or NotMigrated), set on every open record of an
+    /// orphaned run; null when the option is not given, and every open record keeps the progress of its file.
     /// </summary>
     public MigrationStatus? FixAssumedMigrationStatus { get; init; }
 

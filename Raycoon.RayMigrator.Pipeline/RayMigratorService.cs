@@ -423,7 +423,7 @@ public class RayMigratorService
             Scope = _consoleOptions.FixScope ?? FixScope.OrphanedRuns,
             OlderThanMinutes = _consoleOptions.FixOlderThanMinutes ?? 2,
             RunMode = _consoleOptions.RunMode,
-            AssumedMigrationStatus = _consoleOptions.FixAssumedMigrationStatus ?? MigrationStatus.NotMigrated,
+            AssumedMigrationStatus = _consoleOptions.FixAssumedMigrationStatus,
             ShowInfo = _consoleOptions.ShowStartupInfo,
             RevealSensitiveData = _consoleOptions.RevealSensitiveData
         };

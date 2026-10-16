@@ -789,7 +789,7 @@ raymigrator fix -p BookStore -env Production --run-mode simulate
 | `--scope` | `-s` | `OrphanedRuns` | Fix scope: `OrphanedRuns` or `All` |
 | `--older-than` | `-ot` | `2` | Only fix runs whose last heartbeat (or start) is older than N minutes (0 = immediate) |
 | `--run-mode` | `-rm` | `migrate` | `simulate` shows what would be fixed without applying |
-| `--last-migration-status` | `-lms` | `not-migrated` | Status for orphaned migrations: `not-migrated` (re-execute next time) or `migrated` (skip next time) |
+| `--last-migration-status` | `-lms` | — | Status for the open records of an orphaned run: `not-migrated` (run again from block 1) or `migrated` (skip next time); without it each record keeps its progress |
 
 ### When to Use
 

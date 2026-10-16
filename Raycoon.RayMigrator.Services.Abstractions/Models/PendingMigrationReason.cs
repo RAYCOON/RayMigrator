@@ -13,9 +13,11 @@ public enum PendingMigrationReason
 
     /// <summary>
     /// The file has not run on the target: it has no record there, its record was rolled back, or its record belongs to
-    /// a run that is still open. Migrate-up refuses to start while such a run is alive and closes it as orphaned once
-    /// its heartbeat is older than the threshold, which marks the record NotMigrated. Migrate-up runs the file from its
-    /// first block.
+    /// a run that is still open and the orphan repair will settle it as NotMigrated: no block of the file committed, or
+    /// its rollback had run every rollback block. Migrate-up refuses to start while such a run is alive and closes it as
+    /// orphaned once its heartbeat is older than the threshold; the orphan repair settles the records of that run by the
+    /// progress of their files, and the pending list classifies them as the repair leaves them. Migrate-up runs the file
+    /// from its first block.
     /// </summary>
     NotMigrated = 10,
 
@@ -29,8 +31,9 @@ public enum PendingMigrationReason
 
     /// <summary>
     /// A previous run committed the leading blocks of the file on the target and stopped: a failure, a cancel with
-    /// Terminate, a run that ended after the last block without finalizing the record, or a failed block that
-    /// MigrationErrorAction=Ignore skipped, after which the record counts the blocks before it. Migrate-up skips the
+    /// Terminate, a run that ended after the last block without finalizing the record, a run that ended abruptly, whose
+    /// open record the orphan repair settles with its committed blocks, or a failed block that MigrationErrorAction=Ignore
+    /// skipped, after which the record counts the blocks before it. Migrate-up skips the
     /// committed blocks (<see cref="PendingMigrationInfo.ResumeFromBlock"/>) and continues with the next one, or only
     /// finalizes the record when every block committed. A RunAlways file is resumed like any other, so this reason
     /// takes precedence over <see cref="RunAlways"/>.
@@ -49,10 +52,11 @@ public enum PendingMigrationReason
     HashMismatch = 50,
 
     /// <summary>
-    /// The rollback of the file on the target stopped in the middle: the record is Failed with some but not all of its
-    /// rollback blocks (<see cref="PendingMigrationInfo.RollbackBlocksMigrated"/> of
-    /// <see cref="PendingMigrationInfo.RollbackBlocksTotal"/>), as a cancelled migrate-down or error recovery or a failed
-    /// rollback block after the first leaves it. migrate-up refuses to run while there is such a record, because running
+    /// The rollback of the file on the target stopped in the middle: the record has some but not all of its rollback blocks
+    /// (<see cref="PendingMigrationInfo.RollbackBlocksMigrated"/> of <see cref="PendingMigrationInfo.RollbackBlocksTotal"/>)
+    /// and is Failed, as a cancelled migrate-down or error recovery, a failed rollback block after the first, or the orphan
+    /// repair of a run that ended abruptly in the middle of a rollback leaves it, or still Executing in a run that ended
+    /// without its final write. migrate-up refuses to run while there is such a record, because running
     /// the file again from block 1 would act on a target that kept part of what the rollback did not take back yet;
     /// migrate-down continues the rollback with the next rollback block. This reason takes precedence over every other.
     /// </summary>

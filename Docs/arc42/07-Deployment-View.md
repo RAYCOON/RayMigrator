@@ -160,7 +160,8 @@ had failed at a file before the cancel stopped its error recovery; see
 [Runtime View 6.10](06-Runtime-View.md#610-cancellation-of-a-run)). A second
 signal, or the forced kill that follows when the grace period of the runner
 or the container ends first, ends the process at once and leaves the run open
-until the orphan repair of a later start or `fix` closes it. On Windows only
+until the orphan repair of a later start or `fix` closes it; the repair keeps the
+progress of the file that was running. On Windows only
 Ctrl+C stops a run this way.
 
 ### 7.2.2 Library consumption via NuGet

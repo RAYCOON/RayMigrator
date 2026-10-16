@@ -295,7 +295,7 @@ complete cleanly; a `migrate-up` that failed at a file before the cancel stopped
 failure, because the failure decides the run. `update-hash` and `fix` return `1004` with what they did, the read commands throw
 `OperationCanceledException`, and the CLI exits with `130` (`1` for `Error`, and for a `1004` or an `OperationCanceledException`
 without the signal). A cancel is logged
-as a warning without the exception, whose stack trace goes to `Debug`. A second signal ends the CLI at once and leaves the run to the orphan repair. Known gaps: a
+as a warning without the exception, whose stack trace goes to `Debug`. A second signal ends the CLI at once and leaves the run to the orphan repair, which keeps the progress of the file in progress. Known gaps: a
 failed first rollback block leaves a record `Failed` without rollback progress, MySQL runs the further statements of a block after the
 cancel, and MySQL and MariaDB run a block in `SLEEP()` to its end.
 Decision: [ADR-028](09-Architecture-Decisions.md#adr-028-a-run-cancels-at-the-next-block-boundary-with-a-migrationcancelledaction-and-records-cancelled). Scenario: [Runtime View 6.10](06-Runtime-View.md#610-cancellation-of-a-run). Authoritative page: [Error handling: Cancellation](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/02-core-concepts/error-handling.md#cancellation).
@@ -336,8 +336,9 @@ a running migrate-up, migrate-down or baseline refreshes `MigrationRun.LastHeart
 start, without one) is older than `Repository.OrphanedRunThresholdInMinutes` (2) as `Error` and retries once; `fix` refuses to
 close a run whose heartbeat is younger (`-31`). `RepositoryMigrationRunUpdateAsync` releases the lock by setting `FinishedAt`, also for
 a cancelled run; only a process that dies before that write, for example after a second Ctrl+C or SIGTERM, leaves the row open. The
-`fix` command (`FixScope` `All` 1 or `OrphanedRuns` 2, `--older-than` default 2, `--last-migration-status`) lists or repairs orphans by heartbeat age with the
-`Repository_MigrationRun_SelectOrphaned` and `*_FixOrphaned` templates.
+`fix` command (`FixScope` `All` 1 or `OrphanedRuns` 2, `--older-than` default 2, `--last-migration-status` without a default) lists or repairs orphans by heartbeat age with the
+`Repository_MigrationRun_SelectOrphaned` and `*_FixOrphaned` templates. The repair settles the open records of a run by their progress: `Failed` with the committed
+blocks, `Migrated` when every block committed, `NotMigrated` without progress, a rollback likewise; `FinishedAt` is set where it is empty, `DurationInMs` stays as it is.
 Scenario: [Runtime View 6.7](06-Runtime-View.md#67-concurrency-exclusive-run-lock-and-orphaned-run-recovery-fix). Authoritative page: [Concurrency control](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/02-core-concepts/concurrency-control.md).
 
 ### Validate and Simulate Run Modes

@@ -475,8 +475,9 @@ public class CommandLineConfiguration
 
         var lastMigrationStatusOption = new Option<string>("--last-migration-status", "-lms")
         {
-            Description = "Status for orphaned migrations: not-migrated (re-execute next time) or migrated (skip next time)",
-            DefaultValueFactory = _ => "not-migrated"
+            Description = "Status for the open records of an orphaned run. Without the option each record keeps its progress: " +
+                          "Failed after committed blocks, Migrated when every block committed, NotMigrated without progress; " +
+                          "migrated or not-migrated set that status on every open record of the run"
         };
 
         lastMigrationStatusOption.Validators.Add(result =>
@@ -707,8 +708,9 @@ public class CommandLineConfiguration
             var olderThan = parseResult.GetValue(command.Options.OfType<Option<int>>().First(o => o.Name == "--older-than"));
             var runModeString = parseResult.GetValue(command.Options.OfType<Option<string>>().First(o => o.Name == "--run-mode")) ?? "migrate";
             var runMode = ParseRunMode(runModeString);
-            var lastMigrationStatusString = parseResult.GetValue(command.Options.OfType<Option<string>>().First(o => o.Name == "--last-migration-status")) ?? "not-migrated";
-            var lastMigrationStatus = ParseLastMigrationStatus(lastMigrationStatusString);
+            // Without the option the engine keeps the progress of every open record
+            var lastMigrationStatusString = parseResult.GetValue(command.Options.OfType<Option<string>>().First(o => o.Name == "--last-migration-status"));
+            MigrationStatus? lastMigrationStatus = lastMigrationStatusString != null ? ParseLastMigrationStatus(lastMigrationStatusString) : null;
 
             ParsedOptions = new RayMigratorConsoleOptions
             {
@@ -812,16 +814,20 @@ public class CommandLineConfiguration
     }
 
     /// <summary>
-    /// Parses a string to MigrationStatus for the --last-migration-status option
+    /// Parses the value of <c>--last-migration-status</c>. The option validator rejects unknown values with a friendly
+    /// System.CommandLine error before this runs; the throw only guards direct calls, so that no unknown value silently
+    /// becomes a status.
     /// </summary>
-    private static MigrationStatus ParseLastMigrationStatus(string value)
+    /// <exception cref="ConfigurationValidationException">The value is not migrated or not-migrated.</exception>
+    internal static MigrationStatus ParseLastMigrationStatus(string value)
     {
         var normalizedValue = ResolveEnvironmentVariable(value).ToLowerInvariant();
         return normalizedValue switch
         {
             "migrated" => MigrationStatus.Migrated,
             "not-migrated" => MigrationStatus.NotMigrated,
-            _ => MigrationStatus.NotMigrated
+            _ => throw new ConfigurationValidationException(
+                $"Invalid value [{value}] for --last-migration-status. Allowed values: [migrated, not-migrated].")
         };
     }
 

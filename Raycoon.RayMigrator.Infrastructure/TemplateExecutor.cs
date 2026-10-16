@@ -297,7 +297,8 @@ public class TemplateExecutor
 
     /// <summary>
     /// Selects orphaned MigrationRun entries (Running state, FinishedAt IS NULL).
-    /// Used by the Fix command. Parameters are passed directly (not from MigrationContext).
+    /// Used by the Fix command and by the auto-fix of a start that finds another run open. Parameters are passed directly
+    /// (not from MigrationContext).
     /// </summary>
     /// <param name="productId">The product ID to query.</param>
     /// <param name="environmentId">The environment ID to query.</param>
@@ -412,27 +413,37 @@ public class TemplateExecutor
     }
 
     /// <summary>
-    /// Updates orphaned MigrationRecord entries (Running/Unclear) for a given MigrationRun.
-    /// Used by the Fix command. Parameters are passed directly (not from MigrationContext).
+    /// Settles the open MigrationRecord entries (Pending, Executing) of an orphaned MigrationRun that the caller has
+    /// closed before (<see cref="RepositoryMigrationRunFixOrphanedAsync"/>). Used by the auto-fix of a parallel start and
+    /// by the Fix command. Parameters are passed directly (not from MigrationContext).
     /// </summary>
-    /// <param name="migrationRunId">The MigrationRun ID whose orphaned migrations to fix.</param>
-    /// <param name="status">Target status: NotMigrated (50) or Migrated (100).</param>
+    /// <param name="migrationRunId">The MigrationRun ID whose open entries to settle.</param>
+    /// <param name="status">
+    /// Null lets the template decide per entry from its progress, as a failure at the block that was running would have
+    /// left it: Failed after some but not all committed blocks, so that the next migrate-up resumes after them; Migrated
+    /// when every block committed; NotMigrated without a committed block; for a rollback that was running Failed with its
+    /// rollback blocks, which migrate-down continues, Failed without rollback progress, or NotMigrated when every rollback
+    /// block ran. A status (NotMigrated, Migrated) is set on every open entry. The executor hands null to the template as
+    /// <c>@MigrationStatusId = 0</c>. The counters stay, FinishedAt is set to the time of the repair where it is empty,
+    /// and DurationInMs stays as it is: a file that was running gets the time of the repair without a duration, a record
+    /// whose rollback was running keeps the end and the duration of its last terminal status.
+    /// </param>
     /// <returns>Number of updated MigrationRecord entries (0 = none found, which is not an error).</returns>
     /// <exception cref="TemplateExecutionException"></exception>
     public async Task<int> RepositoryMigrationRecordFixOrphanedAsync(
         int migrationRunId,
-        MigrationStatus status,
+        MigrationStatus? status,
         CancellationToken cancellationToken = default)
     {
         var templateType = TemplateType.Repository_MigrationRecord_FixOrphaned;
         var eventId = MigrationEvent.TemplateExecutionRepositoryMigrationFixOrphaned;
 
-        _logger.LogDebug(eventId, "Fixing orphaned MigrationRecord entries for MigrationRunId {MigrationRunId} with status {Status}{MigrationContext}",
-            migrationRunId, status, _ctxAccessor.Current.Clone);
+        _logger.LogDebug(eventId, "Fixing orphaned MigrationRecord entries for MigrationRunId {MigrationRunId} {Settlement}{MigrationContext}",
+            migrationRunId, status is { } assumed ? $"with status {assumed}" : "by progress", _ctxAccessor.Current.Clone);
 
         DalParameterList dalParameterList = new DalParameterList();
         dalParameterList.AddParameter(new DalParameter("MigrationRunId", migrationRunId, typeof(int)));
-        dalParameterList.AddParameter(new DalParameter("MigrationStatusId", (byte)status, typeof(byte)));
+        dalParameterList.AddParameter(new DalParameter("MigrationStatusId", (byte)(status ?? MigrationStatus.Undefined), typeof(byte)));
 
         var template = _templateCache.GetRepositoryTemplate(templateType, _repository);
         var templateResponse = await ExecuteScalarWithNegativeResultCodeExceptionAsync(

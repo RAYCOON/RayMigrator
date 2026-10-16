@@ -255,7 +255,7 @@ The `Database.Example` project includes all 30 files as placeholders with TODO c
 | `Repository_MigratorMeta_CheckInsert.sql` | Register the RayMigrator version in `MigratorMeta` if missing, return the `MigratorMetaId` (`-12` when several rows match) |
 | `Repository_Drop.sql` | Drop all repository tables and schema |
 | `Repository_Environment_CheckInsert.sql` | Insert environment if not exists, return EnvironmentId |
-| `Repository_MigrationRecord_FixOrphaned.sql` | Fix orphaned migration records |
+| `Repository_MigrationRecord_FixOrphaned.sql` | Settle the open records of an orphaned run: with `@MigrationStatusId = 0` decide per record from `FileUpBlocksMigrated`/`FileUpBlocksTotal` and the `FileDown*` columns as the shipped templates do (keep the counters), with 30, 50 or 100 set that status on every open record; set `FinishedAt` where it is NULL, leave `DurationInMs` |
 | `Repository_MigrationRecord_GetInterrupted.sql` | Get interrupted migrations |
 | `Repository_MigrationRecordHistory_Select.sql` | Select the terminal state transitions (MigrationRecordHistory rows) of a product/environment for the `info` run history; the same columns as `Repository_MigrationRecord_Select.sql`, `StartedAt` and `FinishedAt` included |
 | `Repository_MigrationRecordHistory_Delete.sql` | Delete one batch of at most `@BatchSize` history rows historized before `@CutoffUtc`, the oldest first, sparing the rows of open runs; return `'n,message'` with the rows deleted |

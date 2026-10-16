@@ -255,7 +255,7 @@ public class ScenarioContext : IAsyncDisposable
     public async Task<FixIssuesResult> FixIssuesAsync(
         FixScope scope = FixScope.OrphanedRuns,
         int olderThanMinutes = 0,
-        MigrationStatus assumedMigrationStatus = MigrationStatus.NotMigrated,
+        MigrationStatus? assumedMigrationStatus = null,
         CancellationToken? cancellationToken = null)
     {
         var request = new FixIssuesRequest
@@ -297,6 +297,20 @@ public class ScenarioContext : IAsyncDisposable
         int productId = _queryHelper.GetProductId(_productAlias);
         _queryHelper.InsertOrphanedMigrationRun(productId, minutesOld, "Docker", heartbeatMinutesOld);
     }
+
+    /// <summary>
+    /// Sets the record of <paramref name="filename"/> on <paramref name="targetAlias"/> to the state a process leaves when
+    /// it ends abruptly in the middle of the file or of its rollback: <paramref name="status"/>, the counters and the run
+    /// where given, no end for a file, the end of the last terminal status for a rollback
+    /// (<see cref="RepositoryQueryHelper.SetMigrationRecordState"/>). Together with <see cref="InsertOrphanedMigrationRun"/>
+    /// it writes the footprint of an abrupt end, which no command of the engine leaves.
+    /// </summary>
+    public void SetMigrationRecordState(string filename, string targetAlias, MigrationStatus status,
+        int? fileUpBlocksMigrated = null, int? fileDownBlocksMigrated = null, int? migrationRunId = null)
+        => _queryHelper.SetMigrationRecordState(filename, targetAlias, (int)status, fileUpBlocksMigrated, fileDownBlocksMigrated, migrationRunId);
+
+    /// <summary>The end of the record of <paramref name="filename"/>: FinishedAt as text and DurationInMs, each null when empty.</summary>
+    public (string? FinishedAt, long? DurationInMs) GetMigrationRecordEnd(string filename) => _queryHelper.GetMigrationRecordEnd(filename);
 
     /// <summary>
     /// Returns the ProductId of the scenario's product from the repository, or -1 when no product row exists.

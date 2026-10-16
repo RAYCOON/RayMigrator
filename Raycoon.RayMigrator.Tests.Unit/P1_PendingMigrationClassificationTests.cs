@@ -9,10 +9,11 @@ namespace Raycoon.RayMigrator.Tests.Unit;
 
 /// <summary>
 /// P1: The reason the status gives a pending (file, target) pair follows what the next migrate-up does with its record
-/// (<see cref="MigrationService.ClassifyPendingMigration"/>): the orphan repair before the first file turns the open
-/// records of an open run NotMigrated, a record that migrate-up finalizes or resumes is Resumable with the committed
-/// blocks it skips (also for a RunAlways file), then RunAlways, HashMismatch for a Migrated record whose hash no longer
-/// matches, Failed for a failed attempt without a resume point, NotMigrated for the rest.
+/// (<see cref="MigrationService.ClassifyPendingMigration"/>): the open records of an open run are classified as the
+/// orphan repair before the first file leaves them (<see cref="MigrationService.ProjectOrphanRepair"/>), a record that
+/// migrate-up finalizes or resumes is Resumable with the committed blocks it skips (also for a RunAlways file), then
+/// RunAlways, HashMismatch for a Migrated record whose hash no longer matches, Failed for a failed attempt without a
+/// resume point, NotMigrated for the rest.
 /// </summary>
 public class PendingMigrationClassificationTests
 {
@@ -31,8 +32,15 @@ public class PendingMigrationClassificationTests
     }
 
     private static (PendingMigrationReason Reason, int? ResumeFromBlock) Classify(
-        MigrationFileInfo file, MigrationRecord? record, MigrationRecord? migratedRecord = null, int? openRunId = null)
-        => MigrationService.ClassifyPendingMigration(file, "MainDB", record == null ? [] : [record], migratedRecord, openRunId);
+        MigrationFileInfo file, MigrationRecord? record, MigrationRecord? migratedRecord = null)
+        => MigrationService.ClassifyPendingMigration(file, "MainDB", record == null ? [] : [record], migratedRecord);
+
+    /// <summary>
+    /// The status hands in the records as the orphan repair of the next migrate-up leaves them
+    /// (<see cref="MigrationService.ProjectOrphanRepair"/>), and the pair is classified like any other.
+    /// </summary>
+    private static (PendingMigrationReason Reason, int? ResumeFromBlock) ClassifyAfterTheRepair(MigrationRecord record)
+        => MigrationService.ClassifyPendingMigration(ThreeBlockFile(), "MainDB", MigrationService.ProjectOrphanRepair([record], OpenRunId), null);
 
     [Fact]
     public void Classify_WithoutRecord_IsNotMigrated()
@@ -62,6 +70,22 @@ public class PendingMigrationClassificationTests
 
         // Assert
         result.Should().Be((PendingMigrationReason.Failed, (int?)null));
+    }
+
+    [Fact]
+    public void Classify_FailedRecordOfTheTargetInAnotherCase_IsNotMigrated()
+    {
+        // Arrange: the failed attempt names the target in another case; the checks of migrate-up that find the record of
+        // a pair (resume, finalize) compare the alias ordinally and do not see it
+        var record = Record(MigrationStatus.Failed);
+        record.TargetAlias = "maindb";
+
+        // Act
+        var result = Classify(ThreeBlockFile(), record);
+
+        // Assert
+        result.Should().Be((PendingMigrationReason.NotMigrated, (int?)null),
+            because: "the record of the pair is found with the ordinal comparison of the checks of migrate-up");
     }
 
     [Fact]
@@ -102,7 +126,7 @@ public class PendingMigrationClassificationTests
     public void Classify_ExecutingWithEveryBlockOfAnEndedRun_IsResumableAfterTheLastBlock()
     {
         // Act
-        var result = Classify(ThreeBlockFile(), Record(MigrationStatus.Executing, blocksMigrated: 3), openRunId: OpenRunId);
+        var result = ClassifyAfterTheRepair(Record(MigrationStatus.Executing, blocksMigrated: 3));
 
         // Assert
         result.Should().Be((PendingMigrationReason.Resumable, (int?)3),
@@ -130,24 +154,37 @@ public class PendingMigrationClassificationTests
     }
 
     [Theory]
-    [InlineData(MigrationStatus.Executing, 1)]
-    [InlineData(MigrationStatus.Executing, 3)]
-    [InlineData(MigrationStatus.Pending, 0)]
-    public void Classify_OpenRecordOfTheOpenRun_IsNotMigrated(MigrationStatus status, int blocksMigrated)
+    [InlineData(MigrationStatus.Executing, 1, PendingMigrationReason.Resumable, 1)]
+    [InlineData(MigrationStatus.Executing, 2, PendingMigrationReason.Resumable, 2)]
+    [InlineData(MigrationStatus.Executing, 0, PendingMigrationReason.NotMigrated, null)]
+    [InlineData(MigrationStatus.Pending, 0, PendingMigrationReason.NotMigrated, null)]
+    public void Classify_OpenRecordOfTheOpenRun_FollowsTheOrphanRepair(
+        MigrationStatus status, int blocksMigrated, PendingMigrationReason reason, int? resumeFromBlock)
     {
         // Act
-        var result = Classify(ThreeBlockFile(), Record(status, blocksMigrated: blocksMigrated, runId: OpenRunId), openRunId: OpenRunId);
+        var result = ClassifyAfterTheRepair(Record(status, blocksMigrated: blocksMigrated, runId: OpenRunId));
 
         // Assert
-        result.Should().Be((PendingMigrationReason.NotMigrated, (int?)null),
-            because: "the orphan repair of the next migrate-up marks the open records of the run NotMigrated, and the file runs from its first block");
+        result.Should().Be((reason, resumeFromBlock),
+            because: "the orphan repair of the next migrate-up keeps the committed blocks of the record, and the file resumes after them");
+    }
+
+    [Fact]
+    public void Classify_OpenRecordWithEveryBlockOfTheOpenRun_IsNotPending()
+    {
+        // Act
+        var projected = MigrationService.ProjectOrphanRepair([Record(MigrationStatus.Executing, blocksMigrated: 3, runId: OpenRunId)], OpenRunId);
+
+        // Assert
+        MigrationService.IsAppliedOnTarget(ThreeBlockFile(), "MainDB", projected, HashValidationScope.File, out _).Should().BeTrue(
+            because: "the orphan repair finishes a record that committed every block, so the next migrate-up does not run the file");
     }
 
     [Fact]
     public void Classify_FailedRecordOfTheOpenRun_IsResumable()
     {
         // Act
-        var result = Classify(ThreeBlockFile(), Record(MigrationStatus.Failed, blocksMigrated: 1, runId: OpenRunId), openRunId: OpenRunId);
+        var result = ClassifyAfterTheRepair(Record(MigrationStatus.Failed, blocksMigrated: 1, runId: OpenRunId));
 
         // Assert
         result.Should().Be((PendingMigrationReason.Resumable, (int?)1), because: "the orphan repair changes only Pending and Executing records");

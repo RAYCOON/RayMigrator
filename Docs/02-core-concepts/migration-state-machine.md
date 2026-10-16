@@ -30,6 +30,11 @@ stateDiagram-v2
     Failed --> NotMigrated: Rollback success (error recovery)
     Failed --> NotMigrated: Manual fix + update-hash
     Failed --> Migrated: Manual fix + update-hash
+
+    Executing --> Failed: Orphan repair after an abrupt end (committed blocks kept)
+    Executing --> Migrated: Orphan repair (every block committed)
+    Executing --> NotMigrated: Orphan repair (no progress, or every rollback block ran)
+    Pending --> NotMigrated: Orphan repair (no progress)
 ```
 
 ## MigrationStatus Definitions
@@ -60,7 +65,7 @@ A migration file is in `Executing` status when:
 
 **Valid Operations**: Completes to `Migrated` on up-migration success, `NotMigrated` on rollback success, transitions to `Failed` on error or on a cancel
 
-A record also stays `Executing` (or `Pending`) with its counter when the process ended in the middle of the file: a crash, a kill, or a second Ctrl+C or SIGTERM in the CLI. It keeps that status until the run is closed as orphaned (see [After a Hard Abort](#after-a-hard-abort)).
+A record also stays `Executing` (or `Pending`) with its counter when the process ended in the middle of the file: a crash, a kill, or a second Ctrl+C or SIGTERM in the CLI. It keeps that status until the run is closed as orphaned, and the repair then settles it by its progress (see [After a Hard Abort](#after-a-hard-abort)).
 
 ### NotMigrated (50)
 
@@ -95,7 +100,7 @@ A migration file is in `Failed` status when:
 
 **Valid Operations**: Manual investigation required
 
-A `Failed` record with some but not all of its rollback blocks (`0 < FileDownBlocksMigrated < FileDownBlocksTotal`) is a rollback that stopped in the middle. Migrate-down continues it with its next rollback block, and migrate-up refuses to run while a file it would run has such a record, because it would run the file from block 1 on a target that kept part of it; `info` lists it as `RollbackIncomplete`. See [Error Handling: A Rollback That Stopped in the Middle](error-handling.md#a-rollback-that-stopped-in-the-middle).
+A record `Failed`, or `Executing` in a run that has ended, with some but not all of its rollback blocks (`0 < FileDownBlocksMigrated < FileDownBlocksTotal`) is a rollback that stopped in the middle, as a cancelled migrate-down or error recovery, a failed rollback block after the first or the orphan repair of a run that ended abruptly in the middle of the rollback leaves it. Migrate-down continues it with its next rollback block, and migrate-up refuses to run while a file it would run has such a record, because it would run the file from block 1 on a target that kept part of it; `info` lists it as `RollbackIncomplete`. See [Error Handling: A Rollback That Stopped in the Middle](error-handling.md#a-rollback-that-stopped-in-the-middle).
 
 ## MigrationRunResult (Per-Run)
 
@@ -203,7 +208,23 @@ The first block of a rollback file, an atomic rollback and a rollback through a 
 
 ## After a Hard Abort
 
-A process that ends in the middle of a run writes nothing more: a crash, a kill, a `SIGKILL` after the grace period of a container stop, or a second Ctrl+C or SIGTERM in the CLI. The run row stays `Running` and the record of the file in progress `Executing` with the leading blocks that committed (0 while a CLI tool runs, those of the earlier attempt from the start of a resumed file), or `Pending` when a file that does not resume had not committed a block yet; on the atomic path, whose transaction the abort rolls back, the record keeps what it showed before that transaction: `Pending`, or `Executing` with the blocks a resumed file resumes after. A rollback in progress leaves `Executing` with the rollback blocks that ran. The heartbeat of the run stops. The next migrate-up, migrate-down or baseline for the same product and environment closes the run as `Error` once its last heartbeat is older than `Repository.OrphanedRunThresholdInMinutes` (default 2) and marks its open records `NotMigrated`; `fix --scope orphanedruns` does the same with `--older-than` and sets the records to `--last-migration-status` (default `NotMigrated`). `info` lists such a record as `NotMigrated` while the run is open, because that repair comes first. See [Concurrency Control](concurrency-control.md#scenario-3-process-crash).
+A process that ends in the middle of a run writes nothing more: a crash, a kill, a `SIGKILL` after the grace period of a container stop, or a second Ctrl+C or SIGTERM in the CLI. The run row stays `Running` and the record of the file in progress `Executing` with the leading blocks that committed (0 while a CLI tool runs, those of the earlier attempt from before the first block of a resumed file), or `Pending` when a file had not committed a block yet, a resumed file as well when the process ended between the insert of its record and the write of its resume point; on the atomic path, whose transaction the abort rolls back, the record keeps what it showed before that transaction: `Pending`, or `Executing` with the blocks a resumed file resumes after. A rollback in progress leaves `Executing` with the rollback blocks that ran. The heartbeat of the run stops. The next migrate-up, migrate-down or baseline for the same product and environment closes the run as `Error` once its last heartbeat is older than `Repository.OrphanedRunThresholdInMinutes` (default 2) and settles its open records by their progress, as a failure at the block that was running would have left them:
+
+| Record when the process ended | After the repair | Next migrate-up |
+|-------------------------------|------------------|-----------------|
+| `Pending`, or `Executing` without a committed block (a CLI tool file, the atomic path) | `NotMigrated` | runs the file from block 1 |
+| `Executing` with some committed blocks | `Failed` with them | resumes after them when the SQL blocks of the file did not change, so that at most the block that was running runs again (with `MigrationErrorAction=Ignore` the blocks from the first failed one) |
+| `Executing` with every block committed | `Migrated` | runs nothing of the file |
+| A rollback in its first block (`FileDownHash` set, no rollback block) | `Failed` | runs the file from block 1; migrate-down does not continue it |
+| A rollback with some rollback blocks | `Failed` with them | refuses the file; migrate-down continues the rollback |
+| A rollback with every rollback block | `NotMigrated` | runs the file from block 1 |
+
+`fix --scope orphanedruns` applies the same rule with `--older-than`; `--last-migration-status migrated` or `not-migrated` sets that status on every open record of the run instead. The repair keeps the counters, sets `FinishedAt` to its time, leaves `DurationInMs` empty and writes no history row. `info` lists the open records of an open run as the repair will leave them, because the repair comes first. See [Concurrency Control](concurrency-control.md#scenario-3-process-crash).
+
+After the repair a run that ended abruptly leaves its records as a cancel or a failure at the same block leaves them, because the counters are the same (see [Block-Level State](#block-level-state)), and the next run does the same after either; at most a record without a committed block is `NotMigrated` instead of `Failed`. Two things differ on purpose:
+
+- The run row: a cancel closes the run as `Cancelled` (70) with `1004`, or as `Error` (90) with `1005`; the repair closes a run that ended abruptly as `Error` (90).
+- The `MigrationCancelledAction`: only a cancel takes it. A run that ends abruptly rolls nothing back, as with `Terminate`, so the files it migrated stay `Migrated`. A second Ctrl+C or SIGTERM during the rollback of a `RollbackFile`, `RollbackRun` or `RollbackRelease` ends the process at once: the record that rollback is working on stays `Executing` with the leading rollback blocks that ran, as after any hard abort, until the repair settles it by the table above; the records it did not reach keep their state, and the repair closes the run as `Error` instead of `Cancelled`.
 
 ## Block-Level State
 

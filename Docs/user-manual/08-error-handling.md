@@ -332,7 +332,7 @@ Some work always runs to its end, so that the repository never records a step ha
 
 With `MigrationErrorAction` = `Ignore`, the interrupted file is stored like a file with ignored errors: its record is `Failed` with the blocks before the first failed one, and the next `migrate-up` resumes at the failed block.
 
-A second Ctrl+C ends the process at once. That abandons the run like a crash: it stays `Running` until RayMigrator closes it as orphaned (next section) or you run `fix`.
+A second Ctrl+C ends the process at once. That abandons the run like a crash: it stays `Running` until RayMigrator closes it as orphaned (next section) or you run `fix`. The repair keeps what committed: the next `migrate-up` resumes the interrupted file after its committed blocks, and runs at most the block that was running again.
 
 The detailed semantics, also for hosts that cancel a run through the engine API, are in [Error Handling — Cancellation](../02-core-concepts/error-handling.md#cancellation) and [ADR-028](../arc42/09-Architecture-Decisions.md#adr-028-a-run-cancels-at-the-next-block-boundary-with-a-migrationcancelledaction-and-records-cancelled); what every command does when it is cancelled is listed in [Cancelling a Run](../08-cli-reference/global-options.md#cancelling-a-run).
 
@@ -344,7 +344,7 @@ When RayMigrator starts a new migration run, it checks the repository for any ex
 
 ### Automatic Orphaned Run Recovery
 
-Before throwing an error, RayMigrator checks whether the blocking run is orphaned. A running command refreshes its heartbeat (`MigrationRun.LastHeartbeatAt`) every `Repository.HeartbeatIntervalInSeconds` (default 30 seconds); a run whose last heartbeat, or whose start when it has none, is older than `Repository.OrphanedRunThresholdInMinutes` (default 2 minutes) is orphaned. Orphaned runs are fixed automatically (marked as `Error` with orphaned migrations set to `NotMigrated`), and the migration run is retried. This handles the common case where a previous process crashed or was killed without cleaning up.
+Before throwing an error, RayMigrator checks whether the blocking run is orphaned. A running command refreshes its heartbeat (`MigrationRun.LastHeartbeatAt`) every `Repository.HeartbeatIntervalInSeconds` (default 30 seconds); a run whose last heartbeat, or whose start when it has none, is older than `Repository.OrphanedRunThresholdInMinutes` (default 2 minutes) is orphaned. Orphaned runs are fixed automatically (marked as `Error`; their open migrations keep their progress: `Failed` with the committed blocks, which the new run resumes after, `Migrated` when every block committed, `NotMigrated` without progress), and the migration run is retried. This handles the common case where a previous process crashed or was killed without cleaning up.
 
 If the blocking run still writes heartbeats, RayMigrator assumes it is genuinely active and throws a `MigrationAlreadyRunningException`, exiting with code `1`:
 
@@ -390,18 +390,19 @@ raymigrator fix -p BookStore -env Production
 | `--scope` | `OrphanedRuns` | What to fix: `OrphanedRuns` or `All` |
 | `--older-than` | `2` | Minutes since the last heartbeat (or the start of a run without one) after which an open run counts as orphaned; `0` fixes every open run |
 | `--run-mode` | `migrate` | `simulate` previews what would be fixed without making changes |
-| `--last-migration-status` | `not-migrated` | Status to assign to orphaned MigrationRecord rows: `not-migrated` or `migrated` |
+| `--last-migration-status` | — | Status to set on every open MigrationRecord row of the run: `not-migrated` or `migrated`; without it each row keeps the progress of its file |
 
 ### What Fix Does
 
 For each orphaned `MigrationRun` that matches the age threshold:
 
-1. Updates orphaned `MigrationRecord` rows (entries stuck in `Pending` or `Executing`) to the status specified by `--last-migration-status` (default: `NotMigrated`).
+1. Settles the open `MigrationRecord` rows (entries stuck in `Pending` or `Executing`): without `--last-migration-status` by the progress of each file, `Failed` with its committed blocks (the next `migrate-up` resumes after them), `Migrated` when every block committed, `NotMigrated` without progress; with the option to the status it names. The rows get `FinishedAt`, the time of the repair.
 2. Marks the `MigrationRun` itself as `Error` and sets its `FinishedAt` timestamp.
 
 ### Choosing --last-migration-status
 
-- Use `not-migrated` (default) when you are **unsure** whether the interrupted migrations completed successfully. This causes RayMigrator to re-execute them on the next run.
+- Leave the option out in the normal case: each open record keeps what committed, so the next `migrate-up` resumes a file after its committed blocks and normally runs only the block that was running again (under `MigrationErrorAction=Ignore` the blocks from the first failed one).
+- Use `not-migrated` when you want the files to run again from their first block, for example after you have undone their changes by hand.
 - Use `migrated` when you have **verified** that the interrupted migrations did complete on the database (e.g., by checking that the tables/data exist). This prevents re-execution.
 
 ---

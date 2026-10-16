@@ -126,7 +126,8 @@ Process A starts migration for ProductA
 Process A crashes (MigrationRun remains "Running", its heartbeat stops)
 Process B attempts migration for ProductA (last heartbeat of A older than 2 minutes)
 → Process B receives MigrationAlreadyRunningException (ResultCode -2)
-→ Auto-fix detects the orphaned run, closes it as Error and marks its open records NotMigrated
+→ Auto-fix detects the orphaned run, closes it as Error and settles its open records by their progress
+  (Failed with the committed blocks, Migrated when every block committed, NotMigrated without progress)
 → Process B retries insert and succeeds
 ```
 
@@ -282,15 +283,15 @@ WHERE Id = @OrphanedMigrationRunId
   AND DATEDIFF_BIG(SECOND, COALESCE(LastHeartbeatAt, StartedAt), SYSUTCDATETIME()) / 60 >= 2;
 ```
 
-The records of the run stay `Pending` or `Executing`; `fix` closes them as well (`--last-migration-status`), so prefer it.
+The records of the run stay `Pending` or `Executing`; `fix` settles them as well (by their progress, or with `--last-migration-status`), so prefer it.
 
 ### Automatic Cleanup on Migration Start
 
-`MigrationService.RepositoryMigrationRunInsertWithAutoFix` automatically detects and cleans up orphaned runs whose last heartbeat is older than `Repository.OrphanedRunThresholdInMinutes` (default 2) when a new migration run is started. This covers the common case where a previous process crashed, or a second Ctrl+C or SIGTERM ended it, and left an orphaned run. The auto-fix uses the same `Repository_MigrationRun_FixOrphaned` template as the manual Fix command, which refuses a run that wrote a heartbeat since the select (result `-31`), and marks the open records of a closed run `NotMigrated`.
+`MigrationService.RepositoryMigrationRunInsertWithAutoFix` automatically detects and cleans up orphaned runs whose last heartbeat is older than `Repository.OrphanedRunThresholdInMinutes` (default 2) when a new migration run is started. This covers the common case where a previous process crashed, or a second Ctrl+C or SIGTERM ended it, and left an orphaned run. The auto-fix uses the same `Repository_MigrationRun_FixOrphaned` template as the manual Fix command, which refuses a run that wrote a heartbeat since the select (result `-31`), and settles the open records of a closed run by the progress of their files (`Repository_MigrationRecord_FixOrphaned` without a status): `Failed` with its committed blocks when some but not all committed, `Migrated` when every block committed, `NotMigrated` without progress; a rollback that was running ends `Failed` with its rollback blocks, or `NotMigrated` when every rollback block ran. The repair sets `FinishedAt` where it is empty and leaves `DurationInMs` as it is: a file that was running gets the time of the repair without a duration, a record whose rollback was running keeps the end and the duration of its last terminal status.
 
 ### Manual Cleanup via Fix Command
 
-The `fix` command identifies orphaned runs using `RepositoryMigrationRunSelectOrphanedAsync` and fixes them using `RepositoryMigrationRunFixOrphanedAsync` (sets `MigrationRunResultId` to Error and `FinishedAt` to current UTC time). It also fixes orphaned MigrationRecord entries via `RepositoryMigrationRecordFixOrphanedAsync`. The default age threshold is 2 minutes since the last heartbeat (`--older-than` option), the default of the auto-fix threshold; `--older-than 0` closes every open run.
+The `fix` command identifies orphaned runs using `RepositoryMigrationRunSelectOrphanedAsync` and fixes them using `RepositoryMigrationRunFixOrphanedAsync` (sets `MigrationRunResultId` to Error and `FinishedAt` to current UTC time). It also settles the open MigrationRecord entries of the run via `RepositoryMigrationRecordFixOrphanedAsync`: by their progress as the auto-fix does, or with the status of `--last-migration-status` on every one of them. The default age threshold is 2 minutes since the last heartbeat (`--older-than` option), the default of the auto-fix threshold; `--older-than 0` closes every open run.
 
 ## Best Practices
 

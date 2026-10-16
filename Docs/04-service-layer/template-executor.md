@@ -133,8 +133,10 @@ public Task<List<Dictionary<string, object?>>> RepositoryMigrationRunSelectAsync
 ### Fix Operations
 
 ```csharp
-public Task<int> RepositoryMigrationRecordFixOrphanedAsync(int migrationRunId, MigrationStatus status, CancellationToken cancellationToken = default);
+public Task<int> RepositoryMigrationRecordFixOrphanedAsync(int migrationRunId, MigrationStatus? status, CancellationToken cancellationToken = default);
 ```
+
+A `null` status lets `Repository_MigrationRecord_FixOrphaned` settle every open record of the run by its progress (`@MigrationStatusId = 0`); `NotMigrated` or `Migrated` is set on every open record. The counters stay, `FinishedAt` is set to the time of the repair where it is empty, and `DurationInMs` stays as it is (empty for a file that was running; a record whose rollback was running keeps the end and the duration of its last terminal status).
 
 ### Migration Record Operations
 

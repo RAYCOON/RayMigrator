@@ -192,7 +192,7 @@ Note: Age-based filtering is not performed at the SQL level. The template return
 `MigrationService` wraps the `RepositoryMigrationRunInsertAsync` call in `RepositoryMigrationRunInsertWithAutoFix`. When the insert fails with `MigrationAlreadyRunningException`:
 
 1. The method queries for orphaned runs via `RepositoryMigrationRunSelectOrphanedAsync`
-2. Runs whose last heartbeat is older than `Repository.OrphanedRunThresholdInMinutes` (default 2) are auto-fixed (set to `Error` status, their open records to `NotMigrated`); `Repository_MigrationRun_FixOrphaned` refuses a run that wrote a heartbeat since the select (`-31`), which stays open
+2. Runs whose last heartbeat is older than `Repository.OrphanedRunThresholdInMinutes` (default 2) are auto-fixed (set to `Error` status, their open records settled by the progress of their files: `Failed` with the committed blocks, `Migrated` when every block committed, `NotMigrated` without progress); `Repository_MigrationRun_FixOrphaned` refuses a run that wrote a heartbeat since the select (`-31`), which stays open
 3. The insert is retried once
 4. If no orphaned run could be fixed, the original exception is rethrown; a retry that fails throws its own exception
 

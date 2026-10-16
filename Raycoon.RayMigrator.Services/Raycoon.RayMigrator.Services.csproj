@@ -18,6 +18,7 @@
 
     <ItemGroup>
         <InternalsVisibleTo Include="Raycoon.RayMigrator.Tests.Unit" />
+        <InternalsVisibleTo Include="Raycoon.RayMigrator.Tests.Engine" />
     </ItemGroup>
 
     <ItemGroup>

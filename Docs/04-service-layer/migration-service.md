@@ -116,7 +116,7 @@ public class FixIssuesRequest
     public FixScope Scope { get; set; } = FixScope.OrphanedRuns;
     public int OlderThanMinutes { get; set; } = 2;   // minimum age of the last heartbeat (or of the start); 0 repairs every open run
     public MigrationRunMode RunMode { get; set; } = MigrationRunMode.Migrate; // Migrate repairs, Simulate lists only (#22)
-    public MigrationStatus AssumedMigrationStatus { get; set; } = MigrationStatus.NotMigrated;
+    public MigrationStatus? AssumedMigrationStatus { get; set; }   // null (default): each open record keeps its progress; NotMigrated or Migrated: set on every open record
     public bool ShowInfo { get; set; } = true;
     public bool RevealSensitiveData { get; set; } = false;
 }
@@ -260,12 +260,12 @@ Why the next migrate-up runs a file on a target, or refuses to run it, as `Pendi
 | Name | Value | Description |
 |------|-------|-------------|
 | `Undefined` | 0 | Invalid |
-| `NotMigrated` | 10 | No record on the target, a rolled-back record, or a `Pending` or `Executing` record of a run that is still open (the orphan repair of the next migrate-up marks it `NotMigrated`); runs from the first block |
+| `NotMigrated` | 10 | No record on the target, a rolled-back record, or a record of a run that is still open without a committed block or with every rollback block run (the orphan repair of the next migrate-up settles the records of that run by their progress, and the list classifies them as it leaves them); runs from the first block |
 | `Failed` | 20 | The last attempt failed, or stopped without a final status in a run that has ended, and left nothing to resume; runs from the first block |
-| `Resumable` | 30 | A previous run committed the leading blocks and stopped (a failure, a cancel with `Terminate`, a run that ended after the last block without finalizing the record); migrate-up skips `ResumeFromBlock` blocks. Takes precedence over `RunAlways` |
+| `Resumable` | 30 | A previous run committed the leading blocks and stopped (a failure, a cancel with `Terminate`, a run that ended after the last block without finalizing the record, a run that ended abruptly, whose open record the orphan repair settles with its committed blocks, or a failed block that `MigrationErrorAction=Ignore` skipped); migrate-up skips `ResumeFromBlock` blocks. Takes precedence over `RunAlways` |
 | `RunAlways` | 40 | The file runs on every migrate-up (`RunAlways = true`) |
 | `HashMismatch` | 50 | Migrated, but its hash under the `HashValidationScope` of the target group no longer matches; runs again from the first block |
-| `RollbackIncomplete` | 60 | The rollback of the file stopped in the middle: the record is `Failed` with `RollbackBlocksMigrated` of its `RollbackBlocksTotal` rollback blocks (a cancelled migrate-down or error recovery, a failed rollback block after the first). Migrate-up refuses to run while there is one; migrate-down continues the rollback with the next rollback block. Takes precedence over every other reason |
+| `RollbackIncomplete` | 60 | The rollback of the file stopped in the middle: the record is `Failed`, or `Executing` in a run that has ended, with `RollbackBlocksMigrated` of its `RollbackBlocksTotal` rollback blocks (a cancelled migrate-down or error recovery, a failed rollback block after the first, the orphan repair of a run that ended abruptly in the middle of the rollback). Migrate-up refuses to run while there is one; migrate-down continues the rollback with the next rollback block. Takes precedence over every other reason |
 
 Source: `Raycoon.RayMigrator.Services.Abstractions/Models/PendingMigrationReason.cs`
 
@@ -425,7 +425,7 @@ public class TargetGroupStatus
 }
 ```
 
-`LastMigrationDate` comes from `MigrationRecord.FinishedAt` in UTC, which the record select returns since 0.20.0; with an external DAL whose select lacks the column it stays null.
+`LastMigrationDate` comes from `MigrationRecord.FinishedAt` in UTC, which the record select returns since 0.20.0; with an external DAL whose select lacks the column it stays null. A record that the orphan repair settled as `Migrated` counts with the time of the repair, which it writes as `FinishedAt`.
 
 ### MigrationHistory
 
@@ -765,7 +765,7 @@ public async Task<MigrationOperationResult> MigrateUpAsync(MigrateUpRequest requ
 
 The real method splits into the public wrapper, which links the tokens and reports `RunCompletedEvent`, and `MigrateUpCoreAsync`; the run heartbeat stops in a `finally` block.
 
-Before the first file, migrate-up refuses to run when a (file, target) pair it would run has a record whose rollback stopped in the middle: `Failed` with `0 < FileDownBlocksMigrated < FileDownBlocksTotal`, as a cancelled migrate-down or error recovery or a failed rollback block after the first leaves it (`FindIncompleteRollbacks`, `FindIncompleteRollback`). The record insert would reset the rollback columns and run the file from its first block on a target that kept part of what the rollback did not take back yet. Like a refused out-of-order run, the `InvalidOperationException` ends the run as `Error` before a file runs, in Simulate as well; the message (`IncompleteRollbackMessage`) names the release, file and target of every such record, its `k of n rollback blocks` and that migrate-down continues at block k+1. A `Failed` record without rollback progress (its first rollback block failed) is not refused: nothing continues it, and migrate-up runs the file again from its first block.
+Before the first file, migrate-up refuses to run when a (file, target) pair it would run has a record whose rollback stopped in the middle: `Failed`, or `Executing` in a run that has ended, with `0 < FileDownBlocksMigrated < FileDownBlocksTotal`, as a cancelled migrate-down or error recovery, a failed rollback block after the first or the orphan repair of a run that ended abruptly in the middle of the rollback leaves it (`FindIncompleteRollbacks`, `FindIncompleteRollback`). The record insert would reset the rollback columns and run the file from its first block on a target that kept part of what the rollback did not take back yet. Like a refused out-of-order run, the `InvalidOperationException` ends the run as `Error` before a file runs, in Simulate as well; the message (`IncompleteRollbackMessage`) names the release, file and target of every such record, its `k of n rollback blocks` and that migrate-down continues at block k+1. A `Failed` record without rollback progress (its first rollback block failed) is not refused: nothing continues it, and migrate-up runs the file again from its first block.
 
 ### MigrateDownAsync Flow
 
@@ -932,7 +932,7 @@ Returns the current migration status overview for a product (used by the `info` 
 3. **Phase 3**: File discovery
 4. **Phase 4**: Compute status metrics: current release, last run result and date (the newest `MigrationRun` row, `RepositoryMigrationRunSelectAsync(1)`), the pending migrations and the per-target-group status (`TargetGroupStatus`)
 
-The pending migrations come from `ListPendingMigrations`, which evaluates every file per target with the checks of migrate-up (`FilterAlreadyMigratedFiles` rules, `IsAppliedOnTarget`, the `Targets` filter and the `HashValidationScope` of the target group) and classifies each pending pair with `ClassifyPendingMigration`: a record whose rollback stopped in the middle (`FindIncompleteRollback`) is `RollbackIncomplete` first, whatever the file is, with `RollbackBlocksMigrated` and `RollbackBlocksTotal` from the record, because migrate-up refuses to run while there is one; a `Pending` or `Executing` record of the open run (the newest run row is `Running`) is `NotMigrated`, because the orphan repair of the next migrate-up marks it so; otherwise a record that `TryFinalizeCompletedMigrationAsync` finalizes or `FindResumableBlock` resumes is `Resumable` with its `ResumeFromBlock`, also for a `RunAlways` file; then `RunAlways`, `HashMismatch` for a Migrated record whose hash no longer matches, `Failed` for a failed attempt without a resume point, and `NotMigrated` for the rest. `OrderAsMigrateUpRuns` sorts the pairs into the order of a migrate-up without `--target-group-migration-order`; a `TargetGroupMigrationOrder` that migrate-up would refuse leaves the target groups in configuration order with a warning, so that the status still answers. `PendingMigrations` is the length of the list; every `TargetGroupStatus` counts its entries and takes `LastMigrationDate` from its Migrated record that finished last.
+The pending migrations come from `ListPendingMigrations`, which evaluates every file per target with the checks of migrate-up (`FilterAlreadyMigratedFiles` rules, `IsAppliedOnTarget`, the `Targets` filter and the `HashValidationScope` of the target group) and classifies each pending pair with `ClassifyPendingMigration`: a record whose rollback stopped in the middle (`FindIncompleteRollback`) is `RollbackIncomplete` first, whatever the file is, with `RollbackBlocksMigrated` and `RollbackBlocksTotal` from the record, because migrate-up refuses to run while there is one; the `Pending` and `Executing` records of the open run (the newest run row is `Running`) are first classified as the orphan repair of the next migrate-up leaves them (`ProjectOrphanRepair`): `Failed` with committed blocks, `Migrated` with every block, `NotMigrated` without progress, a rollback likewise; otherwise a record that `TryFinalizeCompletedMigrationAsync` finalizes or `FindResumableBlock` resumes is `Resumable` with its `ResumeFromBlock`, also for a `RunAlways` file; then `RunAlways`, `HashMismatch` for a Migrated record whose hash no longer matches, `Failed` for a failed attempt without a resume point, and `NotMigrated` for the rest. `OrderAsMigrateUpRuns` sorts the pairs into the order of a migrate-up without `--target-group-migration-order`; a `TargetGroupMigrationOrder` that migrate-up would refuse leaves the target groups in configuration order with a warning, so that the status still answers. `PendingMigrations` is the length of the list; every `TargetGroupStatus` counts its entries and takes `LastMigrationDate` from its Migrated record that finished last.
 
 Returns `MigrationStatusInfo` with product-level and target-group-level status. A cancel throws `OperationCanceledException`.
 
@@ -954,7 +954,7 @@ Fixes repository inconsistencies such as orphaned `MigrationRun` entries.
 2. **Phase 2**: Query orphaned runs via `RepositoryMigrationRunSelectOrphanedAsync(productId, environmentId)`
 3. **Phase 3**: Filter by `OlderThanMinutes` against `MinutesSinceHeartbeat` (the age of the last heartbeat, or of the start for a run without one)
 4. **Phase 4**: Log found orphans
-5. **Phase 5**: Unless the run mode is `Simulate`, fix each orphaned run: mark the run as Error (`RepositoryMigrationRunFixOrphanedAsync`, which refuses a run that wrote a heartbeat since the select), then fix its orphaned MigrationRecord entries (`RepositoryMigrationRecordFixOrphanedAsync` with `AssumedMigrationStatus`)
+5. **Phase 5**: Unless the run mode is `Simulate`, fix each orphaned run: mark the run as Error (`RepositoryMigrationRunFixOrphanedAsync`, which refuses a run that wrote a heartbeat since the select), then settle its open MigrationRecord entries (`RepositoryMigrationRecordFixOrphanedAsync` with `AssumedMigrationStatus`: null settles each entry by its progress, a status sets it on every entry)
 6. **Phase 6**: Return `FixIssuesResult`
 
 A cancel stops before the next run and returns `Success = false`, `ErrorCode = 1004` and the runs fixed so far.
@@ -1193,8 +1193,8 @@ When `RepositoryMigrationRunInsertAsync` fails with `MigrationAlreadyRunningExce
 1. Queries orphaned MigrationRun entries via `RepositoryMigrationRunSelectOrphanedAsync`
 2. Filters to runs whose last heartbeat (or start) is older than `Repository.OrphanedRunThresholdInMinutes` (default 2)
 3. If no auto-fixable orphaned runs are found, rethrows the original exception
-4. For each auto-fixable orphaned run: marks the run as Error (`RepositoryMigrationRunFixOrphanedAsync`, which leaves a run alone that wrote a heartbeat since the select) and then fixes its MigrationRecord entries (`RepositoryMigrationRecordFixOrphanedAsync` with `NotMigrated`); when every candidate turned out alive, rethrows the original exception
-5. Retries `RepositoryMigrationRunInsertAsync` once and starts the heartbeat
+4. For each auto-fixable orphaned run: marks the run as Error (`RepositoryMigrationRunFixOrphanedAsync`, which leaves a run alone that wrote a heartbeat since the select) and then settles its open MigrationRecord entries by their progress (`RepositoryMigrationRecordFixOrphanedAsync` without a status: `Failed` with the committed blocks, `Migrated` when every block committed, `NotMigrated` without progress) and logs how many it settled; when every candidate turned out alive, rethrows the original exception
+5. Reads the records again for the `FromReleaseVersion` of the new run, because the repair may have finished records, then retries `RepositoryMigrationRunInsertAsync` once and starts the heartbeat
 
 Used by `MigrateUpAsync`, `MigrateDownAsync`, and `BaselineAsync`.
 
@@ -1202,7 +1202,7 @@ Used by `MigrateUpAsync`, `MigrateDownAsync`, and `BaselineAsync`.
 
 **Visibility**: `internal`
 
-Before executing a file+target combination, both `ExecuteTargetGroupFileByFile` and `ExecuteTargetGroupTargetByTarget` call `TryFinalizeCompletedMigrationAsync` to recover from crashes between target execution and the final status update. It observes the token before the record is finalized; the update itself takes no token, like every repository write of a run. This handles the case where all SQL blocks were executed successfully but the migration record was not updated to `Migrated` status (e.g., due to a process crash).
+Before executing a file+target combination, both `ExecuteTargetGroupFileByFile` and `ExecuteTargetGroupTargetByTarget` call `TryFinalizeCompletedMigrationAsync` to finish a record whose blocks all committed but whose final status update never happened. It observes the token before the record is finalized; the update itself takes no token, like every repository write of a run. A run that ended abruptly does not leave such a record behind: the orphan repair finishes an `Executing` record with every block as `Migrated` before the first file (see [Migration State Machine: After a Hard Abort](../02-core-concepts/migration-state-machine.md#after-a-hard-abort)). The record this method finds is `Executing` in a run that has ended, for example when the repository writes at the end of the file failed (the final `Migrated` status and the `Failed` status after it) while the run row could still be closed.
 
 Conditions for finalization:
 1. An `Executing` record exists for the same file, release, target group, and target

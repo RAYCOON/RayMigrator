@@ -4714,12 +4714,14 @@ public class MigrationService : IMigrationService
                     continue;
                 }
 
-                await _templateExecutor.RepositoryMigrationRecordFixOrphanedAsync(orphanRunId, MigrationStatus.NotMigrated);
+                // Every open record of the run keeps the progress of its file (no status: the rule of the template)
+                int settledRecords = await _templateExecutor.RepositoryMigrationRecordFixOrphanedAsync(orphanRunId, null);
                 fixedRuns++;
 
                 _logger.LogWarning(
-                    "Auto-fixed orphaned MigrationRun {RunId} (running for {Minutes:F0} minutes, last heartbeat {HeartbeatMinutes:F0} minutes ago, marked as Error)",
-                    orphanRunId, minutesRunning, minutesSinceHeartbeat);
+                    "Auto-fixed orphaned MigrationRun {RunId} (running for {Minutes:F0} minutes, last heartbeat {HeartbeatMinutes:F0} minutes ago, marked as Error); " +
+                    "{Records} open record(s) settled by their progress: Failed after committed blocks, Migrated when every block committed, NotMigrated without progress",
+                    orphanRunId, minutesRunning, minutesSinceHeartbeat, settledRecords);
             }
 
             if (fixedRuns == 0)
@@ -4730,6 +4732,11 @@ public class MigrationService : IMigrationService
                     productId, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, environmentId);
                 throw;
             }
+
+            // The repair may have finished records (every block committed), so the release the run starts from is read
+            // again, as after a fix
+            var recordsAfterRepair = await _templateExecutor.RepositoryMigrationSelectAsync();
+            _ctxAccessor.Current.MigrationState.FromReleaseVersion = GetHighestMigratedRelease(recordsAfterRepair);
 
             // Retry the insert after fixing orphaned runs
             await _templateExecutor.RepositoryMigrationRunInsertAsync(settingsJson);
@@ -4943,8 +4950,10 @@ public class MigrationService : IMigrationService
 
     /// <summary>
     /// Checks if a previous migration attempt completed all SQL blocks but was not finalized
-    /// (status stuck at Executing with BlocksMigrated == BlocksTotal, typically caused by a
-    /// crash between target execution and the final Migrated status update).
+    /// (status stuck at Executing with BlocksMigrated == BlocksTotal in a run that has ended). A run that ended abruptly
+    /// leaves no such record: the orphan repair finishes it as Migrated before the first file. One stays, for example,
+    /// when the repository writes at the end of the file failed (the final Migrated status and the Failed status after
+    /// it) while the run row could still be closed.
     /// If found, updates the record to Migrated status in the repository.
     /// Returns the existing record ID if finalized, or -1 if no such record exists.
     /// </summary>
@@ -6182,13 +6191,6 @@ public class MigrationService : IMigrationService
                 productOptions, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment);
 
             // --- Phase 4: Compute status ---
-            var migratedRecords = existingRecords
-                .Where(r => r.MigrationStatusId == MigrationStatus.Migrated)
-                .ToList();
-
-            // Determine current release (highest release version among migrated records)
-            string currentRelease = GetHighestMigratedRelease(existingRecords) ?? "None";
-
             // Last run: the persisted result and timestamps of the newest MigrationRun row of the product.
             // Deriving them from the migration records is wrong: migrate-down does not own the records it rolls
             // back, and the status of an arbitrary record says nothing about how the run ended (#14).
@@ -6211,11 +6213,23 @@ public class MigrationService : IMigrationService
                     openRunId = Convert.ToInt32(lastRun["Id"]);
             }
 
+            // The next migrate-up closes an open run as orphaned before its first file, so the status sees the records of
+            // that run as the orphan repair leaves them: a file with every block committed is migrated, and its release
+            // counts for the current release
+            var records = ProjectOrphanRepair(existingRecords, openRunId);
+            var migratedRecords = records
+                .Where(r => r.MigrationStatusId == MigrationStatus.Migrated)
+                .ToList();
+
+            // Determine current release (highest release version among migrated records)
+            string currentRelease = GetHighestMigratedRelease(records) ?? "None";
+
             // Pending migrations: the (file, target) pairs the next migrate-up runs, in the order it runs them, each
             // with its reason. Evaluated per target like migrate-up does, so a target that failed while another
             // succeeded is pending (#8); targets outside a file's Targets filter are not listed (#10).
             var pendingFiles = ListPendingMigrations(
-                migrationFiles, existingRecords, productOptions, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, openRunId);
+                migrationFiles, records, productOptions,
+                _ctxAccessor.Current.RayMigratorConsoleOptions.Environment);
 
             // Build target group status
             var targetGroups = new Dictionary<string, TargetGroupStatus>();
@@ -6242,8 +6256,9 @@ public class MigrationService : IMigrationService
                         CurrentRelease = tgCurrentRelease,
                         ExecutedMigrations = tgRecords.Count,
                         PendingMigrations = pendingFiles.Count(p => p.TargetGroupAlias == tg.Alias),
-                        // The end of the record finished last; records without an end (an external DAL whose select
-                        // lacks the column, a status set by fix) do not count
+                        // The end of the record finished last, also of a record the orphan repair finished at the time
+                        // of the repair; a record without an end (an external DAL whose select lacks the column) does
+                        // not count
                         LastMigrationDate = tgRecords.Max(r => r.FinishedAt),
                         Targets = targets
                     };
@@ -6278,23 +6293,91 @@ public class MigrationService : IMigrationService
     }
 
     /// <summary>
+    /// The records as the orphan repair of the next migrate-up leaves them: the Pending and Executing records of the open
+    /// run <paramref name="openRunId"/> get the status <see cref="OrphanRepairStatus"/> gives them, as copies; every other
+    /// record stays the same instance. The status lists the pending migrations from these records, because migrate-up
+    /// does not start while the run is alive and closes it as orphaned before its first file once its heartbeat went
+    /// stale. Only the status changes; the counters stay, as the repair keeps them. Without an open run the records are
+    /// returned as they are.
+    /// </summary>
+    internal static List<MigrationRecord> ProjectOrphanRepair(List<MigrationRecord> records, int? openRunId)
+    {
+        if (openRunId == null)
+            return records;
+
+        return records
+            .Select(r => r.MigrationRunId == openRunId && r.MigrationStatusId is MigrationStatus.Pending or MigrationStatus.Executing
+                ? WithStatus(r, OrphanRepairStatus(r))
+                : r)
+            .ToList();
+    }
+
+    /// <summary>
+    /// The status the orphan repair gives an open record of the run it closes when no status is given, the rule of
+    /// <c>Repository_MigrationRecord_FixOrphaned</c>: the record ends as a failure at the block that was running would
+    /// have left it. A rollback that was running (<c>FileDownHash</c> set) ends NotMigrated when every rollback block ran,
+    /// otherwise Failed, so that migrate-down continues a rollback with progress and migrate-up refuses the file until
+    /// then; a file ends Migrated when every block committed, Failed after some committed blocks, so that the next
+    /// migrate-up resumes after them, and NotMigrated without any.
+    /// </summary>
+    internal static MigrationStatus OrphanRepairStatus(MigrationRecord record)
+    {
+        if (record.FileDownHash != null)
+        {
+            int rollbackBlocksTotal = record.FileDownBlocksTotal ?? 0;
+            return rollbackBlocksTotal > 0 && (record.FileDownBlocksMigrated ?? 0) >= rollbackBlocksTotal
+                ? MigrationStatus.NotMigrated
+                : MigrationStatus.Failed;
+        }
+
+        if (record.FileUpBlocksMigrated <= 0)
+            return MigrationStatus.NotMigrated;
+
+        return record.FileUpBlocksMigrated >= record.FileUpBlocksTotal ? MigrationStatus.Migrated : MigrationStatus.Failed;
+    }
+
+    /// <summary>A copy of <paramref name="record"/> with <paramref name="status"/>.</summary>
+    private static MigrationRecord WithStatus(MigrationRecord record, MigrationStatus status) => new()
+    {
+        Id = record.Id,
+        ProductId = record.ProductId,
+        MigrationRunId = record.MigrationRunId,
+        MigrationOperationId = record.MigrationOperationId,
+        MigrationStatusId = status,
+        ReleaseVersion = record.ReleaseVersion,
+        TargetGroupAlias = record.TargetGroupAlias,
+        TargetAlias = record.TargetAlias,
+        Filename = record.Filename,
+        FileOrderId = record.FileOrderId,
+        FileUpHash = record.FileUpHash,
+        FileUpConfigHash = record.FileUpConfigHash,
+        FileUpBlocksHash = record.FileUpBlocksHash,
+        FileUpBlocksMigrated = record.FileUpBlocksMigrated,
+        FileUpBlocksTotal = record.FileUpBlocksTotal,
+        MigrateDownFileExists = record.MigrateDownFileExists,
+        FileDownHash = record.FileDownHash,
+        FileDownConfigHash = record.FileDownConfigHash,
+        FileDownBlocksHash = record.FileDownBlocksHash,
+        FileDownBlocksMigrated = record.FileDownBlocksMigrated,
+        FileDownBlocksTotal = record.FileDownBlocksTotal,
+        StartedAt = record.StartedAt,
+        FinishedAt = record.FinishedAt
+    };
+
+    /// <summary>
     /// The (file, target) pairs the next migrate-up runs, each with its reason and the blocks it skips, in the order
     /// migrate-up runs them (<see cref="MigrationStatusInfo.PendingFiles"/>). A pair is pending under the rules of
     /// <see cref="FilterAlreadyMigratedFiles"/>: a RunAlways file on every target its Targets filter selects, any other
     /// file on every selected target without a Migrated record whose hash matches under the HashValidationScope of the
     /// target group (#8, #10). A file that no configured target, Targets filter or record assigns to a target is listed
-    /// once without a target, as the count always had it. The checks of migrate-up run here without their log lines.
+    /// once without a target, as the count always had it. The checks of migrate-up run here without their log lines, on
+    /// the records the next migrate-up reads (<see cref="ProjectOrphanRepair"/>).
     /// </summary>
-    /// <param name="openRunId">
-    /// The open run of the product and environment, whose open records the next migrate-up closes as orphaned; null when
-    /// no run is open.
-    /// </param>
     private List<PendingMigrationInfo> ListPendingMigrations(
         List<MigrationFileInfo> migrationFiles,
         List<MigrationRecord> existingRecords,
         ProductOptions productOptions,
-        string environment,
-        int? openRunId)
+        string environment)
     {
         var pending = new List<PendingMigrationInfo>();
         foreach (var file in migrationFiles)
@@ -6315,7 +6398,7 @@ public class MigrationService : IMigrationService
                 if (!file.RunAlways && IsAppliedOnTarget(file, targetAlias, existingRecords, scope, out migratedRecord))
                     continue;
 
-                var (reason, resumeFromBlock) = ClassifyPendingMigration(file, targetAlias, existingRecords, migratedRecord, openRunId);
+                var (reason, resumeFromBlock) = ClassifyPendingMigration(file, targetAlias, existingRecords, migratedRecord);
                 var incompleteRollback = reason == PendingMigrationReason.RollbackIncomplete
                     ? FindIncompleteRollback(file, targetAlias, existingRecords)
                     : null;
@@ -6330,54 +6413,45 @@ public class MigrationService : IMigrationService
 
     /// <summary>
     /// Why the next migrate-up runs a pending (file, target) pair, and how many committed leading blocks it skips, in the
-    /// order in which migrate-up treats the record of the pair. A record whose rollback stopped in the middle
-    /// (<see cref="FindIncompleteRollback"/>) is RollbackIncomplete first, because migrate-up refuses to run while there is
-    /// one, whatever the file is. A Pending or Executing record of the open run
-    /// <paramref name="openRunId"/> is NotMigrated: the next migrate-up does not start while that run is alive, and the
-    /// orphan repair before its first file marks such records NotMigrated. Otherwise a record that
-    /// <see cref="TryFinalizeCompletedMigrationAsync"/> finalizes is Resumable after every block and one that
-    /// <see cref="FindResumableBlock"/> resumes is Resumable after its committed blocks, also for a RunAlways file, which
-    /// migrate-up resumes like any other. Then a RunAlways file is RunAlways, a Migrated record
-    /// (<paramref name="migratedRecord"/>, whose hash no longer matches) HashMismatch, a Failed record or an Executing
-    /// record of a run that has ended Failed, and anything else NotMigrated.
+    /// order in which migrate-up treats the record of the pair. The records are those the next migrate-up reads: the status
+    /// hands them in after the orphan repair of an open run (<see cref="ProjectOrphanRepair"/>). A record whose rollback
+    /// stopped in the middle (<see cref="FindIncompleteRollback"/>) is RollbackIncomplete first, because migrate-up refuses
+    /// to run while there is one, whatever the file is. Otherwise a record that <see cref="TryFinalizeCompletedMigrationAsync"/>
+    /// finalizes is Resumable after every block and one that <see cref="FindResumableBlock"/> resumes is Resumable after
+    /// its committed blocks, also for a RunAlways file, which migrate-up resumes like any other. Then a RunAlways file is
+    /// RunAlways, a Migrated record (<paramref name="migratedRecord"/>, whose hash no longer matches) HashMismatch, a Failed
+    /// record or an Executing record of a run that has ended Failed, and anything else NotMigrated. The record of the pair
+    /// is found with the ordinal comparisons of the checks of migrate-up.
     /// </summary>
     internal static (PendingMigrationReason Reason, int? ResumeFromBlock) ClassifyPendingMigration(
         MigrationFileInfo file,
         string targetAlias,
         List<MigrationRecord> existingRecords,
-        MigrationRecord? migratedRecord,
-        int? openRunId)
+        MigrationRecord? migratedRecord)
     {
-        var record = existingRecords
-            .Where(r => r.Filename == file.Filename &&
-                        r.ReleaseVersion == file.ReleaseVersion &&
-                        r.TargetGroupAlias == file.TargetGroupAlias &&
-                        string.Equals(r.TargetAlias, targetAlias, StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(r => r.Id)
-            .FirstOrDefault();
-
         if (FindIncompleteRollback(file, targetAlias, existingRecords) != null)
             return (PendingMigrationReason.RollbackIncomplete, null);
 
-        bool orphanedByNextRun = openRunId != null
-            && record is { MigrationStatusId: MigrationStatus.Pending or MigrationStatus.Executing }
-            && record.MigrationRunId == openRunId;
+        if (FindFinalizableRecord(file, targetAlias, existingRecords) != null)
+            return (PendingMigrationReason.Resumable, file.FileUpBlocksTotal);
 
-        if (!orphanedByNextRun)
-        {
-            if (FindFinalizableRecord(file, targetAlias, existingRecords) != null)
-                return (PendingMigrationReason.Resumable, file.FileUpBlocksTotal);
-
-            int resumeFromBlock = ResumableBlockOf(file, targetAlias, existingRecords, out _);
-            if (resumeFromBlock > 0)
-                return (PendingMigrationReason.Resumable, resumeFromBlock);
-        }
+        int resumeFromBlock = ResumableBlockOf(file, targetAlias, existingRecords, out _);
+        if (resumeFromBlock > 0)
+            return (PendingMigrationReason.Resumable, resumeFromBlock);
 
         if (file.RunAlways)
             return (PendingMigrationReason.RunAlways, null);
         if (migratedRecord != null)
             return (PendingMigrationReason.HashMismatch, null);
-        if (!orphanedByNextRun && record is { MigrationStatusId: MigrationStatus.Failed or MigrationStatus.Executing })
+
+        var record = existingRecords
+            .Where(r => r.Filename == file.Filename &&
+                        r.ReleaseVersion == file.ReleaseVersion &&
+                        r.TargetGroupAlias == file.TargetGroupAlias &&
+                        r.TargetAlias == targetAlias)
+            .OrderByDescending(r => r.Id)
+            .FirstOrDefault();
+        if (record is { MigrationStatusId: MigrationStatus.Failed or MigrationStatus.Executing })
             return (PendingMigrationReason.Failed, null);
 
         return (PendingMigrationReason.NotMigrated, null);
@@ -6632,7 +6706,7 @@ public class MigrationService : IMigrationService
                     // Checkpoint before the next run; closing a run and its records takes no token
                     cancellationToken.ThrowIfCancellationRequested();
 
-                    // Determine target status for orphaned migrations
+                    // No status: every open record keeps the progress of its file; a status is set on all of them
                     var targetStatus = request.AssumedMigrationStatus;
 
                     // Close the run first (mark as Error, set FinishedAt); a run whose heartbeat is younger than
@@ -6648,8 +6722,9 @@ public class MigrationService : IMigrationService
 
                     if (migrationsFixed > 0)
                     {
-                        _logger.LogInformation("  Fixed {Count} orphaned Migration entry for MigrationRunId {RunId} (Status={Status})",
-                            migrationsFixed, run.MigrationRunId, targetStatus);
+                        _logger.LogInformation("  Fixed {Count} orphaned Migration entry for MigrationRunId {RunId} ({Settlement})",
+                            migrationsFixed, run.MigrationRunId,
+                            targetStatus is { } status ? $"Status={status}" : "by progress: Failed after committed blocks, Migrated when every block committed, NotMigrated without progress");
                     }
 
                     run.WasFixed = true;

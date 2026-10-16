@@ -478,7 +478,7 @@ private async Task<int> ExecuteFixIssuesAsync(RunCancellation cancellation)
         Scope = _consoleOptions.FixScope ?? FixScope.OrphanedRuns,
         OlderThanMinutes = _consoleOptions.FixOlderThanMinutes ?? 2,
         RunMode = _consoleOptions.RunMode,
-        AssumedMigrationStatus = _consoleOptions.FixAssumedMigrationStatus ?? MigrationStatus.NotMigrated,
+        AssumedMigrationStatus = _consoleOptions.FixAssumedMigrationStatus,   // null without --last-migration-status: the progress rule
         ShowInfo = _consoleOptions.ShowStartupInfo,
         RevealSensitiveData = _consoleOptions.RevealSensitiveData
     };

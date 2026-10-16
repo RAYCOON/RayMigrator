@@ -125,8 +125,10 @@ public class MigrationRecord
 
     /// <summary>
     /// When the record last reached a terminal status (Migrated, NotMigrated or Failed), in UTC
-    /// (<see cref="DateTimeKind.Utc"/> on every engine). Null while the record is pending or executing, after a repair
-    /// that set the status without an end (<c>fix</c>), and when the select of the DAL does not return the column.
+    /// (<see cref="DateTimeKind.Utc"/> on every engine). A record whose rollback is running keeps the end of its last
+    /// terminal status; the orphan repair (the auto-fix of a later start, or <c>fix</c>) sets the time of the repair where
+    /// a record has none, a file that was running, and keeps it otherwise. Null while a file is pending or executing, and
+    /// when the select of the DAL does not return the column.
     /// </summary>
     public DateTime? FinishedAt { get; set; }
 }

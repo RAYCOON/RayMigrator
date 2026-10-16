@@ -80,8 +80,9 @@ RayMigrator follows Semantic Versioning where applicable.
   migrate-up refuses to start while a file it would run has a record
   `Failed`, or `Executing` in a run that has ended, with some but not all of
   its rollback blocks (left by such a cancel, by a failed rollback block
-  after the first or by a repository write that failed), because it would
-  run the file again from its first
+  after the first, by the orphan repair of a run that ended abruptly in the
+  middle of the rollback or by a repository write that failed), because it
+  would run the file again from its first
   block on a target that kept part of it: no file runs, the run is
   `Error`, and the message names the release, file and target of each
   such record, its `k of n rollback blocks` and that migrate-down
@@ -108,6 +109,16 @@ RayMigrator follows Semantic Versioning where applicable.
   order; `GetLookupName(tableName, id)`, the name of a lookup row; and
   `GetLogMessages(logLevelId)`, the messages of the log entries at one
   level with the exception text the database sink appends.
+- `RepositoryQueryHelper` (`Raycoon.RayMigrator.Testing`) writes and reads
+  what the tests of the orphan repair need:
+  `SetMigrationRecordState(filename, targetAlias, migrationStatusId,
+  fileUpBlocksMigrated, fileDownBlocksMigrated, migrationRunId)` writes the
+  state a process leaves on a record when it ends abruptly in the middle of
+  the file or of its rollback (the status, the counters and the run where
+  given; a file in progress without `FinishedAt` and `DurationInMs`, a
+  rollback in progress with the end and the duration of the last terminal
+  status of the record), and `GetMigrationRecordEnd(filename)`
+  returns `FinishedAt` as text and `DurationInMs` of the record of a file.
 - `BaselineResult.Result` names the result the run row records (`Ok`,
   `Error` or `Cancelled`), and `RunCompletedEvent.Result` carries it for
   baseline as well; it was null for baseline before.
@@ -208,8 +219,9 @@ RayMigrator follows Semantic Versioning where applicable.
   `RunAlways`; `HashMismatch` for a Migrated record whose hash no longer
   matches; `Failed` for a failed attempt without a resume point; otherwise
   `NotMigrated` (no record, a rolled back one, or a Pending or Executing
-  record of a run that is still open, which the next migrate-up closes as
-  orphaned and runs from the first block). `ResumeFromBlock` is set for
+  record of a run that is still open, if the orphan repair of the next
+  migrate-up settles it as `NotMigrated`: without a committed block, or
+  after a completed rollback). `ResumeFromBlock` is set for
   `Resumable` only and counts like `FileStartedEvent.ResumeFromBlock`: the
   committed leading blocks the next migrate-up skips, the block count of the
   file when it only finalizes the record. `RollbackBlocksMigrated` and
@@ -489,9 +501,91 @@ RayMigrator follows Semantic Versioning where applicable.
   rollback blocks; both counted 0 until the next block committed. A
   rollback through a CLI tool leaves `FileUpBlocksMigrated` of its record
   alone (it set it to 1).
+- The orphan repair keeps the progress of a file. When the next migrate-up,
+  migrate-down or baseline closes a run that ended abruptly (a crash, a
+  kill, a second Ctrl+C or SIGTERM), or `fix` closes it, each `Pending` or
+  `Executing` record of that run ends as a failure at the block that was
+  running would have left it: `Failed` with its committed blocks when some
+  but not all committed, so that the next migrate-up resumes after them and
+  runs at most the block that was running again (a resumed file whose run
+  ended between the insert of its record and the write of its resume point
+  counts no block and runs from its first block); `Migrated` when every
+  block committed and only the final status was missing; `NotMigrated`
+  without a committed block, as before. A rollback that was running ends
+  `Failed` with its rollback blocks, which migrate-down continues while
+  migrate-up refuses the file, `Failed` without rollback progress when its
+  first rollback block was running, or `NotMigrated` when every rollback
+  block ran. Before, the repair set every open record to `NotMigrated`, and
+  the next migrate-up ran the file again from its first block, the blocks
+  that had committed included. With `MigrationErrorAction=Ignore` a file
+  with failed blocks resumes at its first failed block after an abrupt end
+  as well. With `--last-migration-status` `migrated` or `not-migrated`,
+  `fix` still sets that status on every open record of the run and keeps the
+  counters. The repair sets `FinishedAt` of every record it changes to the
+  time of the repair where it is empty and leaves `DurationInMs` as it is,
+  because the time until the repair is no execution time: a file that was
+  running gets the time of the repair without a duration, and a record whose
+  rollback was running keeps the end and the duration of its last terminal
+  status; a record that the repair finished as `Migrated` therefore counts
+  for `TargetGroupStatus.LastMigrationDate`. It writes no history row, as
+  before. `info` lists the open records of a run that is still open as the
+  repair will leave them (`Resumable` after their committed blocks, not at
+  all with every block committed), because the next migrate-up repairs them
+  first, and the status counts a record that the repair will finish as
+  `Migrated` for its current release and its executed migrations, also per
+  target group. The run that the auto-fix lets start takes its
+  `FromReleaseVersion` from the records after the repair, and the warning of
+  the auto-fix names how many open records it settled.
+- **Breaking (behaviour, upgrade):** the orphan repair reads the block
+  counters of an open record by the rules of this version, which an engine
+  before it did not follow: with `MigrationErrorAction=Ignore` the record of
+  a file counted the blocks it attempted, the failed ones included, and the
+  record of a file that a CLI tool runs counted 1 block before the tool
+  started. A run of such an engine that ended abruptly and is still open
+  when this version repairs it can therefore be misread: a record that
+  counts every block becomes `Migrated` although a block failed or the tool
+  did not finish, and one that counts some blocks resumes after a block
+  that failed. Close the open runs with `fix` of the earlier version before
+  the update; it sets their open records to `NotMigrated`. When a run of an
+  earlier version is still open after the update, close it with `fix
+  --last-migration-status not-migrated` before the next migrate-up,
+  migrate-down or baseline, whose auto-fix applies the rule; the files of
+  its open records then run again from their first block. `info` shows
+  beforehand how the repair would settle the open records.
+- **Breaking (API / CLI):** `FixIssuesRequest.AssumedMigrationStatus` is
+  `MigrationStatus?` and null by default (it was `NotMigrated`): null
+  settles every open record of an orphaned run by its progress,
+  `NotMigrated` or `Migrated` sets that status on all of them.
+  `TemplateExecutor.RepositoryMigrationRecordFixOrphanedAsync` takes
+  `MigrationStatus? status` and hands 0 (`Undefined`) to the template for
+  null. The CLI option `--last-migration-status` of `fix` has no default any
+  more, so `fix` without it keeps the progress, and an unknown value is
+  still a parse error; `RayMigratorService` passes
+  `FixAssumedMigrationStatus` through without a fallback. A host that leaves
+  the status unset, as RayMigrator Studio does when its user chooses none,
+  gets the progress rule; a host that wants the old behaviour sets
+  `NotMigrated`.
+- **Breaking (external DALs):** `Repository_MigrationRecord_FixOrphaned`
+  receives `@MigrationStatusId = 0` when the engine leaves the status to the
+  template, which the auto-fix always does and `fix` without
+  `--last-migration-status` does: the template decides per open record from
+  `FileUpBlocksMigrated`, `FileUpBlocksTotal`, `FileDownHash`,
+  `FileDownBlocksMigrated` and `FileDownBlocksTotal` by the rule of the
+  shipped templates, keeps the counters, sets `FinishedAt` where it is NULL
+  and leaves `DurationInMs`; 30, 50 or 100 sets that status on every open
+  record. A template of an earlier version writes the status 0 to the
+  records, which no command handles; an external DAL ships the rule (the
+  stub in `Database.Example` describes it).
 
 ### Fixed
 
+- `RepositoryQueryHelper` (`Raycoon.RayMigrator.Testing`) writes the
+  PostgreSQL timestamps of the runs of `InsertRunningMigrationRun` and
+  `InsertOrphanedMigrationRun`, and of the environment row they register,
+  as `NOW()`, right in a session of any time zone. They were written as
+  `NOW() AT TIME ZONE 'UTC'`, a time without zone that a `TIMESTAMPTZ`
+  column took as a time of the session's zone, so in a session outside UTC
+  a run seemed older or younger by the offset of that zone.
 - A CLI tool in `Stdin` mode that exits before it read the whole migration
   file is judged by its exit code: a failure code fails the file with the
   exit code and the error output of the tool, as any other tool failure

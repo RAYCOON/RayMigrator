@@ -47,7 +47,7 @@ This document provides a comprehensive overview of unit and engine test coverage
 | `--scope` | string | varies | validate-hash: `file`/`sqlblocks`/`disabled`; fix: `orphanedruns`/`all` |
 | `--older-than` | int | 2 | Minutes since the last heartbeat (or the start of a run without one) after which an open run counts as orphaned; 0 repairs every open run |
 | `--run-mode` | string | migrate | `simulate` previews the fix without applying changes |
-| `--last-migration-status` | string | `"not-migrated"` | Status to assign after fix: `migrated` or `not-migrated` |
+| `--last-migration-status` | string | none | Status to set on every open record of an orphaned run: `migrated` or `not-migrated`; without it each record keeps its progress |
 | `--startup-info` | bool | true | Show startup banner and configuration info |
 | `--reveal-sensitive-data` | bool | false | Show connection strings unmasked in output |
 | `--config-dir` | string? | null (CWD) | Override configuration directory |
@@ -159,7 +159,7 @@ This document provides a comprehensive overview of unit and engine test coverage
 | `--scope all` | COVERED | **MISSING** | Enum test only. Engine only tests OrphanedRuns scope. |
 | `--older-than` | COVERED | COVERED | F4: threshold filtering |
 | `--run-mode simulate` | COVERED | COVERED | F3: simulate + orphan persistence verification |
-| `--last-migration-status` | COVERED | COVERED | F8: AssumedMigrationStatus=Migrated |
+| `--last-migration-status` | COVERED | COVERED | F8: AssumedMigrationStatus=Migrated; `OrphanRepairTests` x5 DBs: without the option the repair keeps the progress of each open record, `not-migrated` sets it with the counter kept; `P0_LastMigrationStatusOptionTests`: no default, unknown value is a parse error |
 | `--startup-info` | **MISSING** | **MISSING** | Cosmetic feature, not testable without console output capture. |
 | `--reveal-sensitive-data` | PARTIAL | **MISSING** | Unit model test only. Fix does not write MigrationRunMeta settings JSON. |
 | `--config-dir` | COVERED | N/A | 17 unit tests. Not testable at engine level. |
@@ -249,7 +249,7 @@ Also tested as part of:
 
 | Category | Base File | DB Variants | Key Scenarios |
 |----------|-----------|-------------|---------------|
-| Info | `InfoTests.cs` | SqlServer, MariaDb, MySql, Sqlite | I1: fresh repo zero counts; I2: full migration; I3: partial migration; I4: baseline; I5: target group status; I6: failed migration error state; I7: multiple runs history; I8: run details; the pending list (`PendingFiles`) with every `PendingMigrationReason` in the order of the next migrate-up, the pending count and `LastMigrationDate` of every target group; `RollbackIncomplete` with its rollback blocks after a migrate-down cancelled in the middle (`CancellationTests` x5 DBs) |
+| Info | `InfoTests.cs` | SqlServer, MariaDb, MySql, Sqlite | I1: fresh repo zero counts; I2: full migration; I3: partial migration; I4: baseline; I5: target group status; I6: failed migration error state; I7: multiple runs history; I8: run details; the pending list (`PendingFiles`) with every `PendingMigrationReason` in the order of the next migrate-up, the pending count and `LastMigrationDate` of every target group; the open record of a run that ended abruptly as the orphan repair leaves it; `RollbackIncomplete` with its rollback blocks after a migrate-down cancelled in the middle (`CancellationTests` x5 DBs) |
 
 **Unit test files**:
 - `P3_BaselineAndInfoModelTests.cs` — `MigrationStatusModelTests`, `MigrationHistoryModelTests`, `PendingMigrationModelTests` (model/property tests)
@@ -279,7 +279,7 @@ Also tested as part of:
 |----------|-----------|-------------|---------------|
 | Fix | `FixTests.cs` | SqlServer, MariaDb, MySql, Sqlite | F1: no orphans; F2: fix orphan; F3: dry run; F4: older-than filter; F5: fix then migrate; F6: multiple orphans; F7: orphan details; F8: assumed status migrated |
 
-Also tested as part of `CancellationTests` (a fix cancelled between two orphaned runs keeps the run it closed and leaves the other open, x5 DBs).
+Also tested as part of `CancellationTests` (a fix cancelled between two orphaned runs keeps the run it closed and leaves the other open, x5 DBs) and of `OrphanRepairTests` (the repair of the open records of an orphaned run by their progress, by `fix` and by the auto-fix of the next migrate-up, x5 DBs).
 
 **Unit test files**:
 - `P2_FixCommandTests.cs`:
@@ -287,7 +287,11 @@ Also tested as part of `CancellationTests` (a fix cancelled between two orphaned
   - `FixIssuesResultModelTests` — Result model, simulate distinction
   - `OrphanedRunInfoModelTests` — Data structure tests
   - `FixIssuesEnumTests` — Enum value verification (OrphanedRuns=2, All=1, Undefined=0)
+  - `FixCommandSqlTemplateStructureTests` — the fix templates of every engine; `Repository_MigrationRecord_FixOrphaned` decides per record by its progress for status 0 and sets `FinishedAt`
+  - `FixAssumedStatusPassThroughTests` — the CLI wrapper hands `FixAssumedMigrationStatus` to the engine unchanged, null included
   - `FixCommandConsoleOptionsTests` — FixOlderThanMinutes, FixAssumedMigrationStatus defaults
+- `P0_LastMigrationStatusOptionTests.cs` — `--last-migration-status` without a default, both values, unknown values rejected
+- `P1_OrphanRepairProjectionTests.cs` — the status of the open records of an open run as the orphan repair leaves them (`info`)
 - `P0_ConfigDirTests.cs` — CLI parsing for Fix command
 - `MigrationCommandExhaustivenessTests.cs` — Exhaustiveness check includes `MigrationCommand.FixIssues`
 
@@ -302,7 +306,8 @@ Also tested as part of `CancellationTests` (a fix cancelled between two orphaned
 | MigrationHistoryTracking | 5 (x5 DBs) | MigrationRecordHistory entries on terminal status transitions (source file: `ArchiveRetentionTests.cs`) |
 | DatabaseLog | 5 (x5 DBs) | Migration logging to database; the log indexes on `MigrationRunId` and `CreatedAt`, also added to the log table of an older engine by the next initialization |
 | Cancellation | 5 (x5 DBs) | migrate-up with all four actions at a block, file or target boundary, the atomic path, a cancel inside a sleeping block on the atomic path and on a target of its own (not SQLite), before the run starts, in Simulate and Validate, while a CLI tool runs; migrate-down, baseline and a running error recovery, whose run stays `Error` with the code of the failure; the refusal of a migrate-up after a rollback cancelled in the middle; update-hash and fix; schema version 2 with data upgraded to 3 (see 3.10) |
-| BlockProgress | 5 (x5 DBs) | The block counters of a record while a run goes on: 0 while a CLI tool runs, the leading blocks before an ignored failure on the way up (also at the end of the file and after a cancel, so the next migrate-up resumes at the failed block) and in a rollback, a resumed file and a continued rollback from their start |
+| BlockProgress | 5 (x5 DBs) | The block counters of a record while a run goes on: 0 while a CLI tool runs, the leading blocks before an ignored failure on the way up (also at the end of the file and after a cancel, so the next migrate-up resumes at the failed block) and in a rollback, a resumed file and a continued rollback from their start; a cancel after an ignored failed rollback block keeps the leading rollback blocks, and the next migrate-down runs the failed block again; a failed atomic rollback keeps the rollback blocks of the attempt it continued, and migrate-up refuses the file; a failed rollback through a CLI tool ends `Failed`; a file that a CLI tool runs does not resume an earlier attempt, in both `TargetMigrationOrder`s |
+| OrphanRepair | 5 (x5 DBs) | The orphan repair of a run that ended abruptly, by the auto-fix of the next migrate-up and by `fix`: `Failed` with the committed blocks and a resume after them, `Migrated` with every block, `NotMigrated` without progress, an explicit status with the counter kept, `FinishedAt` without `DurationInMs`, `LastMigrationDate` after a repair to `Migrated`, a rollback that was running with and without rollback progress and with every rollback block |
 | CliSignal | 1 (SQLite) | The real CLI process gets SIGINT during a migrate-up: exit code 130 and the run `Cancelled` (Linux and macOS, see 3.10) |
 | MigrationRunMeta | 5 (x5 DBs) | Execution metadata, settings JSON, RevealSensitiveData masking (MigrateUp M4, MigrateDown M6, Baseline M7) |
 | OutOfOrderBlocking | 5 (x5 DBs) | O1: blocking when false; O2: allowing when true; O3: data integrity after blocking |

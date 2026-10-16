@@ -594,7 +594,7 @@ The `Repository_Product_CheckInsert` template rejects a `NULL`/empty `Name` para
 
 **Explanation:** The first Ctrl+C or SIGTERM is a request to stop, not a crash. The run stopped at the next block boundary, the interrupted file is `Failed` with the blocks that committed, and the run row is closed as `Cancelled` (70). With `--cancelled-action` `rollback-file`, `rollback-run` or `rollback-release` the rollback ran before the run was closed; when it did not complete cleanly, the run is `Error` with the engine code `1005` and the exit code is `1`.
 
-**Solution:** Run the command again. A `migrate-up` resumes the interrupted file with the first block that did not commit, and a `migrate-down` continues the record in progress; until it has completed that rollback, a `migrate-up` refuses to run the file (see [Migrate-Up Refused: Incomplete Rollback](#migrate-up-refused-incomplete-rollback)). With `MigrationErrorAction` = `Ignore`, the interrupted file runs again from its first block (see [Work That Completes After a Cancel](#work-that-completes-after-a-cancel)). See also [Cancelling a Run](../08-cli-reference/global-options.md#cancelling-a-run).
+**Solution:** Run the command again. A `migrate-up` resumes the interrupted file with the first block that did not commit, and a `migrate-down` continues the record in progress; until it has completed that rollback, a `migrate-up` refuses to run the file (see [Migrate-Up Refused: Incomplete Rollback](#migrate-up-refused-incomplete-rollback)). With `MigrationErrorAction` = `Ignore`, the interrupted file resumes at its first failed block (see [Work That Completes After a Cancel](#work-that-completes-after-a-cancel)). See also [Cancelling a Run](../08-cli-reference/global-options.md#cancelling-a-run).
 
 ### Exit Code 1 After Ctrl+C: The Error Recovery Was Cancelled
 
@@ -614,7 +614,7 @@ The `Repository_Product_CheckInsert` template rejects a `NULL`/empty `Name` para
 - `Migrate-Up failed for product <Product>: Incomplete rollback: 1 file(s) stopped in the middle of their rollback, and migrate-up runs no file again before its rollback has completed: [<Release>/<File> on target <Target>: k of n rollback blocks, migrate-down continues at block k+1]. Complete the rollback with migrate-down to a release before theirs, then run migrate-up.`
 - `info` lists the file as `RollbackIncomplete after k of n rollback blocks, run migrate-down`; the run is recorded as `Error`
 
-**Explanation:** The rollback of the file stopped after k of its n rollback blocks: Ctrl+C or a host stopped a `migrate-down` or the error recovery of a `migrate-up`, or a rollback block after the first failed. The record is `Failed`, and the target still holds the part of the file that the remaining rollback blocks take back. A `migrate-up` would run the file again from its first block on that target, so it refuses to run at all while a file it would run has such a record, also with `--run-mode simulate`.
+**Explanation:** The rollback of the file stopped after k of its n rollback blocks: Ctrl+C or a host stopped a `migrate-down` or the error recovery of a `migrate-up`, a rollback block after the first failed, or the run ended abruptly in the middle of the rollback, which the orphan repair settles with the rollback blocks that ran. The record is `Failed` (or `Executing` in a run that has ended), and the target still holds the part of the file that the remaining rollback blocks take back. A `migrate-up` would run the file again from its first block on that target, so it refuses to run at all while a file it would run has such a record, also with `--run-mode simulate`.
 
 **Solution:** Complete the rollback first. Run `migrate-down` with a `--to-release` before the release of the file (preview it with `--run-mode simulate`; `--target-group` limits it to the target group of the file): it continues the record at rollback block k+1 and, like every `migrate-down`, also rolls back the `Migrated` files of the later releases. When a rollback block failed, fix the rollback file first. Then run `migrate-up`. See [Error Handling: A Rollback That Stopped in the Middle](../02-core-concepts/error-handling.md#a-rollback-that-stopped-in-the-middle).
 
@@ -632,13 +632,13 @@ The `Repository_Product_CheckInsert` template rejects a `NULL`/empty `Name` para
 raymigrator fix -p MyProduct -env Production --scope orphanedruns --run-mode simulate
 raymigrator fix -p MyProduct -env Production --scope orphanedruns
 ```
-The orphan repair of the next start and `fix` without `--run-mode simulate` set the open record to `NotMigrated` by default, so the next `migrate-up` runs the file again from its first block, including blocks that had committed. Check how far the file got before you choose `--last-migration-status`.
+The orphan repair of the next start and `fix` without `--last-migration-status` keep the progress of the file: the record becomes `Failed` with its committed blocks, and the next `migrate-up` resumes after them, so at most the block that was running runs again; a record whose every block committed becomes `Migrated`, and a rollback that was running keeps its rollback blocks for the next `migrate-down`. `--last-migration-status` sets one status on every open record of the run instead (`not-migrated` runs the file again from its first block), so use it only after you have checked the target.
 
 ### Interrupted Migration Detected
 
 **Symptoms:**
 - "Interrupted migration detected" message on startup
-- Migration cannot proceed without user action
+- The message is a warning and the run goes on: the auto-fix settles an orphaned run first, then migrate-up resumes, finalizes or runs again each file as its record says
 
 **Solutions:**
 
@@ -671,7 +671,8 @@ The orphan repair of the next start and `fix` without `--run-mode simulate` set 
    # Fix only runs whose last heartbeat is older than 10 minutes
    raymigrator fix -p MyProduct -env Production --scope orphanedruns --older-than 10
 
-   # Fix and mark orphaned migrations as "migrated" (skip next time) instead of "not-migrated" (re-execute next time)
+   # Fix and set every open record to "migrated" (skip next time) or "not-migrated" (run again from block 1)
+   # instead of keeping the progress of each file
    raymigrator fix -p MyProduct -env Production --scope orphanedruns --last-migration-status migrated
    ```
    - Or use direct SQL to update repository state (see Orphaned Migration Run section below)
@@ -709,13 +710,22 @@ The orphan repair of the next start and `fix` without `--run-mode simulate` set 
 
 3. **Also fix orphaned MigrationRecord rows**
 
-   > **Note**: The `fix` command sets orphaned migrations to status `50` (NotMigrated) by default, or `100` (Migrated) when `--last-migration-status migrated` is specified. The manual SQL below marks them as `30` (Failed), which is also valid for manual DBA cleanup.
+   > **Note**: Without `--last-migration-status` the `fix` command settles the open records by their progress: `30` (Failed) with the committed blocks, `100` (Migrated) when every block committed, `50` (NotMigrated) without progress, and for a rollback that was running `30` with its rollback blocks or `50` when every rollback block ran; `--last-migration-status migrated` or `not-migrated` sets `100` or `50` on every open record. The manual SQL below applies the same rule (SQL Server syntax); prefer `fix`, which runs the template of the engine for the database.
 
    ```sql
    UPDATE MigrationRecord
    SET
-       MigrationStatusId = 30,  -- Failed (use 50=NotMigrated or 100=Migrated to match Fix command behavior)
-       FinishedAt = SYSUTCDATETIME()
+       MigrationStatusId = CASE
+           WHEN FileDownHash IS NOT NULL THEN
+               CASE WHEN COALESCE(FileDownBlocksTotal, 0) > 0
+                         AND COALESCE(FileDownBlocksMigrated, 0) >= FileDownBlocksTotal THEN 50  -- NotMigrated: the rollback had completed
+                    ELSE 30                                                                    -- Failed: migrate-down continues a rollback with progress
+               END
+           WHEN FileUpBlocksMigrated > 0 AND FileUpBlocksMigrated >= FileUpBlocksTotal THEN 100  -- Migrated: every block committed
+           WHEN FileUpBlocksMigrated > 0 THEN 30                                                  -- Failed: the next migrate-up resumes after the committed blocks
+           ELSE 50                                                                                -- NotMigrated: no block committed
+       END,
+       FinishedAt = COALESCE(FinishedAt, SYSUTCDATETIME())
    WHERE MigrationRunId = @OrphanedRunId
      AND MigrationStatusId IN (10, 20);  -- Pending or Executing
    ```
@@ -728,7 +738,7 @@ The orphan repair of the next start and `fix` without `--run-mode simulate` set 
 
 **Explanation:**
 
-When RayMigrator detects a parallel-run conflict (another migration appears to be running), it checks whether the existing run is orphaned: its last heartbeat (`MigrationRun.LastHeartbeatAt`, refreshed every `Repository.HeartbeatIntervalInSeconds`, default 30 seconds) is older than `Repository.OrphanedRunThresholdInMinutes` (default 2 minutes). If so, it automatically marks the orphaned run as Error and proceeds with the new migration.
+When RayMigrator detects a parallel-run conflict (another migration appears to be running), it checks whether the existing run is orphaned: its last heartbeat (`MigrationRun.LastHeartbeatAt`, refreshed every `Repository.HeartbeatIntervalInSeconds`, default 30 seconds) is older than `Repository.OrphanedRunThresholdInMinutes` (default 2 minutes). If so, it automatically marks the orphaned run as Error, settles its open records by their progress (`Failed` with the committed blocks, which the new migration resumes after, `Migrated` when every block committed, `NotMigrated` without progress) and proceeds with the new migration.
 
 If the open run still writes heartbeats, it is alive and RayMigrator aborts with a `MigrationAlreadyRunningException`. Use the `fix` command with `--older-than 0` for immediate manual cleanup; `fix` closes only runs whose heartbeat is older than the given age.
 

@@ -303,11 +303,13 @@ stateDiagram-v2
     Executing --> Failed: Rollback block error, or a cancel before the next rollback block - RepositoryMigrationUpdateRollbackAsync(Failed)
 
     Executing --> Migrated: Interrupted record with all blocks done - TryFinalizeCompletedMigrationAsync()
-    Pending --> NotMigrated: fix (orphaned run) - RepositoryMigrationRecordFixOrphanedAsync(assumed status)
-    Executing --> NotMigrated: fix (orphaned run) - RepositoryMigrationRecordFixOrphanedAsync(assumed status)
+    Pending --> NotMigrated: Orphan repair, no block committed - RepositoryMigrationRecordFixOrphanedAsync(null)
+    Executing --> Failed: Orphan repair, some but not every block committed, or a rollback was running that had not run every rollback block - RepositoryMigrationRecordFixOrphanedAsync(null)
+    Executing --> Migrated: Orphan repair, every block committed - RepositoryMigrationRecordFixOrphanedAsync(null)
+    Executing --> NotMigrated: Orphan repair, no block committed and no rollback running, or every rollback block ran - RepositoryMigrationRecordFixOrphanedAsync(null)
 ```
 
-`fix` writes the status of `--last-migration-status` (`NotMigrated` or `Migrated`) to every `Pending`/`Executing` record of an orphaned run; the auto-fix in `RepositoryMigrationRunInsertWithAutoFix()` always uses `NotMigrated`. `Undefined` (0) is never persisted. A cancelled file keeps the blocks that committed before the cancel (none on the atomic path), so the next migrate-up resumes it like a failed file; under `MigrationErrorAction=Ignore` these are the blocks before the first failed one, as at the end of such a file.
+The orphan repair (the auto-fix in `RepositoryMigrationRunInsertWithAutoFix()`, and `fix` without `--last-migration-status`) settles every `Pending`/`Executing` record of an orphaned run by the progress of its file: `Failed` with its committed blocks when some but not all committed, `Migrated` when every block committed, `NotMigrated` without progress; a rollback that was running ends `Failed` with its rollback blocks, or `NotMigrated` when every rollback block ran. `fix --last-migration-status` writes `NotMigrated` or `Migrated` to every such record instead. The repair sets `FinishedAt` to its time where it is empty and leaves `DurationInMs` as it is (empty for a file that was running; a record whose rollback was running keeps the end and the duration of its last terminal status). `Undefined` (0) is never persisted; it is the value the repair template receives for its rule. A cancelled file keeps the blocks that committed before the cancel (on the atomic path only those of an earlier attempt, normally none), so the next migrate-up resumes it like a failed file; under `MigrationErrorAction=Ignore` these are the blocks before the first failed one, as at the end of such a file.
 
 ### MigrationRunResult (per run)
 

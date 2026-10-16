@@ -20,7 +20,7 @@ RayMigrator uses SQL templates with placeholder substitution for database-agnost
 | `Repository_MigrationRun_SelectOrphaned` | Select open migration runs with their heartbeat age (`MinutesSinceHeartbeat`) |
 | `Repository_MigrationRun_FixOrphaned` | Fix an orphaned MigrationRun entry whose heartbeat is older than `@ThresholdMinutes` |
 | `Repository_MigrationRun_Heartbeat` | Refresh `LastHeartbeatAt` of a running MigrationRun (every `Repository.HeartbeatIntervalInSeconds`) |
-| `Repository_MigrationRecord_FixOrphaned` | Fix orphaned Migration entries for a MigrationRun |
+| `Repository_MigrationRecord_FixOrphaned` | Settle the open Migration entries of an orphaned MigrationRun: `@MigrationStatusId = 0` decides per entry from its progress (`Failed` with committed blocks, `Migrated` with every block, `NotMigrated` without progress; rollbacks likewise), another status is set on every open entry; sets `FinishedAt` where it is empty |
 | `Repository_MigrationRecord_Select` | Query migration records |
 | `Repository_MigrationRecord_Insert` | Create new migration record |
 | `Repository_MigrationRecord_Update` | Update migration record |
@@ -322,7 +322,7 @@ public class TemplateExecutor
     public Task<List<Dictionary<string, object?>>> RepositoryMigrationRunSelectAsync(int limit, ct);
 
     // Fix Operations
-    public Task<int> RepositoryMigrationRecordFixOrphanedAsync(int migrationRunId, MigrationStatus status, ct);
+    public Task<int> RepositoryMigrationRecordFixOrphanedAsync(int migrationRunId, MigrationStatus? status, ct);
 
     // Migration Record Operations
     public Task<int> RepositoryMigrationInsertAsync(

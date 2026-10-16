@@ -43,7 +43,7 @@ See [Execution Modes — Run Mode](../02-core-concepts/execution-modes.md#run-mo
 
 ### Cancelling
 
-The first Ctrl+C or SIGTERM stops a migrate-down at the next rollback block (the first block of a rollback file, an atomic rollback and a rollback through a CLI tool always complete), leaves the record in progress `Failed` with its rollback blocks, records the run as `Cancelled` and ends the process with exit code `130`; the next migrate-down continues the record, and until then migrate-up refuses to run that file. `--cancelled-action` has no effect here, because migrate-down is a rollback already. A second Ctrl+C or SIGTERM ends the process at once and leaves the run open for `fix`. See [Global Options — Cancelling a Run](global-options.md#cancelling-a-run).
+The first Ctrl+C or SIGTERM stops a migrate-down at the next rollback block (the first block of a rollback file, an atomic rollback and a rollback through a CLI tool always complete), leaves the record in progress `Failed` with its leading rollback blocks (with `RollbackErrorAction=Ignore` those before the first failed one), records the run as `Cancelled` and ends the process with exit code `130`; the next migrate-down continues the record, a failed rollback block included, unless its first rollback block failed under `RollbackErrorAction=Ignore`, and until then migrate-up refuses to run that file. `--cancelled-action` has no effect here, because migrate-down is a rollback already. A second Ctrl+C or SIGTERM ends the process at once and leaves the run open for the orphan repair of a later start or `fix`, which keeps the rollback blocks that ran, so that the next migrate-down continues the rollback. See [Global Options — Cancelling a Run](global-options.md#cancelling-a-run).
 
 ## Examples
 

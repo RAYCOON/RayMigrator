@@ -16,6 +16,7 @@ This chapter covers everything you need to deploy, monitor, and maintain RayMigr
 - [ ] Deployment window scheduled (for long-running migrations)
 - [ ] No other RayMigrator instance running for the same product/environment
 - [ ] After a RayMigrator update: the log account may create the log indexes once, and on a large log `DatabaseLogging.DbCommandTimeoutInSeconds` covers their build (see [Log Indexes After an Update](#log-indexes-after-an-update))
+- [ ] Before a RayMigrator update: no run of the old version is left open; close one with `fix` of the old version (see [Open Runs Across an Update](#open-runs-across-an-update))
 
 ### Deployment
 
@@ -503,22 +504,34 @@ raymigrator fix -p MyProduct -env Production --scope all
 
 ### Controlling Post-Fix Migration Status
 
-The `--last-migration-status` option determines what status orphaned Migration records receive:
+The `--last-migration-status` option determines what status the open Migration records of an orphaned run receive:
 
 | Value | Effect |
 |-------|--------|
-| `not-migrated` (default) | Orphaned migrations will be re-executed on the next migrate-up run |
-| `migrated` | Orphaned migrations will be skipped on the next migrate-up run |
+| none (default) | Each record keeps the progress of its file: `Failed` with its committed blocks, and the next migrate-up resumes after them; `Migrated` when every block committed; `NotMigrated` without progress |
+| `not-migrated` | Every open record becomes `NotMigrated`; the next migrate-up runs the files again from their first block |
+| `migrated` | Every open record becomes `Migrated`; the next migrate-up skips the files |
 
 ```bash
-# Mark orphaned migrations as "migrated" (skip next time)
+# Keep the progress of each file (default)
+raymigrator fix -p MyProduct -env Production
+
+# Mark the open records as "migrated" (skip next time)
 raymigrator fix -p MyProduct -env Production --last-migration-status migrated
 
-# Mark as "not-migrated" (re-execute next time, default)
+# Mark them as "not-migrated" (run again from block 1)
 raymigrator fix -p MyProduct -env Production --last-migration-status not-migrated
 ```
 
 > **Tip:** Always use `--run-mode simulate` first to preview what the Fix command would change before applying fixes in production.
+
+### Open Runs Across an Update
+
+From version 0.20.0 on, the repair settles an open record by its block counters (the default in the table above). Earlier versions counted differently while a file ran: with `MigrationErrorAction=Ignore` a record counted the blocks that were attempted, the failed ones included, and the record of a file that a CLI tool runs counted 1 block before the tool started. A run of an earlier version that ended abruptly and is still open after the update can therefore be misread: a record that counts every block becomes `Migrated` although a block failed or the tool did not finish, and a record that counts some blocks resumes after a block that failed.
+
+- **Before the update**, close the open runs with `fix` of the old version, which sets their open records to `NotMigrated`; `fix --run-mode simulate` lists them first.
+- **After the update**, when a run of the old version is still open, close it with `fix --last-migration-status not-migrated` before the next `migrate-up`, `migrate-down` or `baseline`, whose auto-fix would apply the rule. The files of its open records then run again from their first block.
+- `info` shows beforehand how the repair would settle the open records of an open run: it lists them as the next `migrate-up` finds them after the repair.
 
 ---
 

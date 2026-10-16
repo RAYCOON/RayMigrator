@@ -477,7 +477,7 @@ Task RepositoryMigrationRunUpdateAsync(MigrationRunResult runResult, string? err
 Task<bool> RepositoryMigrationRunHeartbeatAsync()
 Task<List<Dictionary<string, object?>>> RepositoryMigrationRunSelectOrphanedAsync(int productId, int environmentId)
 Task<bool> RepositoryMigrationRunFixOrphanedAsync(int migrationRunId, int thresholdMinutes)
-Task<int> RepositoryMigrationRecordFixOrphanedAsync(int migrationRunId, MigrationStatus status)
+Task<int> RepositoryMigrationRecordFixOrphanedAsync(int migrationRunId, MigrationStatus? status)
 Task<InterruptedMigrationInfo?> RepositoryMigrationGetInterruptedAsync()
 Task<int> RepositoryMigrationInsertAsync(int existingMigrationRecordId, string filename, string releaseVersion,
     string targetGroupAlias, string targetAlias, int fileOrderId, string fileUpHash,

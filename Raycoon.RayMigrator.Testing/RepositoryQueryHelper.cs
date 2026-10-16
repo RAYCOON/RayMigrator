@@ -479,7 +479,7 @@ public class RepositoryQueryHelper
         string timestampSql = _databaseType switch
         {
             "SqlServer" => "SYSUTCDATETIME()",
-            "PostgreSQL" => "(NOW() AT TIME ZONE 'UTC')",
+            "PostgreSQL" => "NOW()",
             "MariaDb" or "MySql" => "UTC_TIMESTAMP()",
             "Sqlite" => "datetime('now')",
             _ => throw new NotSupportedException($"Unsupported database type: {_databaseType}")
@@ -557,6 +557,63 @@ public class RepositoryQueryHelper
         dal!.ExecuteScalarAsync(sql, QuerySettings, null).GetAwaiter().GetResult();
     }
 
+    /// <summary>
+    /// Sets the MigrationRecord of <paramref name="filename"/> on <paramref name="targetAlias"/> to the state that a process
+    /// leaves when it ends abruptly in the middle of the file or of its rollback: the status
+    /// <paramref name="migrationStatusId"/> (Pending 10 or Executing 20), the up and rollback counters where given, the run
+    /// where given (null keeps a value), and the end the engine leaves: a file in progress has none (FinishedAt and
+    /// DurationInMs NULL), a rollback in progress (FileDownHash set) keeps the end and the duration of the last terminal
+    /// status of the record. The commands of the engine never leave this state behind; tests of the orphan repair, which
+    /// settles the open records of such a run, write it here.
+    /// </summary>
+    public void SetMigrationRecordState(string filename, string targetAlias, int migrationStatusId,
+        int? fileUpBlocksMigrated = null, int? fileDownBlocksMigrated = null, int? migrationRunId = null)
+    {
+        if (!DalFactory.TryGetDal(_databaseType, _repositoryConnectionString, out IDal? dal))
+            throw new InvalidOperationException($"Could not create DAL for {_databaseType}");
+
+        string fileInProgress = $"{QuoteColumn("FileDownHash")} IS NULL";
+        var assignments = new List<string>
+        {
+            $"{QuoteColumn("MigrationStatusId")} = {migrationStatusId}",
+            $"{QuoteColumn("FinishedAt")} = CASE WHEN {fileInProgress} THEN NULL ELSE {QuoteColumn("FinishedAt")} END",
+            $"{QuoteColumn("DurationInMs")} = CASE WHEN {fileInProgress} THEN NULL ELSE {QuoteColumn("DurationInMs")} END"
+        };
+        if (fileUpBlocksMigrated.HasValue)
+            assignments.Add($"{QuoteColumn("FileUpBlocksMigrated")} = {fileUpBlocksMigrated.Value}");
+        if (fileDownBlocksMigrated.HasValue)
+            assignments.Add($"{QuoteColumn("FileDownBlocksMigrated")} = {fileDownBlocksMigrated.Value}");
+        if (migrationRunId.HasValue)
+            assignments.Add($"{QuoteColumn("MigrationRunId")} = {migrationRunId.Value}");
+
+        string sql = $"UPDATE {GetQualifiedTableName("MigrationRecord")} SET {string.Join(", ", assignments)} " +
+                     $"WHERE {QuoteColumn("Filename")} = '{EscapeSql(filename)}' AND {QuoteColumn("TargetAlias")} = '{EscapeSql(targetAlias)}'";
+        dal!.ExecuteNonQuery(sql, QuerySettings, null);
+    }
+
+    /// <summary>
+    /// The end of the MigrationRecord of <paramref name="filename"/>: FinishedAt as the database renders it as text, and
+    /// DurationInMs; each null when the column is NULL, both null when the file has no record.
+    /// </summary>
+    public (string? FinishedAt, long? DurationInMs) GetMigrationRecordEnd(string filename)
+    {
+        string table = GetQualifiedTableName("MigrationRecord");
+        string cols = BuildConcatExpression(["FinishedAt", "DurationInMs"]);
+        string where = $"WHERE {QuoteColumn("Filename")} = '{EscapeSql(filename)}'";
+        string sql = _databaseType switch
+        {
+            "SqlServer" => $"SELECT TOP 1 {cols} FROM {table} {where}",
+            _ => $"SELECT {cols} FROM {table} {where} LIMIT 1"
+        };
+
+        string? result = QueryScalarString(sql);
+        if (result == null)
+            return (null, null);
+
+        string[] parts = result.Split('|');
+        return (string.IsNullOrEmpty(parts[0]) ? null : parts[0], string.IsNullOrEmpty(parts[1]) ? null : long.Parse(parts[1]));
+    }
+
     /// <summary>A UTC timestamp literal with second precision, in the dialect of the engine (the MySQL session runs in UTC).</summary>
     private string TimestampSql(DateTime utc)
     {
@@ -571,11 +628,14 @@ public class RepositoryQueryHelper
         };
     }
 
-    /// <summary>A UTC timestamp <paramref name="minutesAgo"/> minutes in the past, in the dialect of the engine.</summary>
+    /// <summary>
+    /// A UTC timestamp <paramref name="minutesAgo"/> minutes in the past, in the dialect of the engine. On PostgreSQL the
+    /// instant itself, which a TIMESTAMPTZ column stores right in a session of any time zone.
+    /// </summary>
     private string MinutesAgoSql(int minutesAgo) => _databaseType switch
     {
         "SqlServer" => $"DATEADD(MINUTE, -{minutesAgo}, SYSUTCDATETIME())",
-        "PostgreSQL" => $"(NOW() AT TIME ZONE 'UTC') - INTERVAL '{minutesAgo} minutes'",
+        "PostgreSQL" => $"NOW() - INTERVAL '{minutesAgo} minutes'",
         "MariaDb" or "MySql" => $"UTC_TIMESTAMP() - INTERVAL {minutesAgo} MINUTE",
         "Sqlite" => $"datetime('now', '-{minutesAgo} minutes')",
         _ => throw new NotSupportedException($"Unsupported database type: {_databaseType}")
@@ -635,7 +695,7 @@ public class RepositoryQueryHelper
         string timestampSql = _databaseType switch
         {
             "SqlServer" => "SYSUTCDATETIME()",
-            "PostgreSQL" => "(NOW() AT TIME ZONE 'UTC')",
+            "PostgreSQL" => "NOW()",
             "MariaDb" or "MySql" => "UTC_TIMESTAMP()",
             "Sqlite" => "datetime('now')",
             _ => throw new NotSupportedException($"Unsupported database type: {_databaseType}")

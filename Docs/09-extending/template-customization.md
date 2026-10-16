@@ -487,7 +487,7 @@ public class TemplateExecutor
     public Task<List<MigrationRecord>> RepositoryMigrationSelectAsync(ct) { ... }   // always reads Migrate-mode records
     public Task<List<MigrationRecord>> RepositoryMigrationRecordHistorySelectAsync(ct) { ... }
     public Task<InterruptedMigrationInfo?> RepositoryMigrationGetInterruptedAsync(ct) { ... }
-    public Task<int> RepositoryMigrationRecordFixOrphanedAsync(int migrationRunId, MigrationStatus status, ct) { ... }
+    public Task<int> RepositoryMigrationRecordFixOrphanedAsync(int migrationRunId, MigrationStatus? status, ct) { ... }
     public Task RepositoryMigrationUpdateHashAsync(int migrationRecordId, string fileUpHash,
         string? fileUpConfigHash, string fileUpBlocksHash, ct) { ... }
 

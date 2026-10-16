@@ -179,8 +179,9 @@ public class TargetGroupStatus
 
     /// <summary>
     /// When the Migrated record of this target group that finished last finished (<c>MigrationRecord.FinishedAt</c>), in
-    /// UTC (<see cref="DateTimeKind.Utc"/> on every engine); null when no Migrated record has an end, for example with an
-    /// external DAL whose record select lacks the column.
+    /// UTC (<see cref="DateTimeKind.Utc"/> on every engine); for a record that the orphan repair settled as Migrated, the
+    /// time of the repair. Null when no Migrated record has an end, for example with an external DAL whose record select
+    /// lacks the column.
     /// </summary>
     public DateTime? LastMigrationDate { get; set; }
     public List<string> Targets { get; set; } = new List<string>();

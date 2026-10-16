@@ -91,7 +91,7 @@ These settings exist only as command-line arguments and control execution behavi
 | `--scope` | `-s` | string | *(none)* | validate-hash | Hash scope override: `File`, `SqlBlocks` or `Disabled`. If omitted, uses per-TargetGroup config. |
 | `--scope` | `-s` | string | `OrphanedRuns` | Fix | Fix scope: `OrphanedRuns` or `All` |
 | `--older-than` | `-ot` | int | `2` | Fix | Only fix runs whose last heartbeat (or start) is older than N minutes (0 = immediate) |
-| `--last-migration-status` | `-lms` | string | `not-migrated` | Fix | Status for orphaned migrations: `migrated` or `not-migrated` |
+| `--last-migration-status` | `-lms` | string | — | Fix | Status for the open records of an orphaned run: `migrated` or `not-migrated`; without it each record keeps its progress |
 | `--startup-info` | `-si` | bool | `true` | Global | Show startup information |
 | `--reveal-sensitive-data` | `-rsd` | bool | `false` | Global | Include passwords in logs |
 | `--config-dir` | `-cd` | string | `null` (cwd) | Global | Override directory where RayMigrator searches for configuration files (`appsettings.json` hierarchy). Supports `{ENV:VAR_NAME}` syntax. |

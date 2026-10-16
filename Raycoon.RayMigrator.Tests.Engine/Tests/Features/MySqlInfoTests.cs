@@ -449,4 +449,24 @@ public class MySqlInfoTests : MySqlTestBase
 
         await PendingMigrationsContract.VerifyTargetGroupMigrationOrderAsync(CreateScenario(), Fixture.EngineConfig);
     }
+
+    /// <summary>I21: A record with committed blocks of an open run whose heartbeat went stale is listed as the orphan repair leaves it.</summary>
+    [Fact]
+    public async Task Info_OpenRecordWithCommittedBlocks_IsListedAsResumable()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        Assert.SkipWhen(Fixture.EngineConfig.ConnectionString2 is null, "Second connection string not configured");
+
+        await PendingMigrationsContract.VerifyOpenRecordWithCommittedBlocksAsync(CreateScenario(), Fixture.EngineConfig);
+    }
+
+    /// <summary>I22: A record of an open run with every block committed is not listed, because the orphan repair finishes it.</summary>
+    [Fact]
+    public async Task Info_OpenRecordWithEveryBlockCommitted_IsNotListed()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        Assert.SkipWhen(Fixture.EngineConfig.ConnectionString2 is null, "Second connection string not configured");
+
+        await PendingMigrationsContract.VerifyOpenRecordWithEveryBlockCommittedAsync(CreateScenario(), Fixture.EngineConfig);
+    }
 }

@@ -332,6 +332,74 @@ internal static class PendingMigrationsContract
     }
 
     /// <summary>
+    /// (j) A record of an open run whose heartbeat went stale is listed as the orphan repair of the next migrate-up leaves
+    /// it: the seed committed block 1 in a run that ended abruptly while block 2 ran (Executing with block 1), so the list
+    /// names it Resumable after block 1, and the next migrate-up, which closes the run first, starts it with ResumeFromBlock 1.
+    /// </summary>
+    public static async Task VerifyOpenRecordWithCommittedBlocksAsync(ScenarioBuilder builder, EngineConfig config)
+    {
+        // Arrange: block 1 committed, then the footprint of a run that ended abruptly while block 2 ran
+        await using var ctx = await CancellationContract.WithThreeBlockSeed(builder, config)
+            .WithTargetConnectionString(config.ConnectionString2!)
+            .BuildAsync();
+        using var cancellation = new RunCancellation();
+        ctx.UseProgressObserver(new CancellingProgressObserver(
+            CancellingProgressObserver.AfterBlock(Seed, 1, MigrationOperation.MigrateUp),
+            () => cancellation.Cancel(MigrationCancelledAction.Terminate, "stopped by the test")));
+        (await ctx.MigrateUpAsync(cancellation: cancellation)).Result.Should().Be(MigrationRunResult.Cancelled);
+        ctx.InsertOrphanedMigrationRun(minutesOld: 0, heartbeatMinutesOld: 3);
+        ctx.SetMigrationRecordState(Seed, MainDb, MigrationStatus.Executing, fileUpBlocksMigrated: 1, migrationRunId: ctx.GetMigrationRun(2)!.Id);
+        await ctx.RebuildForAsync(MigrationCommand.Info, MigrationRunMode.Migrate);
+
+        // Act
+        var status = await ctx.InfoAsync();
+
+        // Assert
+        AssertConsistent(status);
+        status.PendingFiles[0].Should().Be(new PendingMigrationInfo(Release1, Backend, MainDb, Seed, 3, PendingMigrationReason.Resumable, 1),
+            because: "the orphan repair of the next migrate-up keeps block 1 of the seed");
+        status.PendingFiles.Skip(1).Select(p => (p.ReleaseVersion, p.Filename)).Should().Equal(
+            StandardFiles.Skip(1).SelectMany(r => r.Files.Select(f => (r.Release, f))));
+
+        var next = await RunNextMigrateUpAsync(ctx, status);
+        next.Success.Should().BeTrue(because: $"the files of the list migrate: {next.ErrorMessage}");
+        ctx.AssertRowCountOnConnection(config.ConnectionString2!, "tablea", 3);
+        await AssertNothingPendingAsync(ctx);
+    }
+
+    /// <summary>
+    /// (k) A record of an open run with every block committed is not listed: the run ended abruptly after the last block of
+    /// the seed, before its final status (Executing with 3 of 3), and the orphan repair of the next migrate-up finishes the
+    /// record as Migrated, so that migrate-up runs only the files of the later releases.
+    /// </summary>
+    public static async Task VerifyOpenRecordWithEveryBlockCommittedAsync(ScenarioBuilder builder, EngineConfig config)
+    {
+        // Arrange: release 1.0 migrated, then the footprint of a run that ended before the final status of the seed
+        await using var ctx = await CancellationContract.WithThreeBlockSeed(builder, config)
+            .WithTargetConnectionString(config.ConnectionString2!)
+            .BuildAsync();
+        (await ctx.MigrateUpAsync(Release1)).Success.Should().BeTrue();
+        ctx.InsertOrphanedMigrationRun(minutesOld: 0, heartbeatMinutesOld: 3);
+        ctx.SetMigrationRecordState(Seed, MainDb, MigrationStatus.Executing, fileUpBlocksMigrated: 3, migrationRunId: ctx.GetMigrationRun(2)!.Id);
+        await ctx.RebuildForAsync(MigrationCommand.Info, MigrationRunMode.Migrate);
+
+        // Act
+        var status = await ctx.InfoAsync();
+
+        // Assert
+        AssertConsistent(status);
+        status.PendingFiles.Select(p => (p.ReleaseVersion, p.Filename)).Should().Equal(
+            StandardFiles.Skip(1).SelectMany(r => r.Files.Select(f => (r.Release, f))),
+            because: "the orphan repair finishes the seed, which committed every block");
+        status.PendingFiles.Should().OnlyContain(p => p.Reason == PendingMigrationReason.NotMigrated);
+
+        var next = await RunNextMigrateUpAsync(ctx, status);
+        next.Success.Should().BeTrue(because: $"the files of the list migrate: {next.ErrorMessage}");
+        ctx.AssertRowCountOnConnection(config.ConnectionString2!, "tablea", 3);
+        await AssertNothingPendingAsync(ctx);
+    }
+
+    /// <summary>
     /// Runs the next migrate-up with a recorder and asserts that it starts exactly the listed pairs, in the order of the
     /// list, each with the committed blocks the list names (0 for a file that starts from its first block).
     /// </summary>

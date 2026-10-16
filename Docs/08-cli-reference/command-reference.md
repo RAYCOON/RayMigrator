@@ -346,9 +346,10 @@ raymigrator info --product MyProduct --environment Production
 ```
 
 - **Pending Migrations** counts one entry per file and target (`MigrationStatusInfo.PendingMigrations`). The list below it comes from `MigrationStatusInfo.PendingFiles` and is in the order of the next migrate-up without `--target-group-migration-order`: releases, the target groups of a release in their `TargetGroupMigrationOrder`, then file by file or target by target. It shows the first 50 entries and ends with `… and n more` when there are more; a host reads the whole list from `PendingFiles`.
-- **Reason** says why the file runs: `NotMigrated` (no record, a rolled back one, or a record of a run that is still open), `Failed` (a failed attempt without a resume point), `Resumable after block n` (blocks 1 to n committed; migrate-up continues with block n + 1, or only finalizes the record when every block committed), `RunAlways`, `HashMismatch` (a migrated file whose hash no longer matches), or `RollbackIncomplete after k of n rollback blocks, run migrate-down` (the rollback of the file stopped after k of its n rollback blocks, for example after a cancelled migrate-down; migrate-up refuses to run while such an entry is listed, and migrate-down continues the rollback at block k + 1).
+- **Reason** says why the file runs: `NotMigrated` (no record, a rolled back one, or a record of a run that is still open without a committed block), `Failed` (a failed attempt without a resume point), `Resumable after block n` (blocks 1 to n committed; migrate-up continues with block n + 1, or only finalizes the record when every block committed), `RunAlways`, `HashMismatch` (a migrated file whose hash no longer matches), or `RollbackIncomplete after k of n rollback blocks, run migrate-down` (the rollback of the file stopped after k of its n rollback blocks, for example after a cancelled migrate-down; migrate-up refuses to run while such an entry is listed, and migrate-down continues the rollback at block k + 1).
 - A run with `--to-release` or `--target-group` runs a part of the list, and files of a release older than what a target has migrated are listed although migrate-up refuses them without `--allow-out-of-order`.
 - Every target group line names its pending count and its last migration, the end of its `Migrated` record that finished last (`—` when none has an end, for example with an external DAL whose selects lack `FinishedAt`).
+- While a run that ended abruptly is still open, the lines read its records as the orphan repair of the next migrate-up will leave them, and **Reason** classifies them as that migrate-up treats such records: a record with every block committed counts as migrated for `Current Release`, `Total Executed` and its target group; the last migration moves only when the repair has written the end of the record.
 - **# Migrations** of the run history counts the records the run brought to a terminal state, read from `MigrationRecordHistory`; a run whose history rows a retention policy deleted shows `0` ([ADR-027](../arc42/09-Architecture-Decisions.md#adr-027-the-engine-deletes-log-and-history-rows-on-a-hosts-request-and-never-reads-them-for-a-decision)).
 - A Ctrl+C or SIGTERM ends `info` at once with exit code `130` ([Cancelling a Run](global-options.md#cancelling-a-run)).
 
@@ -442,7 +443,7 @@ raymigrator fix --product <alias> --environment <env> [--scope <scope>] [--older
 | `--scope` | `-s` | `string` | No | `"OrphanedRuns"` | `OrphanedRuns`, `All` |
 | `--older-than` | `-ot` | `int` | No | `2` | Minutes since the last heartbeat (or the start) for orphan detection |
 | `--run-mode` | `-rm` | `string` | No | `"migrate"` | `migrate`, `simulate` |
-| `--last-migration-status` | `-lms` | `string` | No | `"not-migrated"` | `migrated`, `not-migrated` |
+| `--last-migration-status` | `-lms` | `string` | No | — | `migrated`, `not-migrated` |
 
 ### Option Details
 
@@ -452,7 +453,7 @@ raymigrator fix --product <alias> --environment <env> [--scope <scope>] [--older
 
 **--run-mode**: `migrate` repairs the orphaned runs; `simulate` lists the runs that would be repaired, writes nothing and leaves no DatabaseLogging rows. `validate` is rejected for `fix` (#22).
 
-**--last-migration-status**: Determines the `MigrationStatus` to assign to orphaned Migration records during fix. `"not-migrated"` maps to `MigrationStatus.NotMigrated`, `"migrated"` maps to `MigrationStatus.Migrated`.
+**--last-migration-status**: Without the option every open (`Pending`, `Executing`) record of an orphaned run keeps its progress: `Failed` after committed blocks, so that the next migrate-up resumes after them, `Migrated` when every block committed, `NotMigrated` without progress; a rollback that was running ends `Failed` with its rollback blocks, which migrate-down continues, or `NotMigrated` when every rollback block ran. `migrated` (`MigrationStatus.Migrated`) and `not-migrated` (`MigrationStatus.NotMigrated`) set that status on every open record of the run, for an operator who has checked the target. The counters of the records stay; the repair sets `FinishedAt` and leaves `DurationInMs` empty.
 
 ### Property Mapping
 
@@ -633,7 +634,7 @@ Source: `Raycoon.RayMigrator.Core/Configuration/Enums/CliToolInputMode.cs`
 
 ### MigrationStatus
 
-Represents the status of a single migration record in the repository. The `--last-migration-status` option on the Fix command accepts `migrated` and `not-migrated` to set the assumed status for orphaned migrations.
+Represents the status of a single migration record in the repository. The `--last-migration-status` option on the Fix command accepts `migrated` and `not-migrated` to set that status on every open record of an orphaned run; without it each record keeps the progress of its file.
 
 | Name | Value | Description |
 |------|-------|-------------|
