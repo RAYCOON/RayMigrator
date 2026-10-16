@@ -226,6 +226,109 @@ RayMigrator follows Semantic Versioning where applicable.
   migrate-up; the list shows the first 50 entries and ends with
   `… and n more` when there are more. Every target group line names
   `Pending=` and `LastMigration=`.
+- `IRepositoryMaintenanceService` (new in
+  `Raycoon.RayMigrator.Services.Abstractions`, implemented by
+  `RepositoryMaintenanceService` and registered by `AddRayMigratorServices`
+  as a singleton next to `IRepositorySchemaService`) deletes old rows of the
+  two tables that grow with every run, `MigrationRecordHistory` and
+  `MigrationLog`, from the repository options alone, for hosts that apply a
+  retention policy (RayMigrator Studio, ADR-027):
+  `CleanUpAsync(RepositoryOptions, RetentionRequest, CancellationToken =
+  default)` returns a `RetentionResult(HistoryRows, LogRows, Batches,
+  Completed, LogSkipped, Message)`. `RetentionRequest(HistoryCutoffUtc,
+  LogCutoffUtc, BatchSize = 2000, TimeBudget = null, DryRun = false)` names
+  the cutoff of each table (null leaves the table alone, at least one is set,
+  both are `DateTimeKind.Utc` and count to the whole second, so a row is
+  never deleted unless it is older), the most rows of one batch (at least 1,
+  `RetentionRequest.DefaultBatchSize`) and how long the cleanup may delete
+  (null means `RetentionRequest.DefaultTimeBudget`, 60 seconds,
+  `Timeout.InfiniteTimeSpan` no limit); a request that breaks these rules is
+  an `ArgumentException` before the database is touched. The options are
+  validated like those of `IRepositorySchemaService` (placeholders, data
+  annotations with their defaults, database type, RULE_4_2 to RULE_4_5,
+  schema name); both services share that code now. The schema version is
+  read through `Repository_CheckCreate`, as every command reads it, which
+  creates the empty schema version table (on SQL Server and PostgreSQL also
+  the schema) when it is missing: a database without a repository, a
+  repository without a schema version and one newer than the engine are
+  refused with `RepositorySchemaException`; an older repository is cleaned
+  as it is and not upgraded, because the templates read only columns of
+  schema version 1 and an upgrade would lock out the engines that still use
+  it, with a warning when it lacks the indexes of version 3. The service
+  deletes the history first, then the log, in batches of one statement each
+  that commit on their own, the oldest rows first, until a batch deletes
+  fewer rows than `BatchSize`. The time budget is checked before every batch
+  once a batch has deleted rows, so a call always deletes one batch when
+  there is one, also with a budget of zero; when it runs out the result is
+  `Completed = false` with a message to run the cleanup again. The templates
+  and the check of the schema version run with the command timeout of the
+  repository but without its retries (`DbCommandMaxRetries`): a statement
+  that timed out, and on SQLite one that reports BUSY after its busy
+  timeout, would wait the whole command timeout again on every retry, which
+  turned a budget of a minute into hours; the next batch and the next call
+  are the retry. An error after a batch deleted rows returns `Completed =
+  false` with the rows deleted so far and the error in `Message`, logged as
+  a warning with the exception; an error before that throws, as nothing
+  changed. The token is checked before every batch and reaches the batch in
+  progress: SQL Server, PostgreSQL, MySQL and MariaDB abort the statement,
+  which rolls back whole, SQLite completes it; a cancel after the checks of
+  the options and the schema version, also one during the check of the log
+  table between history and log, returns the rows deleted so far with
+  `Completed = false` and does not throw, a cancel during those checks
+  throws `OperationCanceledException`. A dry run counts the same rows in
+  full and deletes nothing; the cleanup itself only asks whether the log
+  table exists, so it does not read a large log whole before its first
+  batch. Every batch spares the rows of a run that is
+  still open (`MigrationRun.FinishedAt` null), so a running or orphaned run
+  keeps its history and its log until a later start or `fix` closes it; a
+  log row without a run (`MigrationRunId` null) falls by its age. The log
+  is cleaned only where it shares the repository database and the schema and
+  prefix of the repository, its default home; a log of its own elsewhere is
+  left alone and reported as `LogSkipped = true`. `MigrationRecord`,
+  `MigrationRun` and `MigrationRunMeta` are never deleted, so status and
+  every decision of the engine stay as they were; the run history of `info`
+  reports no migrations for a run whose history rows are gone. Serialising
+  the cleanups of a repository is the host's business: two at once delete
+  only rows that match. The guard reads the open runs of this repository, so
+  when another repository writes into the same log table (same database,
+  schema and prefix), its rows fall by their age even while its run is open.
+- Four templates per DAL for the retention, with new `TemplateType`
+  members: `Repository_MigrationRecordHistory_Delete` and
+  `DatabaseLogging_Delete` delete one batch of the rows older than
+  `@CutoffUtc` (UTC text `yyyy-MM-dd HH:mm:ss`), at most `@BatchSize`, and
+  return `'n,message'` with the rows deleted;
+  `Repository_MigrationRecordHistory_Count` returns `'n,message'` with the
+  rows the delete would take, `DatabaseLogging_Count` `'n,1,message'`, or
+  `'0,0,message'` when the log table is not in the repository database;
+  with `@ExistsOnly` = 1 it counts nothing and returns `'0,1,message'` when
+  the log table exists. The
+  log templates run with the schema and prefix of the `Repository` section,
+  not of `DatabaseLogging`, and join its `MigrationRun`. A batch is one
+  DELETE: SQL Server deletes through a CTE with `TOP` in the order of the
+  clustered key with `OPTION (LOOP JOIN)` (ordered by the time column, the
+  optimizer read every matching row for each batch, so that a cleanup grew
+  with the square of its rows), PostgreSQL deletes the ids of a `LIMIT`
+  subquery in a data-modifying CTE that counts them in the same statement,
+  MySQL and MariaDB use `DELETE … ORDER BY … LIMIT`, SQLite deletes the
+  rowids of a `LIMIT` subquery, because `DELETE … LIMIT` needs a build with
+  `SQLITE_ENABLE_UPDATE_DELETE_LIMIT`. SQLite resolves the tables of a
+  statement when it prepares it, so its log count creates an empty log table
+  for the count when the table is missing, inside a transaction that it rolls
+  back. A count may exceed the int range of the result contract and is read
+  as a long. The default batch size of 2,000 keeps SQL Server from
+  escalating a batch to a table lock, which would hold back the log writes
+  of running hosts: it escalates a statement at 5,000 locks on one index,
+  and a batch takes a key lock per row and a page lock per page in every
+  index; measured with the indexes of schema version 3, history batches of
+  4,800 rows and log batches of 5,000 rows escalated, while 2,000 rows take
+  at most 4,000 locks per index even with one row per page.
+- `RepositorySchemaExecutor.CheckVersionAsync` reads the schema version of a
+  repository without applying a step and refuses a repository without a
+  schema version or a newer one, as `EnsureAsync`, which now uses it, does;
+  `RepositoryMaintenanceExecutor` (`Raycoon.RayMigrator.Infrastructure`)
+  runs the retention templates of one repository without a migration
+  context and without the retries of the repository; its
+  `LogTableExistsAsync` asks for the log table without a count.
 
 ### Changed
 
@@ -321,6 +424,17 @@ RayMigrator follows Semantic Versioning where applicable.
   selects lack the columns keeps working: its records map with null dates and
   info reports no `LastMigrationDate` for its target groups. An external DAL
   adds `StartedAt` and `FinishedAt` to both selects.
+- **Breaking (external DALs):** every DAL ships the four retention
+  templates (`Repository_MigrationRecordHistory_Delete`,
+  `Repository_MigrationRecordHistory_Count`, `DatabaseLogging_Delete`,
+  `DatabaseLogging_Count`). The `TemplateCache` constructor throws a
+  `ConfigurationValidationException` that names the missing files when a DAL
+  folder under `DataAccessLayers/` lacks one of them, so a host that has
+  such a folder cannot create its template cache and no command starts,
+  whatever database it uses. `Database.Example` has stubs for the four and no
+  longer the placeholder `Repository_MigrationRecordHistory_Archive.sql`,
+  which had no `TemplateType`: the update templates write the history, and
+  the retention templates delete it.
 
 ### Fixed
 

@@ -10,6 +10,12 @@ public enum TemplateType
     DatabaseLogging_CheckCreate,
     DatabaseLogging_Insert,
 
+    // Retention of the log (ADR-027): run against the repository database under the schema and prefix of the
+    // repository and spare the rows of its open runs. Delete removes one batch of rows older than a cutoff, Count counts
+    // the same rows and reports whether the log table is there; IRepositoryMaintenanceService runs them
+    DatabaseLogging_Delete,
+    DatabaseLogging_Count,
+
     Repository_CheckCreate,
     Repository_Drop,
 
@@ -40,6 +46,11 @@ public enum TemplateType
     // Terminal state transitions per run (MigrationRecordHistory): the info run history is built from it, because
     // migrate-down and error-recovery rollbacks change records that belong to another run (#13)
     Repository_MigrationRecordHistory_Select,
+
+    // Retention of the history (ADR-027): Delete removes one batch of rows historized before a cutoff, sparing the rows
+    // of an open run, Count counts the same rows; IRepositoryMaintenanceService runs them
+    Repository_MigrationRecordHistory_Delete,
+    Repository_MigrationRecordHistory_Count,
 
     // Read-only lookups (no insert): used by run modes / commands that must not write to the repository (#7)
     Repository_Product_Select,

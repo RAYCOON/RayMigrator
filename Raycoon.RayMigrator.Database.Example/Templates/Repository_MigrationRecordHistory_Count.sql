@@ -1,0 +1,9 @@
+-- TODO: Implement for your database engine
+-- Purpose: Counts the rows Repository_MigrationRecordHistory_Delete deletes (dry run of a cleanup, ADR-027).
+-- See the corresponding template in Database.SqlServer or Database.PostgreSQL for reference.
+-- Returns: 'n,message' with n = the matching rows (may exceed the int range)
+--
+-- Parameters used in this template:
+-- {CFG:SchemaName} - The repository schema name (of the Repository section, also for the log templates)
+-- {CFG:TableBaseName} - The table name prefix (of the Repository section, also for the log templates)
+-- @CutoffUtc (UTC text yyyy-MM-dd HH:mm:ss) - SQL parameter (see reference implementations)

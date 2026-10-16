@@ -24,6 +24,7 @@ public class ScenarioBuilder
         TargetMigrationOrder? order, HashValidationScope? hashScope)> _additionalTargetGroups = new();
     private bool _databaseLogging;
     private string _databaseLoggingMinLevel = "Debug";
+    private string? _databaseLoggingConnectionString;
     private bool _databaseLoggingDisabled;
     private string? _databaseLoggingLevelOnly;
     private string? _mainTargetConnectionString;
@@ -511,6 +512,20 @@ public class ScenarioBuilder
     }
 
     /// <summary>
+    /// Enables database logging like <see cref="WithDatabaseLogging"/>, but into the database of
+    /// <paramref name="connectionString"/> with the schema and prefix of the repository: a log of its own beside the
+    /// repository, which the repository database does not have. The builder drops the log tables of that database before
+    /// the scenario starts.
+    /// </summary>
+    public ScenarioBuilder WithDatabaseLoggingInto(string connectionString, string? minimumLevel = "Debug")
+    {
+        _databaseLogging = true;
+        _databaseLoggingMinLevel = minimumLevel ?? "Debug";
+        _databaseLoggingConnectionString = connectionString;
+        return this;
+    }
+
+    /// <summary>
     /// Sets Serilog's global minimum level (default: Warning). The DatabaseLogging sink only sees events that pass
     /// this level first, so tests that assert on MigrationLog rows of a successful command need Information.
     /// </summary>
@@ -582,6 +597,8 @@ public class ScenarioBuilder
             DatabaseCleanupHelper.CleanDatabase(_engineConfig.DatabaseType, _mainTargetConnectionString, _engineConfig.SchemaName);
         if (_secondConnectionString != null)
             DatabaseCleanupHelper.CleanDatabase(_engineConfig.DatabaseType, _secondConnectionString, _engineConfig.SchemaName);
+        if (_databaseLoggingConnectionString != null && _databaseLoggingConnectionString != _engineConfig.ConnectionString)
+            DatabaseCleanupHelper.CleanDatabase(_engineConfig.DatabaseType, _databaseLoggingConnectionString, _engineConfig.SchemaName, _tableBaseName);
 
         foreach (var (_, dbType, connStr, _, _) in _additionalTargetGroups)
             DatabaseCleanupHelper.CleanDatabase(dbType, connStr, _engineConfig.SchemaName);
@@ -813,7 +830,7 @@ public class ScenarioBuilder
             rayMigratorConfig["DatabaseLogging"] = new Dictionary<string, object>
             {
                 ["DatabaseType"] = _engineConfig.DatabaseType,
-                ["ConnectionString"] = _engineConfig.ConnectionString,
+                ["ConnectionString"] = _databaseLoggingConnectionString ?? _engineConfig.ConnectionString,
                 ["SchemaName"] = _engineConfig.SchemaName,
                 ["TableBaseName"] = _tableBaseName,
                 ["MinimumLevel"] = _databaseLoggingMinLevel,

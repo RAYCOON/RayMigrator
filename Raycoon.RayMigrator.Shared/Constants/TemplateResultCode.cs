@@ -65,7 +65,8 @@ public static class TemplateResultCode
     /// The host cancelled the run and the engine stopped it: the run of a migrate-up, migrate-down or baseline is
     /// <c>MigrationRunResult.Cancelled</c>, its <c>MigrationCancelledAction</c> completed. Also the <c>ErrorCode</c> of an
     /// update-hash or fix that stopped early. The read commands (validate-hash, status, history) throw an
-    /// <c>OperationCanceledException</c> instead.
+    /// <c>OperationCanceledException</c> instead, and the repository maintenance service reports a stopped cleanup with
+    /// <c>RetentionResult.Completed = false</c> and no code.
     /// </summary>
     public const int Cancelled = 1004;
 

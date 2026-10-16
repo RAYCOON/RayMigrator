@@ -970,17 +970,32 @@ public class TemplateExecutor
         DalParameterList? dalParameterList,
         CancellationToken cancellationToken = default)
     {
-        object? returnValue;
+        object? returnValue = await ExecuteScalarValueAsync(template, dal, dalSettings, dalParameterList, cancellationToken);
+
+        return GetValidatedTemplateResponseFromExecuteScalar(returnValue, template);
+    }
+
+    /// <summary>
+    /// Executes a template as ExecuteScalar and returns the scalar as the DAL read it, for a caller that validates the
+    /// result itself (the retention counts, whose first code may exceed the range of an <see cref="int"/>); a failing
+    /// execution becomes a <see cref="TemplateExecutionException"/>, a cancellation the DAL's
+    /// <see cref="OperationCanceledException"/>.
+    /// </summary>
+    internal static async Task<object?> ExecuteScalarValueAsync(
+        Template template,
+        IDal dal,
+        DalSettings dalSettings,
+        DalParameterList? dalParameterList,
+        CancellationToken cancellationToken = default)
+    {
         try
         {
-            returnValue = await dal.ExecuteScalarAsync(template.Content, dalSettings, dalParameterList, cancellationToken);
+            return await dal.ExecuteScalarAsync(template.Content, dalSettings, dalParameterList, cancellationToken);
         }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
             throw new TemplateExecutionException($"Error executing template [{template}] with dal for DB [{dal.DatabaseType}]", ex);
         }
-
-        return GetValidatedTemplateResponseFromExecuteScalar(returnValue, template);
     }
 
     /// <summary>

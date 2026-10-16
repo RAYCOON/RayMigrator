@@ -1,0 +1,11 @@
+-- TODO: Implement for your database engine
+-- Purpose: Deletes one batch of MigrationRecordHistory rows historized before @CutoffUtc, the oldest first,
+--          and spares the rows of every run that is still open (MigrationRun.FinishedAt IS NULL).
+--          Keep the batch one DELETE statement in autocommit, so that a cancelled call rolls it back (ADR-027).
+-- See the corresponding template in Database.SqlServer or Database.PostgreSQL for reference.
+-- Returns: 'n,message' with n = the rows deleted
+--
+-- Parameters used in this template:
+-- {CFG:SchemaName} - The repository schema name (of the Repository section, also for the log templates)
+-- {CFG:TableBaseName} - The table name prefix (of the Repository section, also for the log templates)
+-- @CutoffUtc (UTC text yyyy-MM-dd HH:mm:ss), @BatchSize - SQL parameters (see reference implementations)

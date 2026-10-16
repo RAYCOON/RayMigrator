@@ -1,0 +1,12 @@
+-- TODO: Implement for your database engine
+-- Purpose: Reports whether MigrationLog exists in the repository database under the schema and prefix of the
+--          repository and counts the rows DatabaseLogging_Delete deletes; a missing table is no error (ADR-027).
+-- See the corresponding template in Database.SqlServer or Database.PostgreSQL for reference.
+-- Returns: 'n,1,message' when the log table exists ('0,1,message' with @ExistsOnly = 1), '0,0,message' when it does not
+--
+-- Parameters used in this template:
+-- {CFG:SchemaName} - The repository schema name (of the Repository section, also for the log templates)
+-- {CFG:TableBaseName} - The table name prefix (of the Repository section, also for the log templates)
+-- @CutoffUtc (UTC text yyyy-MM-dd HH:mm:ss) - SQL parameter (see reference implementations)
+-- @ExistsOnly (1 or 0) - SQL parameter: 1 reports only whether the log table exists ('0,1,message' or
+--               '0,0,message') without counting its rows; 0 counts

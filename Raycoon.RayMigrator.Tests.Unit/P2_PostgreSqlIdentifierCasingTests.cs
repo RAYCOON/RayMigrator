@@ -36,6 +36,8 @@ public class PostgreSqlIdentifierCasingTests
         "Repository_MigrationRecord_UpdateRollback.sql",
         "Repository_MigrationRecord_Select.sql",
         "Repository_MigrationRecordHistory_Select.sql",
+        "Repository_MigrationRecordHistory_Delete.sql",
+        "Repository_MigrationRecordHistory_Count.sql",
         "Repository_MigrationRecord_GetInterrupted.sql",
         "Repository_MigrationRecord_FixOrphaned.sql",
         "Repository_MigrationRun_Insert.sql",
@@ -45,7 +47,9 @@ public class PostgreSqlIdentifierCasingTests
         "Repository_MigrationRun_FixOrphaned.sql",
         "Repository_MigrationRun_Heartbeat.sql",
         "DatabaseLogging_CheckCreate.sql",
-        "DatabaseLogging_Insert.sql"
+        "DatabaseLogging_Insert.sql",
+        "DatabaseLogging_Delete.sql",
+        "DatabaseLogging_Count.sql"
     ];
 
     // -------------------------------------------------------------------------
@@ -90,6 +94,10 @@ public class PostgreSqlIdentifierCasingTests
     [InlineData("Repository_MigrationRun_Heartbeat.sql")]
     [InlineData("DatabaseLogging_CheckCreate.sql")]
     [InlineData("DatabaseLogging_Insert.sql")]
+    [InlineData("Repository_MigrationRecordHistory_Delete.sql")]
+    [InlineData("Repository_MigrationRecordHistory_Count.sql")]
+    [InlineData("DatabaseLogging_Delete.sql")]
+    [InlineData("DatabaseLogging_Count.sql")]
     public void PgTemplate_HasNoStrayQuotedPascalCaseIdentifiers(string templateFile)
     {
         var raw = ReadTemplate("PostgreSQL", templateFile);
@@ -120,17 +128,17 @@ public class PostgreSqlIdentifierCasingTests
     }
 
     /// <summary>
-    /// Confirms the count of PG templates: exactly 26. If a new template is added without
+    /// Confirms the count of PG templates: exactly 30. If a new template is added without
     /// updating this test class the count assertion fails, prompting a review.
     /// </summary>
     [Fact]
-    public void PgTemplates_TotalCount_IsTwentySix()
+    public void PgTemplates_TotalCount_IsThirty()
     {
         var templatesDir = GetTemplatesDir("PostgreSQL");
         var actualFiles = Directory.GetFiles(templatesDir, "*.sql");
 
-        actualFiles.Should().HaveCount(26,
-            "the PostgreSQL Templates directory must contain exactly 26 .sql files after DAL-017 (+2 read-only Select templates, #7; +1 history Select template, #13; +4 schema version templates, ADR-024; +1 heartbeat template); " +
+        actualFiles.Should().HaveCount(30,
+            "the PostgreSQL Templates directory must contain exactly 30 .sql files after DAL-017 (+2 read-only Select templates, #7; +1 history Select template, #13; +4 schema version templates, ADR-024; +1 heartbeat template; +4 retention templates, ADR-027); " +
             "if you added a new template, also add it to P2_PostgreSqlIdentifierCasingTests");
     }
 

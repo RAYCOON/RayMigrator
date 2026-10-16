@@ -50,16 +50,8 @@ public sealed class RepositorySchemaExecutor
         _logContext = logContext;
 
         // The templates and the DAL settings need every value; the data annotations of the options write the
-        // documented defaults into empty settings, and RepositorySchemaService applies them before it gets here.
-        var missing = new List<string>();
-        if (string.IsNullOrWhiteSpace(repository.DatabaseType)) missing.Add(nameof(RepositoryOptions.DatabaseType));
-        if (string.IsNullOrWhiteSpace(repository.ConnectionString)) missing.Add(nameof(RepositoryOptions.ConnectionString));
-        if (repository.TableBaseName is null) missing.Add(nameof(RepositoryOptions.TableBaseName) + " (the empty string for no prefix)");
-        if (repository.DbCommandTimeoutInSeconds is null) missing.Add(nameof(RepositoryOptions.DbCommandTimeoutInSeconds));
-        if (repository.DbCommandMaxRetries is null) missing.Add(nameof(RepositoryOptions.DbCommandMaxRetries));
-        if (repository.DbCommandWaitTimeInMsBeforeRetry is null) missing.Add(nameof(RepositoryOptions.DbCommandWaitTimeInMsBeforeRetry));
-        if (missing.Count > 0)
-            throw new ArgumentException($"The repository options lack {string.Join(", ", missing)}; apply the data annotations' defaults first, as RepositorySchemaService does.", nameof(repository));
+        // documented defaults into empty settings, and the repository services apply them before they get here.
+        RepositoryOptionsRequirements.ThrowIfIncomplete(repository, nameof(repository));
     }
 
     private object LogContext => _logContext?.Invoke() ?? string.Empty;
@@ -73,6 +65,45 @@ public sealed class RepositorySchemaExecutor
     /// <exception cref="TemplateExecutionException"></exception>
     /// <exception cref="TemplateResultException">A step did not return its own version as result code.</exception>
     public async Task<RepositorySchemaOutcome> EnsureAsync(CancellationToken cancellationToken = default)
+    {
+        var eventId = MigrationEvent.TemplateExecutionRepositoryCheckCreate;
+        int foundVersion = await CheckVersionAsync(cancellationToken);
+        string schemaName = SensitiveDataMasker.Mask(_repository.SchemaName);
+
+        for (int step = foundVersion + 1; step <= _targetVersion; step++)
+        {
+            await UpgradeAsync(step, cancellationToken);
+        }
+
+        // An operator should see a created or upgraded repository without Debug logging: a first run creates the schema and
+        // the tables in a database that may belong to someone else (#27).
+        if (foundVersion == 0)
+        {
+            _logger.LogInformation(eventId,
+                "Repository created: DatabaseType [{DatabaseType}], schema [{SchemaName}], schema version [{SchemaVersion}].{MigrationContext}",
+                _repositoryDal.DatabaseType, schemaName, _targetVersion, LogContext);
+        }
+        else if (foundVersion < _targetVersion)
+        {
+            _logger.LogInformation(eventId,
+                "Repository schema upgraded: DatabaseType [{DatabaseType}], schema [{SchemaName}], version [{FromVersion}] to [{ToVersion}].{MigrationContext}",
+                _repositoryDal.DatabaseType, schemaName, foundVersion, _targetVersion, LogContext);
+        }
+
+        return new RepositorySchemaOutcome(foundVersion, _targetVersion, await RegisterEngineVersionAsync(cancellationToken));
+    }
+
+    /// <summary>
+    /// Reads the schema version of the repository through <c>Repository_CheckCreate</c> and applies no step: the highest
+    /// applied version, 0 for a database without a repository. Like every command, the check creates the schema version
+    /// table (on SQL Server and PostgreSQL also the schema) when it is missing, so a database without a repository keeps
+    /// that empty table; it creates no repository table. It waits for a schema step that another process applies.
+    /// </summary>
+    /// <param name="cancellationToken">Reaches the DAL call of the check.</param>
+    /// <exception cref="RepositorySchemaException">The repository has no schema version but repository tables, or a
+    /// schema version newer than the target.</exception>
+    /// <exception cref="TemplateExecutionException"></exception>
+    public async Task<int> CheckVersionAsync(CancellationToken cancellationToken = default)
     {
         var eventId = MigrationEvent.TemplateExecutionRepositoryCheckCreate;
 
@@ -103,27 +134,7 @@ public sealed class RepositorySchemaExecutor
                 foundVersion, _targetVersion);
         }
 
-        for (int step = foundVersion + 1; step <= _targetVersion; step++)
-        {
-            await UpgradeAsync(step, cancellationToken);
-        }
-
-        // An operator should see a created or upgraded repository without Debug logging: a first run creates the schema and
-        // the tables in a database that may belong to someone else (#27).
-        if (foundVersion == 0)
-        {
-            _logger.LogInformation(eventId,
-                "Repository created: DatabaseType [{DatabaseType}], schema [{SchemaName}], schema version [{SchemaVersion}].{MigrationContext}",
-                _repositoryDal.DatabaseType, schemaName, _targetVersion, LogContext);
-        }
-        else if (foundVersion < _targetVersion)
-        {
-            _logger.LogInformation(eventId,
-                "Repository schema upgraded: DatabaseType [{DatabaseType}], schema [{SchemaName}], version [{FromVersion}] to [{ToVersion}].{MigrationContext}",
-                _repositoryDal.DatabaseType, schemaName, foundVersion, _targetVersion, LogContext);
-        }
-
-        return new RepositorySchemaOutcome(foundVersion, _targetVersion, await RegisterEngineVersionAsync(cancellationToken));
+        return foundVersion;
     }
 
     /// <summary>

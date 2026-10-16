@@ -228,6 +228,9 @@ public class SqliteTypeConventionsTests
         new object[] { "Repository_MigrationRun_Insert.sql" },
         new object[] { "Repository_MigrationRun_Update.sql" },
         new object[] { "Repository_Product_CheckInsert.sql" },
+        new object[] { "Repository_MigrationRecordHistory_Delete.sql" },
+        new object[] { "DatabaseLogging_Delete.sql" },
+        new object[] { "DatabaseLogging_Count.sql" },
     };
 
     public static IEnumerable<object[]> SingleStatementTemplates => new[]
@@ -241,6 +244,7 @@ public class SqliteTypeConventionsTests
         new object[] { "Repository_MigrationRun_SelectOrphaned.sql" },
         new object[] { "Repository_Product_Select.sql" },
         new object[] { "Repository_Environment_Select.sql" },
+        new object[] { "Repository_MigrationRecordHistory_Count.sql" },
     };
 
     [Theory]

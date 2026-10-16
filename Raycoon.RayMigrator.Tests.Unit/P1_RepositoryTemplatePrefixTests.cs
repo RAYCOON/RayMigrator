@@ -12,7 +12,11 @@ namespace Raycoon.RayMigrator.Tests.Unit;
 public class RepositoryTemplatePrefixTests
 {
     private static readonly string[] Engines = ["SqlServer", "PostgreSQL", "MariaDb", "MySql", "Sqlite"];
-    private static readonly string[] Templates = ["Repository_CheckCreate.sql", "Repository_Upgrade_1.sql", "Repository_Upgrade_2.sql", "Repository_Upgrade_3.sql", "DatabaseLogging_CheckCreate.sql"];
+    private static readonly string[] Templates =
+    [
+        "Repository_CheckCreate.sql", "Repository_Upgrade_1.sql", "Repository_Upgrade_2.sql", "Repository_Upgrade_3.sql", "DatabaseLogging_CheckCreate.sql",
+        "Repository_MigrationRecordHistory_Delete.sql", "Repository_MigrationRecordHistory_Count.sql", "DatabaseLogging_Delete.sql", "DatabaseLogging_Count.sql"
+    ];
 
     public static IEnumerable<object[]> EngineTemplates =>
         Engines.SelectMany(engine => Templates.Select(template => new object[] { engine, template }));

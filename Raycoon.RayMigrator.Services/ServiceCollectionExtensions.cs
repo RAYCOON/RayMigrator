@@ -41,6 +41,9 @@ public static class ServiceCollectionExtensions
         // Register the schema service for hosts that create or upgrade a repository without a run (needs the host's TemplateCache)
         services.AddSingleton<IRepositorySchemaService, RepositorySchemaService>();
 
+        // Register the maintenance service for hosts that delete old history and log rows of a repository (ADR-027)
+        services.AddSingleton<IRepositoryMaintenanceService, RepositoryMaintenanceService>();
+
         return services;
     }
 }
