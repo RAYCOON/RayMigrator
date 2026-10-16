@@ -92,4 +92,28 @@ public class SqliteRunningGuardTests : SqliteTestBase
         result.TotalMigrations.Should().BeGreaterThan(0);
         result.Result.Should().Be(MigrationRunResult.Ok);
     }
+
+    /// <summary>
+    /// Two finished runs, each with its MigrationRunMeta row, precede the running one: the refused start reports the
+    /// running run and writes neither a run nor a MigrationRunMeta row.
+    /// </summary>
+    [Fact]
+    public async Task MigrateUp_WithRunningAfterTwoFinishedRuns_ShouldFail()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        await using var ctx = await CreateScenario().BuildAsync();
+        await ctx.MigrateUpAsync("Release_1.0");
+        ctx.AssertSuccess(true);
+        await ctx.MigrateUpAsync("Release_2.0");
+        ctx.AssertSuccess(true);
+        ctx.InsertRunningMigrationRun();
+        int runs = ctx.CountMigrationRuns();
+        int runMeta = ctx.CountRepoRows("MigrationRunMeta");
+        await ctx.RebuildForAsync(MigrationCommand.MigrateUp, MigrationRunMode.Migrate);
+        var result = await ctx.MigrateUpAsync();
+        result.Success.Should().BeFalse("MigrateUp should fail when a running MigrationRun exists");
+        result.ErrorCode.Should().Be(TemplateResultCode.MigrationAlreadyRunning, "the start is refused as a parallel run: {0}", result.ErrorMessage);
+        ctx.CountMigrationRuns().Should().Be(runs, "the refused start inserts no run");
+        ctx.CountRepoRows("MigrationRunMeta").Should().Be(runMeta, "the refused start writes no MigrationRunMeta row");
+    }
 }

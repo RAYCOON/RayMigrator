@@ -6,7 +6,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_MigrationRun_Insert"
 DatabaseType   = "Sqlite"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-10-13.1"
+Version        = "2026-10-16.1"
 
 [Description]
 Function = """
@@ -20,6 +20,7 @@ Behaviour = """
 - SQLite uses file-level locking instead of advisory locks (GET_LOCK)
 - Checks for existing unfinished MigrationRun before inserting
 - Parallel migrations for same Product/Environment are prevented
+- Writes the MigrationRunMeta row only for the run it inserted; a refused insert writes nothing
 """
 
 [ConfigPlaceholders]
@@ -54,6 +55,7 @@ Note3 = "Use datetime('now') for StartedAt timestamp"
 Note4 = "SQLite uses file-level locking - no GET_LOCK/RELEASE_LOCK needed"
 Note5 = "Uses temp table _rc_state to store intermediate state since SQLite has no session variables"
 Note6 = "ResultCode convention: >= 0 = Success, -1 = General template error, -2 = Migration already active (parallel run)"
+Note7 = "new_id takes last_insert_rowid() only when changes() > 0 in the statement right after the MigrationRun INSERT: a gated INSERT that inserts nothing leaves last_insert_rowid() at the last row inserted before on the connection (a row of _rc_state), so new_id stays NULL then"
 ================================================================================
 */
 
@@ -87,11 +89,15 @@ SELECT @MigratorMetaId, @ProductId, @EnvironmentId, @MigrationRunModeId, @Migrat
        @MigrationOperationId, @MigrationRunSourceId, @InitiatedBy, @InitiatedBySubject, @Host, datetime('now')
 WHERE CAST((SELECT "val" FROM "_rc_state" WHERE "key"='running') AS INTEGER) = 0;
 
--- Capture insert state: new_id MUST be captured first in a separate INSERT.
--- SQLite evaluates multi-row VALUES sequentially — row1's INSERT modifies
--- last_insert_rowid(), so row2 would see _rc_state's rowid instead of MigrationRun's.
+-- Capture insert state: new_id MUST be captured first in a separate INSERT, directly after
+-- the MigrationRun INSERT. SQLite evaluates multi-row VALUES sequentially — row1's INSERT
+-- modifies last_insert_rowid(), so row2 would see _rc_state's rowid instead of MigrationRun's.
+-- changes() counts the rows the MigrationRun INSERT inserted. When a running migration blocked
+-- it, last_insert_rowid() still returns the rowid of the last row inserted before on this
+-- connection (a row of _rc_state), which can equal the Id of an existing run, so new_id stays
+-- NULL then.
 INSERT OR REPLACE INTO "_rc_state" ("key", "val") VALUES
-    ('new_id', CAST(last_insert_rowid() AS TEXT));
+    ('new_id', CASE WHEN changes() > 0 THEN CAST(last_insert_rowid() AS TEXT) END);
 INSERT OR REPLACE INTO "_rc_state" ("key", "val") VALUES
     ('inserted', CAST((SELECT COUNT(*) FROM "{CFG:TableBaseName}MigrationRun"
         WHERE "Id" = CAST((SELECT "val" FROM "_rc_state" WHERE "key"='new_id') AS INTEGER)) AS TEXT));

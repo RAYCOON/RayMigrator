@@ -586,6 +586,12 @@ RayMigrator follows Semantic Versioning where applicable.
   file still runs in full afterwards. The pending list reports it as
   `RunAlways` with no `ResumeFromBlock`; only `RollbackIncomplete`
   precedes it.
+- `InsertRunningMigrationRun`, `InsertOrphanedMigrationRun` and
+  `InsertOpenMigrationRun` of `RepositoryQueryHelper`
+  (`Raycoon.RayMigrator.Testing`) write the `MigrationRunMeta` row of the
+  run they insert as well, with an empty JSON object as its settings,
+  because every run of the engine has one; a test that counts
+  `MigrationRunMeta` rows counts it.
 
 ### Fixed
 
@@ -618,6 +624,19 @@ RayMigrator follows Semantic Versioning where applicable.
 - `TargetGroupStatus.LastMigrationDate` is set: the `FinishedAt` (UTC) of the
   Migrated record of the target group that finished last, null when none has
   an end. It was never set before.
+- On SQLite, a migrate-up, migrate-down or baseline that started while
+  another run of its product and environment was open failed with a
+  template error (`UNIQUE constraint failed:
+  MigrationRunMeta.MigrationRunId`) instead of reporting the parallel run,
+  as soon as the repository held two runs. `Repository_MigrationRun_Insert`
+  took `last_insert_rowid()` as the Id of the new run although the open run
+  had kept its insert from adding a row; the function then returned the
+  rowid of a row of the template's own state table, 2, and the template
+  tried to write a `MigrationRunMeta` row for run 2, which already had one.
+  The start therefore did not end with `MigrationAlreadyRunning` (-2), and
+  its auto-fix did not close an orphaned run whose heartbeat had gone stale;
+  only `fix` closed it. The template now takes the Id only when its insert
+  added a row. Every earlier version has the fault on SQLite.
 
 ## [0.19.0] — 2026-10-15
 

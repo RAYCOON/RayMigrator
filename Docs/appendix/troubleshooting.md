@@ -130,6 +130,9 @@ docker exec rm_db_mysql mysql -u rayuser -praypass123 raydb -e "SELECT 1"
 
 **Symptoms:**
 - Error: "RayMigrator aborted because another migration is already running"
+- SQLite with a RayMigrator before 0.20.0, once the repository holds two runs: the start fails instead with `Error executing template [TemplateType: Repository_MigrationRun_Insert, DatabaseType: Sqlite, ...]` and `UNIQUE constraint failed: MigrationRunMeta.MigrationRunId` (SQLite error 19)
+
+**Explanation (SQLite before 0.20.0):** The SQLite template of the run insert took the Id of the new run from `last_insert_rowid()` although the open run had kept the insert from adding a row. The function then returned the rowid of a row of the template's own state table, 2, and the template tried to write a `MigrationRunMeta` row for run 2, which already had one. So the start reported no parallel run, and the auto-fix of the next start did not close an orphaned run. From 0.20.0 the template takes the Id only when its insert added a row.
 
 **Solutions:**
 
@@ -143,7 +146,7 @@ docker exec rm_db_mysql mysql -u rayuser -praypass123 raydb -e "SELECT 1"
    ```
    A row whose `LastHeartbeatAt` is older than `Repository.OrphanedRunThresholdInMinutes` (default 2 minutes) belongs to a process that no longer runs; the next start closes it automatically (see [Auto-Fix of Orphaned Runs](#auto-fix-of-orphaned-runs)).
 
-3. **Fix stuck run** (use the `fix` command, or manual SQL below)
+3. **Fix stuck run** (use the `fix` command, or manual SQL below). On SQLite before 0.20.0 a repository with two runs needs this step for an orphaned run as well, because the auto-fix of the next start does not reach it.
 
    > **Note**: Table names in the SQL examples below use simplified names (e.g., `MigrationRun`). Your actual table names include the configured `SchemaName` and `TableBaseName` prefix (e.g., `[ray].[RayMigrationRun]` for SQL Server with SchemaName=`ray` and TableBaseName=`Ray`). Adjust the schema and prefix to match your configuration.
 

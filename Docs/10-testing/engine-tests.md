@@ -8,7 +8,7 @@ The engine test project (`Raycoon.RayMigrator.Tests.Engine`) tests the core migr
 
 | Metric | Value |
 |--------|-------|
-| Total tests | ~1659, every theory row counted (1632 test methods across 257 test class files, including the engine-agnostic `CliToolPresetConsistencyTests` with 16 inline cases; 10 are skipped on purpose) |
+| Total tests | ~1699, every theory row counted (1667 test methods across 257 test class files, including the engine-agnostic `CliToolPresetConsistencyTests` with 16 inline cases; 10 are skipped on purpose) |
 | PostgreSQL tests | ~322 (50 test classes; most use unprefixed filenames as the "base" engine) |
 | SqlServer tests | ~333 (54 test classes, includes 6 block-level tests, 3 resume tests, 12 CLI tool tests, 2 atomic shared connection tests and 1 killed pooled session test) |
 | MariaDb tests | ~326 (52 test classes; one is `MariaDbSessionTimezoneTests` defined alongside `MySqlSessionTimezoneTests` in `P2_MySqlMariaDbSessionTimezoneTests.cs`) |
@@ -227,8 +227,8 @@ public async Task ErrorInR3_OnlyR3RolledBack()
 - `InfoAsync()` — executes the `info` command (returns `MigrationStatusInfo`)
 - `GetHistoryAsync(limit?)` — fetches the run history (returns `MigrationHistory`)
 - `FixIssuesAsync(scope?, olderThanMinutes?, assumedMigrationStatus?, cancellationToken?)` — executes the `fix` command (without `assumedMigrationStatus` the repair keeps the progress of every open record) in the host's run mode (rebuild with `MigrationRunMode.Simulate` for a preview), with `cancellationToken`, or the test's token without one
-- `InsertOrphanedMigrationRun(minutesOld?, heartbeatMinutesOld?)` — inserts a fake `MigrationRun` record with Running status, a `StartedAt` in the past and, where given, a `LastHeartbeatAt` in the past (helper for Fix tests)
-- `SetMigrationRecordState(filename, targetAlias, status, fileUpBlocksMigrated?, fileDownBlocksMigrated?, migrationRunId?)` — writes the state a process leaves on a record when it ends abruptly in the middle of the file: the status, the counters and the run where given, no `FinishedAt` and no `DurationInMs` (`RepositoryQueryHelper.SetMigrationRecordState`); with `InsertOrphanedMigrationRun` the footprint of an abrupt end, which no command of the engine leaves
+- `InsertOrphanedMigrationRun(minutesOld?, heartbeatMinutesOld?)` — inserts a fake `MigrationRun` record with Running status, a `StartedAt` in the past and, where given, a `LastHeartbeatAt` in the past, together with its `MigrationRunMeta` row as every run of the engine has one (helper for Fix tests)
+- `SetMigrationRecordState(filename, targetAlias, status, fileUpBlocksMigrated?, fileDownBlocksMigrated?, migrationRunId?)` — writes the state a process leaves on a record when it ends abruptly in the middle of the file or of its rollback: the status, the counters and the run where given, no `FinishedAt` and no `DurationInMs` for a file in progress, the end and the duration of the last terminal status kept for a rollback in progress (`RepositoryQueryHelper.SetMigrationRecordState`); with `InsertOrphanedMigrationRun` the footprint of an abrupt end, which no command of the engine leaves
 - `GetMigrationRecordEnd(filename)` — `FinishedAt` as text and `DurationInMs` of the record of a file, each null when empty
 - `RebuildForAsync(command, mode, toRelease?)` — rebuilds DI container for next phase (no DB cleanup)
 - `UseProgressObserver(observer)` — sets the progress observer of the host's context and of every context a later rebuild creates; the cancellation tests cancel from a `CancellingProgressObserver` at an exact progress event, and the block counter tests read the record from a `ProbingProgressObserver`
@@ -270,7 +270,7 @@ public async Task ErrorInR3_OnlyR3RolledBack()
 - `CountMigrationsByFilename(filename)` — counts MigrationRecord rows for a specific filename
 - `CountMigrationsWithStatus(statusId)` — counts MigrationRecord rows with a specific status
 - `GetLatestRunResultId()` — returns the MigrationRunResultId of the most recent run
-- `InsertRunningMigrationRun()` — inserts a Running MigrationRun record (for concurrent-guard tests)
+- `InsertRunningMigrationRun()` — inserts a Running MigrationRun record and its `MigrationRunMeta` row (for concurrent-guard tests)
 - `WorkDirectory` — path to the temporary work directory containing mutation-applied migration files
 
 **Disposal:** `DisposeAsync` disposes the host first, which flushes the database log into the tables the cleanup drops. A scenario with a table prefix then drops the repository and log tables of its prefix (`PrefixTableCleanup`); the cleanup never throws, because an exception there would replace the one of a failing test, and a table that stays is dropped by the next scenario with the prefix before it starts. Last, the work directory is deleted. A scenario without a prefix keeps its tables for inspection until the next scenario cleans them before it starts.
@@ -406,7 +406,7 @@ RA-5 to RA-9 come from `Infrastructure/RunAlwaysContract.cs` and make the three-
 | `ProductIsolationTests` | 2 | The product scope of a run (ADR-026): the configuration carries a second product `Broken` whose target has no connection string, whose target group names the database type `NoSuchDb` and whose directory is a placeholder of a variable that is not set (`WithSecondProduct(alias, broken: true)`); migrate-up and info of `EngineTest` succeed beside it, and a host built for `Broken` (`ForProduct`) fails on the broken product alone: on the unset variable first (`ApplicationStartupException`), and once the test sets the variable to a directory that does not exist, on the data annotations, which name `Products[Broken]`, the connection string and the directory (`Infrastructure/ProductIsolationContract.cs`). Engine-prefixed class names as above |
 | `ProgressEventsTests` | 8 | Typed progress events through `MigrationContext.ProgressObserver`: run, file and block events of migrate-up, simulated outcomes and the start release without a run row, rollbacks and skipped records of migrate-down, baselined files without blocks, the failed file and run, and an observer that throws does not abort the run |
 | `ParameterRoundTripTests` | 2 (PostgreSQL 3) | A parameter value with quotes, backslashes, `$$`, other placeholders, comment and statement markers and non-ASCII text comes back unchanged through the DAL; PostgreSQL also inside a `DO` block |
-| `RunningGuardTests` | 6 | Concurrent run prevention (MigrateUp, MigrateDown, Baseline blocked; ValidateHash/UpdateHash allowed) |
+| `RunningGuardTests` | 7 | Concurrent run prevention (MigrateUp, MigrateDown, Baseline blocked; ValidateHash/UpdateHash allowed); MigrateUp blocked the same way after two finished runs, and the refused start writes neither a run nor a `MigrationRunMeta` row |
 | `SimulateModeTests` | 14 | Simulate mode (no user tables written), Validate mode, MigrateDown simulate, MigrateDown Validate (non-destructive + missing rollback detection), Simulate reads the same records as Migrate: preview of pending files only, nothing pending after a full migrate, rollback candidates, empty repository, an environment that is not registered yet, for which nothing is inserted (#7) |
 | `TargetGroupMigrationOrderTests` | 10 | TargetGroupMigrationOrder overrides (CLI, appsettings, migsettings), wrong-case error, Baseline, single-TG rejection |
 | `TargetGroupFilterTests` | 12 | Filtering by target group alias (Backend-only, Frontend-only, both) |

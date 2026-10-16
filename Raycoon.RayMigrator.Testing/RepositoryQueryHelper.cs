@@ -466,8 +466,8 @@ public class RepositoryQueryHelper
     }
 
     /// <summary>
-    /// Inserts a fake MigrationRun record with MigrationRunResultId=10 (Running) and FinishedAt=NULL.
-    /// Used to simulate a running migration for guard tests.
+    /// Inserts a fake MigrationRun record with MigrationRunResultId=10 (Running) and FinishedAt=NULL, together with its
+    /// MigrationRunMeta row, as every run of the engine has one. Used to simulate a running migration for guard tests.
     /// </summary>
     public void InsertRunningMigrationRun(int productId, string environment = "Docker")
     {
@@ -504,12 +504,13 @@ public class RepositoryQueryHelper
             _ => throw new NotSupportedException($"Unsupported database type: {_databaseType}")
         };
 
-        dal!.ExecuteScalarAsync(sql, QuerySettings, null).GetAwaiter().GetResult();
+        dal!.ExecuteScalarAsync($"{sql}; {MigrationRunMetaInsertSql()}", QuerySettings, null).GetAwaiter().GetResult();
     }
 
     /// <summary>
     /// Inserts a fake MigrationRun record with MigrationRunResultId=10 (Running) and a StartedAt
-    /// timestamp in the past, simulating an orphaned migration run that crashed without completing.
+    /// timestamp in the past, simulating an orphaned migration run that crashed without completing,
+    /// together with its MigrationRunMeta row, as every run of the engine has one.
     /// </summary>
     public void InsertOrphanedMigrationRun(int productId, int minutesOld, string environment = "Docker", int? heartbeatMinutesOld = null)
     {
@@ -519,8 +520,9 @@ public class RepositoryQueryHelper
     }
 
     /// <summary>
-    /// Inserts an open MigrationRun (Running) with exact UTC timestamps, for tests that probe the heartbeat age
-    /// arithmetic of an engine at a minute boundary. Second precision: SQLite stores <c>YYYY-MM-DD HH:MM:SS</c>.
+    /// Inserts an open MigrationRun (Running) with exact UTC timestamps and its MigrationRunMeta row, for tests that
+    /// probe the heartbeat age arithmetic of an engine at a minute boundary. Second precision: SQLite stores
+    /// <c>YYYY-MM-DD HH:MM:SS</c>.
     /// </summary>
     public void InsertOpenMigrationRun(int productId, DateTime startedAtUtc, DateTime? lastHeartbeatAtUtc, string environment = "Docker")
     {
@@ -554,7 +556,27 @@ public class RepositoryQueryHelper
             _ => throw new NotSupportedException($"Unsupported database type: {_databaseType}")
         };
 
-        dal!.ExecuteScalarAsync(sql, QuerySettings, null).GetAwaiter().GetResult();
+        dal!.ExecuteScalarAsync($"{sql}; {MigrationRunMetaInsertSql()}", QuerySettings, null).GetAwaiter().GetResult();
+    }
+
+    /// <summary>
+    /// The statement that writes the MigrationRunMeta row of the run the statement before it inserted, in the same
+    /// batch and session: the engine writes a run and its MigrationRunMeta row together, so a fake run leaves the same
+    /// footprint. The settings snapshot is an empty JSON object.
+    /// </summary>
+    private string MigrationRunMetaInsertSql()
+    {
+        string runId = _databaseType switch
+        {
+            "SqlServer" => "SCOPE_IDENTITY()",
+            "PostgreSQL" => "lastval()",
+            "MariaDb" or "MySql" => "LAST_INSERT_ID()",
+            "Sqlite" => "last_insert_rowid()",
+            _ => throw new NotSupportedException($"Unsupported database type: {_databaseType}")
+        };
+
+        return $"INSERT INTO {GetQualifiedTableName("MigrationRunMeta")} " +
+               $"({QuoteColumn("MigrationRunId")}, {QuoteColumn("MigrationRunSettingsJson")}) VALUES ({runId}, '{{}}')";
     }
 
     /// <summary>

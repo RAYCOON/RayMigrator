@@ -615,6 +615,7 @@ END;
 - **Existence check**: `sqlite_master` table with `type='table'`
 - **Idempotent DDL**: `CREATE TABLE IF NOT EXISTS`
 - **Conditional DML**: master data via `INSERT ... SELECT ... FROM (VALUES ...) WHERE` gated on `_rc_state`, `INSERT OR REPLACE` for state
+- **Id of a gated INSERT**: `last_insert_rowid()` returns the rowid of the last row any statement inserted on the connection, a row of `_rc_state` included, and an `INSERT ... SELECT ... WHERE` that inserts nothing leaves it unchanged. A template that needs the Id of a row it may not have inserted reads it in the statement directly after that INSERT, together with `changes()` (the rows that INSERT inserted): `CASE WHEN changes() > 0 THEN last_insert_rowid() END` (`Repository_MigrationRun_Insert`)
 - **WAL mode**: Set via `PRAGMA journal_mode=WAL` on connection validation
 
 ## Parameter Substitution
