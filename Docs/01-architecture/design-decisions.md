@@ -171,7 +171,7 @@ Configured per TargetGroup via `TargetMigrationOrder` option (default inherited 
 
 The order in which target groups are processed within a release is controlled by `TargetGroupMigrationOrder`. The resolution chain (highest priority first) is: CLI argument (`--target-group-migration-order`) > migsettings entry > `ProductOptions.TargetGroupMigrationOrder` (comma-separated) > configuration array order.
 
-When specified, all target group aliases must be listed exactly once. Applies to `MigrateUp` and `baseline` commands only.
+When specified, all target group aliases must be listed exactly once, with their exact spelling. Applies to `MigrateUp` and `baseline` commands only. On a product with one target group an order that names exactly its alias has nothing to sort and is ignored with a warning instead of failing the run; any other order is still refused. The configuration validation compares the aliases of the product setting the same way (RULE_1_10 to RULE_1_13), so that a configuration that `migrate-up` refuses stops at startup; it does not see the migsettings and CLI orders, which the commands check when they apply them.
 
 ## Error Handling Strategies
 

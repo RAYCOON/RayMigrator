@@ -27,10 +27,12 @@ Since 0.19.0 the engine validates a run in the scope of its product (ADR-026): `
 | RULE_1_2 | DUPLICATE_TARGET_ALIAS | Error | Target aliases within a single TargetGroup must be unique (case-insensitive). |
 | RULE_1_8 | DUPLICATE_PRODUCT_ALIAS | Error | Product aliases must be unique across the configuration (case-insensitive). A run sees its own product only ([product scope](#product-scope-of-a-run)), so it reports an alias that its product repeats; a whole-document check reports every duplicate. |
 | RULE_1_9 | DUPLICATE_CLITOOL_ALIAS | Error | CliTool aliases must be unique across the configuration (case-insensitive). |
-| RULE_1_10 | TG_MIGRATION_ORDER_INVALID_ALIAS | Error | Every alias listed in `Product.TargetGroupMigrationOrder` must match a real TargetGroup in that Product. |
-| RULE_1_11 | TG_MIGRATION_ORDER_MISSING_ALIAS | Error | Every TargetGroup in the Product must appear in `TargetGroupMigrationOrder` when it is set. |
+| RULE_1_10 | TG_MIGRATION_ORDER_INVALID_ALIAS | Error | Every alias listed in `Product.TargetGroupMigrationOrder` must match a real TargetGroup in that Product with its exact spelling. An alias that matches a TargetGroup only case-insensitively is reported with the exact alias as a hint. |
+| RULE_1_11 | TG_MIGRATION_ORDER_MISSING_ALIAS | Error | Every TargetGroup in the Product must appear in `TargetGroupMigrationOrder` when it is set. Not reported for a TargetGroup that the order names only case-insensitively, whose RULE_1_10 names it already. |
 | RULE_1_12 | TG_MIGRATION_ORDER_DUPLICATE_ALIAS | Error | An alias must not appear more than once in `TargetGroupMigrationOrder`. |
-| RULE_1_13 | TG_MIGRATION_ORDER_IRRELEVANT_FOR_SINGLE_TG | Warning | Setting `TargetGroupMigrationOrder` on a Product that has only one TargetGroup has no effect. |
+| RULE_1_13 | TG_MIGRATION_ORDER_IRRELEVANT_FOR_SINGLE_TG | Warning | `TargetGroupMigrationOrder` names exactly the only TargetGroup of the Product, so the commands ignore it, and the warning says so. Not reported when RULE_1_10 to RULE_1_12 report an error for the order; any other order on such a Product is one of those errors. |
+
+RULE_1_10 to RULE_1_12 compare the aliases exactly (ordinal), as `migrate-up` and `baseline` do before they apply an order, while the uniqueness rules above compare case-insensitively. Since 0.20.0 an order that names a TargetGroup only case-insensitively therefore stops every command of that product at startup; before, the catalog accepted it and only `migrate-up` and `baseline` refused it. On a Product with one TargetGroup the commands ignore an order that names exactly its alias, with a warning, and refuse any other order. The catalog checks the product setting only: the release level `migsettings` and `--target-group-migration-order` are not part of the configuration, so `migrate-up`, `baseline` and `info` check those orders at run time with the same rules.
 
 ### Group 2 — Semantic contradictions
 
@@ -93,7 +95,7 @@ These run **outside** the shared catalog because they rely on APIs that are unav
 ## Breaking changes vs. previous behaviour
 
 1. **Engine startup now fails on cross-field config errors.** Before this change, `RayMigratorOptionsValidator` was never registered in DI (a latent bug). Starting with this release, misconfigured production configs will fail fast at `host.Build()` with `OptionsValidationException` instead of crashing later during migration. Errors carry `[RULE_x_y]` prefixes and can be looked up above.
-2. **Alias comparisons use `OrdinalIgnoreCase`.** The ConfigWizard previously treated `"Backend"` and `"backend"` as two distinct TargetGroups (ordinal-sensitive); the Engine always treated them as duplicates (ordinal-insensitive). Both sides now agree on case-insensitive. Configs relying on case-distinct aliases must rename.
+2. **Alias comparisons use `OrdinalIgnoreCase`.** The ConfigWizard previously treated `"Backend"` and `"backend"` as two distinct TargetGroups (ordinal-sensitive); the Engine always treated them as duplicates (ordinal-insensitive). Both sides now agree on case-insensitive. Configs relying on case-distinct aliases must rename. This concerns the uniqueness of aliases; the `TargetGroupMigrationOrder` rules RULE_1_10 to RULE_1_12 compare exactly, like `migrate-up` (see [Group 1](#group-1--alias-uniqueness--migration-order)).
 3. **RULE_3_8 severity upgrade.** CLI parameter completeness was previously a Warning in the Wizard. It is now an Error in both Engine and Wizard — missing values crash the CLI at runtime.
 4. **`CliToolParameterHelper` deleted.** The ConfigWizard.Core helper was replaced by:
    - `Raycoon.RayMigrator.Validation.Helpers.CliToolPlaceholderExtractor` — for placeholder extraction (WASM-safe, shared).

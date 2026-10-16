@@ -194,7 +194,7 @@ TargetGroupMigrationOrder = ["Frontend", "Backend"]
 
 This TOML key is only meaningful in release-level migsettings files (applied per-release), not in individual migration file headers. If omitted, the value is inherited from the nearest `migsettings.txt` / `migsettings.{Environment}.txt` file in the directory hierarchy, from the `TargetGroupMigrationOrder` property in the product's `appsettings.json`, or from the `--target-group-migration-order` CLI option. When no order is set anywhere, target groups are processed in the order they appear in configuration.
 
-This parameter is only applicable when the product has more than one target group. Applies to `migrate-up` and `baseline` commands.
+This parameter is only applicable when the product has more than one target group; with one target group, an order that names exactly its alias is ignored with a warning, and any other order is an error. Applies to `migrate-up` and `baseline` commands.
 
 ---
 

@@ -305,16 +305,21 @@ public class MigrationService : IMigrationService
             var migSettingsForOrder = LoadMigSettingsDefaults(
                 productOptions.MigrationFilesRootDirectory!, request.Environment,
                 productOptions.MigrationFilesExtension ?? "sql");
+            var ignoredOrderSources = new HashSet<string>(StringComparer.Ordinal);
 
             foreach (var release in orderedReleases)
             {
                 // Resolve TargetGroup execution order for this release
                 var releaseDir = Path.Combine(productOptions.MigrationFilesRootDirectory!, release);
                 var tgExecutionOrder = ResolveTargetGroupMigrationOrder(
-                    releaseDir, productOptions, migSettingsForOrder, request.TargetGroupMigrationOrder);
-                var orderedTargetGroups = tgExecutionOrder != null
-                    ? ValidateAndReorderTargetGroups(tgExecutionOrder, productOptions.TargetGroups!, "migrate-up")
-                    : productOptions.TargetGroups!;
+                    releaseDir, productOptions, migSettingsForOrder, request.TargetGroupMigrationOrder, out string orderSource);
+                var orderedTargetGroups = productOptions.TargetGroups!;
+                if (tgExecutionOrder != null)
+                {
+                    orderedTargetGroups = ValidateAndReorderTargetGroups(
+                        tgExecutionOrder, productOptions.TargetGroups!, orderSource, out string? ignoredTargetGroup);
+                    LogIgnoredTargetGroupMigrationOrder(orderSource, ignoredTargetGroup, ignoredOrderSources);
+                }
 
                 foreach (var targetGroup in orderedTargetGroups)
                 {
@@ -1668,9 +1673,9 @@ public class MigrationService : IMigrationService
     {
         var result = new List<(int FileOrderId, string TargetGroupAlias, string TargetAlias)>();
 
-        // If explicit execution order is provided, reorder target groups
+        // If explicit execution order is provided, reorder target groups; the warning of an ignored order is not needed here
         var effectiveTargetGroups = targetGroupMigrationOrder != null
-            ? ValidateAndReorderTargetGroups(targetGroupMigrationOrder, targetGroups, "GetFullExecutionOrder")
+            ? ValidateAndReorderTargetGroups(targetGroupMigrationOrder, targetGroups, "GetFullExecutionOrder", out _)
             : targetGroups;
 
         // Releases in FileOrderId order (Distinct preserves first-seen order)
@@ -2223,16 +2228,21 @@ public class MigrationService : IMigrationService
             var baselineMigSettings = LoadMigSettingsDefaults(
                 productOptions.MigrationFilesRootDirectory!, request.Environment,
                 productOptions.MigrationFilesExtension ?? "sql");
+            var ignoredOrderSources = new HashSet<string>(StringComparer.Ordinal);
 
             foreach (var release in baselineOrderedReleases)
             {
                 // Resolve TargetGroup execution order for this release
                 var baselineReleaseDir = Path.Combine(productOptions.MigrationFilesRootDirectory!, release);
                 var baselineTgOrder = ResolveTargetGroupMigrationOrder(
-                    baselineReleaseDir, productOptions, baselineMigSettings, request.TargetGroupMigrationOrder);
-                var baselineOrderedTGs = baselineTgOrder != null
-                    ? ValidateAndReorderTargetGroups(baselineTgOrder, productOptions.TargetGroups!, "baseline")
-                    : productOptions.TargetGroups!;
+                    baselineReleaseDir, productOptions, baselineMigSettings, request.TargetGroupMigrationOrder, out string orderSource);
+                var baselineOrderedTGs = productOptions.TargetGroups!;
+                if (baselineTgOrder != null)
+                {
+                    baselineOrderedTGs = ValidateAndReorderTargetGroups(
+                        baselineTgOrder, productOptions.TargetGroups!, orderSource, out string? ignoredTargetGroup);
+                    LogIgnoredTargetGroupMigrationOrder(orderSource, ignoredTargetGroup, ignoredOrderSources);
+                }
 
                 foreach (var targetGroup in baselineOrderedTGs)
                 {
@@ -5747,26 +5757,41 @@ public class MigrationService : IMigrationService
 
     /// <summary>
     /// Validates the execution order against the configured TargetGroups and returns a reordered list.
-    /// All TargetGroup aliases must be specified exactly once (case-sensitive), and the product must have more than one TargetGroup.
+    /// All TargetGroup aliases must be specified exactly once (case-sensitive), and the product must have more than one
+    /// TargetGroup, with one exception: an order that names exactly the alias of the only TargetGroup has nothing to
+    /// sort. It is ignored, the TargetGroup comes back and <paramref name="ignoredTargetGroup"/> names it for the caller
+    /// to log (<see cref="LogIgnoredTargetGroupMigrationOrder"/>); any other order on such a product is refused. The
+    /// errors name <paramref name="source"/>, where the order comes from (<see cref="ResolveTargetGroupMigrationOrder"/>).
+    /// The validation rules RULE_1_10 to RULE_1_13 check the product setting the same way; the orders of the migsettings
+    /// and of the CLI only meet this check.
     /// </summary>
     internal static List<TargetGroupOptions> ValidateAndReorderTargetGroups(
-        string[] executionOrder, List<TargetGroupOptions> targetGroups, string source)
+        string[] executionOrder, List<TargetGroupOptions> targetGroups, string source, out string? ignoredTargetGroup)
     {
-        // 1. Not allowed when product has only one TargetGroup
+        ignoredTargetGroup = null;
+
+        // 1. Ignored when it names exactly the only TargetGroup
+        if (targetGroups.Count == 1 && executionOrder.Length == 1 && executionOrder[0] == targetGroups[0].Alias)
+        {
+            ignoredTargetGroup = targetGroups[0].Alias;
+            return [targetGroups[0]];
+        }
+
+        // 2. Any other order is not allowed when product has only one TargetGroup
         if (targetGroups.Count <= 1)
         {
             throw new ConfigurationValidationException(
                 $"TargetGroupMigrationOrder (source: {source}) is not allowed when product has only {targetGroups.Count} TargetGroup(s).");
         }
 
-        // 2. Count must match
+        // 3. Count must match
         if (executionOrder.Length != targetGroups.Count)
         {
             throw new ConfigurationValidationException(
                 $"TargetGroupMigrationOrder (source: {source}) specifies {executionOrder.Length} aliases but product has {targetGroups.Count} TargetGroups. All TargetGroup aliases must be specified.");
         }
 
-        // 3. Check for duplicates
+        // 4. Check for duplicates
         var seen = new HashSet<string>();
         foreach (var alias in executionOrder)
         {
@@ -5777,7 +5802,7 @@ public class MigrationService : IMigrationService
             }
         }
 
-        // 4. Match each alias to a TargetGroup
+        // 5. Match each alias to a TargetGroup
         var result = new List<TargetGroupOptions>(executionOrder.Length);
         foreach (var alias in executionOrder)
         {
@@ -5809,16 +5834,39 @@ public class MigrationService : IMigrationService
     }
 
     /// <summary>
+    /// Logs that <see cref="ValidateAndReorderTargetGroups"/> ignored the order of <paramref name="source"/>, which named
+    /// <paramref name="ignoredTargetGroup"/>, the only TargetGroup, once per source and command: the order is resolved for
+    /// every release, so the order of the CLI comes back for each of them, while the migsettings of each release are a
+    /// source of their own. The product setting is not logged here, because the validation at startup reports it for
+    /// every command (RULE_1_13). The values are rendered as literals (<c>:l</c>), without the quotes Serilog puts around
+    /// a string property, also where a sink or a host renders the message itself.
+    /// </summary>
+    private void LogIgnoredTargetGroupMigrationOrder(string source, string? ignoredTargetGroup, HashSet<string> loggedSources)
+    {
+        if (ignoredTargetGroup == null || source == ProductOrderSource || !loggedSources.Add(source)) return;
+
+        _logger.LogWarning("TargetGroupMigrationOrder (source: {Source:l}) is ignored: the product has only one TargetGroup [{TargetGroup:l}].",
+            source, ignoredTargetGroup);
+    }
+
+    /// <summary>The source of the TargetGroupMigrationOrder of the product, as the messages name it.</summary>
+    private const string ProductOrderSource = "product setting";
+
+    /// <summary>
     /// Resolves the effective TargetGroup execution order using the override chain: CLI > migsettings > appsettings > null (config array order).
+    /// <paramref name="source"/> names where the order comes from, as the messages about it name it:
+    /// <c>--target-group-migration-order</c> (the order of the request), <c>migsettings of release &lt;release&gt;</c> or
+    /// <c>product setting</c>; empty without an order.
     /// </summary>
     internal string[]? ResolveTargetGroupMigrationOrder(
         string releaseDirectory, ProductOptions productOptions,
-        Dictionary<string, MigSettingsEntry> migSettings, string[]? cliOrder)
+        Dictionary<string, MigSettingsEntry> migSettings, string[]? cliOrder, out string source)
     {
         // 1. CLI override (highest priority)
         if (cliOrder is { Length: > 0 })
         {
             _logger.LogDebug("TargetGroupMigrationOrder resolved from CLI: [{Order}]", string.Join(", ", cliOrder));
+            source = "--target-group-migration-order";
             return cliOrder;
         }
 
@@ -5832,6 +5880,7 @@ public class MigrationService : IMigrationService
         {
             var order = entry.TargetGroupMigrationOrder.ToArray();
             _logger.LogDebug("TargetGroupMigrationOrder resolved from migsettings: [{Order}]", string.Join(", ", order));
+            source = $"migsettings of release {Path.GetFileName(releaseDirectory)}";
             return order;
         }
 
@@ -5840,10 +5889,12 @@ public class MigrationService : IMigrationService
         if (parsed != null)
         {
             _logger.LogDebug("TargetGroupMigrationOrder resolved from appsettings: [{Order}]", string.Join(", ", parsed));
+            source = ProductOrderSource;
             return parsed;
         }
 
         // 4. null — use config array order
+        source = string.Empty;
         return null;
     }
 
@@ -6502,6 +6553,7 @@ public class MigrationService : IMigrationService
     /// release, else the product), otherwise in configuration order; within a target group file by file or target by
     /// target as its TargetMigrationOrder says, the targets in configuration order. An order that migrate-up refuses
     /// leaves the target groups in configuration order, so that the status still answers; migrate-up reports the error.
+    /// An order that names exactly the only target group of the product is ignored with a warning, as migrate-up does.
     /// </summary>
     private List<PendingMigrationInfo> OrderAsMigrateUpRuns(
         List<PendingMigrationInfo> pending,
@@ -6519,18 +6571,20 @@ public class MigrationService : IMigrationService
         var releasePosition = new Dictionary<string, int>(StringComparer.Ordinal);
         var groupPosition = new Dictionary<(string Release, string TargetGroup), int>();
         bool refusedOrderLogged = false;
+        var ignoredOrderSources = new HashSet<string>(StringComparer.Ordinal);
         foreach (var release in migrationFiles.Select(f => f.ReleaseVersion).Distinct())
         {
             releasePosition[release] = releasePosition.Count;
 
             var orderedGroups = targetGroups;
             var order = ResolveTargetGroupMigrationOrder(
-                Path.Combine(productOptions.MigrationFilesRootDirectory!, release), productOptions, migSettings, null);
+                Path.Combine(productOptions.MigrationFilesRootDirectory!, release), productOptions, migSettings, null, out string orderSource);
             if (order != null)
             {
                 try
                 {
-                    orderedGroups = ValidateAndReorderTargetGroups(order, targetGroups, "info");
+                    orderedGroups = ValidateAndReorderTargetGroups(order, targetGroups, orderSource, out string? ignoredTargetGroup);
+                    LogIgnoredTargetGroupMigrationOrder(orderSource, ignoredTargetGroup, ignoredOrderSources);
                 }
                 catch (ConfigurationValidationException ex)
                 {

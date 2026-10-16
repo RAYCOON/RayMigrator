@@ -301,7 +301,7 @@ Also tested as part of `CancellationTests` (a fix cancelled between two orphaned
 |---------|----------------|---------------|
 | SimulateMode | 5 (x5 DBs) | S1-S3: MigrateUp Simulate; S4: Validate; S5: MigrateDown Simulate; S6-S7: MigrateDown Validate |
 | TargetGroupFilter | 5 (x5 DBs) | Backend-only, Frontend-only, multi-group with allowOutOfOrder |
-| TargetGroupMigrationOrder | 5 (x5 DBs) | Custom order, default order, Baseline + MigrateUp |
+| TargetGroupMigrationOrder | 5 (x5 DBs) | Custom order, default order, Baseline + MigrateUp, an order of the only TargetGroup ignored with a warning |
 | RunningGuard | 5 (x5 DBs) | Concurrent execution detection for MigrateUp, MigrateDown, UpdateHash, MigrateUp also after two finished runs |
 | MigrationHistoryTracking | 5 (x5 DBs) | MigrationRecordHistory entries on terminal status transitions (source file: `ArchiveRetentionTests.cs`) |
 | DatabaseLog | 5 (x5 DBs) | Migration logging to database; the log indexes on `MigrationRunId` and `CreatedAt`, also added to the log table of an older engine by the next initialization; parallel first starts all initialize the log and insert the event catalogue once |

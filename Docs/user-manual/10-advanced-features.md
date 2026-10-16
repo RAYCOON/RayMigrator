@@ -479,9 +479,9 @@ The execution order can also be set at a more permanent level:
 **Precedence (highest to lowest):** CLI `--target-group-migration-order` > release-level migsettings > `appsettings.json` product property > configuration array order.
 
 **Rules:**
-- All TargetGroup aliases for the product must be listed exactly once.
-- Only applicable when the product has more than one target group.
-- Applies to `migrate-up` and `baseline` commands only.
+- All TargetGroup aliases for the product must be listed exactly once, with their exact spelling.
+- Only applicable when the product has more than one target group. With one target group, an order that names exactly its alias is ignored (the command warns about an order of `--target-group-migration-order` or of a release-level migsettings file, the validation at startup about the product setting); any other order is an error.
+- Applies to the `migrate-up` and `baseline` commands; `info` lists the pending migrations in this order.
 
 ### When to Use
 

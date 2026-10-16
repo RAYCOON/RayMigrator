@@ -497,4 +497,17 @@ public class MySqlInfoTests : MySqlTestBase
 
         await PendingMigrationsContract.VerifyCliToolFileAfterCommittedBlocksAsync(CreateScenario(), Fixture.EngineConfig, order);
     }
+
+    /// <summary>
+    /// I25: A TargetGroupMigrationOrder of the product that names exactly its only target group is ignored, like migrate-up
+    /// ignores it, instead of being refused, without a warning of the status, because the validation at startup reports
+    /// the product setting (RULE_1_13); the list stays in release and file order.
+    /// </summary>
+    [Fact]
+    public async Task Info_SingleTargetGroupMigrationOrder_IsIgnoredWithoutAWarningOfItsOwn()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+
+        await PendingMigrationsContract.VerifySingleTargetGroupMigrationOrderAsync(CreateScenario());
+    }
 }

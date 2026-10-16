@@ -26,12 +26,14 @@ internal static class ValidationMessages
     // -- TargetGroupMigrationOrder ----------------------------------------
     public const string TgOrderInvalidAlias =
         "TargetGroupMigrationOrder for Product '{0}' references alias '{1}' that does not match any TargetGroup in this product.";
+    public const string TgOrderAliasCaseMismatch =
+        "TargetGroupMigrationOrder for Product '{0}' references alias '{1}', which matches TargetGroup '{2}' only case-insensitively. Use the exact alias '{2}'.";
     public const string TgOrderMissingAlias =
         "TargetGroupMigrationOrder for Product '{0}' is missing TargetGroup '{1}' from the execution order.";
     public const string TgOrderDuplicateAlias =
         "TargetGroupMigrationOrder for Product '{0}': TargetGroup '{1}' appears more than once.";
     public const string TgOrderIrrelevantForSingleTg =
-        "TargetGroupMigrationOrder is irrelevant when the product has only one TargetGroup.";
+        "TargetGroupMigrationOrder is ignored because the product has only one TargetGroup.";
 
     // -- Semantic contradictions ------------------------------------------
     public const string RollbackWithoutRollbackErrorAction =

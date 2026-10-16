@@ -69,7 +69,7 @@ raymigrator migrate-up -p MyProduct -env Production -rm migrate -sromrf false
 |-----------|-------|---------|-------------|
 | `--target-group-migration-order` | `-tgmo` | (config/migsettings order) | Comma-separated list of all TargetGroup aliases. Sets the execution order for this run; overrides product-level appsettings and release-level migsettings values. |
 
-The value is a single string with alias names separated by commas. Whitespace around each alias is trimmed. All TargetGroup aliases of the product must be listed. The option is only meaningful when the product has more than one TargetGroup, and matching is case-sensitive.
+The value is a single string with alias names separated by commas. Whitespace around each alias is trimmed. All TargetGroup aliases of the product must be listed. The option is only meaningful when the product has more than one TargetGroup, and matching is case-sensitive. On a product with one TargetGroup, a value that names exactly its alias is ignored with a warning, and any other value is rejected.
 
 ```bash
 # Execute Frontend before Backend for this run

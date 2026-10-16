@@ -592,7 +592,7 @@ Environments = ["Docker", "Development"]
 
 9. **TargetMigrationOrder**: See [Execution Modes](../02-core-concepts/execution-modes.md#target-migration-order) for values and behavior.
 
-10. **TargetGroupMigrationOrder**: Only applies to products with more than one target group, and only to `migrate-up` and `baseline` commands. The CLI option (`--target-group-migration-order` / `-tgmo`) applies to all releases in the run. The migsettings override applies per release. All target group aliases must be listed exactly once. See [Product Options — TargetGroupMigrationOrder](product-options.md#targetgroupmigrationorder).
+10. **TargetGroupMigrationOrder**: Only meaningful for products with more than one target group; it orders `migrate-up` and `baseline`, and `info` lists the pending migrations in it. The CLI option (`--target-group-migration-order` / `-tgmo`) applies to all releases in the run. The migsettings override applies per release. All target group aliases must be listed exactly once, with their exact spelling. On a product with one target group, an order from any of the three sources that names exactly its alias is ignored, with a warning of the command for the CLI and migsettings orders and RULE_1_13 at startup for the product value; any other order is an error. The startup validation (RULE_1_10 to RULE_1_13) checks the product value only; the commands check the migsettings and CLI values with the same rules. See [Product Options — TargetGroupMigrationOrder](product-options.md#targetgroupmigrationorder).
 
 ---
 

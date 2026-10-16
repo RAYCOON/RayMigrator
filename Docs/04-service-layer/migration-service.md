@@ -932,7 +932,7 @@ Returns the current migration status overview for a product (used by the `info` 
 3. **Phase 3**: File discovery
 4. **Phase 4**: Compute status metrics: current release, last run result and date (the newest `MigrationRun` row, `RepositoryMigrationRunSelectAsync(1)`), the pending migrations and the per-target-group status (`TargetGroupStatus`)
 
-The pending migrations come from `ListPendingMigrations`, which evaluates every file per target with the checks of migrate-up (`FilterAlreadyMigratedFiles` rules, `IsAppliedOnTarget`, the `Targets` filter and the `HashValidationScope` of the target group) and classifies each pending pair with `ClassifyPendingMigration`: a record whose rollback stopped in the middle (`FindIncompleteRollback`) is `RollbackIncomplete` first, whatever the file is, with `RollbackBlocksMigrated` and `RollbackBlocksTotal` from the record, because migrate-up refuses to run while there is one; the `Pending` and `Executing` records of the open run (the newest run row is `Running`) are first classified as the orphan repair of the next migrate-up leaves them (`ProjectOrphanRepair`): `Failed` with committed blocks, `Migrated` with every block, `NotMigrated` without progress, a rollback likewise; then a `RunAlways` file is `RunAlways`, whatever its record says, because migrate-up runs it in full from its first block; otherwise a record that `TryFinalizeCompletedMigrationAsync` finalizes or `FindResumableBlock` resumes is `Resumable` with its `ResumeFromBlock` (both helpers pass over a `RunAlways` file, so that the status and migrate-up decide alike); then `HashMismatch` for a Migrated record whose hash no longer matches, `Failed` for a failed attempt without a resume point, and `NotMigrated` for the rest. `OrderAsMigrateUpRuns` sorts the pairs into the order of a migrate-up without `--target-group-migration-order`; a `TargetGroupMigrationOrder` that migrate-up would refuse leaves the target groups in configuration order with a warning, so that the status still answers. `PendingMigrations` is the length of the list; every `TargetGroupStatus` counts its entries and takes `LastMigrationDate` from its Migrated record that finished last.
+The pending migrations come from `ListPendingMigrations`, which evaluates every file per target with the checks of migrate-up (`FilterAlreadyMigratedFiles` rules, `IsAppliedOnTarget`, the `Targets` filter and the `HashValidationScope` of the target group) and classifies each pending pair with `ClassifyPendingMigration`: a record whose rollback stopped in the middle (`FindIncompleteRollback`) is `RollbackIncomplete` first, whatever the file is, with `RollbackBlocksMigrated` and `RollbackBlocksTotal` from the record, because migrate-up refuses to run while there is one; the `Pending` and `Executing` records of the open run (the newest run row is `Running`) are first classified as the orphan repair of the next migrate-up leaves them (`ProjectOrphanRepair`): `Failed` with committed blocks, `Migrated` with every block, `NotMigrated` without progress, a rollback likewise; then a `RunAlways` file is `RunAlways`, whatever its record says, because migrate-up runs it in full from its first block; otherwise a record that `TryFinalizeCompletedMigrationAsync` finalizes or `FindResumableBlock` resumes is `Resumable` with its `ResumeFromBlock` (both helpers pass over a `RunAlways` file, so that the status and migrate-up decide alike); then `HashMismatch` for a Migrated record whose hash no longer matches, `Failed` for a failed attempt without a resume point, and `NotMigrated` for the rest. `OrderAsMigrateUpRuns` sorts the pairs into the order of a migrate-up without `--target-group-migration-order`; a `TargetGroupMigrationOrder` that migrate-up would refuse leaves the target groups in configuration order with a warning, so that the status still answers, and one that names exactly the only target group of the product is ignored, as migrate-up ignores it, with a warning for an order of the migsettings (the validation at startup reports the product setting as RULE_1_13). `PendingMigrations` is the length of the list; every `TargetGroupStatus` counts its entries and takes `LastMigrationDate` from its Migrated record that finished last. Every value of the status reads the projected records: the current release, `TotalMigrationsExecuted` and the release and the executed migrations of a target group count a record that the repair will finish as `Migrated`, while `LastMigrationDate` counts only records with an end, which the projection does not write.
 
 Returns `MigrationStatusInfo` with product-level and target-group-level status. A cancel throws `OperationCanceledException`.
 
@@ -1029,7 +1029,7 @@ internal static List<(int FileOrderId, string TargetAlias)> GetExecutionOrder(
 
 **Visibility**: `internal static`
 
-Returns the full execution order across all releases and target groups: `Release -> TargetGroup (config order or explicit order) -> inner file/target order (per TargetMigrationOrder)`. Delegates to `GetExecutionOrder` for the inner ordering. When `targetGroupMigrationOrder` is provided, calls `ValidateAndReorderTargetGroups` to reorder target groups accordingly.
+Returns the full execution order across all releases and target groups: `Release -> TargetGroup (config order or explicit order) -> inner file/target order (per TargetMigrationOrder)`. Delegates to `GetExecutionOrder` for the inner ordering. When `targetGroupMigrationOrder` is provided, calls `ValidateAndReorderTargetGroups` to reorder target groups accordingly; it drops the warning of an order that names the only target group, which leaves the configuration order.
 
 ```csharp
 internal static List<(int FileOrderId, string TargetGroupAlias, string TargetAlias)> GetFullExecutionOrder(
@@ -1039,7 +1039,7 @@ internal static List<(int FileOrderId, string TargetGroupAlias, string TargetAli
 
 ### TargetGroupMigrationOrder
 
-`TargetGroupMigrationOrder` overrides the default TargetGroup execution sequence (which follows the configuration array order) for `MigrateUpAsync` and `BaselineAsync`. It does not affect `MigrateDownAsync`.
+`TargetGroupMigrationOrder` overrides the default TargetGroup execution sequence (which follows the configuration array order) for `MigrateUpAsync` and `BaselineAsync`, and `GetStatusAsync` lists the pending migrations in it. It does not affect `MigrateDownAsync`.
 
 The order is resolved per-release via `ResolveTargetGroupMigrationOrder` using the following priority chain (highest to lowest):
 
@@ -1048,11 +1048,13 @@ The order is resolved per-release via `ResolveTargetGroupMigrationOrder` using t
 3. **appsettings**: `ProductOptions.TargetGroupMigrationOrder` (comma-separated string in configuration)
 4. **null**: use the configuration array order (no override)
 
-Validation rules enforced by `ValidateAndReorderTargetGroups`:
-- Only applicable when the product has more than one TargetGroup (throws `ConfigurationValidationException` if only one exists)
+Validation rules enforced by `ValidateAndReorderTargetGroups(executionOrder, targetGroups, source, out string? ignoredTargetGroup)`; `source` names where the order comes from (`--target-group-migration-order`, `migsettings of release <release>` or `product setting`), and every message about the order names it as `(source: <source>)`:
+- Only applicable when the product has more than one TargetGroup. On a product with one TargetGroup an order that names exactly its alias is ignored: the method returns that TargetGroup and sets `ignoredTargetGroup` to its alias, and `LogIgnoredTargetGroupMigrationOrder` logs `TargetGroupMigrationOrder (source: <source>) is ignored: the product has only one TargetGroup [<alias>].` once per source and command (the CLI order once, the migsettings of each release once), and not for the product setting, which RULE_1_13 reports at startup. Any other order on such a product throws `ConfigurationValidationException` (`... is not allowed when product has only 1 TargetGroup(s).`)
 - Must specify all TargetGroup aliases exactly once
 - Alias matching is case-sensitive (a case-insensitive match triggers a corrective error message)
 - Duplicates are rejected
+
+The configuration validation applies the same rules to `ProductOptions.TargetGroupMigrationOrder` at startup (RULE_1_10 to RULE_1_13, see [Validation Rules](../appendix/validation-rules.md)); the migsettings and CLI orders meet these rules only here, when a command applies them.
 
 ### TargetGroupExecutionResult
 
@@ -1419,7 +1421,7 @@ All marked `internal static` for testability:
 | `ResolveUseCliToolAlias` | Resolves the effective CLI tool alias for a file+target (file-level override -> target-level, returns null for DAL execution) |
 | `ResolveCliToolArguments` | Replaces `{FilePath}` and custom `CliToolParameters` placeholders in a CLI tool's `ArgumentTemplate` |
 | `ParseTargetGroupMigrationOrder` | Parses a comma-separated string of TargetGroup aliases into a string array; returns null for null/whitespace input |
-| `ValidateAndReorderTargetGroups` | Validates a TargetGroup execution order array against the configured TargetGroups (exact-case match required) and returns the reordered list |
+| `ValidateAndReorderTargetGroups` | Validates a TargetGroup execution order array against the configured TargetGroups (exact-case match required) and returns the reordered list; on a product with one TargetGroup it ignores an order of exactly its alias and hands out the warning (`out ignoredWarning`) for the caller to log |
 
 Additionally, this private static helper exists:
 
@@ -1427,12 +1429,13 @@ Additionally, this private static helper exists:
 |--------|---------|
 | `SerializeTomlAsJson` | Serializes parsed TOML properties into a JSON string for `FileUpConfigJson` |
 
-And this private instance helper:
+And these private instance helpers:
 
 | Method | Purpose |
 |--------|---------|
 | `GetBlockDelimiter` | Determines the SQL block delimiter for a file based on its target group's database type (falls back to `GO`) |
 | `GetCliToolByAlias` | Looks up a `CliToolOptions` by alias from the global `CliTools` configuration; throws `ConfigurationValidationException` if not found |
+| `LogIgnoredTargetGroupMigrationOrder` | Logs `TargetGroupMigrationOrder (source: <source>) is ignored: the product has only one TargetGroup [<alias>].` for an order that `ValidateAndReorderTargetGroups` ignored, once per source and command (the CLI order once, although it is resolved for every release, the migsettings of each release once), and not for the product setting, which RULE_1_13 reports at startup; `{Source:l}` and `{TargetGroup:l}` render the values without the quotes of a string property |
 
 ### Key Instance Helpers
 

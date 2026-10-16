@@ -241,7 +241,7 @@ These options are defined on specific commands (not global).
 | `--to-release` | `-tr` | string | (latest) | migrate-up, migrate-down, baseline | Target release version (optional for migrate-up and Baseline; **required** for migrate-down) |
 | `--target-group` | `-tg` | string[] | (all) | migrate-up, migrate-down, validate-hash, update-hash, baseline | Filter to specific target groups (repeatable) |
 | `--allow-out-of-order` | `-ooo` | bool | false | migrate-up | Allow out-of-order migration execution |
-| `--target-group-migration-order` | `-tgmo` | string | (config order) | migrate-up, baseline | Explicit TargetGroup migration order (comma-separated aliases, e.g. `"Frontend,Backend"`) |
+| `--target-group-migration-order` | `-tgmo` | string | (config order) | migrate-up, baseline | Explicit TargetGroup migration order (comma-separated aliases, e.g. `"Frontend,Backend"`); every alias of the product once with its exact spelling, ignored with a warning when it names exactly the only TargetGroup |
 | `--stop-rollback-on-missing-rollback-file` | `-sromrf` | bool? | (config default: true) | migrate-up | CLI override: stop error-recovery rollback chain when a rollback file is missing |
 | `--cancelled-action` | `-ca` | string | terminate | migrate-up, migrate-down, baseline | What the run does after Ctrl+C or SIGTERM stopped it at the next block boundary: `terminate`, `rollback-file`, `rollback-run` or `rollback-release` (maps to `CancelledAction`); migrate-down and baseline accept it and ignore it |
 | `--scope` | `-s` | string | (varies) | validate-hash, fix | Validation or fix scope (validate-hash: `file`/`sqlblocks`/`disabled`; fix: `orphanedruns`/`all`) |
@@ -255,7 +255,7 @@ These options are defined on specific commands (not global).
 - `--to-release` (`-tr`): string, optional — Target release version
 - `--allow-out-of-order` (`-ooo`): bool, default `false` — Allow out-of-order migration execution
 - `--target-group` (`-tg`): string[], repeatable — Filter to specific target groups
-- `--target-group-migration-order` (`-tgmo`): string, optional — Comma-separated list of TargetGroup aliases that overrides the default migration order (e.g. `"Frontend,Backend"`)
+- `--target-group-migration-order` (`-tgmo`): string, optional — Comma-separated list of TargetGroup aliases that overrides the default migration order (e.g. `"Frontend,Backend"`); on a product with one TargetGroup an order that names exactly its alias is ignored with a warning, any other order is an error
 - `--stop-rollback-on-missing-rollback-file` (`-sromrf`): bool?, optional — CLI override for `StopRollbackOnMissingRollbackFile` configuration; when `true`, the error-recovery rollback chain stops if a rollback file is missing
 - `--cancelled-action` (`-ca`): string, default `"terminate"` — The `MigrationCancelledAction` of a run that Ctrl+C or SIGTERM cancels: `terminate`, `rollback-file`, `rollback-run` or `rollback-release` (case-insensitive, `{ENV:...}` resolved, any other value a parse error)
 
@@ -275,7 +275,7 @@ These options are defined on specific commands (not global).
 **Baseline**:
 - `--to-release` (`-tr`): string, optional — Omit to baseline all releases; specify to baseline up to a specific release
 - `--target-group` (`-tg`): string[], repeatable — Filter to specific target groups
-- `--target-group-migration-order` (`-tgmo`): string, optional — Comma-separated list of TargetGroup aliases that overrides the default migration order (e.g. `"Frontend,Backend"`)
+- `--target-group-migration-order` (`-tgmo`): string, optional — Comma-separated list of TargetGroup aliases that overrides the default migration order (e.g. `"Frontend,Backend"`); on a product with one TargetGroup an order that names exactly its alias is ignored with a warning, any other order is an error
 - `--cancelled-action` (`-ca`): string, default `"terminate"` — Accepted for uniform scripts and ignored: a cancelled baseline stops before the next file and keeps the records it wrote
 
 **Info**:

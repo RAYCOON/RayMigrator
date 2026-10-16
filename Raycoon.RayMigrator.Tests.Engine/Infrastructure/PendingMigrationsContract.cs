@@ -1,6 +1,8 @@
+using System.Collections.Concurrent;
 using Raycoon.RayMigrator.Core.Configuration.Enums;
 using Raycoon.RayMigrator.Core.Progress;
 using Raycoon.RayMigrator.Services.Abstractions;
+using Serilog.Events;
 
 namespace Raycoon.RayMigrator.Tests.Engine.Infrastructure;
 
@@ -500,6 +502,46 @@ internal static class PendingMigrationsContract
             because: "migrate-up does not finalize the record of a file that the tool runs, it runs the file again");
         var again = await RunNextMigrateUpAsync(ctx, afterEveryBlock, allowOutOfOrder: true);
         again.Success.Should().BeTrue(because: $"the tool runs the seed again: {again.ErrorMessage}");
+        await AssertNothingPendingAsync(ctx);
+    }
+
+    /// <summary>
+    /// (n) A TargetGroupMigrationOrder of the product that names exactly its only target group has nothing to sort: the
+    /// status ignores it instead of refusing it and lists every file in release and file order, without a warning of its
+    /// own, because the validation at startup reports the ignored product setting (RULE_1_13). The next migrate-up ignores
+    /// the order as well and runs exactly these files.
+    /// </summary>
+    public static async Task VerifySingleTargetGroupMigrationOrderAsync(ScenarioBuilder builder)
+    {
+        // Arrange
+        await using var ctx = await builder
+            .WithTargetGroupMigrationOrder(Backend)
+            .BuildAsync(MigrationCommand.Info, MigrationRunMode.Migrate);
+        var warnings = new ConcurrentQueue<string>();
+        ctx.UseLogObserver(logEvent =>
+        {
+            if (logEvent.Level == LogEventLevel.Warning)
+            {
+                warnings.Enqueue(logEvent.RenderMessage());
+            }
+        });
+
+        // Act
+        var status = await ctx.InfoAsync();
+        string[] statusWarnings = [.. warnings];
+
+        // Assert
+        AssertConsistent(status);
+        status.PendingFiles.Select(p => (p.ReleaseVersion, p.Filename)).Should().Equal(
+            StandardFiles.SelectMany(r => r.Files.Select(f => (r.Release, f))),
+            because: "an order of the only target group leaves the list in release and file order");
+        statusWarnings.Should().NotContain(w => w.Contains("cannot be applied", StringComparison.Ordinal),
+            because: "the status does not refuse an order that migrate-up ignores");
+        statusWarnings.Should().NotContain(w => w.Contains("is ignored", StringComparison.Ordinal),
+            because: "the validation at startup reports the product setting, so the status adds no warning of its own");
+
+        var next = await RunNextMigrateUpAsync(ctx, status);
+        next.Success.Should().BeTrue(because: $"migrate-up ignores the order as well: {next.ErrorMessage}");
         await AssertNothingPendingAsync(ctx);
     }
 

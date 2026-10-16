@@ -74,7 +74,7 @@ raymigrator migrate-up --product <alias> --environment <env> [--run-mode <mode>]
 
 **--cancelled-action**: What the run does when the first Ctrl+C or SIGTERM cancels it. The run stops at the next block boundary and records `Cancelled`; `terminate` leaves the interrupted file `Failed` with its committed blocks for the next migrate-up, `rollback-file`, `rollback-run` and `rollback-release` then roll back like the `MigrationErrorAction` of the same number. Validated case-insensitively and parsed via `ParseCancelledAction()` into `MigrationCancelledAction`; an unknown value is a parse error. See [Cancelling a Run](global-options.md#cancelling-a-run).
 
-**--target-group-migration-order**: Comma-separated string listing every TargetGroup alias of the product in the desired execution order. Whitespace around each alias is trimmed. All aliases must be present; partial lists, duplicates, and unknown aliases are rejected. Matching is case-sensitive; a case-insensitive-only match produces a specific error with the correct casing as a hint. Takes precedence over both the product-level appsettings value and any release-level migsettings value. Only applies to `migrate-up` and `baseline`; not used for `migrate-down` (rollback order is derived from repository records).
+**--target-group-migration-order**: Comma-separated string listing every TargetGroup alias of the product in the desired execution order. Whitespace around each alias is trimmed. All aliases must be present; partial lists, duplicates, and unknown aliases are rejected. Matching is case-sensitive; a case-insensitive-only match produces a specific error with the correct casing as a hint. On a product with one TargetGroup, an order that names exactly its alias is ignored with a warning, and any other order is rejected. The command checks the value when it applies it: the startup validation (RULE_1_10 to RULE_1_13) sees the product-level appsettings value only. Takes precedence over both the product-level appsettings value and any release-level migsettings value. Only applies to `migrate-up` and `baseline`; not used for `migrate-down` (rollback order is derived from repository records).
 
 ### Property Mapping
 
@@ -377,6 +377,8 @@ raymigrator baseline --product <alias> --environment <env> [--to-release <versio
 | `--cancelled-action` | `-ca` | `string` | No | `"terminate"` | `terminate`, `rollback-file`, `rollback-run`, `rollback-release` |
 
 ### Option Details
+
+**--target-group-migration-order**: The rules of [migrate-up](#migrate-up) apply, including the warning for an order that names exactly the only TargetGroup of the product, which baseline ignores as well.
 
 **--cancelled-action**: Accepted with the values of migrate-up so that a script can pass the same options to every run command, and ignored (logged when it is not `terminate`): a cancelled baseline stops before the next file, keeps the records it wrote and records the run as `Cancelled`. See [Cancelling a Run](global-options.md#cancelling-a-run).
 

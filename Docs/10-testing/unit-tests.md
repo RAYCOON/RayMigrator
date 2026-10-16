@@ -43,10 +43,10 @@ Unit tests verify RayMigrator's internal logic without requiring database connec
 - Repository maintenance service (`RepositoryMaintenanceService`) on a SQLite file, its executor without the retries of the repository, and the four retention templates of every DAL
 - The initialization of the database log, which does not retry a timeout of `DatabaseLogging_CheckCreate`
 
-The project contains **3032 unit test cases**, every theory row counted (**1877 test methods**), organized into **190 test classes** across **150 source test files** using a **P0-P3 priority system** (each file may contain multiple related test classes):
+The project contains **3037 unit test cases**, every theory row counted (**1879 test methods**), organized into **190 test classes** across **150 source test files** using a **P0-P3 priority system** (each file may contain multiple related test classes):
 
 - **P0** — Critical parsing and core behavior (21 files, 28 classes, 281 test methods)
-- **P1** — Business logic and configuration (101 files, 119 classes, 1326 test methods)
+- **P1** — Business logic and configuration (101 files, 119 classes, 1328 test methods)
 - **P2** — Secondary features and utilities (25 files, 35 classes, 224 test methods)
 - **P3** — Models and exceptions (2 files, 7 classes, 45 test methods)
 
@@ -100,7 +100,7 @@ Target framework: `net10.0` (single target). No Docker or database connection re
 
 ## Validation Rule-Catalog Unit Tests
 
-A separate **Validation unit test project** (`Raycoon.RayMigrator.Tests.Unit.Validation`) contains **102 tests** that exercise the standalone rule catalog in `Raycoon.RayMigrator.Validation`. The project intentionally references **only** the `Validation` project (no Core, no ConfigWizard.Core), enforcing the rule that the catalog stays WASM-safe and zero-dependency.
+A separate **Validation unit test project** (`Raycoon.RayMigrator.Tests.Unit.Validation`) contains **107 tests** that exercise the standalone rule catalog in `Raycoon.RayMigrator.Validation`. The project intentionally references **only** the `Validation` project (no Core, no ConfigWizard.Core), enforcing the rule that the catalog stays WASM-safe and zero-dependency.
 
 | Folder / File | Description |
 |---------------|-------------|
@@ -113,7 +113,7 @@ A separate **Validation unit test project** (`Raycoon.RayMigrator.Tests.Unit.Val
 | `Rules/DefaultCascadeRuleTests.cs` | Default cascade completeness |
 | `Rules/SchemaRuleTests.cs` | Repository / DatabaseLogging schema constraints: schema name on schemaless and schema engines, lowercase `TableBaseName` and its maximum of 16 bytes in UTF-8 (`RULE_4_1` to `RULE_4_4`) |
 | `Rules/SemanticContradictionsRuleTests.cs` | Semantic contradictions (incompatible option combinations) |
-| `Rules/TargetGroupMigrationOrderRuleTests.cs` | `TargetGroupMigrationOrder` configuration validation |
+| `Rules/TargetGroupMigrationOrderRuleTests.cs` | `TargetGroupMigrationOrder` configuration validation: exact alias comparison with a hint for a case-only match and no RULE_1_11 for that group, RULE_1_13 only for an order that names exactly the only TargetGroup |
 | `Helpers/CliToolPlaceholderExtractorTests.cs` | Placeholder extraction helper used by CLI tool rules |
 | `Helpers/ExitCodeExpressionValidatorTests.cs` | Exit-code expression parsing/validation |
 | `Helpers/InputFactory.cs` | Test input factory (non-test helper) |
@@ -422,7 +422,7 @@ Raycoon.RayMigrator.Tests.Unit/
 | `P1_SqlBlockEnvironmentVariableTests` | `SqlBlockEnvironmentVariableTests` | `{ENV:VAR}` replacement within SQL blocks |
 | `P1_SqliteTypeConventionsTests` | `SqliteTypeConventionsTests` | DAL-020: SQLite templates must not contain the `AUTOINCREMENT` keyword (regression guard — `INTEGER PRIMARY KEY` already provides rowid aliasing) |
 | `P1_SqlTemplateStructureTests` | `SqlTemplateStructureTests` | SQL template file structure and placeholder validation |
-| `P1_TargetGroupMigrationOrderTests` | `TargetGroupMigrationOrderTests` | `ParseTargetGroupMigrationOrder` (comma-separated CLI parsing), `ValidateAndReorder` (alias validation, case-sensitivity, partial/duplicate lists), TOML integration, and `GetFullExecutionOrder` with custom order |
+| `P1_TargetGroupMigrationOrderTests` | `TargetGroupMigrationOrderTests` | `ParseTargetGroupMigrationOrder` (comma-separated CLI parsing), `ValidateAndReorder` (alias validation, case-sensitivity, partial/duplicate lists, an order of the only TargetGroup ignored with a warning and any other order on it refused), TOML integration, and `GetFullExecutionOrder` with custom order and with an ignored order of the only TargetGroup |
 | `P1_TargetMigrationOrderExecutionTests` | `TargetMigrationOrderExecutionTests` | `TargetMigrationOrder` (FileByFile vs TargetByTarget) execution order |
 | `P1_TemplateCacheCfgValidationTests` | `TemplateCacheCfgValidationTests` | `TemplateCache` configuration validation against available templates |
 | `P1_TemplateExecutorCancellationTests` | `TemplateExecutorCancellationTests` | Every public repository method of `TemplateExecutor` hands its token to every DAL call (one case per method, and a guard that every public method has a case), and a call that the DAL ends as cancelled leaves the executor as the DAL's `OperationCanceledException`, a failure without cancel as `TemplateExecutionException` |

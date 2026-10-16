@@ -1,6 +1,8 @@
+using System.Collections.Concurrent;
 using Raycoon.RayMigrator.Core.Configuration.Enums;
 using Raycoon.RayMigrator.Tests.Engine.Fixtures;
 using Raycoon.RayMigrator.Tests.Engine.Infrastructure;
+using Serilog.Events;
 
 namespace Raycoon.RayMigrator.Tests.Engine.Tests.Features;
 
@@ -27,6 +29,20 @@ public class TargetGroupMigrationOrderTests : PostgreSqlTestBase
             Directory.CreateDirectory(Path.GetDirectoryName(dstFile)!);
             File.Copy(srcFile, dstFile, true);
         }
+    }
+
+    /// <summary>Collects the rendered warnings of the host, from every thread that logs.</summary>
+    private static ConcurrentQueue<string> CollectWarnings(ScenarioContext ctx)
+    {
+        var warnings = new ConcurrentQueue<string>();
+        ctx.UseLogObserver(logEvent =>
+        {
+            if (logEvent.Level == LogEventLevel.Warning)
+            {
+                warnings.Enqueue(logEvent.RenderMessage());
+            }
+        });
+        return warnings;
     }
 
     /// <summary>
@@ -200,24 +216,132 @@ public class TargetGroupMigrationOrderTests : PostgreSqlTestBase
     }
 
     /// <summary>
-    /// TGO8: TargetGroupMigrationOrder on a single-TargetGroup product should fail.
-    /// The feature is only allowed when the product has more than one TargetGroup.
+    /// TGO8: TargetGroupMigrationOrder on a single-TargetGroup product that names exactly that TargetGroup is ignored:
+    /// migrate-up runs every file and warns once, although it resolves the order for each of the four releases.
     /// </summary>
     [Fact]
-    public async Task MigrateUp_SingleTargetGroup_ShouldFailWhenOrderSpecified()
+    public async Task MigrateUp_SingleTargetGroupOrderWithItsAlias_IsIgnoredWithWarning()
     {
         Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
 
+        // Arrange: no Frontend target group, only Backend exists
         await using var ctx = await CreateScenario()
             .BuildAsync();
+        var warnings = CollectWarnings(ctx);
 
-        // No Frontend target group — only Backend exists
+        // Act
         var result = await ctx.MigrateUpAsync(
             targetGroupMigrationOrder: ["Backend"]);
 
-        result.Success.Should().BeFalse("TargetGroupMigrationOrder on single-TG product should fail");
+        // Assert
+        result.Success.Should().BeTrue($"an order that names the only TargetGroup is ignored: {result.ErrorMessage}");
+        result.SuccessfulMigrations.Should().Be(12, "every file of the four releases migrates");
+        warnings.Should().ContainSingle(w => w.Contains("is ignored", StringComparison.Ordinal),
+                "migrate-up warns once per run that it ignores the order")
+            .Which.Should().Be("TargetGroupMigrationOrder (source: --target-group-migration-order) is ignored: the product has only one TargetGroup [Backend].",
+                "the warning names where the order comes from and the TargetGroup, as a plain message");
+    }
+
+    /// <summary>
+    /// TGO8b: On a single-TargetGroup product an order that names the TargetGroup only case-insensitively is still
+    /// refused, like any order other than its exact alias.
+    /// </summary>
+    [Fact]
+    public async Task MigrateUp_SingleTargetGroupWrongCaseOrder_ShouldFail()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+
+        // Arrange: no Frontend target group, only Backend exists
+        await using var ctx = await CreateScenario()
+            .BuildAsync();
+
+        // Act
+        var result = await ctx.MigrateUpAsync(
+            targetGroupMigrationOrder: ["backend"]);
+
+        // Assert
+        result.Success.Should().BeFalse("an order that does not name the only TargetGroup exactly is refused");
         result.ErrorMessage.Should().Contain("not allowed when product has only",
-            "Error should explain that only multi-TargetGroup products support execution order");
+            "only the exact alias of the only TargetGroup is ignored");
+    }
+
+    /// <summary>
+    /// TGO8c: Baseline ignores an order that names exactly the only TargetGroup, as migrate-up does: it baselines every
+    /// file and warns once.
+    /// </summary>
+    [Fact]
+    public async Task Baseline_SingleTargetGroupOrderWithItsAlias_IsIgnoredWithWarning()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+
+        // Arrange: no Frontend target group, only Backend exists
+        await using var ctx = await CreateScenario()
+            .BuildAsync(MigrationCommand.Baseline);
+        var warnings = CollectWarnings(ctx);
+
+        // Act
+        var result = await ctx.BaselineAsync(
+            targetGroupMigrationOrder: ["Backend"]);
+
+        // Assert
+        result.Success.Should().BeTrue($"an order that names the only TargetGroup is ignored: {result.ErrorMessage}");
+        result.BaselinedFiles.Should().Be(12, "every file of the four releases is baselined");
+        warnings.Should().ContainSingle(w => w.Contains("is ignored", StringComparison.Ordinal),
+                "baseline warns once per run that it ignores the order")
+            .Which.Should().Be("TargetGroupMigrationOrder (source: --target-group-migration-order) is ignored: the product has only one TargetGroup [Backend].",
+                "the warning names where the order comes from and the TargetGroup, as a plain message");
+    }
+
+    /// <summary>
+    /// TGO8d: An order of the migsettings of a release that names exactly the only TargetGroup is ignored as well, with a
+    /// warning that names the release whose migsettings set it, once for each such release.
+    /// </summary>
+    [Fact]
+    public async Task MigrateUp_SingleTargetGroupMigSettingsOrderWithItsAlias_IsIgnoredWithAWarningPerRelease()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+
+        // Arrange: the migsettings of release 1.0 and of release 2.0 name the only TargetGroup
+        await using var ctx = await CreateScenario()
+            .SetMigSettings("Release_1.0/migsettings.txt", new Dictionary<string, string> { ["TargetGroupMigrationOrder"] = "[\"Backend\"]" })
+            .SetMigSettings("Release_2.0/migsettings.txt", new Dictionary<string, string> { ["TargetGroupMigrationOrder"] = "[\"Backend\"]" })
+            .BuildAsync();
+        var warnings = CollectWarnings(ctx);
+
+        // Act
+        var result = await ctx.MigrateUpAsync();
+
+        // Assert
+        result.Success.Should().BeTrue($"an order that names the only TargetGroup is ignored: {result.ErrorMessage}");
+        warnings.Where(w => w.Contains("is ignored", StringComparison.Ordinal)).Should().Equal(
+            ["TargetGroupMigrationOrder (source: migsettings of release Release_1.0) is ignored: the product has only one TargetGroup [Backend].",
+             "TargetGroupMigrationOrder (source: migsettings of release Release_2.0) is ignored: the product has only one TargetGroup [Backend]."],
+            "the warning names each release whose migsettings set the order, once");
+    }
+
+    /// <summary>
+    /// TGO8e: A product setting that names exactly the only TargetGroup is ignored without a warning of migrate-up: the
+    /// validation at startup reports it for every command (RULE_1_13).
+    /// </summary>
+    [Fact]
+    public async Task MigrateUp_SingleTargetGroupProductOrderWithItsAlias_IsIgnoredWithoutAWarningOfTheRun()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+
+        // Arrange
+        await using var ctx = await CreateScenario()
+            .WithTargetGroupMigrationOrder("Backend")
+            .BuildAsync();
+        var warnings = CollectWarnings(ctx);
+
+        // Act
+        var result = await ctx.MigrateUpAsync();
+
+        // Assert
+        result.Success.Should().BeTrue($"an order that names the only TargetGroup is ignored: {result.ErrorMessage}");
+        result.SuccessfulMigrations.Should().Be(12, "every file of the four releases migrates");
+        warnings.Should().NotContain(w => w.Contains("TargetGroupMigrationOrder", StringComparison.Ordinal),
+            "the validation at startup reports the product setting, so migrate-up adds no warning of its own");
     }
 
     /// <summary>

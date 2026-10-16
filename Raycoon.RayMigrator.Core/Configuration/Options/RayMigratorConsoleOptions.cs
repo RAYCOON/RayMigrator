@@ -36,7 +36,8 @@ public class RayMigratorConsoleOptions
 
     /// <summary>
     /// Explicit TargetGroup execution order (optional, parsed from comma-separated CLI input).
-    /// When specified, all TargetGroup aliases must be listed exactly once.
+    /// When specified, all TargetGroup aliases must be listed exactly once, with their exact spelling; on a product with
+    /// one TargetGroup an order that names exactly its alias is ignored with a warning.
     /// Applies to MigrateUp and Baseline commands only.
     /// </summary>
     public string[]? TargetGroupMigrationOrder { get; init; }

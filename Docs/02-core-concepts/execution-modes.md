@@ -25,7 +25,7 @@ By default, TargetGroups are processed in their configuration array order. This 
 2. **migsettings TOML** (release-level): `TargetGroupMigrationOrder = ["Frontend", "Backend"]`
 3. **appsettings JSON** (product-level): `"TargetGroupMigrationOrder": "Frontend, Backend"`
 
-The override applies to `migrate-up` and `baseline`. `migrate-down` always derives order from repository records and is not affected. See [Product Options — TargetGroupMigrationOrder](../06-configuration-reference/product-options.md#targetgroupmigrationorder) for validation rules and the full configuration reference.
+The override applies to `migrate-up` and `baseline`. `migrate-down` always derives order from repository records and is not affected. Every source must list each TargetGroup alias once with its exact spelling; on a product with one TargetGroup an order that names exactly its alias is ignored with a warning, and any other order is refused. The startup validation checks the product-level value (RULE_1_10 to RULE_1_13); the commands check the migsettings and CLI values with the same rules when they apply them. See [Product Options — TargetGroupMigrationOrder](../06-configuration-reference/product-options.md#targetgroupmigrationorder) for validation rules and the full configuration reference.
 
 **Within each TargetGroup** (controlled by `TargetMigrationOrder`):
 - **FileByFile**: file → target

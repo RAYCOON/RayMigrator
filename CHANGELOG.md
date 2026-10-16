@@ -626,6 +626,35 @@ RayMigrator follows Semantic Versioning where applicable.
   again over what it had applied, and migrate-down never picked the record
   again. Once the rollback file is there, the next migrate-down rolls the
   file back.
+- `TargetGroupMigrationOrder` on a product with one target group:
+  migrate-up, baseline and info ignore an order that names that group's
+  alias exactly; migrate-up and baseline refused such an order before.
+  migrate-up and baseline log a warning for the order of
+  `--target-group-migration-order` and of the migsettings of a release, info
+  for that of the migsettings when it sorts the pending list, once per
+  source and command (`TargetGroupMigrationOrder (source: migsettings of
+  release <release>) is ignored: the product has only one TargetGroup
+  [<alias>].`); the product setting gets no warning of the commands, because
+  the validation at startup reports it as RULE_1_13, which stays a warning,
+  says that the order is ignored and is reported only when the order has no
+  error. Any other order on such a product (another alias, a case-only
+  match, a duplicate, more than one alias) is still refused. The messages
+  about an order name where it comes from
+  (`source: --target-group-migration-order`,
+  `migsettings of release <release>` or `product setting`) instead of the
+  command that applies it.
+- **Breaking (config):** the validation rules RULE_1_10 to RULE_1_12 compare
+  the aliases of `TargetGroupMigrationOrder` exactly, like migrate-up: an
+  alias that matches a target group only case-insensitively is an error with
+  a hint to the exact alias, without a RULE_1_11 for that group. Such a
+  configuration passed the validation before; now every command of its
+  product stops at startup, info, validate-hash, update-hash, migrate-down
+  and fix included, and the Config Wizard and hosts that validate with the
+  rule catalog report the error. migrate-up and baseline refused it already,
+  unless `--target-group-migration-order` or the migsettings of the release
+  replaced the product setting. The validation checks the product setting;
+  the migsettings and `--target-group-migration-order`
+  sources are checked by the commands with the same rules.
 
 ### Fixed
 
