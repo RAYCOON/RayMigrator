@@ -366,7 +366,8 @@ repository (`DatabaseLoggingDefaults` fills the section from `Repository`). The 
 `DatabaseLogWriter.InitDatabaseLoggerAsync` runs `DatabaseLogging_CheckCreate` in every run mode: it creates the log tables when
 they are missing and gives `MigrationLog` its indexes on `MigrationRunId` and `CreatedAt` for the readers and the cleanup by age,
 also on a table an older engine created; SQL Server, PostgreSQL and MySQL serialize that start with a lock of their own, apart from
-the repository schema lock. The start that adds the indexes needs the right to create indexes on the log table once and builds them
+the repository schema lock, while MariaDB and SQLite insert the event catalogue idempotently, so that two first starts at once both
+succeed. The start that adds the indexes needs the right to create indexes on the log table once and builds them
 on the rows already there within `DatabaseLogging.DbCommandTimeoutInSeconds` (20 seconds by default); on PostgreSQL, SQL Server
 and SQLite the build blocks the log writes of other hosts, whose queue reports a failed write on stderr only. A timeout of that start
 is not retried (other transient failures are): the start fails with a message that names the index build and the option to raise

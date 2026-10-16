@@ -146,4 +146,16 @@ public class DatabaseLogTests : PostgreSqlTestBase
         await DatabaseLogIndexContract.VerifyFreshLogTableCarriesTheIndexesAsync(
             CreateScenario().WithTableBaseName(DatabaseLogIndexContract.LongestPrefix));
     }
+
+    /// <summary>
+    /// D9: Hosts that start at the same moment against a log database without log tables all initialize the log, and
+    /// the event catalogue holds each event once (<see cref="DatabaseLogIndexContract"/>).
+    /// </summary>
+    [Fact]
+    public async Task LogCatalogue_ParallelFirstStarts_InsertItOnce()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+
+        await DatabaseLogIndexContract.VerifyParallelFirstStartsInsertTheCatalogueOnceAsync(CreateScenario());
+    }
 }

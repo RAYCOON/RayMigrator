@@ -10,7 +10,8 @@ namespace Raycoon.RayMigrator.Tests.Engine.Infrastructure;
 /// cleanup by age. The indexes stand outside the creation branch, so a log table that an older engine created without
 /// them gets them at the next initialization, which still reports that the log existed. The tests run the
 /// initialization of the host's database log writer and read the indexes from the catalog of the log database; they
-/// do not need the asynchronous writer.
+/// do not need the asynchronous writer. Hosts that start at the same moment against a log database without log tables
+/// all initialize the log, and the event catalogue holds each event once.
 /// </summary>
 internal static class DatabaseLogIndexContract
 {
@@ -19,6 +20,73 @@ internal static class DatabaseLogIndexContract
     /// longer index name of the log has 49 bytes, within the 63 PostgreSQL keeps and the 64 MySQL accepts.
     /// </summary>
     public const string LongestPrefix = "rm_sixteen_bytes";
+
+    /// <summary>The table prefix of the parallel first starts: a prefix of their own, whose log tables the rounds drop.</summary>
+    public const string ParallelStartsPrefix = "rm_lograce_";
+
+    /// <summary>How many hosts start at the same moment in each round of the parallel first starts.</summary>
+    private const int ParallelStarts = 8;
+
+    /// <summary>How many rounds of parallel first starts run: the race of two first starts is narrow.</summary>
+    private const int Rounds = 10;
+
+    /// <summary>
+    /// Hosts that start at the same moment against a log database without log tables all initialize the log, at least
+    /// one of them reports that it created the log, and the event catalogue holds each event once. SQL Server,
+    /// PostgreSQL and MySQL look for the log tables under the lock of the log initialization, so one start creates them
+    /// and inserts the catalogue; MariaDB and SQLite take no lock, so several starts can find no log table and insert
+    /// the catalogue, which they must tolerate. In each round the test drops both log tables of its prefix and starts
+    /// <see cref="ParallelStarts"/> writers of their own, each on a connection of its own, at once.
+    /// </summary>
+    public static async Task VerifyParallelFirstStartsInsertTheCatalogueOnceAsync(ScenarioBuilder builder)
+    {
+        // Arrange: the host created the log tables and the catalogue while it started; its writer is flushed and closed,
+        // so that it writes nothing into the tables the rounds drop
+        await using var ctx = await builder.WithTableBaseName(ParallelStartsPrefix).WithDatabaseLogging().BuildAsync();
+        ctx.FlushDatabaseLog();
+        var (naming, log) = LogOf(ctx);
+        string connectionString = ctx.DatabaseLoggingOptions.ConnectionString!;
+        int catalogue = log.CountRows("MigrationEvent");
+        catalogue.Should().BePositive(because: "the start of the host inserted the event catalogue");
+        var failedStarts = new List<string>();
+        var findings = new List<string>();
+
+        // Act
+        for (int round = 1; round <= Rounds; round++)
+        {
+            log.ExecuteOnConnection(connectionString, DropTableSql(naming, RepositoryTable.MigrationLog));
+            log.ExecuteOnConnection(connectionString, DropTableSql(naming, RepositoryTable.MigrationEvent));
+            var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var starts = Enumerable.Range(0, ParallelStarts).Select(_ => ctx.InitDatabaseLoggerWithNewWriterAsync(start.Task)).ToList();
+            start.SetResult();
+
+            int created = 0;
+            foreach (var task in starts)
+            {
+                try
+                {
+                    if (await task)
+                        created++;
+                }
+                catch (Exception ex)
+                {
+                    var cause = ex.GetBaseException();
+                    failedStarts.Add($"round {round}: {cause.GetType().Name}: {cause.Message}");
+                }
+            }
+
+            int rows = log.CountRows("MigrationEvent");
+            if (rows != catalogue)
+                findings.Add($"round {round}: {rows} catalogue rows instead of {catalogue}");
+            if (created == 0)
+                findings.Add($"round {round}: no start reported that it created the log");
+        }
+
+        // Assert
+        failedStarts.Should().BeEmpty(because: "every start initializes the log, but {0} of {1} parallel first starts failed",
+            failedStarts.Count, Rounds * ParallelStarts);
+        findings.Should().BeEmpty(because: "the catalogue holds each event once after every round, and a start created the log");
+    }
 
     /// <summary>
     /// A fresh log table carries both indexes under the names and on the columns of the engine, and the next
@@ -92,6 +160,10 @@ internal static class DatabaseLogIndexContract
         string columns = string.Join(", ", new[] { "LogLevelId", "MigrationRunId", "Message" }.Select(naming.QualifiedColumnName));
         return $"INSERT INTO {table} ({columns}) VALUES (2, 7, 'kept'), (2, 7, 'kept'), (3, 8, 'kept')";
     }
+
+    /// <summary>A <c>DROP TABLE IF EXISTS</c> of a log table, with the schema and prefix of the log.</summary>
+    private static string DropTableSql(RepositoryNaming naming, RepositoryTable table)
+        => $"DROP TABLE IF EXISTS {naming.QualifiedTableName(table)}";
 
     /// <summary>A <c>DROP INDEX</c> of the log table in the syntax of the engine.</summary>
     private static string DropIndexSql(RepositoryNaming naming, string indexName) => naming.DatabaseType switch

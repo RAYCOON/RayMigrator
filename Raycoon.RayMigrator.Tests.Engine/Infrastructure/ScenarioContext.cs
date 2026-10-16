@@ -660,6 +660,13 @@ public class ScenarioContext : IAsyncDisposable
     public Task<bool> InitDatabaseLoggerAsync() => _host.InitDatabaseLoggerAsync();
 
     /// <summary>
+    /// Initializes the database log as the start of another host does, with a writer, a DAL and a connection of its own,
+    /// once <paramref name="start"/> completes (<see cref="EngineTestHost.InitDatabaseLoggerWithNewWriterAsync"/>); true
+    /// when it created the log tables, false when they existed.
+    /// </summary>
+    public Task<bool> InitDatabaseLoggerWithNewWriterAsync(Task start) => _host.InitDatabaseLoggerWithNewWriterAsync(start);
+
+    /// <summary>
     /// Counts MigrationLog entries at a specific log level.
     /// </summary>
     public int CountLogEntriesAtLevel(int logLevelId) => _queryHelper.CountLogEntriesAtLevel(logLevelId);

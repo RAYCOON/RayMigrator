@@ -8,7 +8,7 @@ The engine test project (`Raycoon.RayMigrator.Tests.Engine`) tests the core migr
 
 | Metric | Value |
 |--------|-------|
-| Total tests | ~1699, every theory row counted (1667 test methods across 257 test class files, including the engine-agnostic `CliToolPresetConsistencyTests` with 16 inline cases; 10 are skipped on purpose) |
+| Total tests | ~1739, every theory row counted (1702 test methods across 257 test class files, including the engine-agnostic `CliToolPresetConsistencyTests` with 16 inline cases; 10 are skipped on purpose) |
 | PostgreSQL tests | ~322 (50 test classes; most use unprefixed filenames as the "base" engine) |
 | SqlServer tests | ~333 (54 test classes, includes 6 block-level tests, 3 resume tests, 12 CLI tool tests, 2 atomic shared connection tests and 1 killed pooled session test) |
 | MariaDb tests | ~326 (52 test classes; one is `MariaDbSessionTimezoneTests` defined alongside `MySqlSessionTimezoneTests` in `P2_MySqlMariaDbSessionTimezoneTests.cs`) |
@@ -111,7 +111,7 @@ Raycoon.RayMigrator.Tests.Engine/
 │   ├── DalSharedConnectionCancellationContract.cs — Shared assertions of DalCancellationTests: the shared-connection calls of a DAL hand the caller's token to the command on an open connection and transaction, so the provider reports a token cancelled before the call
 │   ├── DalTimeoutContract.cs       — Shared assertions of DalTimeoutTests: a command that runs into its command timeout is a timeout for DalBase.IsTimeout, however the provider reports it
 │   ├── DalUserLockContract.cs      — Shared assertions of DalUserLockTests (MySQL, MariaDB): a call that fails after its GET_LOCK leaves no lock on the pooled session
-│   ├── DatabaseLogIndexContract.cs — Shared assertions of the log index tests in DatabaseLogTests: DatabaseLogging_CheckCreate gives MigrationLog an index on MigrationRunId and one on CreatedAt, also on a log table of an older engine
+│   ├── DatabaseLogIndexContract.cs — Shared assertions of the log index tests in DatabaseLogTests: DatabaseLogging_CheckCreate gives MigrationLog an index on MigrationRunId and one on CreatedAt, also on a log table of an older engine; hosts that start at the same moment against a log database without log tables all initialize the log, and the event catalogue holds each event once
 │   ├── DockerExecHelper.cs         — Static Process wrapper for docker exec -i stdin piping
 │   ├── EngineConfig.cs             — Engine configuration record
 │   ├── EngineTestHost.cs           — DI container (mirrors Program.cs setup), built asynchronously because it initializes the database log writer (InitDatabaseLoggerAsync); loads the scenario's appsettings.json through JsonOptionsSource, so the host runs in the product scope of a run (ADR-026), stops on a placeholder whose variable is not set, names a failed element by alias and hands the rule catalog the section as written, like DirectModePipeline; hands every log event to the LogObserver of the test, on the logging thread before the call returns
@@ -234,6 +234,7 @@ public async Task ErrorInR3_OnlyR3RolledBack()
 - `UseProgressObserver(observer)` — sets the progress observer of the host's context and of every context a later rebuild creates; the cancellation tests cancel from a `CancellingProgressObserver` at an exact progress event, and the block counter tests read the record from a `ProbingProgressObserver`
 - `UseLogObserver(observer)` — sets an observer of the host's log events and of every host a later rebuild creates; it runs on the thread that logs, before the logging call returns, so that a test cancels update-hash or fix, which report no progress events, at an exact log line, or reads the record right after a repository write
 - `InitDatabaseLoggerAsync()` — initializes the database log once more, as the next start of a host does (`DatabaseLogging_CheckCreate`); true when it created the log tables, false when they existed
+- `InitDatabaseLoggerWithNewWriterAsync(start)` — initializes the database log as the start of another host does, with a `DatabaseLogWriter`, a DAL and a connection of its own, once `start` completes, so that several starts begin at the same moment; the writer is flushed afterwards; true when it created the log tables
 
 **Assertions:**
 - `AssertSuccess(bool)` — checks operation result
@@ -382,7 +383,7 @@ RA-5 to RA-9 come from `Infrastructure/RunAlwaysContract.cs` and make the three-
 |-------|-------|-------------|
 | `MigrationHistoryTrackingTests` | 5 | MigrationRecordHistory records written inline on terminal status transitions (simulate, first run, failed retry, down-then-up, baseline). Source file: `ArchiveRetentionTests.cs`. |
 | `BaselineTests` | 10 | Baseline marking, incremental baseline, baseline then MigrateUp |
-| `DatabaseLogTests` | 8 | Log entries written after MigrateUp, multiple log levels, logs during error, log tables created, `MigrationEventId` stored; the indexes of `DatabaseLogging_CheckCreate` (`Infrastructure/DatabaseLogIndexContract.cs`): `MigrationRunId` and `CreatedAt` on a fresh log table, added to the log table of an older engine by the next initialization, which still reports that the log existed, and named with the longest table prefix in full |
+| `DatabaseLogTests` | 9 | Log entries written after MigrateUp, multiple log levels, logs during error, log tables created, `MigrationEventId` stored; the indexes of `DatabaseLogging_CheckCreate` (`Infrastructure/DatabaseLogIndexContract.cs`): `MigrationRunId` and `CreatedAt` on a fresh log table, added to the log table of an older engine by the next initialization, which still reports that the log existed, and named with the longest table prefix in full; parallel first starts: in each of 10 rounds the test drops the log tables of its prefix `rm_lograce_` and 8 writers of their own initialize the log at once, every start succeeds, at least one reports that it created the log, and the event catalogue holds each event once (MariaDB and SQLite insert it idempotently, the other engines decide under their lock) |
 | `DatabaseLogDefaultTests` | 3 | Database logging into the repository by default at Information, a section with only MinimumLevel, `Enabled: false` creates no log tables |
 | `ReadModelContractTests` | 1 | After a migrate-up every repository table reads through `RepositoryNaming.SelectStatement` via the engine DAL and maps with `RepositoryRowMapper`: schema version, run, records, lookups, log rows, UTC timestamps (`Infrastructure/ReadModelContract.cs`) |
 | `FixTests` | 9 | Fix command: no orphans, fix orphan, simulate, older-than filter, fix-then-migrate, multiple orphans, details, assumed-status=Migrated, scope all |

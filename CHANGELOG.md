@@ -135,8 +135,9 @@ RayMigrator follows Semantic Versioning where applicable.
   repository schema version. A parallel start of another host does not
   fail on the indexes: SQL Server, PostgreSQL and MySQL serialise the
   initialization with a lock apart from the repository schema lock,
-  MariaDB and SQLite rely on `CREATE INDEX IF NOT EXISTS`. The wait for
-  that lock ends with the command timeout of `DatabaseLogging`
+  MariaDB and SQLite rely on `CREATE INDEX IF NOT EXISTS` and insert the
+  event catalogue idempotently. The wait for that lock ends with the
+  command timeout of `DatabaseLogging`
   (`DbCommandTimeoutInSeconds`, 20 seconds by default); SQL Server and
   MySQL give up after 60 seconds and report -1 only when that timeout is
   longer, and PostgreSQL waits for the lock until the timeout. The start
@@ -637,6 +638,15 @@ RayMigrator follows Semantic Versioning where applicable.
   its auto-fix did not close an orphaned run whose heartbeat had gone stale;
   only `fix` closed it. The template now takes the Id only when its insert
   added a row. Every earlier version has the fault on SQLite.
+- Two hosts that initialize the database log at the same time against a
+  log database without log tables no longer fail on MariaDB (duplicate
+  key, 1062) and SQLite (`UNIQUE constraint failed`) because both insert
+  the `MigrationEvent` catalogue: `DatabaseLogging_CheckCreate` inserts it
+  idempotently there (`INSERT … ON DUPLICATE KEY UPDATE` on MariaDB, which
+  tolerates the duplicate key and no other error, `INSERT OR IGNORE` on
+  SQLite), and both starts may report that they created the log. SQL
+  Server, PostgreSQL and MySQL check for the log tables under their
+  initialization lock and were not affected.
 
 ## [0.19.0] — 2026-10-15
 

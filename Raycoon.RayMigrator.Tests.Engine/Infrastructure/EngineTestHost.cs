@@ -305,6 +305,38 @@ public sealed class EngineTestHost : IDisposable
             Services.GetRequiredService<TemplateExecutor>());
     }
 
+    /// <summary>
+    /// Initializes the database log as the start of another host does: a <see cref="DatabaseLogWriter"/> of its own on a
+    /// DAL and a connection of its own executes <c>DatabaseLogging_CheckCreate</c> against the log database. The writer is
+    /// created first and runs the template once <paramref name="start"/> completes, so that several starts can begin at
+    /// the same moment; it is flushed afterwards, which ends the thread of its queue.
+    /// </summary>
+    /// <returns>True when the template created the log tables (result 1), false when they existed (result 0).</returns>
+    public async Task<bool> InitDatabaseLoggerWithNewWriterAsync(Task start)
+    {
+        var options = RayMigratorOptions;
+        if (!options.IsDatabaseLoggingEnabled())
+            throw new InvalidOperationException("The scenario has database logging switched off.");
+
+        string databaseType = options.DatabaseLogging!.DatabaseType!;
+        if (!DalFactory.TryGetDal(databaseType, options.DatabaseLogging.ConnectionString!, out IDal? dal))
+            throw new InvalidOperationException($"No DAL for the database type of the log [{databaseType}].");
+
+        var writer = new DatabaseLogWriter(options, dal);
+        try
+        {
+            await start;
+            return await writer.InitDatabaseLoggerAsync(
+                databaseType,
+                Services.GetRequiredService<TemplateCache>(),
+                Services.GetRequiredService<TemplateExecutor>());
+        }
+        finally
+        {
+            writer.Flush();
+        }
+    }
+
     public void Dispose()
     {
         // Flush pending database log entries before disposal
