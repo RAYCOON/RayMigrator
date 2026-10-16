@@ -136,6 +136,46 @@ RayMigrator follows Semantic Versioning where applicable.
   MySqlConnector, and a DAL overrides it when its provider reports a
   timeout in another way. Like the shipped DALs, an external
   DAL adds the two indexes to its own `DatabaseLogging_CheckCreate`.
+- The CLI stops a run on Ctrl+C and SIGTERM instead of dying with it. While
+  a command runs, the first Ctrl+C (SIGINT) or SIGTERM cancels the
+  `RunCancellation` of the process, which the requests of migrate-up,
+  migrate-down and baseline carry and every call of `IMigrationService`
+  observes as its token, and keeps the process alive: the command stops at
+  its next checkpoint and records why, and a warning on the console and in
+  the database log of the run says where it stops and what a second signal
+  does. A second Ctrl+C or SIGTERM keeps the default and ends the process at
+  once; the run row then stays open until a later start closes it as
+  orphaned or `fix --scope orphanedruns` does. Before the command (loading
+  the configuration, the logger, the connection check) and after it
+  (flushing the log) both signals keep their default, because nothing there
+  would observe the cancel. The handler queues the cancel to the thread
+  pool: the cancel callbacks of the providers run on the calling thread
+  (MySQL opens a connection for `KILL QUERY`), and Windows runs console
+  control handlers under a lock, so a waiting handler could hold back a
+  second Ctrl+C. SIGTERM is handled on Linux and macOS; on Windows .NET maps
+  it to `CTRL_SHUTDOWN_EVENT`, after whose handler Windows ends the process
+  whatever the handler returns, so only Ctrl+C cancels there. Ctrl+Break and
+  Ctrl+\ (SIGQUIT) keep their default.
+- `--cancelled-action` (`-ca`) on migrate-up, migrate-down and baseline
+  chooses the `MigrationCancelledAction` of that cancel: `terminate` (the
+  default), `rollback-file`, `rollback-run` or `rollback-release`,
+  case-insensitive, `{ENV:...}` resolved, any other value a parse error
+  (`RayMigratorConsoleOptions.CancelledAction`, `Terminate` for every other
+  command). Migrate-down and baseline accept it so that a script can pass
+  the same options to every run command, and ignore it as the engine does
+  (logged when it is not `terminate`).
+- Exit code `130` (128 + SIGINT) for a command that the cancel ended:
+  migrate-up, migrate-down and baseline with `MigrationRunResult.Cancelled`,
+  and, while the token of the process is cancelled, update-hash and fix
+  with `TemplateResultCode.Cancelled` (1004) and validate-hash and info
+  with an `OperationCanceledException`. `RayMigratorService` logs such a cancel
+  as a warning instead of an error. A migrate-up that failed at a file before
+  the cancel stopped its error recovery is `Error` with the code of the
+  failure and exits with `1`. A cancelled migrate-up whose rollback did
+  not complete cleanly (`Error` with `CancelledRollbackIncomplete`, 1005)
+  exits with `1` like any failed run, and so do a 1004 and an
+  `OperationCanceledException` that did not come from the cancel of the
+  process.
 
 ### Changed
 
@@ -153,6 +193,11 @@ RayMigrator follows Semantic Versioning where applicable.
   are 3, `TemplateType` has `Repository_Upgrade_3`; an external DAL ships
   the template too. Engines before this version refuse a repository of
   schema version 3. The data stays.
+- **Breaking (API):** `DirectModePipeline.ExecuteAsync` and
+  `RayMigratorService.DoWorkAsync` (`Raycoon.RayMigrator.Pipeline`) take the
+  `RunCancellation` of the process as their last parameter; the pipeline
+  lets Ctrl+C and SIGTERM cancel it while the command runs, and the caller
+  disposes it.
 - **Breaking (API):** every method of `IMigrationService` takes
   `CancellationToken cancellationToken = default` as its last parameter
   (`GetHistoryAsync(productAlias, limit, cancellationToken)`); callers

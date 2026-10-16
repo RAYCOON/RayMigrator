@@ -399,8 +399,12 @@ All custom exceptions but `RetryExhaustedException` live in `Raycoon.RayMigrator
 and DAL or logger setup become `ApplicationStartupException`, while option validation failures raised on first access to
 `IOptions<RayMigratorOptions>.Value` are wrapped in `ConfigurationValidationException`. Inside a command, `MigrationService` turns
 exceptions into a failed `OperationResult` whose `ErrorCode` (`ExtractErrorCode`) is negative for a template `ResultCode` (`-2`
-`MigrationAlreadyRunning`), positive for engine codes (`1001` to `1003` in `TemplateResultCode`) and null when unclassified;
-`RayMigratorService.DoWorkAsync` maps every failed result and every escaped exception to `1`.
+`MigrationAlreadyRunning`), positive for engine codes (`1001` to `1005` in `TemplateResultCode`) and null when unclassified;
+`RayMigratorService.DoWorkAsync` maps a command that the cancel of the process ended to `130` and every other failed result
+and escaped exception to `1`. The pipeline creates one `RunCancellation` per process and arms `ConsoleCancellation` only while
+the command runs: the first Ctrl+C or SIGTERM (SIGTERM not on Windows) cancels it with `--cancelled-action` on a pool thread,
+a second one keeps the default and ends the process, which leaves the run row open for the orphan repair. The generic host of
+the pipeline is never started, so its `ConsoleLifetime` registers no signal handlers of its own.
 
 | Exit code | Produced by | Condition |
 |-----------|-------------|-----------|
@@ -410,8 +414,9 @@ exceptions into a failed `OperationResult` whose `ErrorCode` (`ExtractErrorCode`
 | `4` | `DirectModePipeline` | no `Serilog` node in the merged configuration |
 | `5` | `Program` | `System.CommandLine` threw while parsing or invoking; ordinary parse errors return the parser's own code |
 | `100` | `Program`, `DirectModePipeline` | any other exception before the command runs, which includes `ConfigurationValidationException` from option validation, `TemplateCache` and `DalFactory` (TD-C-01) |
+| `130` | `RayMigratorService` | Ctrl+C or SIGTERM cancelled the command: run result `Cancelled` (migrate-up, migrate-down, baseline), engine code `1004` (update-hash, fix), or an `OperationCanceledException` of validate-hash or info while the token of the process is cancelled; `Error` with `1005` (the rollback of the cancel action did not complete) stays `1` |
 
-Authoritative pages: [Error handling](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/02-core-concepts/error-handling.md#error-categories), [Global options and exit codes](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/08-cli-reference/global-options.md#exit-codes), [Context and Scope](03-Context-and-Scope.md#exit-codes-as-the-automation-contract).
+Authoritative pages: [Error handling](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/02-core-concepts/error-handling.md#error-categories), [Global options and exit codes](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/08-cli-reference/global-options.md#exit-codes), [Cancelling a run](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/08-cli-reference/global-options.md#cancelling-a-run), [Context and Scope](03-Context-and-Scope.md#exit-codes-as-the-automation-contract).
 
 ## Related documentation
 

@@ -4,6 +4,7 @@ using Raycoon.RayMigrator.Core.Configuration.Enums;
 using Raycoon.RayMigrator.Core.Configuration.Options;
 using Raycoon.RayMigrator.Core.Configuration.Sources;
 using Raycoon.RayMigrator.Pipeline;
+using Raycoon.RayMigrator.Services.Abstractions;
 using Raycoon.RayMigrator.Shared.Constants;
 using Raycoon.RayMigrator.Shared.Exceptions;
 using System.Globalization;
@@ -62,9 +63,12 @@ public class Program
 
             #region Standalone mode
 
+            // One cancellation handle per process; the pipeline lets Ctrl+C and SIGTERM cancel it while the command runs
+            using var cancellation = new RunCancellation();
+
             return await RunDirectMode(
                 new JsonOptionsSource(rayMigratorConsoleOptions.ConfigDir),
-                args, rayMigratorConsoleOptions, assemblyInfo, environment!, environmentOrigin!);
+                args, rayMigratorConsoleOptions, assemblyInfo, environment!, environmentOrigin!, cancellation);
 
             #endregion Standalone mode
         }
@@ -90,11 +94,12 @@ public class Program
         RayMigratorConsoleOptions rayMigratorConsoleOptions,
         string assemblyInfo,
         string environment,
-        string environmentOrigin)
+        string environmentOrigin,
+        RunCancellation cancellation)
     {
         var sourceResult = await optionsSource.LoadAsync(rayMigratorConsoleOptions.Product, environment);
 
         return await DirectModePipeline.ExecuteAsync(
-            args, sourceResult, rayMigratorConsoleOptions, assemblyInfo, environment, environmentOrigin);
+            args, sourceResult, rayMigratorConsoleOptions, assemblyInfo, environment, environmentOrigin, cancellation);
     }
 }

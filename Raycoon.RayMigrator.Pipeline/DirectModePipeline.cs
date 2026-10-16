@@ -17,6 +17,7 @@ using Raycoon.RayMigrator.Database.Common;
 using Raycoon.RayMigrator.Infrastructure;
 using Raycoon.RayMigrator.Infrastructure.Logging;
 using Raycoon.RayMigrator.Services;
+using Raycoon.RayMigrator.Services.Abstractions;
 using Raycoon.RayMigrator.Shared.Exceptions;
 using Serilog;
 using Raycoon.RayMigrator.Core.Logging;
@@ -34,14 +35,28 @@ public static class DirectModePipeline
     /// <summary>
     /// Executes the Direct mode pipeline with the given options source result.
     /// </summary>
+    /// <param name="args">The command line, for the host builder.</param>
+    /// <param name="sourceResult">The configuration loaded from the appsettings hierarchy.</param>
+    /// <param name="consoleOptions">The parsed command line.</param>
+    /// <param name="assemblyInfo">The banner of the CLI.</param>
+    /// <param name="environment">The resolved environment.</param>
+    /// <param name="environmentOrigin">Where the environment came from, for the start-up log.</param>
+    /// <param name="cancellation">
+    /// The handle of the process. While the command runs, the first Ctrl+C or SIGTERM cancels it with the
+    /// <c>--cancelled-action</c> of the command (exit code 130), and a second one ends the process at once; before and
+    /// after the command both keep their default.
+    /// </param>
     public static async Task<int> ExecuteAsync(
         string[] args,
         OptionsSourceResult sourceResult,
         RayMigratorConsoleOptions consoleOptions,
         string assemblyInfo,
         string environment,
-        string environmentOrigin)
+        string environmentOrigin,
+        RunCancellation cancellation)
     {
+        ArgumentNullException.ThrowIfNull(cancellation);
+
         global::Serilog.ILogger serilogLogger = null!;
         Microsoft.Extensions.Logging.ILogger? logger = null;
         bool isSerilogLoggerActivated = false;
@@ -259,7 +274,14 @@ public static class DirectModePipeline
             var rayMigratorService = host.Services.GetRequiredService<RayMigratorService>();
 
             logger.LogDebug(MigrationEvent.RayMigratorServiceStart, "RayMigrator starts executing ({ModeName})", sourceResult.ModeName);
-            exitCode = await rayMigratorService.DoWorkAsync(host);
+
+            // Ctrl+C and SIGTERM cancel the command only while it runs. Before it (configuration, logger, the
+            // synchronous connection check) and after it (flush, shutdown) nothing observes the token, so a cancel
+            // there would promise a stop that never comes; the signals keep their default and end the process.
+            using (ConsoleCancellation.Listen(cancellation, consoleOptions, logger))
+            {
+                exitCode = await rayMigratorService.DoWorkAsync(host, cancellation);
+            }
 
             #endregion Start RayMigratorService
 

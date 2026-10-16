@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Raycoon.RayMigrator.Core.Configuration.Enums;
 using Raycoon.RayMigrator.Core.Configuration.Options;
 using Raycoon.RayMigrator.Services.Abstractions;
+using Raycoon.RayMigrator.Shared.Constants;
 using Raycoon.RayMigrator.Shared.Exceptions;
 
 namespace Raycoon.RayMigrator.Pipeline;
@@ -13,6 +14,14 @@ namespace Raycoon.RayMigrator.Pipeline;
 /// </summary>
 public class RayMigratorService
 {
+    /// <summary>
+    /// The exit code of a command that ended because Ctrl+C or SIGTERM cancelled it: 130, the 128 + SIGINT a shell
+    /// reports for a process that SIGINT ended. A cancelled migrate-up whose rollback did not complete cleanly is an
+    /// <see cref="MigrationRunResult.Error"/> and exits with 1, as does a migrate-up that failed at a file before the
+    /// cancel stopped its error recovery.
+    /// </summary>
+    internal const int CancelledExitCode = 130;
+
     private readonly ILogger<RayMigratorService> _logger;
     private readonly RayMigratorConsoleOptions _consoleOptions;
     private readonly IMigrationService _migrationService;
@@ -34,11 +43,20 @@ public class RayMigratorService
     }
 
     /// <summary>
-    /// Executes the migration service based on the command specified
+    /// Executes the migration service based on the command specified and returns the exit code of the process: 0 for
+    /// success, <see cref="CancelledExitCode"/> (130) when <paramref name="cancellation"/> stopped the command, 1 for a
+    /// failure.
     /// </summary>
+    /// <param name="host">The host of the CLI.</param>
+    /// <param name="cancellation">
+    /// The handle of the process. Migrate-up, migrate-down and baseline carry it in their request, so that the run
+    /// takes the action of its <see cref="RunCancellation.Cancel"/>; every service call observes its token.
+    /// </param>
     /// <exception cref="ConfigurationValidationException"></exception>
-    public async Task<int> DoWorkAsync(IHost host)
+    public async Task<int> DoWorkAsync(IHost host, RunCancellation cancellation)
     {
+        ArgumentNullException.ThrowIfNull(cancellation);
+
         try
         {
             _logger.LogDebug("Executing command: {Command}", _consoleOptions.Command);
@@ -46,30 +64,37 @@ public class RayMigratorService
             switch (_consoleOptions.Command)
             {
                 case MigrationCommand.MigrateUp:
-                    return await ExecuteMigrateUpAsync();
+                    return await ExecuteMigrateUpAsync(cancellation);
 
                 case MigrationCommand.MigrateDown:
-                    return await ExecuteMigrateDownAsync();
+                    return await ExecuteMigrateDownAsync(cancellation);
 
                 case MigrationCommand.ValidateHash:
-                    return await ExecuteValidateHashAsync();
+                    return await ExecuteValidateHashAsync(cancellation);
 
                 case MigrationCommand.UpdateHash:
-                    return await ExecuteUpdateHashAsync();
+                    return await ExecuteUpdateHashAsync(cancellation);
 
                 case MigrationCommand.Info:
-                    return await ExecuteInfoAsync();
+                    return await ExecuteInfoAsync(cancellation);
 
                 case MigrationCommand.Baseline:
-                    return await ExecuteBaselineAsync();
+                    return await ExecuteBaselineAsync(cancellation);
 
                 case MigrationCommand.FixIssues:
-                    return await ExecuteFixIssuesAsync();
+                    return await ExecuteFixIssuesAsync(cancellation);
 
                 default:
                     throw new ConfigurationValidationException(
                         $"Unknown command: {_consoleOptions.Command}. Valid commands: {string.Join(", ", Enum.GetNames<MigrationCommand>())}");
             }
+        }
+        catch (OperationCanceledException) when (cancellation.Token.IsCancellationRequested)
+        {
+            // The read commands (validate-hash, info) throw when they are cancelled; the others return their result
+            _logger.LogWarning("Command {Command} for product {Product} cancelled on request ({Reason})",
+                _consoleOptions.Command, _consoleOptions.Product, cancellation.Reason ?? "no reason given");
+            return CancelledExitCode;
         }
         catch (MigrationAlreadyRunningException ex)
         {
@@ -88,7 +113,7 @@ public class RayMigratorService
         }
     }
 
-    private async Task<int> ExecuteMigrateUpAsync()
+    private async Task<int> ExecuteMigrateUpAsync(RunCancellation cancellation)
     {
         _logger.LogDebug("Executing Migrate-Up command for product {Product} in environment {Environment}",
             _consoleOptions.Product, _consoleOptions.Environment);
@@ -104,12 +129,20 @@ public class RayMigratorService
             AllowOutOfOrder = _consoleOptions.AllowOutOfOrder == true,
             TargetGroupAliases = _consoleOptions.TargetGroupAliases,
             TargetGroupMigrationOrder = _consoleOptions.TargetGroupMigrationOrder,
+            Cancellation = cancellation,
         };
 
-        var result = await _migrationService.MigrateUpAsync(request);
+        var result = await _migrationService.MigrateUpAsync(request, cancellation.Token);
 
         if (!result.Success)
         {
+            if (result.Result == MigrationRunResult.Cancelled)
+            {
+                _logger.LogWarning("Migrate-Up cancelled for product {Product}: {Message}",
+                    _consoleOptions.Product, result.ErrorMessage);
+                return CancelledExitCode;
+            }
+
             _logger.LogError("Migrate-Up failed for product {Product}: {Error}",
                 _consoleOptions.Product, result.ErrorMessage);
             return 1;
@@ -118,7 +151,7 @@ public class RayMigratorService
         return 0;
     }
 
-    private async Task<int> ExecuteMigrateDownAsync()
+    private async Task<int> ExecuteMigrateDownAsync(RunCancellation cancellation)
     {
         _logger.LogDebug("Executing Migrate-Down command for product {Product} to release {TargetRelease}",
             _consoleOptions.Product, _consoleOptions.TargetReleaseVersion);
@@ -132,12 +165,20 @@ public class RayMigratorService
             ShowInfo = _consoleOptions.ShowStartupInfo,
             RevealSensitiveData = _consoleOptions.RevealSensitiveData,
             TargetGroupAliases = _consoleOptions.TargetGroupAliases,
+            Cancellation = cancellation,
         };
 
-        var result = await _migrationService.MigrateDownAsync(request);
+        var result = await _migrationService.MigrateDownAsync(request, cancellation.Token);
 
         if (!result.Success)
         {
+            if (result.Result == MigrationRunResult.Cancelled)
+            {
+                _logger.LogWarning("Migrate-Down cancelled for product {Product}: {Message}",
+                    _consoleOptions.Product, result.ErrorMessage);
+                return CancelledExitCode;
+            }
+
             _logger.LogError("Migrate-Down failed for product {Product}: {Error}",
                 _consoleOptions.Product, result.ErrorMessage);
             return 1;
@@ -146,7 +187,7 @@ public class RayMigratorService
         return 0;
     }
 
-    private async Task<int> ExecuteValidateHashAsync()
+    private async Task<int> ExecuteValidateHashAsync(RunCancellation cancellation)
     {
         _logger.LogDebug("Executing Validate-Hash command for product {Product} with scope {Scope}",
             _consoleOptions.Product, _consoleOptions.HashValidationScope);
@@ -160,7 +201,7 @@ public class RayMigratorService
             TargetGroupAliases = _consoleOptions.TargetGroupAliases,
         };
 
-        var result = await _migrationService.ValidateHashAsync(request);
+        var result = await _migrationService.ValidateHashAsync(request, cancellation.Token);
 
         // ValidationResult.Success means "no hash issues found", not "the command ran".
         // A command failure (exception inside the service) carries an ErrorMessage; hash issues do not.
@@ -184,7 +225,7 @@ public class RayMigratorService
         return result.InvalidFiles > 0 || result.MissingFiles > 0 ? 1 : 0;
     }
 
-    private async Task<int> ExecuteUpdateHashAsync()
+    private async Task<int> ExecuteUpdateHashAsync(RunCancellation cancellation)
     {
         _logger.LogDebug("Executing Update-Hash command for product {Product}", _consoleOptions.Product);
 
@@ -196,10 +237,18 @@ public class RayMigratorService
             TargetGroupAliases = _consoleOptions.TargetGroupAliases,
         };
 
-        var result = await _migrationService.UpdateHashAsync(request);
+        var result = await _migrationService.UpdateHashAsync(request, cancellation.Token);
 
         if (!result.Success)
         {
+            // The engine maps every OperationCanceledException to Cancelled; only the cancel of the process exits with 130
+            if (result.ErrorCode == TemplateResultCode.Cancelled && cancellation.Token.IsCancellationRequested)
+            {
+                _logger.LogWarning("Update-Hash cancelled for product {Product}: {Message}",
+                    _consoleOptions.Product, result.ErrorMessage);
+                return CancelledExitCode;
+            }
+
             _logger.LogError("Update-Hash failed for product {Product}: {Error}",
                 _consoleOptions.Product, result.ErrorMessage);
             return 1;
@@ -211,7 +260,7 @@ public class RayMigratorService
         return 0;
     }
 
-    private async Task<int> ExecuteBaselineAsync()
+    private async Task<int> ExecuteBaselineAsync(RunCancellation cancellation)
     {
         var releaseLabel = string.IsNullOrWhiteSpace(_consoleOptions.TargetReleaseVersion)
             ? "all releases"
@@ -229,12 +278,20 @@ public class RayMigratorService
             RevealSensitiveData = _consoleOptions.RevealSensitiveData,
             TargetGroupAliases = _consoleOptions.TargetGroupAliases,
             TargetGroupMigrationOrder = _consoleOptions.TargetGroupMigrationOrder,
+            Cancellation = cancellation,
         };
 
-        var result = await _migrationService.BaselineAsync(request);
+        var result = await _migrationService.BaselineAsync(request, cancellation.Token);
 
         if (!result.Success)
         {
+            if (result.Result == MigrationRunResult.Cancelled)
+            {
+                _logger.LogWarning("Baseline cancelled for product {Product}: {Message}",
+                    _consoleOptions.Product, result.ErrorMessage);
+                return CancelledExitCode;
+            }
+
             _logger.LogError("Baseline failed for product {Product}: {Error}",
                 _consoleOptions.Product, result.ErrorMessage);
             return 1;
@@ -245,13 +302,13 @@ public class RayMigratorService
         return 0;
     }
 
-    private async Task<int> ExecuteInfoAsync()
+    private async Task<int> ExecuteInfoAsync(RunCancellation cancellation)
     {
         _logger.LogDebug("Executing Info command for product {Product} in environment {Environment}",
             _consoleOptions.Product, _consoleOptions.Environment);
 
-        var status = await _migrationService.GetStatusAsync(_consoleOptions.Product!);
-        var history = await _migrationService.GetHistoryAsync(_consoleOptions.Product!, 10);
+        var status = await _migrationService.GetStatusAsync(_consoleOptions.Product!, cancellation.Token);
+        var history = await _migrationService.GetHistoryAsync(_consoleOptions.Product!, 10, cancellation.Token);
 
         // Display status summary
         _logger.LogInformation("--- Migration Status for product {Product}, environment {Environment} ---", status.ProductAlias, _consoleOptions.Environment);
@@ -296,7 +353,7 @@ public class RayMigratorService
         return 0;
     }
 
-    private async Task<int> ExecuteFixIssuesAsync()
+    private async Task<int> ExecuteFixIssuesAsync(RunCancellation cancellation)
     {
         _logger.LogDebug("Executing Fix command for product {Product} in environment {Environment}",
             _consoleOptions.Product, _consoleOptions.Environment);
@@ -313,10 +370,18 @@ public class RayMigratorService
             RevealSensitiveData = _consoleOptions.RevealSensitiveData
         };
 
-        var result = await _migrationService.FixIssuesAsync(request);
+        var result = await _migrationService.FixIssuesAsync(request, cancellation.Token);
 
         if (!result.Success)
         {
+            // The engine maps every OperationCanceledException to Cancelled; only the cancel of the process exits with 130
+            if (result.ErrorCode == TemplateResultCode.Cancelled && cancellation.Token.IsCancellationRequested)
+            {
+                _logger.LogWarning("Fix command cancelled for product {Product}: {Message}",
+                    _consoleOptions.Product, result.ErrorMessage);
+                return CancelledExitCode;
+            }
+
             _logger.LogError("Fix command failed for product {Product}: {Error}",
                 _consoleOptions.Product, result.ErrorMessage);
             return 1;

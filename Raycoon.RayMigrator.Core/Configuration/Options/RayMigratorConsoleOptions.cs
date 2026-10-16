@@ -83,6 +83,15 @@ public class RayMigratorConsoleOptions
     public bool? StopRollbackOnMissingRollbackFile { get; init; }
 
     /// <summary>
+    /// What a run does when Ctrl+C or SIGTERM cancels the CLI process (<c>--cancelled-action</c> on migrate-up,
+    /// migrate-down and baseline): the CLI passes it to the <c>RunCancellation.Cancel</c> of the first signal. Migrate-down
+    /// and baseline accept it like migrate-up so that scripts can pass it to every run command, and ignore it: a
+    /// cancelled migrate-down stops at the next rollback block, a cancelled baseline before the next file.
+    /// Default <see cref="MigrationCancelledAction.Terminate"/>, also for every other command.
+    /// </summary>
+    public MigrationCancelledAction CancelledAction { get; init; } = MigrationCancelledAction.Terminate;
+
+    /// <summary>
     /// Override directory where RayMigrator searches for appsettings.json files.
     /// When null, the current working directory is used.
     /// Always resolved to an absolute path at parse time.

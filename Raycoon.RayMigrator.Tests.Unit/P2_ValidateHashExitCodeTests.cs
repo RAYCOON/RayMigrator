@@ -56,7 +56,7 @@ public class ValidateHashExitCodeTests
             Success = true, ProductAlias = "P", TotalFiles = 2, ValidFiles = 2
         });
 
-        var exitCode = await wrapper.DoWorkAsync(null!);
+        var exitCode = await wrapper.DoWorkAsync(null!, new RunCancellation());
 
         exitCode.Should().Be(0);
         logger.Entries.Should().NotContain(e => e.Level == LogLevel.Error);
@@ -73,7 +73,7 @@ public class ValidateHashExitCodeTests
             Issues = { new HashValidationIssue { FileName = "002_new.sql", IssueType = "New", Details = "not migrated yet" } }
         });
 
-        var exitCode = await wrapper.DoWorkAsync(null!);
+        var exitCode = await wrapper.DoWorkAsync(null!, new RunCancellation());
 
         exitCode.Should().Be(0, "files that are not migrated yet are informational only");
         logger.Entries.Should().ContainSingle(e => e.Level == LogLevel.Warning && e.Message.Contains("002_new.sql") && e.Message.Contains("New"));
@@ -88,7 +88,7 @@ public class ValidateHashExitCodeTests
             Issues = { new HashValidationIssue { FileName = "001.sql", IssueType = "Modified", Details = "hash mismatch" } }
         });
 
-        var exitCode = await wrapper.DoWorkAsync(null!);
+        var exitCode = await wrapper.DoWorkAsync(null!, new RunCancellation());
 
         exitCode.Should().Be(1, "a modified migrated file must fail the CI gate");
         await service.Received(1).ValidateHashAsync(Arg.Any<ValidateHashRequest>(), Arg.Any<CancellationToken>());
@@ -107,7 +107,7 @@ public class ValidateHashExitCodeTests
             Issues = { new HashValidationIssue { FileName = "001.sql", IssueType = "Missing", Details = "deleted" } }
         });
 
-        var exitCode = await wrapper.DoWorkAsync(null!);
+        var exitCode = await wrapper.DoWorkAsync(null!, new RunCancellation());
 
         exitCode.Should().Be(1);
         logger.Entries.Should().NotContain(e => e.Level == LogLevel.Error);
@@ -122,7 +122,7 @@ public class ValidateHashExitCodeTests
             Success = false, ErrorMessage = "repository unreachable", ProductAlias = "P"
         });
 
-        var exitCode = await wrapper.DoWorkAsync(null!);
+        var exitCode = await wrapper.DoWorkAsync(null!, new RunCancellation());
 
         exitCode.Should().Be(1);
         logger.Entries.Should().ContainSingle(e => e.Level == LogLevel.Error && e.Message.Contains("repository unreachable"));

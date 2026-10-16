@@ -26,6 +26,7 @@ The `migrate-down` command reverses previously applied migrations by executing t
 |-----------|-------|---------|-------------|
 | `--run-mode` | `-rm` | `Migrate` | Execution mode: `Migrate`, `Simulate`, or `Validate` |
 | `--target-group` | `-tg` | (all) | Filter rollback to specific target groups (can be specified multiple times) |
+| `--cancelled-action` | `-ca` | `terminate` | Accepted like on migrate-up so that scripts can pass the same options to every run command; migrate-down ignores it |
 | `--startup-info` | `-si` | `true` | Show application info at startup |
 | `--reveal-sensitive-data` | `-rsd` | `false` | Log sensitive data (passwords) |
 | `--config-dir` | `-cd` | (current directory) | Override directory where RayMigrator searches for configuration files |
@@ -39,6 +40,10 @@ The `migrate-down` command reverses previously applied migrations by executing t
 | `migrate` | Validates, then performs actual rollback against target databases |
 
 See [Execution Modes — Run Mode](../02-core-concepts/execution-modes.md#run-mode) for detailed behavior.
+
+### Cancelling
+
+The first Ctrl+C or SIGTERM stops a migrate-down at the next rollback block (the first block of a rollback file always completes), leaves the record in progress `Failed` with its rollback blocks, records the run as `Cancelled` and ends the process with exit code `130`; the next migrate-down continues the record. `--cancelled-action` has no effect here, because migrate-down is a rollback already. A second Ctrl+C or SIGTERM ends the process at once and leaves the run open for `fix`. See [Global Options — Cancelling a Run](global-options.md#cancelling-a-run).
 
 ## Examples
 

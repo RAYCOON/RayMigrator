@@ -5,7 +5,7 @@ Executes database migrations in forward (up) direction.
 ## Synopsis
 
 ```bash
-raymigrator migrate-up --product <ProductAlias> --environment <Environment> [--run-mode <mode>] [--stop-rollback-on-missing-rollback-file <bool>] [options]
+raymigrator migrate-up --product <ProductAlias> --environment <Environment> [--run-mode <mode>] [--stop-rollback-on-missing-rollback-file <bool>] [--cancelled-action <action>] [options]
 ```
 
 ## Description
@@ -29,6 +29,7 @@ The `migrate-up` command executes all pending migration files against configured
 | `--allow-out-of-order` | `-ooo` | `false` | Allow execution of migrations that precede already-executed files |
 | `--stop-rollback-on-missing-rollback-file` | `-sromrf` | `null` (uses configuration value) | Override whether the error-recovery rollback chain stops when a rollback file is missing. Only applies when `RequireRollbackFile=false`. |
 | `--target-group-migration-order` | `-tgmo` | (config/migsettings order) | Comma-separated list of TargetGroup aliases defining execution order for this run |
+| `--cancelled-action` | `-ca` | `terminate` | What the run does after Ctrl+C or SIGTERM stopped it: `terminate`, `rollback-file`, `rollback-run` or `rollback-release` |
 | `--startup-info` | `-si` | `true` | Show application info at startup |
 | `--reveal-sensitive-data` | `-rsd` | `false` | Log sensitive data (passwords) |
 | `--config-dir` | `-cd` | (current directory) | Override directory where RayMigrator searches for configuration files |
@@ -73,6 +74,19 @@ The value is a single string with alias names separated by commas. Whitespace ar
 ```bash
 # Execute Frontend before Backend for this run
 raymigrator migrate-up -p MyProduct -env Production -rm migrate -tgmo "Frontend, Backend"
+```
+
+### --cancelled-action Parameter
+
+| Parameter | Short | Default | Description |
+|-----------|-------|---------|-------------|
+| `--cancelled-action` | `-ca` | `terminate` | What the run does after the first Ctrl+C or SIGTERM stopped it at the next block boundary |
+
+The first Ctrl+C or SIGTERM stops the run at the next block boundary, records it as `Cancelled` and ends the process with exit code `130`. With `terminate` the interrupted file stays `Failed` with its committed blocks, and the next migrate-up resumes it; `rollback-file`, `rollback-run` and `rollback-release` then roll back like the `MigrationErrorAction` values `RollbackErrorOnly`, `Rollback` and `RollbackRelease`. A second Ctrl+C or SIGTERM ends the process at once and leaves the run open for `fix`. See [Global Options — Cancelling a Run](global-options.md#cancelling-a-run).
+
+```bash
+# Roll back the interrupted file when the run is cancelled
+raymigrator migrate-up -p MyProduct -env Production -rm migrate -ca rollback-file
 ```
 
 ## Environment Variable Support
@@ -200,6 +214,8 @@ Error behavior depends on the `MigrationErrorAction` configuration (set at produ
 | `Ignore` | Mark failed file as `Failed`, skip remaining targets for this file, continue with next file |
 
 For all actions except `Ignore`, an error aborts the entire migration run. The `Ignore` action allows the run to continue with subsequent files.
+
+A cancel by Ctrl+C or SIGTERM is not an error: `--cancelled-action` decides what the run does then (see [Cancelling a Run](global-options.md#cancelling-a-run)).
 
 ## Exit Codes
 

@@ -155,6 +155,9 @@ public class CommandLineConfiguration
             Arity = ArgumentArity.ZeroOrOne
         };
 
+        var cancelledActionOption = CreateCancelledActionOption(
+            "What the run does after Ctrl+C or SIGTERM stopped it at the next block boundary: terminate, rollback-file, rollback-run or rollback-release");
+
         command.Options.Add(productOption);
         command.Options.Add(environmentOption);
         command.Options.Add(runModeOption);
@@ -163,6 +166,7 @@ public class CommandLineConfiguration
         command.Options.Add(targetGroupOption);
         command.Options.Add(targetGroupMigrationOrderOption);
         command.Options.Add(stopRollbackOnMissingRollbackFileOption);
+        command.Options.Add(cancelledActionOption);
 
         return command;
     }
@@ -216,11 +220,15 @@ public class CommandLineConfiguration
             Arity = ArgumentArity.ZeroOrMore
         };
 
+        var cancelledActionOption = CreateCancelledActionOption(
+            "Accepted like on migrate-up so that scripts can pass the same options to every run command; migrate-down ignores it and stops at the next rollback block");
+
         command.Options.Add(productOption);
         command.Options.Add(environmentOption);
         command.Options.Add(runModeOption);
         command.Options.Add(toReleaseOption);
         command.Options.Add(targetGroupOption);
+        command.Options.Add(cancelledActionOption);
 
         return command;
     }
@@ -361,13 +369,47 @@ public class CommandLineConfiguration
             Arity = ArgumentArity.ZeroOrOne
         };
 
+        var cancelledActionOption = CreateCancelledActionOption(
+            "Accepted like on migrate-up so that scripts can pass the same options to every run command; baseline ignores it and stops before the next file");
+
         command.Options.Add(productOption);
         command.Options.Add(environmentOption);
         command.Options.Add(toReleaseOption);
         command.Options.Add(targetGroupOption);
         command.Options.Add(targetGroupMigrationOrderOption);
+        command.Options.Add(cancelledActionOption);
 
         return command;
+    }
+
+    /// <summary>
+    /// Creates <c>--cancelled-action</c> for migrate-up, migrate-down and baseline: what a run does when Ctrl+C or
+    /// SIGTERM cancels the process. The three run commands take the same values so that a script can pass the option
+    /// to each of them; <paramref name="description"/> says what the command does with it. An unknown value is a parse
+    /// error, like an unknown <c>--run-mode</c>.
+    /// </summary>
+    private static Option<string> CreateCancelledActionOption(string description)
+    {
+        var option = new Option<string>("--cancelled-action", "-ca")
+        {
+            Description = description,
+            DefaultValueFactory = _ => "terminate"
+        };
+
+        option.Validators.Add(result =>
+        {
+            var value = result.GetValueOrDefault<string>();
+            if (value != null)
+            {
+                var normalizedValue = ResolveEnvironmentVariable(value).ToLowerInvariant();
+                if (!CancelledActionValues.Contains(normalizedValue))
+                {
+                    result.AddError($"Invalid value for --cancelled-action: {value}. Valid values are: {string.Join(", ", CancelledActionValues)}.");
+                }
+            }
+        });
+
+        return option;
     }
 
     private Command CreateFixIssuesCommand()
@@ -475,6 +517,9 @@ public class CommandLineConfiguration
             var stopRollbackOnMissingRollbackFile = parseResult.GetValue(
                 command.Options.OfType<Option<bool?>>().First(o => o.Name == "--stop-rollback-on-missing-rollback-file"));
 
+            var cancelledAction = ParseCancelledAction(
+                parseResult.GetValue(command.Options.OfType<Option<string>>().First(o => o.Name == "--cancelled-action")) ?? "terminate");
+
             ParsedOptions = new RayMigratorConsoleOptions
             {
                 Command = MigrationCommand.MigrateUp,
@@ -487,6 +532,7 @@ public class CommandLineConfiguration
                 HashValidationScope = null,
                 AllowOutOfOrder = allowOutOfOrder,
                 StopRollbackOnMissingRollbackFile = stopRollbackOnMissingRollbackFile,
+                CancelledAction = cancelledAction,
                 TargetGroupAliases = parseResult.GetValue(command.Options.OfType<Option<string[]>>()
                     .First(o => o.Name == "--target-group"))
                     ?.Select(a => ResolveEnvironmentVariable(a))
@@ -508,6 +554,9 @@ public class CommandLineConfiguration
             var runModeString = parseResult.GetValue(command.Options.OfType<Option<string>>().First(o => o.Name == "--run-mode")) ?? "Migrate";
             var runMode = ParseRunMode(runModeString);
 
+            var cancelledAction = ParseCancelledAction(
+                parseResult.GetValue(command.Options.OfType<Option<string>>().First(o => o.Name == "--cancelled-action")) ?? "terminate");
+
             ParsedOptions = new RayMigratorConsoleOptions
             {
                 Command = MigrationCommand.MigrateDown,
@@ -523,6 +572,7 @@ public class CommandLineConfiguration
                     ?.Select(a => ResolveEnvironmentVariable(a))
                     .Where(a => !string.IsNullOrWhiteSpace(a))
                     .ToArray(),
+                CancelledAction = cancelledAction,
                 ConfigDir = ResolveConfigDir(parseResult.GetValue(configDirOption)),
                 Source = RunInitiator.DetectSource(),
                 InitiatedBy = RunInitiator.CurrentUserName,
@@ -619,6 +669,9 @@ public class CommandLineConfiguration
             var tgeoRaw = parseResult.GetValue(command.Options.OfType<Option<string?>>().First(o => o.Name == "--target-group-migration-order"));
             var tgeoArray = ParseCommaSeparatedToArray(tgeoRaw);
 
+            var cancelledAction = ParseCancelledAction(
+                parseResult.GetValue(command.Options.OfType<Option<string>>().First(o => o.Name == "--cancelled-action")) ?? "terminate");
+
             ParsedOptions = new RayMigratorConsoleOptions
             {
                 Command = MigrationCommand.Baseline,
@@ -635,6 +688,7 @@ public class CommandLineConfiguration
                     .Where(a => !string.IsNullOrWhiteSpace(a))
                     .ToArray(),
                 TargetGroupMigrationOrder = tgeoArray,
+                CancelledAction = cancelledAction,
                 ConfigDir = ResolveConfigDir(parseResult.GetValue(configDirOption)),
                 Source = RunInitiator.DetectSource(),
                 InitiatedBy = RunInitiator.CurrentUserName,
@@ -727,6 +781,33 @@ public class CommandLineConfiguration
             "all" => FixScope.All,
             "orphanedruns" => FixScope.OrphanedRuns,
             _ => throw new ConfigurationValidationException($"Invalid value [{value}] for --scope. Allowed values: [orphanedruns, all].")
+        };
+    }
+
+    /// <summary>
+    /// The values of <c>--cancelled-action</c>, in the order the help and the error message list them; each is the
+    /// kebab-case name of a <see cref="MigrationCancelledAction"/> member.
+    /// </summary>
+    internal static readonly string[] CancelledActionValues = ["terminate", "rollback-file", "rollback-run", "rollback-release"];
+
+    /// <summary>
+    /// Parses the <c>--cancelled-action</c> value of migrate-up, migrate-down and baseline to
+    /// <see cref="MigrationCancelledAction"/>, case-insensitively. The option validator rejects unknown values first;
+    /// the throw guards direct calls so that no unknown value silently becomes
+    /// <see cref="MigrationCancelledAction.Terminate"/>, the same rule as <see cref="ParseRunMode"/>.
+    /// </summary>
+    /// <exception cref="ConfigurationValidationException">The value is not terminate, rollback-file, rollback-run or rollback-release.</exception>
+    internal static MigrationCancelledAction ParseCancelledAction(string value)
+    {
+        var normalizedValue = ResolveEnvironmentVariable(value).ToLowerInvariant();
+        return normalizedValue switch
+        {
+            "terminate" => MigrationCancelledAction.Terminate,
+            "rollback-file" => MigrationCancelledAction.RollbackFile,
+            "rollback-run" => MigrationCancelledAction.RollbackRun,
+            "rollback-release" => MigrationCancelledAction.RollbackRelease,
+            _ => throw new ConfigurationValidationException(
+                $"Invalid value [{value}] for --cancelled-action. Allowed values: [{string.Join(", ", CancelledActionValues)}].")
         };
     }
 
