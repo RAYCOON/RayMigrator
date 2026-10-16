@@ -64,7 +64,7 @@ raymigrator migrate-down -p MyProduct -env Prod --to-release "Release 1.0"
 
 Executes rollback files in reverse order for all migrations after the target release. Migrations at or before the target release remain intact.
 
-migrate-down queries the repository for records with status `Migrated` (or partially-rolled-back `Failed` records where `FileDownBlocksMigrated > 0` and `FileDownBlocksMigrated < FileDownBlocksTotal`), filters to releases after the target, and processes them in reverse `FileOrderId` order.
+migrate-down queries the repository for records with status `Migrated`, records of a file that stopped after committed blocks without a rollback (`Failed`, or `Executing` in a run that has ended, with `FileUpBlocksMigrated > 0` and no `FileDownHash`), and partially-rolled-back records (`Failed`, or `Executing` in a run that has ended, where `FileDownBlocksMigrated > 0` and `FileDownBlocksMigrated < FileDownBlocksTotal`), filters to releases after the target, and processes them in reverse `FileOrderId` order. The rollback file of a file that stopped runs from its first rollback block on a partially applied file ([Rollback of a Partially Applied File](#rollback-of-a-partially-applied-file)). A record that stopped without a committed block is not rolled back; migrate-down names it in a warning.
 
 ### Error Recovery (MigrationErrorAction)
 
@@ -159,7 +159,7 @@ After a rollback, each migration record's `MigrationStatusId` reflects the outco
 | Rollback block fails (`RollbackErrorAction=Ignore`) | `Failed` | 30 |
 | Rollback block fails (`RollbackErrorAction=Terminate`) | `Failed` | 30 (chain aborted) |
 
-When the status is "unchanged", the record keeps its status from before the rollback attempt. For a successfully executed migration this is `Migrated` (100). The repository entry is not updated when a rollback file is skipped.
+When the status is "unchanged", the record keeps its status from before the rollback attempt. For a successfully executed migration this is `Migrated` (100), for a file that stopped after committed blocks `Failed` (30) with those blocks, which the next migrate-up resumes after, unless it runs the file in full (a RunAlways file, changed SQL blocks, a CLI tool). The repository entry is not updated when a rollback file is skipped.
 
 This applies equally to migrate-down and error recovery rollbacks, as both use the same shared `ExecuteRollbackForMigrations` method.
 
@@ -272,8 +272,8 @@ The behavior when a rollback file is missing depends on the `RequireRollbackFile
 
 **During rollback execution**, only the product-level `RequireRollbackFile` setting (`Products[].RequireRollbackFile` or `ProductDefaults.RequireRollbackFile`) is evaluated. Per-file TOML and migsettings overrides are not considered at this stage:
 
-- **`RequireRollbackFile = true`** (default): The rollback chain is aborted immediately. The migration status is **not changed**: nothing of its rollback ran, and once the rollback file is there, migrate-down rolls the file back. The run ends as `Error`, and the error message names the missing rollback file. This applies regardless of `RollbackErrorAction`.
-- **`RequireRollbackFile = false`**: A warning is logged, the migration status is **not changed** (it retains its previous value, e.g., `Migrated`), and the rollback chain continues with the next file. For error-recovery rollback, whether the chain stops or continues also depends on `StopRollbackOnMissingRollbackFile`.
+- **`RequireRollbackFile = true`** (default): The rollback chain is aborted immediately. The migration status is **not changed**: nothing of its rollback ran, a file that stopped after committed blocks keeps them, and once the rollback file is there, migrate-down rolls the file back. The run ends as `Error`; the error message of a migrate-down and of the rollback of a cancel action names the missing rollback file, while the error recovery of a migrate-up logs it and its run keeps the message of the failure that started the recovery. This applies regardless of `RollbackErrorAction`. The rollback of a stopped migrate-up can also reach a file that stopped without a committed block; it keeps its status as well, migrate-down does not roll it back, and the next migrate-up runs it from its first block.
+- **`RequireRollbackFile = false`**: A warning is logged, the migration status is **not changed** (it retains its previous value, e.g., `Migrated`; a file that stopped after committed blocks keeps them, which the warning names, and stays pending for the next migrate-up, which resumes it after them unless it runs the file in full), and the rollback chain continues with the next file. For error-recovery rollback, whether the chain stops or continues also depends on `StopRollbackOnMissingRollbackFile`.
 
 ### RequireRollbackFile Option
 
@@ -347,6 +347,10 @@ SELECT 1;  -- No-op
 
 Document in migration that rollback is not possible. Note that this only works when `RequireRollbackFile = false` is set (at the file, directory, product, or global level), otherwise the file discovery phase will reject the migration.
 
+## Rollback of a Partially Applied File
+
+A rollback file does not only run after its migration file completed. The error recovery of a `MigrationErrorAction` and the rollback of a `MigrationCancelledAction` roll back the file that stopped first, with the blocks it committed, and migrate-down rolls back a file that a failed, cancelled or abruptly ended migrate-up left with committed blocks ([migrate-down — Rollback Order](../08-cli-reference/migrate-down.md#rollback-order)). The rollback file then runs from its first rollback block on a target where only the leading blocks of the file committed, with `MigrationErrorAction=Ignore` also blocks after a failed one. A rollback file must tolerate that: `DROP TABLE IF EXISTS`, `DROP INDEX IF EXISTS`, `DELETE … WHERE` on the rows the file inserted. A rollback file that fails on a partially applied file leaves the record `Failed` with the rollback blocks that ran, as every failed rollback does: the next migrate-down continues it at the failed rollback block, and migrate-up refuses the file while some rollback blocks ran ([Partial Rollback Resume](#partial-rollback-resume)).
+
 ## Partial Rollback Resume
 
 If a rollback is interrupted (e.g., `RollbackErrorAction=Terminate` aborted the chain), the repository records how many rollback blocks were already executed (`FileDownBlocksMigrated`). On a subsequent migrate-down, RayMigrator resumes from the next unexecuted block rather than re-executing already-completed blocks. Until then, migrate-up refuses to run the file, because it would run it from its first block on a target that kept part of it (see [Error Handling: A Rollback That Stopped in the Middle](../02-core-concepts/error-handling.md#a-rollback-that-stopped-in-the-middle)).
@@ -358,6 +362,7 @@ If a rollback is interrupted (e.g., `RollbackErrorAction=Terminate` aborted the 
 3. **Consider data loss** when designing rollbacks
 4. **Keep rollbacks simple** - reverse the migration, nothing more
 5. **Use transactions** in rollbacks when possible
+6. **Tolerate a partially applied file** - `IF EXISTS`, `DELETE … WHERE` ([Rollback of a Partially Applied File](#rollback-of-a-partially-applied-file))
 
 ## Related Documentation
 

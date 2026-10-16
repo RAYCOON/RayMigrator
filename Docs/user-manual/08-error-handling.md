@@ -108,7 +108,7 @@ Migration 004 ✓ (Migrated — execution continues)
 
 > **Warning:** With Ignore, the migration run is persisted as PartialSuccess (50) because at least one file failed; all other files are still executed and the CLI exit code is 1. An aborted run is Error (90).
 
-A failed file keeps the blocks that committed before its first failed block. The next `migrate-up` resumes at that block, as long as the SQL blocks of the file did not change, and runs the blocks after it again; when the first block failed, or the file was changed, it runs the whole file. A `RunAlways` file always runs as a whole: the next `migrate-up` runs all of its blocks again.
+A failed file keeps the blocks that committed before its first failed block. The next `migrate-up` resumes at that block, as long as the SQL blocks of the file did not change, and runs the blocks after it again; when the first block failed, or the file was changed, it runs the whole file. A `RunAlways` file always runs as a whole: the next `migrate-up` runs all of its blocks again. A `migrate-down` that rolls back the release of such a file rolls the file back as well, from its first rollback block, and the next `migrate-up` then runs it from its first block (see [Rolling Back Migrations](09-rollback-guide.md#how-rollback-works)).
 
 ---
 
@@ -332,7 +332,9 @@ Some work always runs to its end, so that the repository never records a step ha
 
 With `MigrationErrorAction` = `Ignore`, the interrupted file is stored like a file with ignored errors: its record is `Failed` with the blocks before the first failed one, and the next `migrate-up` resumes at the failed block.
 
-A second Ctrl+C ends the process at once. That abandons the run like a crash: it stays `Running` until RayMigrator closes it as orphaned (next section) or you run `fix`. The repair keeps what committed: the next `migrate-up` resumes the interrupted file after its committed blocks, and runs at most the block that was running again.
+Instead of resuming the interrupted file, you can roll its release back with `migrate-down`: it rolls back the interrupted file as well when some of its blocks committed, before the files it came after, and the next `migrate-up` runs it from its first block; a file without a committed block, as on the atomic path, is only named in a warning.
+
+A second Ctrl+C ends the process at once. That abandons the run like a crash: it stays `Running` until RayMigrator closes it as orphaned (next section) or you run `fix`. The repair keeps what committed: the next `migrate-up` resumes the interrupted file after its committed blocks, and normally runs only the block that was running again.
 
 The detailed semantics, also for hosts that cancel a run through the engine API, are in [Error Handling — Cancellation](../02-core-concepts/error-handling.md#cancellation) and [ADR-028](../arc42/09-Architecture-Decisions.md#adr-028-a-run-cancels-at-the-next-block-boundary-with-a-migrationcancelledaction-and-records-cancelled); what every command does when it is cancelled is listed in [Cancelling a Run](../08-cli-reference/global-options.md#cancelling-a-run).
 

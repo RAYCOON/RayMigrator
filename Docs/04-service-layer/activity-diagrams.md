@@ -177,7 +177,7 @@ flowchart TD
     FindFile --> FileExists{Rollback file<br/>exists?}
 
     FileExists -->|No| ReqCheck{RequireRollbackFile?}
-    ReqCheck -->|true| AbortMissing["Mark Failed<br/>ABORT rollback chain"]
+    ReqCheck -->|true| AbortMissing["Status unchanged<br/>ABORT rollback chain"]
     ReqCheck -->|false| ErrorRecovery{isErrorRecovery?}
     ErrorRecovery -->|Yes| StopCheck{StopRollbackOnMissingRollbackFile?<br/>CLI &gt; TargetGroup &gt; Product<br/>default: true}
     StopCheck -->|true| StopChain["Log warning<br/>STOP rollback chain<br/>(no status change)"]
@@ -196,7 +196,9 @@ flowchart TD
 
     ExecCli --> CliOk{Success?}
     CliOk -->|Yes| SkipExec
-    CliOk -->|No| BlockError["fileHadBlockError = true"]
+    CliOk -->|No| CliAction{RollbackErrorAction?}
+    CliAction -->|Ignore| BlockError["fileHadBlockError = true"]
+    CliAction -->|Terminate| AbortBlock
     BlockError --> SkipExec
 
     BlockLoop --> BlockCancel{"Token cancelled<br/>(not before block 1)?"}
@@ -233,7 +235,7 @@ The atomic rollback and a rollback through a CLI tool run without the token and 
 
 ## migrate-down
 
-migrate-down rolls back all migrations after the target release. It reuses `ExecuteRollbackForMigrations` (see [above](#rollback-execution-executerollbackformigrations)).
+migrate-down rolls back all migrations after the target release: the migrated files, the files that stopped after committed blocks, from their first rollback block, and the rollbacks that stopped in the middle. It reuses `ExecuteRollbackForMigrations` (see [above](#rollback-execution-executerollbackformigrations)).
 
 ```mermaid
 flowchart TD
@@ -251,9 +253,10 @@ flowchart TD
     ValidateMode -->|No| P1["<b>Phase 1: Initialization</b><br/>RepositoryCheckCreateAsync()<br/>RepositoryProductCheckInsertAsync()<br/>RepositoryEnvironmentCheckInsertAsync()<br/>MigrationRunResult = Running<br/>MigrationOperation = MigrateDown<br/>RepositoryMigrationRunInsertWithAutoFix()"]
 
     P1 --> P2["<b>Phase 2: Query Repository</b><br/>RepositoryMigrationSelectAsync()"]
-    P2 --> FilterRollback["Filter records:<br/>Status = Migrated or partial<br/>Release > target release<br/>Match --target-group filter<br/>Order by FileOrderId DESC"]
+    P2 --> FilterRollback["Filter records:<br/>Release > target release<br/>Match --target-group filter<br/>IsRolledBackByMigrateDown: Migrated,<br/>stopped after committed blocks,<br/>rollback stopped in the middle<br/>Order by FileOrderId DESC"]
 
-    FilterRollback --> HasRecords{Records to<br/>rollback?}
+    FilterRollback --> WarnStopped["Log a warning per record that stopped<br/>without a committed block (not rolled back)"]
+    WarnStopped --> HasRecords{Records to<br/>rollback?}
     HasRecords -->|No| EarlyOk["RepositoryMigrationRunUpdateAsync(Ok)<br/>Already at target release"]
 
     HasRecords -->|Yes| P3["<b>Phase 3: Execute Rollbacks</b><br/>ExecuteRollbackForMigrations() with the token"]

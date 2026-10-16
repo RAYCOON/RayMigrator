@@ -259,7 +259,7 @@ block or CLI tool path. The rollback actions of a cancel take the same chain (ne
 |---------|--------|---------|
 | `MigrationErrorAction` | `Terminate` 10, `Rollback` 20, `RollbackErrorOnly` 21, `RollbackRelease` 22, `Ignore` 30 | no rollback; failed file plus all files of this run; failed file only; failed file plus this run's files of the same release; skip the block, mark the file `Failed`, continue |
 | `RollbackErrorAction` | `Terminate` 10, `Ignore` 30 | a failing rollback block aborts the chain or is skipped with a warning |
-| `RequireRollbackFile` | bool, default `true` | a missing rollback file is rejected during discovery, before any SQL; inside a chain it aborts and marks the record `Failed` |
+| `RequireRollbackFile` | bool, default `true` | a missing rollback file is rejected during discovery, before any SQL; inside a chain it aborts the chain, and the record keeps its status |
 | `StopRollbackOnMissingRollbackFile` | bool, default `true`; `--stop-rollback-on-missing-rollback-file`, target group, product | with `RequireRollbackFile = false`: stop the chain with a warning, or continue past the missing file; the record keeps its status |
 
 The rollback file lives next to the migration file as `{BaseName}.{MigrationRollbackFilesPreExtension}.{Extension}`. A clean chain

@@ -136,9 +136,10 @@ Raycoon.RayMigrator.Tests.Engine/
 │   ├── RunInitiatorValues.cs       — Initiator values a scenario passes to the engine (source, user, subject, host)
 │   ├── ScenarioBuilder.cs          — Fluent API for test scenario configuration
 │   ├── ScenarioContext.cs          — Execution + assertions
-│   ├── SqlDialect.cs               — Engine-specific SQL helpers (`GetErrorSql`, `GetBrokenRollbackSql`, `GetCreateSimpleTableSql`, `GetDropSimpleTableSql`, `GetTomlHeader`, `GetSleepSql`, and `JoinBlocks`, `GetInsertIntoTableASql`, `GetDeleteFromTableCSql` for the multi-block files of the cancellation tests)
+│   ├── SqlDialect.cs               — Engine-specific SQL helpers (`GetErrorSql`, `GetBrokenRollbackSql`, `GetCreateSimpleTableSql`, `GetDropSimpleTableSql`, `GetTomlHeader`, `GetSleepSql`, and `JoinBlocks`, `GetInsertIntoTableASql`, `GetDeleteFromTableASql`, `GetDeleteFromTableCSql` for the multi-block files of the cancellation tests)
 │   ├── SqliteTestBase.cs           — SQLite base class
-│   └── SqlServerTestBase.cs        — SqlServer base class
+│   ├── SqlServerTestBase.cs        — SqlServer base class
+│   └── StartedFileRollbackContract.cs — Shared assertions of StartedFileRollbackTests: migrate-down rolls back a file that stopped after committed blocks (a cancel, a failure, ignored failed blocks, the orphan repair) from its first rollback block, before the files it came after, and names a file that stopped without a committed block in a warning
 ├── Fixtures/                       — Engine-specific xUnit fixtures (PostgreSQL, SqlServer, MariaDb, MySql, Sqlite)
 ├── Collections/                    — xUnit collection definitions
 ├── MigrationFiles/                 — ONE unified base set per engine
@@ -375,8 +376,19 @@ The catalog lists the unique test scenarios defined for the base PostgreSQL test
 | #65 | RA-8 | RunAlways_EarlierAttemptOnTheSharedConnection_RunsInFull (Failed with block 1, Executing with every block) | RunAlwaysTests |
 | #66 | RA-9 | RunAlways_OpenRecordOfAnOrphanedRun_RunsInFullAfterTheRepair | RunAlwaysTests |
 | #67 | RB-9 | MissingRollback_RequireTrue_DuringTheRecovery_KeepsTheStatus | RollbackTests |
+| #68 | SF-1 | MigrateDown_FileCancelledAfterACommittedBlock_IsRolledBackFirst | MigrateDown/StartedFileRollbackTests |
+| #69 | SF-2 | MigrateDown_FileFailedAfterACommittedBlock_IsRolledBack | MigrateDown/StartedFileRollbackTests |
+| #70 | SF-3 | MigrateDown_FileEndedWithAnIgnoredBlockFailure_IsRolledBackWhole | MigrateDown/StartedFileRollbackTests |
+| #71 | SF-4 | MigrateDown_FileKeptByTheOrphanRepair_IsRolledBack | MigrateDown/StartedFileRollbackTests |
+| #72 | SF-5 | MigrateDown_FileWithoutACommittedBlock_IsNamedInAWarning | MigrateDown/StartedFileRollbackTests |
+| #73 | SF-6 | MigrateDown_FailedRollbackOfAStoppedFile_StopsInTheMiddle | MigrateDown/StartedFileRollbackTests |
+| #74 | SF-7 | MigrateDown_StoppedFileWithoutItsRequiredRollbackFile_AbortsAndKeepsItsBlocks | MigrateDown/StartedFileRollbackTests |
+| #75 | SF-8 | MigrateDown_StoppedFileWithoutItsRollbackFile_GoesOnAndKeepsItsBlocks | MigrateDown/StartedFileRollbackTests |
+| #76 | SF-9 | MigrateDown_SimulateWithAStoppedFile_ListsItsRollback | MigrateDown/StartedFileRollbackTests |
 
 RA-5 to RA-9 come from `Infrastructure/RunAlwaysContract.cs` and make the three-block seed of release 1.0 a RunAlways file: after an attempt that committed blocks (a failure at block 2, a cancel after block 1, a record state written by SQL on the atomic shared connection, the open record of an orphaned run), the next migrate-up starts the file with `ResumeFromBlock` 0 and runs every block, block 1 a second time; it neither finalizes a record that committed every block nor carries the blocks of the earlier attempt over to the new record, and the orphan repair settles an open record of the file by its progress (`Failed` with block 1) before the file runs in full.
+
+SF-1 to SF-9 come from `Infrastructure/StartedFileRollbackContract.cs`. The three-block seed of release 1.0 runs on the second database and stops after block 1: a cancel with `Terminate` (SF-1), a failure of block 2 under `Terminate` with a stable hash (SF-2), a failed block 2 under `MigrationErrorAction=Ignore` (SF-3), or an open record of an orphaned run that the auto-fix of migrate-down settles (SF-4). migrate-down to before every release rolls the seed back first, from its first rollback block, then the files before it; the seed ends `NotMigrated`, and the next migrate-up runs it from its first block, so the table has every row again. A seed without a committed block (the atomic shared connection, SF-5) is not rolled back and named in a warning, and the run stays `Ok`. A rollback of the seed that fails at its second rollback block stops in the middle, migrate-up refuses the file and the next migrate-down continues it (SF-6); a missing rollback file keeps the committed block of the seed, aborts the chain with `RequireRollbackFile=true` (SF-7) and is skipped with a warning that names the block otherwise (SF-8); Simulate lists the rollback of the seed and changes nothing (SF-9).
 
 **Features tests** (all 5 engines have 30 base feature test classes each; SqlServer, PostgreSQL, MariaDb and MySql add the DAL timeout class, SqlServer the atomic-shared-connection and killed-pooled-session classes, MariaDb and MySql the DAL user lock class, Sqlite the datetime-CHECK-constraint, command-profile, file-encoding and CLI signal classes, plus a P2 file shared between MySql and MariaDb):
 
@@ -493,6 +505,7 @@ Tests validate that for each of the 4 Docker presets (sqlcmd-docker, psql-docker
 |  | Success | Missing rb (Req=true) | Missing rb (Req=false) | Broken rb (Term) | Broken rb (Ign) |
 |---|---|---|---|---|---|
 | **MigrateDown** | MD-1, MD-2, MD-3 | ME-2 | ME-1 | ME-3 | ME-4 |
+| **MigrateDown, file stopped after committed blocks** | SF-1, SF-2, SF-3, SF-4, SF-9 | SF-7 | SF-8 | SF-6 | — |
 
 #### Multi-Phase Scenarios
 
@@ -540,7 +553,8 @@ Tests verify the following database columns via `MigrationRecordExpectation` and
 - **While a file runs**: `FileUpBlocksMigrated` = the leading blocks that committed; 0 while a CLI tool runs; a resumed file shows the blocks it resumes after from the start; a file that a CLI tool runs starts at block 1 also after committed blocks of an earlier attempt (`BlockProgressContract`), and is not finalized from one (`PendingMigrationsContract`)
 - **Cancelled file**: status `Failed` and `FileUpBlocksMigrated` = the blocks that committed before the cancel, so the next migrate-up resumes with the first block that did not commit (on the atomic shared connection only those of an earlier attempt, normally 0; in Ignore mode the blocks before the first failed one, as at the end of such a file)
 - **Rollback cancelled in the middle**: status `Failed` with `0 < FileDownBlocksMigrated < FileDownBlocksTotal`; the next migrate-up refuses to start, the next migrate-down continues with rollback block `FileDownBlocksMigrated + 1`
-- **Open record after the orphan repair**: `Failed` with `0 < FileUpBlocksMigrated < FileUpBlocksTotal` when some blocks committed, so the next migrate-up resumes after them; `Migrated` when every block committed; `NotMigrated` without a committed block; a rollback that was running `Failed` with its rollback blocks, `Failed` without rollback progress, or `NotMigrated` when every rollback block ran; the counters stay, `FinishedAt` is the time of the repair and `DurationInMs` stays `NULL` (`OrphanRepairContract`)
+- **File that stopped after committed blocks, rolled back by migrate-down**: the rollback starts at rollback block 1 (`ResumeFromBlock` 0) and ends `NotMigrated` with `FileDownBlocksMigrated` = `FileDownBlocksTotal`; `FileUpBlocksMigrated` keeps the committed blocks until the next migrate-up inserts the record anew and runs the file from block 1 (`StartedFileRollbackContract`)
+- **Open record after the orphan repair**: `Failed` with `0 < FileUpBlocksMigrated < FileUpBlocksTotal` when some blocks committed, so the next migrate-up resumes after them; `Migrated` when every block committed; `NotMigrated` without a committed block; a rollback that was running `Failed` with its rollback blocks, `Failed` without rollback progress, or `NotMigrated` when every rollback block ran; the counters stay, `FinishedAt` is the time of the repair and `DurationInMs` stays `NULL` for a file that was running, while a rollback that was running keeps the end and the duration of its last terminal status (`OrphanRepairContract`)
 - **Successful file**: `FileUpBlocksMigrated` = `FileUpBlocksTotal`
 - **After successful rollback**: `FileDownBlocksMigrated` = `FileDownBlocksTotal`
 - **While a rollback runs**: `FileDownBlocksMigrated` = the leading rollback blocks that ran, also with `RollbackErrorAction=Ignore` after a failed block and after a cancel there; a continued rollback shows its earlier rollback blocks from the start, and keeps them when it fails on the atomic path or through a CLI tool; `FileDownBlocksTotal` once an ignored failure ends the rollback

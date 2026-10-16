@@ -149,6 +149,17 @@ public static class SqlDialect
         };
     }
 
+    /// <summary>Returns a DELETE of one row from the TableA of the fixtures (created by 01_CreateTableA.sql).</summary>
+    public static string GetDeleteFromTableASql(string databaseType, string name)
+    {
+        return databaseType switch
+        {
+            "SqlServer" => $"DELETE FROM [dbo].[TableA] WHERE [Name] = '{name}'",
+            "PostgreSQL" or "MariaDb" or "MySql" or "Sqlite" => $"DELETE FROM tablea WHERE name = '{name}'",
+            _ => throw new NotSupportedException($"Unsupported database type: {databaseType}")
+        };
+    }
+
     /// <summary>Returns a DELETE of one row from the TableC of the fixtures (created by Release_2.0/01_CreateTableC.sql).</summary>
     public static string GetDeleteFromTableCSql(string databaseType, string title)
     {

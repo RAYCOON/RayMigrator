@@ -229,6 +229,7 @@ Raycoon.RayMigrator.Tests.Unit/
 ├── P1_IncompleteRollbackTests.cs
 ├── P1_JsonOptionsSourceAliasMergeTests.cs
 ├── P1_JsonOptionsSourceProductScopeTests.cs
+├── P1_MigrateDownSelectionTests.cs
 ├── P1_MigrationContextCloneTests.cs
 ├── P1_MigrationContextFactoryTests.cs
 ├── P1_MigrationContextGuardTests.cs
@@ -386,6 +387,7 @@ Raycoon.RayMigrator.Tests.Unit/
 | `P1_FlatLayoutAmbiguityTests` | `FlatLayoutAmbiguityTests` | Flat migration directory layout ambiguity detection (`ValidateFlatLayoutAmbiguity`) and target group alias casing validation (`ValidateTargetGroupAliasCasing`) |
 | `P1_HandleMigrationErrorBehaviorTests` | `HandleMigrationErrorBehaviorTests` | Error handling dispatch based on `MigrationErrorAction` |
 | `P1_IncompleteRollbackTests` | `IncompleteRollbackTests` | `MigrationService.FindIncompleteRollback` and `FindIncompleteRollbacks`: a record `Failed` with some but not all of its rollback blocks is found, one without rollback progress, with every rollback block, of another status or of another target is not, and only the targets a file is pending on count; `IncompleteRollbackMessage` names release, file, target, the rollback blocks and the block with which migrate-down continues |
+| `P1_MigrateDownSelectionTests` | `MigrateDownSelectionTests` | `MigrationService.IsRolledBackByMigrateDown`: a `Migrated` record, a record `Failed` or `Executing` with committed blocks and without a rollback, and a rollback that stopped in the middle are rolled back; a record without a committed block, a rollback whose first rollback block failed, one that ran to its end with ignored errors, `NotMigrated` and `Pending` are not. `IsStoppedWithoutCommittedBlock` names the records migrate-down warns about, and `KeptStatusWithoutRequiredRollbackFile` the end of the error message when a required rollback file is missing, per kind of record |
 | `P1_MigrationContextCloneTests` | `MigrationContextCloneTests` | Regression coverage for `MigrationContext.Clone`: ensures `EnvironmentId`, `MigratorMetaId`, and `MigrationEvent` propagate to the cloned instance |
 | `P1_MigrationContextGuardTests` | `MigrationContextGuardTests` | `MigrationContext` rejects `RunMode = Undefined` / `Command = None`; `MigrationContextFactory.Create` stamps the requested command (#6) |
 | `P1_ConnectionValidatorProfileTests` | `ConnectionValidatorProfileTests` | `ConnectionValidator` opens target / logging connections only when the command profile says so — read-only commands start against an unreachable Sqlite target (#6) |

@@ -570,6 +570,13 @@ public class ScenarioContext : IAsyncDisposable
     }
 
     /// <summary>
+    /// The row count of a user-created table on a specific connection string, or -1 when the table does not exist; for a
+    /// progress observer that reads the table in the flow of a run, so that the test asserts it afterwards.
+    /// </summary>
+    public int CountRowsOnConnection(string connectionString, string tableName)
+        => _queryHelper.CountRows(connectionString, tableName, useRepositorySchema: false);
+
+    /// <summary>
     /// Asserts whether a user-created table exists on a specific connection string.
     /// Used for multi-database scenarios (e.g., Frontend on a different database).
     /// </summary>

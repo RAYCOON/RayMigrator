@@ -28,7 +28,7 @@ raymigrator migrate-down -p BookStore -env Development --to-release "Release 1.0
 
 The rollback process follows these steps:
 
-1. RayMigrator reads the repository to find all `Migrated` records after the target release. It also picks up partially-rolled-back records (`Failed` with `FileDownBlocksMigrated > 0` and less than `FileDownBlocksTotal`), allowing a previously interrupted rollback to resume.
+1. RayMigrator reads the repository to find all `Migrated` records after the target release. It also picks up partially-rolled-back records (`Failed`, or `Executing` in a run that has ended, with `FileDownBlocksMigrated > 0` and less than `FileDownBlocksTotal`), allowing a previously interrupted rollback to resume, and the records of files that stopped after committed blocks: a `migrate-up` that failed, was cancelled or crashed in the middle of a file leaves its record `Failed` with the blocks that committed, and the next `migrate-up` would resume the file after them. `migrate-down` rolls such a file back like a migrated one, so that the next `migrate-up` runs it from its first block. A `Failed` record without a committed block is not rolled back; RayMigrator names it in a warning, because with `MigrationErrorAction=Ignore` or a CLI tool blocks of the file may have run.
 2. Records are ordered by `FileOrderId` descending (reverse of migration order).
 3. For each record, RayMigrator locates the matching `.rollback.sql` file.
 4. Executes the rollback SQL blocks on the target database, tracking progress per block.
@@ -132,7 +132,7 @@ Rollback files use the same TOML metadata header as migration files, with the `.
 
 ### 1. Use IF EXISTS
 
-Always check before dropping to make rollback files idempotent:
+Always check before dropping to make rollback files idempotent. A rollback file also runs for a file that stopped after some of its blocks: the error recovery, a cancel action and `migrate-down` roll such a file back, so the rollback must not fail on what the file did not get to create:
 
 ```sql
 /*

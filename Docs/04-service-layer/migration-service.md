@@ -772,7 +772,7 @@ Before the first file, migrate-up refuses to run when a (file, target) pair it w
 MigrateDown supports two modes based on `RunMode`:
 
 - **Validate mode** (`!RunMode.ShouldReadRepository()`): Validates rollback file existence and parseability without touching the repository. Returns warnings for missing rollback files.
-- **Simulate/Migrate mode** (`RunMode.ShouldReadRepository()`): Queries migrated records from the repository and filters to releases after the target. In Migrate mode, executes rollback SQL in reverse `FileOrderId` order and writes updated repository records. In Simulate mode, reads the repository but does not execute SQL or write any records.
+- **Simulate/Migrate mode** (`RunMode.ShouldReadRepository()`): Queries the records of the releases after the target and picks those migrate-down rolls back (`IsRolledBackByMigrateDown`): `Migrated` records, files that stopped after committed blocks without a rollback (`IsStoppedAfterCommittedBlocks`: `Failed`, or `Executing` in a run that has ended, with `FileUpBlocksMigrated > 0` and no `FileDownHash`), whose rollback file runs from its first rollback block, and rollbacks that stopped in the middle (`HasIncompleteRollback`). It logs a warning for each record of that range that stopped without a committed block (`IsStoppedWithoutCommittedBlock`), which it does not roll back. In Migrate mode, executes rollback SQL in reverse `FileOrderId` order and writes updated repository records. In Simulate mode, reads the repository but does not execute SQL or write any records.
 
 ```csharp
 public async Task<MigrationOperationResult> MigrateDownAsync(MigrateDownRequest request, CancellationToken cancellationToken = default)
@@ -799,16 +799,20 @@ public async Task<MigrationOperationResult> MigrateDownAsync(MigrateDownRequest 
     await RepositoryMigrationRunInsertWithAutoFix(settingsJson);
 
     // --- Phase 2: Query migrations for rollback ---
-    var migrationsToRollback = existingRecords
-        .Where(r => r.MigrationStatusId == MigrationStatus.Migrated
-            || (r.MigrationStatusId == MigrationStatus.Failed
-                && r.FileDownBlocksMigrated.HasValue
-                && r.FileDownBlocksMigrated > 0
-                && r.FileDownBlocksMigrated < r.FileDownBlocksTotal))
+    var recordsInRange = existingRecords
         .Where(r => string.Compare(r.ReleaseVersion, request.TargetReleaseVersion, StringComparison.OrdinalIgnoreCase) > 0)
         .Where(r => /* target group filter if specified */)
+        .ToList();
+
+    // Migrated, a file that stopped after committed blocks, or a rollback that stopped in the middle
+    var migrationsToRollback = recordsInRange
+        .Where(IsRolledBackByMigrateDown)
         .OrderByDescending(r => r.FileOrderId)
         .ToList();
+
+    // A file that stopped without a committed block is not rolled back; a warning names it
+    foreach (var record in recordsInRange.Where(IsStoppedWithoutCommittedBlock))
+        _logger.LogWarning("File not rolled back | ... | Reason: its record counts no committed block; ...");
 
     // --- Phase 3: Execute rollbacks (with the token: a cancel stops the chain at the next rollback block) ---
     var rollbackResult = await ExecuteRollbackForMigrations(migrationsToRollback, productOptions, request.RunMode,
@@ -1336,9 +1340,11 @@ Shared between MigrateUp (error recovery and the rollback of a cancel action, bo
 
 For each migration record to rollback:
 1. Locates the rollback file on disk
-2. If missing and `RequireRollbackFile=true`: aborts the entire rollback chain; the record keeps its status (nothing of its rollback ran, so migrate-down rolls a `Migrated` record back once the file is there), and the error message names the missing rollback file
+2. If missing and `RequireRollbackFile=true`: aborts the entire rollback chain; the record keeps its status (nothing of its rollback ran, so migrate-down rolls a `Migrated` record, and a file that stopped after committed blocks with them, back once the file is there), and the error message names the missing rollback file and says so (`KeptStatusWithoutRequiredRollbackFile`; a file that stopped without a committed block, which only the rollback of a stopped migrate-up reaches, is not rolled back by migrate-down, and the next migrate-up runs it from its first block)
 3. If missing and `RequireRollbackFile=false` during **error-recovery rollback** (`MigrationErrorAction=Rollback/RollbackRelease/RollbackErrorOnly`): checks `StopRollbackOnMissingRollbackFile` (CLI > TargetGroup > Product, default `true`). If `true`, stops the chain (adds warning, returns without marking Failed). If `false`, logs a warning and continues to the next record without updating the migration status.
 4. If missing and `RequireRollbackFile=false` during **explicit migrate-down**: always logs a warning and continues the chain (skips the record, does not update status)
+
+   In both cases a file that stopped after committed blocks keeps them: the warning of the chain names them (`; the record keeps its k committed block(s), and the next migrate-up resumes the file`), and when the chain goes on, the log warns that the file keeps its committed blocks instead of the information line `No Rollback file provided`
 5. Parses rollback file and resolves `RollbackErrorAction` (file-level override -> product-level -> default `Terminate`)
 6. Updates migration record with rollback metadata (`RepositoryMigrationUpdateRollbackAsync`), `Executing` with the rollback blocks the record already counts (a rollback that continues one that stopped in the middle keeps them, so a migrate-down that ends before the next rollback block leaves a rollback that migrate-down continues)
 7. Resolves CLI tool alias via `ResolveUseCliToolAlias(rollbackFileInfo, targetOptions)`

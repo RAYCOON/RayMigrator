@@ -36,9 +36,9 @@ Two distinct cases:
 
 The `fix` command only handles **orphaned runs** — `MigrationRun` entries stuck in `Running` (10) status with no process behind them — and their open (`Pending`, `Executing`) records. It keeps the progress of each such record, as the automatic repair of the next start does: `Failed` with its committed blocks, which the next `migrate-up` resumes after, `Migrated` when every block committed, `NotMigrated` without progress; `--last-migration-status` sets one status on all of them instead. It does **not** change individual `Migration` statuses from `Failed` to `NotMigrated`. That is not needed because failed files are auto-retried (see rule 1).
 
-### 5. MigrateDown Only Rolls Back Migrated Files
+### 5. MigrateDown Rolls Back Migrated Files and Files That Stopped After Committed Blocks
 
-The `migrate-down` command only processes files with status `Migrated` (100). Files with status `Failed` (30), `NotMigrated` (50), or `NoRecord` (-1) are skipped. This means `migrate-down` cannot be used to "clean up" after a failed run — it is designed for intentional rollbacks of successfully applied migrations.
+The `migrate-down` command processes files with status `Migrated` (100), files that a failed, cancelled or abruptly ended `migrate-up` left `Failed` (30), or `Executing` in a run that has ended, with committed blocks and without a rollback, and records whose rollback stopped in the middle. A file that stopped after committed blocks is rolled back like a migrated one, from its first rollback block, so that the next `migrate-up` runs it from its first block instead of resuming it after blocks whose effect the rollback took away; its rollback file must tolerate a partially applied file ([Rollback Files](../07-migration-files/rollback-files.md#rollback-of-a-partially-applied-file)). Files with status `NotMigrated` (50) or `NoRecord` (-1), and `Failed` files without a committed block, are skipped; migrate-down names a skipped `Failed` file in a warning, because with `MigrationErrorAction=Ignore` or a CLI tool blocks of it may have run. So `migrate-down` to a release before the files of a failed or cancelled run rolls back what the run committed, the stopped file included.
 
 ---
 
@@ -927,10 +927,10 @@ These scenarios test what happens when `RequireRollbackFile = false` and specifi
 | Repository (rollback failed, status ≠ DB state) | Partial | May need manual SQL to align DB with desired state, then re-run |
 | Logical (Ignore left Failed + Migrated mix) | Yes | Fix the failed file, re-run `migrate-up` |
 | Missing rollback files | No | Create the rollback files, manually fix DB if needed, then re-run |
-| Orphaned run (stuck `Running`) | Yes | Start the next run once the last heartbeat is older than `Repository.OrphanedRunThresholdInMinutes` (default 2 minutes; auto-fix) or run `fix` command; the interrupted file keeps its committed blocks, and the next `migrate-up` runs at most the block that was running again (a `RunAlways` file runs in full) |
-| Cancelled run (`Cancelled`, CLI exit code 130) | Yes | Re-run `migrate-up`: the interrupted file resumes with its first uncommitted block (`Terminate`; a `RunAlways` file runs again from block 1), or runs again after the rollback of the cancel action. Re-run a cancelled `migrate-down`: it continues the record in progress |
-| Failed run whose error recovery a cancel stopped (`Error` with the code of the failure, CLI exit code 1) | Partial | Run `migrate-down` to a release before the files of the run: it continues a record whose rollback stopped in the middle and rolls back the files the recovery did not reach. Then fix the failed file and re-run `migrate-up` |
-| Rollback stopped in the middle (`Failed` with k of n rollback blocks, after a cancelled `migrate-down` or error recovery or a failed rollback block after the first) | Partial | `migrate-up` refuses to run while such a record exists. Run `migrate-down` to a release before the file: it continues the rollback at block k+1. Then re-run `migrate-up` ([A Rollback That Stopped in the Middle](error-handling.md#a-rollback-that-stopped-in-the-middle)) |
+| Orphaned run (stuck `Running`) | Yes | Start the next run once the last heartbeat is older than `Repository.OrphanedRunThresholdInMinutes` (default 2 minutes; auto-fix) or run `fix` command; the interrupted file keeps its committed blocks, and the next `migrate-up` normally runs only the block that was running again (a `RunAlways` file runs in full; under `MigrationErrorAction=Ignore` the blocks from the first failed one run again) |
+| Cancelled run (`Cancelled`, CLI exit code 130) | Yes | Re-run `migrate-up`: the interrupted file resumes with its first uncommitted block (`Terminate`; a `RunAlways` file runs again from block 1), or runs again after the rollback of the cancel action. Or roll the release back with `migrate-down`, which rolls back the interrupted file with its committed blocks as well. Re-run a cancelled `migrate-down`: it continues the record in progress |
+| Failed run whose error recovery a cancel stopped (`Error` with the code of the failure, CLI exit code 1) | Partial | Run `migrate-down` to a release before the files of the run: it continues a record whose rollback stopped in the middle and rolls back the files the recovery did not reach, the failed file with its committed blocks included. Then fix the failed file and re-run `migrate-up` |
+| Rollback stopped in the middle (`Failed`, or `Executing` in a run that has ended, with k of n rollback blocks, after a cancelled `migrate-down` or error recovery, a failed rollback block after the first or the orphan repair of a run that ended abruptly in the middle of the rollback) | Partial | `migrate-up` refuses to run while such a record exists. Run `migrate-down` to a release before the file: it continues the rollback at block k+1. Then re-run `migrate-up` ([A Rollback That Stopped in the Middle](error-handling.md#a-rollback-that-stopped-in-the-middle)) |
 
 ---
 
@@ -1010,7 +1010,7 @@ When a migration run fails, follow these steps in order:
 | Command | When to Use |
 |---------|-------------|
 | `migrate-up` | After fixing a failed migration — retries all Failed/NotMigrated files |
-| `migrate-down` | Intentional rollback of Migrated files to a specific release |
+| `migrate-down` | Intentional rollback to a specific release: Migrated files, files that stopped after committed blocks, and rollbacks that stopped in the middle |
 | `fix` | Clean up orphaned runs (stuck in Running status) |
 | `info` | Check the current status, the pending migrations with their reason and the recent runs |
 | `validate-hash` | Verify file integrity after manual changes |

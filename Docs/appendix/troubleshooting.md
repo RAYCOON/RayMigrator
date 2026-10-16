@@ -420,8 +420,8 @@ The `Repository_Product_CheckInsert` template rejects a `NULL`/empty `Name` para
 ### Rollback File Not Found
 
 **Symptoms:**
-- "Rollback file not found" warning
-- Migration status becomes "Failed"
+- "Rollback file not found" warning, or with `RequireRollbackFile = true` the error "Required rollback file not found", which aborts the rollback chain and ends the run as `Error`
+- The migration status does not change: `Migrated` stays `Migrated`, and a file that stopped after committed blocks keeps them
 
 **Solutions:**
 
@@ -597,7 +597,7 @@ The `Repository_Product_CheckInsert` template rejects a `NULL`/empty `Name` para
 
 **Explanation:** The first Ctrl+C or SIGTERM is a request to stop, not a crash. The run stopped at the next block boundary, the interrupted file is `Failed` with the blocks that committed, and the run row is closed as `Cancelled` (70). With `--cancelled-action` `rollback-file`, `rollback-run` or `rollback-release` the rollback ran before the run was closed; when it did not complete cleanly, the run is `Error` with the engine code `1005` and the exit code is `1`.
 
-**Solution:** Run the command again. A `migrate-up` resumes the interrupted file with the first block that did not commit, and a `migrate-down` continues the record in progress; until it has completed that rollback, a `migrate-up` refuses to run the file (see [Migrate-Up Refused: Incomplete Rollback](#migrate-up-refused-incomplete-rollback)). With `MigrationErrorAction` = `Ignore`, the interrupted file resumes at its first failed block (see [Work That Completes After a Cancel](#work-that-completes-after-a-cancel)). See also [Cancelling a Run](../08-cli-reference/global-options.md#cancelling-a-run).
+**Solution:** Run the command again. A `migrate-up` resumes the interrupted file with the first block that did not commit, and a `migrate-down` continues the record in progress; until it has completed that rollback, a `migrate-up` refuses to run the file (see [Migrate-Up Refused: Incomplete Rollback](#migrate-up-refused-incomplete-rollback)). With `MigrationErrorAction` = `Ignore`, the interrupted file resumes at its first failed block (see [Work That Completes After a Cancel](#work-that-completes-after-a-cancel)). To roll the release back instead of resuming it, run `migrate-down` to a release before it: it rolls back the interrupted file as well when some of its blocks committed, so that the next `migrate-up` runs it from its first block; its rollback file must tolerate a partially applied file (see [Rollback Files](../07-migration-files/rollback-files.md#rollback-of-a-partially-applied-file)). See also [Cancelling a Run](../08-cli-reference/global-options.md#cancelling-a-run).
 
 ### Exit Code 1 After Ctrl+C: The Error Recovery Was Cancelled
 
@@ -608,7 +608,7 @@ The `Repository_Product_CheckInsert` template rejects a `NULL`/empty `Name` para
 
 **Explanation:** A file had failed, and the rollback of its `MigrationErrorAction` (`Rollback`, `RollbackErrorOnly` or `RollbackRelease`) was running when the signal arrived. The signal stopped that error recovery at the next rollback block and `--cancelled-action` was ignored, because a rollback was already running. The run failed before the cancel, so the failure decides its result: `Error` with the error code of the failed file, and exit code `1`, so that a pipeline sees the failure.
 
-**Solution:** Complete the rollback that the recovery started with `migrate-down` to the release before the files of the run: it continues a file whose rollback stopped in the middle (`info` lists it as `RollbackIncomplete`, and `migrate-up` refuses to run it until then) and rolls back the files the recovery did not reach. Then fix the failed file and run `migrate-up` again.
+**Solution:** Complete the rollback that the recovery started with `migrate-down` to the release before the files of the run: it continues a file whose rollback stopped in the middle (`info` lists it as `RollbackIncomplete`, and `migrate-up` refuses to run it until then) and rolls back the files the recovery did not reach, the failed file with the blocks it committed included. Then fix the failed file and run `migrate-up` again.
 
 ### Migrate-Up Refused: Incomplete Rollback
 
@@ -619,7 +619,17 @@ The `Repository_Product_CheckInsert` template rejects a `NULL`/empty `Name` para
 
 **Explanation:** The rollback of the file stopped after k of its n rollback blocks: Ctrl+C or a host stopped a `migrate-down` or the error recovery of a `migrate-up`, a rollback block after the first failed, or the run ended abruptly in the middle of the rollback, which the orphan repair settles with the rollback blocks that ran. The record is `Failed` (or `Executing` in a run that has ended), and the target still holds the part of the file that the remaining rollback blocks take back. A `migrate-up` would run the file again from its first block on that target, so it refuses to run at all while a file it would run has such a record, also with `--run-mode simulate`.
 
-**Solution:** Complete the rollback first. Run `migrate-down` with a `--to-release` before the release of the file (preview it with `--run-mode simulate`; `--target-group` limits it to the target group of the file): it continues the record at rollback block k+1 and, like every `migrate-down`, also rolls back the `Migrated` files of the later releases. When a rollback block failed, fix the rollback file first. Then run `migrate-up`. See [Error Handling: A Rollback That Stopped in the Middle](../02-core-concepts/error-handling.md#a-rollback-that-stopped-in-the-middle).
+**Solution:** Complete the rollback first. Run `migrate-down` with a `--to-release` before the release of the file (preview it with `--run-mode simulate`; `--target-group` limits it to the target group of the file): it continues the record at rollback block k+1 and, like every `migrate-down`, also rolls back the `Migrated` files of the later releases and the files there that stopped after committed blocks. When a rollback block failed, fix the rollback file first. Then run `migrate-up`. See [Error Handling: A Rollback That Stopped in the Middle](../02-core-concepts/error-handling.md#a-rollback-that-stopped-in-the-middle).
+
+### migrate-down Warns: File Not Rolled Back
+
+**Symptoms:**
+- `migrate-down` logs `File not rolled back | ... | File: <file> | MigrationRecordId: <id> | Status: Failed | Reason: its record counts no committed block; with MigrationErrorAction=Ignore or a CLI tool, blocks of the file may have run`
+- The file stays `Failed`, and the warning does not change the result of the run
+
+**Explanation:** The record of the file counts no committed block: the file failed or was cancelled on the atomic shared connection, whose transaction took everything back, in a CLI tool, or at its first block. migrate-down rolls back what a record counts, so it leaves this file alone, and the next `migrate-up` runs it from its first block. With `MigrationErrorAction=Ignore` blocks after a failed first block may have run nevertheless, and a CLI tool may have run part of the file before it failed.
+
+**Solution:** When the file ran under `MigrationErrorAction=Ignore` or through a CLI tool, check the target for what it did, and take that back by hand before the next `migrate-up` runs the file again. Otherwise nothing is to do.
 
 ### Run Left Running After a Second Ctrl+C or a Kill
 

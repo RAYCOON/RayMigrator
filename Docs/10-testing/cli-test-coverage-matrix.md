@@ -213,8 +213,9 @@ This document provides a comprehensive overview of unit and engine test coverage
 | HappyPath | `HappyPathTests.cs` | SqlServer, MariaDb, MySql, Sqlite | Down to R2 (R3+R4 rolled back); Down to R1; Down all |
 | EdgeCases | `EdgeCaseTests.cs` | SqlServer, MariaDb, MySql, Sqlite | Multiple rollback rounds; cascading state |
 | Errors | `ErrorTests.cs` | SqlServer, MariaDb, MySql, Sqlite | Missing rollback files (a required one stops the chain, keeps its file `Migrated`, and the next migrate-down rolls it back once the file is there); broken rollback SQL |
+| Stopped files | `PostgreSqlStartedFileRollbackTests.cs` | SqlServer, MariaDb, MySql, Sqlite | A file that stopped after committed blocks (cancel, failure, ignored failed blocks, orphan repair) is rolled back from its first rollback block before the files it came after, and the next migrate-up runs it from block 1; a file without a committed block is named in a warning; a failed rollback of such a file stops in the middle; a missing rollback file keeps its committed blocks; Simulate lists its rollback (`Infrastructure/StartedFileRollbackContract.cs`) |
 
-**Unit test files**: Same filtering/mode tests as migrate-up (shared logic).
+**Unit test files**: Same filtering/mode tests as migrate-up (shared logic), and `P1_MigrateDownSelectionTests.cs` — the records migrate-down rolls back, those it names in a warning, and the message of a missing required rollback file per kind of record.
 
 ### 3.3 validate-hash
 

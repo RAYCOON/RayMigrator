@@ -61,7 +61,7 @@ internal static class OrphanRepairContract
     /// and environment, as an open run always is under the run lock, and its last heartbeat three minutes old, older than
     /// the orphan threshold of two minutes.
     /// </summary>
-    private static int InsertOrphanRun(ScenarioContext ctx)
+    internal static int InsertOrphanRun(ScenarioContext ctx)
     {
         int runs = ctx.CountMigrationRuns();
         ctx.InsertOrphanedMigrationRun(minutesOld: 0, heartbeatMinutesOld: 3);

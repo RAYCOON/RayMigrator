@@ -10,7 +10,7 @@ raymigrator migrate-down --product <ProductAlias> --environment <Environment> --
 
 ## Description
 
-The `migrate-down` command reverses previously applied migrations by executing their corresponding rollback files. Migrations are rolled back in reverse order from the current state to the specified target release version.
+The `migrate-down` command reverses previously applied migrations by executing their corresponding rollback files. Migrations are rolled back in reverse order from the current state to the specified target release version. Besides the migrated files it rolls back a file that a failed, cancelled or abruptly ended migrate-up left with committed blocks, and it continues a rollback that stopped in the middle (see [Rollback Order](#rollback-order)).
 
 ## Required Parameters
 
@@ -87,7 +87,7 @@ flowchart TD
     C --> D[Repository CheckCreate + Product CheckInsert]
     D --> E[Create MigrationRun]
     E --> H[Query Migration Records]
-    H --> I[Filter: Migrated or Partially Rolled Back + Release > Target Release]
+    H --> I[Filter: Migrated, Stopped After Committed Blocks or Partially Rolled Back + Release > Target Release]
     I --> I2[Filter by TargetGroupAliases if specified]
     I2 --> J[Sort in Reverse Order by FileOrderId]
     J --> K{For Each Migration}
@@ -112,7 +112,13 @@ flowchart TD
 
 ## Rollback Order
 
-The query filters for migration records that are either in `Migrated` status or in `Failed` status with partial rollback progress (i.e., a previous rollback was interrupted partway through). This enables **rollback resumption** -- if a rollback was partially completed and then aborted, a subsequent migrate-down will resume from where it left off rather than re-executing already-completed rollback blocks. The record keeps those rollback blocks from the start of the resumed rollback, so a migrate-down that ends before its next rollback block leaves the rollback for the next migrate-down as well.
+The query filters for migration records in three states:
+
+- `Migrated`.
+- A file that stopped after committed blocks without a rollback: `Failed`, or `Executing` in a run that has ended, with `FileUpBlocksMigrated > 0` and no `FileDownHash`. A failure, a cancel with `Terminate`, a file that ran to its end with failed blocks under `MigrationErrorAction=Ignore` and the orphan repair of a run that ended abruptly leave it, and the next migrate-up would resume it after its committed blocks. migrate-down rolls it back like a migrated file: its rollback file runs from its first rollback block, at the place of the file in the reverse order, and the record ends `NotMigrated`, so that the next migrate-up runs the file from its first block instead of resuming it after blocks whose effect the rollback of the release took away. The rollback file must therefore tolerate a partially applied file ([Rollback Files](../07-migration-files/rollback-files.md#rollback-of-a-partially-applied-file)). `--run-mode simulate` lists it.
+- `Failed` (or `Executing` in a run that has ended) with partial rollback progress, i.e. a previous rollback was interrupted partway through. This enables **rollback resumption** -- if a rollback was partially completed and then aborted, a subsequent migrate-down will resume from where it left off rather than re-executing already-completed rollback blocks. The record keeps those rollback blocks from the start of the resumed rollback, so a migrate-down that ends before its next rollback block leaves the rollback for the next migrate-down as well. The continued rollback does not compare the rollback file with the one the earlier attempt ran (`FileDownBlocksHash`): change a rollback file only after its rollback has completed.
+
+A record that stopped without a committed block (`Failed`, or `Executing` in a run that has ended, with `FileUpBlocksMigrated = 0` and no `FileDownHash`), as the atomic path, a CLI tool and a failed first block leave it, is not rolled back: its record counts nothing that committed. migrate-down logs a warning for each such record in the releases it rolls back (`File not rolled back`, with release, target group, target, file and record id), because with `MigrationErrorAction=Ignore` or a CLI tool blocks of the file may have run; the warning does not change the result of the run. migrate-down picks neither a record whose first rollback block failed nor one whose rollback ran to its end with ignored rollback errors.
 
 Migrations are rolled back in **reverse** order of their original execution:
 
@@ -167,16 +173,16 @@ Behavior depends on the `RequireRollbackFile` product setting:
 | Behavior | Description |
 |----------|-------------|
 | Error Logged | The missing file is treated as a structural error |
-| State Unchanged | Migration status is not updated (`Migrated` stays `Migrated`), because nothing of the rollback ran; once the rollback file is there, the next migrate-down rolls the file back |
+| State Unchanged | Migration status is not updated (`Migrated` stays `Migrated`, a file that stopped after committed blocks keeps them), because nothing of the rollback ran; once the rollback file is there, the next migrate-down rolls the file back |
 | Chain Aborted | The entire rollback chain is aborted immediately; the run ends as `Error`, and the error message names the missing rollback file |
 
 ### RequireRollbackFile = false
 
 | Behavior | Description |
 |----------|-------------|
-| Info Logged | The missing file is logged at Information level |
-| State Unchanged | Migration status is not updated (retains its current status, e.g., `Migrated`) |
-| Continue | Next rollback proceeds |
+| Info Logged | The missing file is logged at Information level; for a file that stopped after committed blocks a warning names them |
+| State Unchanged | Migration status is not updated (retains its current status, e.g., `Migrated`); a file that stopped after committed blocks keeps them and stays pending for the next migrate-up, which resumes it after them unless it runs the file in full (a RunAlways file, changed SQL blocks, a CLI tool), while the chain rolls back the files before it |
+| Continue | Next rollback proceeds; the run ends `PartialSuccess` |
 
 ## Non-Reversible Operations
 
@@ -226,12 +232,15 @@ After successful rollback (all SQL blocks pass), migration states change:
 | Before | After |
 |--------|-------|
 | Migrated | NotMigrated |
+| Failed (or Executing in a run that has ended) with committed blocks, no rollback | NotMigrated |
+| Failed with partial rollback progress | NotMigrated |
 
 If rollback SQL fails with `RollbackErrorAction=Terminate`:
 
 | Before | After | Chain |
 |--------|-------|-------|
 | Migrated | Failed | Aborted |
+| Failed with committed blocks, no rollback | Failed | Aborted |
 
 A record whose rollback SQL failed keeps the rollback blocks that ran before the failed block; an atomic rollback and a rollback through a CLI tool keep those of the attempt they continued (0 without one). A record with some but not all of its rollback blocks is a rollback that stopped in the middle: the next migrate-down continues it at the failed block, and migrate-up refuses to run its file until then.
 
@@ -240,6 +249,7 @@ If the rollback file is missing with `RequireRollbackFile=true`:
 | Before | After | Chain |
 |--------|-------|-------|
 | Migrated | Unchanged (Migrated) | Aborted |
+| Failed with committed blocks, no rollback | Unchanged (Failed with its committed blocks) | Aborted |
 
 If rollback SQL fails with `RollbackErrorAction=Ignore`:
 
@@ -254,6 +264,7 @@ If rollback file is missing with `RequireRollbackFile=false`:
 | Before | After | Chain |
 |--------|-------|-------|
 | Migrated | Unchanged (Migrated) | Continues |
+| Failed with committed blocks, no rollback | Unchanged (Failed with its committed blocks); the warning names them | Continues |
 
 ## Exit Codes
 

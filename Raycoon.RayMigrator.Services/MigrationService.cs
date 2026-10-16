@@ -1873,16 +1873,31 @@ public class MigrationService : IMigrationService
                 };
             }
 
-            // Filter: Migrated state OR a rollback that stopped in the middle (HasIncompleteRollback),
-            // releases AFTER targetReleaseVersion, optionally by target group, reverse order
-            var migrationsToRollback = existingRecords
-                .Where(r => r.MigrationStatusId == MigrationStatus.Migrated || HasIncompleteRollback(r))
+            // The range: releases AFTER targetReleaseVersion, optionally by target group
+            var recordsInRange = existingRecords
                 .Where(r => string.Compare(r.ReleaseVersion, request.TargetReleaseVersion, StringComparison.OrdinalIgnoreCase) > 0)
                 .Where(r => request.TargetGroupAliases == null || request.TargetGroupAliases.Length == 0 ||
                     request.TargetGroupAliases.Any(alias =>
                         string.Equals(r.TargetGroupAlias, alias, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+
+            // Filter: Migrated state, a file that stopped after committed blocks, or a rollback that stopped in the middle
+            // (IsRolledBackByMigrateDown), reverse order
+            var migrationsToRollback = recordsInRange
+                .Where(IsRolledBackByMigrateDown)
                 .OrderByDescending(r => r.FileOrderId)
                 .ToList();
+
+            // A file that stopped without a committed block is not rolled back, but with MigrationErrorAction=Ignore or a
+            // CLI tool blocks of it may have run: name each one. The warning goes to the log only and does not change the
+            // result of the run.
+            foreach (var record in recordsInRange.Where(IsStoppedWithoutCommittedBlock).OrderByDescending(r => r.FileOrderId))
+            {
+                _logger.LogWarning(
+                    "File not rolled back | Product: {Product} | Env: {Environment} | Release: {Release} | TargetGroup: {TargetGroup} | Target: {Target} | File: {Filename} | MigrationRecordId: {MigrationRecordId} | Status: {Status} | Reason: its record counts no committed block; with MigrationErrorAction=Ignore or a CLI tool, blocks of the file may have run",
+                    request.ProductAlias, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, record.ReleaseVersion, record.TargetGroupAlias,
+                    record.TargetAlias, record.Filename, record.Id, record.MigrationStatusId);
+            }
 
             if (migrationsToRollback.Count == 0)
             {
@@ -2584,6 +2599,12 @@ public class MigrationService : IMigrationService
                 if (!File.Exists(rollbackFilePath))
                 {
                     string rollbackRelativePath = Path.Combine("/", record.ReleaseVersion, record.TargetGroupAlias, rollbackFilename);
+
+                    // A file that stopped after committed blocks keeps them, and the warning of the chain names them
+                    string keptBlocks = IsStoppedAfterCommittedBlocks(record)
+                        ? $"; the record keeps its {record.FileUpBlocksMigrated} committed block(s), and the next migrate-up resumes the file"
+                        : string.Empty;
+
                     if (productOptions.RequireRollbackFile == true)
                     {
                         _logger.LogError(
@@ -2592,13 +2613,14 @@ public class MigrationService : IMigrationService
 
                         // RequireRollbackFile=true + file missing = structural error → abort chain regardless of RollbackErrorAction.
                         // The record keeps its status, as a missing rollback file that is not required leaves it: nothing of
-                        // the rollback ran, so a Migrated record stays one that migrate-down rolls back once the file is
-                        // there, instead of a Failed record that migrate-up runs again in full and migrate-down never picks.
+                        // the rollback ran, so a Migrated record, and a file that stopped after committed blocks with them,
+                        // stays one that migrate-down rolls back once the file is there, instead of a Failed record without
+                        // rollback progress that migrate-up runs again in full and migrate-down never picks.
                         ReportRollbackFileCompleted(FileOutcome.RollbackFailed, $"Required rollback file not found: {rollbackFilename}");
 
                         result.AddFailure(record.Filename, $"Required rollback file not found: {rollbackFilename}", record.TargetAlias, record.Id);
                         result.ErrorMessage = $"Rollback chain aborted: required rollback file not found: {rollbackRelativePath}; " +
-                                              $"{record.Filename} keeps its status, and migrate-down rolls it back once the file is there";
+                                              KeptStatusWithoutRequiredRollbackFile(record);
                         return result;
                     }
                     else
@@ -2620,19 +2642,30 @@ public class MigrationService : IMigrationService
                                     productOptions.Alias, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, record.ReleaseVersion, record.TargetGroupAlias, record.TargetAlias, record.Filename, record.Id, rollbackRelativePath);
 
                                 ReportRollbackFileCompleted(FileOutcome.Skipped, $"Rollback stopped: rollback file not found: {rollbackFilename}");
-                                result.AddWarning(record.Filename, $"Rollback stopped: rollback file not found: {rollbackFilename}");
+                                result.AddWarning(record.Filename, $"Rollback stopped: rollback file not found: {rollbackFilename}{keptBlocks}");
                                 return result;
                             }
                         }
 
-                        _logger.LogInformation(
-                            "No Rollback file provided | Product: {Product} | Env: {Environment} | Release: {Release} | TargetGroup: {TargetGroup} | Target: {Target} | File: {Filename} | MigrationRecordId: {MigrationRecordId} | Searched: {RollbackPath}",
-                            productOptions.Alias, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, record.ReleaseVersion, record.TargetGroupAlias, record.TargetAlias, record.Filename, record.Id, rollbackRelativePath);
+                        if (keptBlocks.Length > 0)
+                        {
+                            // The chain goes on with the files before it, while the committed blocks stay on the target
+                            _logger.LogWarning(
+                                "Rollback file missing, the file keeps its committed blocks | Product: {Product} | Env: {Environment} | Release: {Release} | TargetGroup: {TargetGroup} | Target: {Target} | File: {Filename} | MigrationRecordId: {MigrationRecordId} | Committed blocks: {Committed} | Searched: {RollbackPath}",
+                                productOptions.Alias, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, record.ReleaseVersion, record.TargetGroupAlias, record.TargetAlias, record.Filename, record.Id, record.FileUpBlocksMigrated, rollbackRelativePath);
+                        }
+                        else
+                        {
+                            _logger.LogInformation(
+                                "No Rollback file provided | Product: {Product} | Env: {Environment} | Release: {Release} | TargetGroup: {TargetGroup} | Target: {Target} | File: {Filename} | MigrationRecordId: {MigrationRecordId} | Searched: {RollbackPath}",
+                                productOptions.Alias, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, record.ReleaseVersion, record.TargetGroupAlias, record.TargetAlias, record.Filename, record.Id, rollbackRelativePath);
+                        }
                     }
 
-                    // Don't update status — keep original (Migrated for successful migrations, Failed for failed ones)
+                    // The record keeps its status: a Migrated record stays Migrated, and a file that stopped after committed
+                    // blocks keeps them, so that the next migrate-up resumes it
                     ReportRollbackFileCompleted(FileOutcome.Skipped, $"Rollback file not found: {rollbackFilename}");
-                    result.AddWarning(record.Filename, $"Rollback file not found: {rollbackFilename}");
+                    result.AddWarning(record.Filename, $"Rollback file not found: {rollbackFilename}{keptBlocks}");
                     result.SuccessCount++;
                     continue;
                 }
@@ -5232,6 +5265,63 @@ public class MigrationService : IMigrationService
             return (new UnicodeEncoding(bigEndian: true, byteOrderMark: false, throwOnInvalidBytes: true), 2, "UTF-16 BE");
         return null;
     }
+
+    /// <summary>
+    /// Whether migrate-down rolls back <paramref name="record"/> when its release is after the target release: a Migrated
+    /// record; a file that stopped after committed blocks without a rollback attempt (<see cref="IsStoppedAfterCommittedBlocks"/>),
+    /// which a failed, cancelled or abruptly ended migrate-up leaves and the next migrate-up would resume after those
+    /// blocks; and a rollback that stopped in the middle (<see cref="HasIncompleteRollback"/>), which it continues. The
+    /// rollback file of a file that stopped runs from its first rollback block in the order of the chain, so that the next
+    /// migrate-up runs the file from its first block instead of resuming it after blocks whose effect the rollback of the
+    /// release took away. A file that stopped without a committed block is not rolled back, because its record counts
+    /// nothing that committed (<see cref="IsStoppedWithoutCommittedBlock"/>), and neither is a rollback whose first rollback
+    /// block failed or one that ran to its end with ignored rollback errors.
+    /// </summary>
+    internal static bool IsRolledBackByMigrateDown(MigrationRecord record)
+        => record.MigrationStatusId == MigrationStatus.Migrated
+           || IsStoppedAfterCommittedBlocks(record)
+           || HasIncompleteRollback(record);
+
+    /// <summary>
+    /// Whether the file of <paramref name="record"/> stopped after committed blocks without a rollback attempt: some or every
+    /// block counted (<c>FileUpBlocksMigrated &gt; 0</c>), no <c>FileDownHash</c>, and Failed, as a failure, a cancel, a file
+    /// that ran to its end with ignored failed blocks and the orphan repair leave it, or still Executing in a run that has
+    /// ended without the final write of the record. migrate-down rolls such a file back (<see cref="IsRolledBackByMigrateDown"/>);
+    /// otherwise the next migrate-up resumes it after its committed blocks (<see cref="ResumableBlockOf"/>).
+    /// </summary>
+    internal static bool IsStoppedAfterCommittedBlocks(MigrationRecord record)
+        => record.MigrationStatusId is MigrationStatus.Failed or MigrationStatus.Executing
+           && record.FileDownHash == null
+           && record.FileUpBlocksMigrated > 0;
+
+    /// <summary>
+    /// Whether the file of <paramref name="record"/> stopped without a committed block and without a rollback attempt:
+    /// Failed, or Executing in a run that has ended, with no block counted and no <c>FileDownHash</c>, as the atomic path, a
+    /// CLI tool and a failed first block leave it. migrate-down does not roll such a file back, because its record counts
+    /// nothing that committed, but it names each one in the range it rolls back in a warning: with
+    /// MigrationErrorAction=Ignore blocks after a failed first block may have run, and a CLI tool counts no block.
+    /// </summary>
+    internal static bool IsStoppedWithoutCommittedBlock(MigrationRecord record)
+        => record.MigrationStatusId is MigrationStatus.Failed or MigrationStatus.Executing
+           && record.FileDownHash == null
+           && record.FileUpBlocksMigrated <= 0;
+
+    /// <summary>
+    /// What a rollback chain that aborts at the missing required rollback file of <paramref name="record"/> leaves of the
+    /// record, for the error message: it keeps its status, because nothing of the rollback ran. migrate-down rolls back a
+    /// record that it picks (<see cref="IsRolledBackByMigrateDown"/>) once the file is there, a file that stopped after
+    /// committed blocks with them; a file that stopped without a committed block, which only the rollback of a stopped
+    /// migrate-up reaches, is not rolled back, and the next migrate-up runs it from its first block.
+    /// </summary>
+    internal static string KeptStatusWithoutRequiredRollbackFile(MigrationRecord record) => record switch
+    {
+        _ when IsStoppedAfterCommittedBlocks(record) =>
+            $"{record.Filename} keeps its status with its {record.FileUpBlocksMigrated} committed block(s), and migrate-down rolls it back once the file is there",
+        _ when IsRolledBackByMigrateDown(record) =>
+            $"{record.Filename} keeps its status, and migrate-down rolls it back once the file is there",
+        _ => $"{record.Filename} keeps its status; its record counts no committed block, so migrate-down does not roll it back, " +
+             "and the next migrate-up runs it from its first block"
+    };
 
     /// <summary>
     /// Whether the rollback of <paramref name="record"/> stopped in the middle: some but not all of its rollback blocks done

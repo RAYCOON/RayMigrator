@@ -655,6 +655,45 @@ RayMigrator follows Semantic Versioning where applicable.
   replaced the product setting. The validation checks the product setting;
   the migsettings and `--target-group-migration-order`
   sources are checked by the commands with the same rules.
+- migrate-down rolls back a file that stopped after committed blocks. A record
+  `Failed`, or `Executing` in a run that has ended, with some or every block
+  committed and no rollback attempt (`FileUpBlocksMigrated > 0`,
+  `FileDownHash` empty), which a failed, cancelled or abruptly ended
+  migrate-up leaves and the next migrate-up would resume, is rolled back like
+  a `Migrated` record when its release is after `--to-release`: its rollback
+  file runs from its first block, in the order of the chain, and the record
+  ends `NotMigrated`, so that the next migrate-up runs the file from its first
+  block; `--run-mode simulate` lists it. Before, migrate-down picked only
+  `Migrated` records and rollbacks that stopped in the middle and left such a
+  file alone: once it had rolled back the files before it, the next migrate-up
+  created again what they had created and resumed the file after its committed
+  blocks, so what those blocks had written was missing while the run reported
+  `Ok` (every version since 0.10.3 for a file that failed under
+  `MigrationErrorAction=Terminate`; in this version also after a cancel, after
+  ignored failed blocks and after the orphan repair kept the blocks of a
+  file). A record without a committed block (`Failed` with 0, as the atomic
+  path, a CLI tool and a failed first block leave it) is still not rolled
+  back; migrate-down logs a warning (`File not rolled back`) for such a record
+  in the range it rolls back, because with `MigrationErrorAction=Ignore` or a
+  CLI tool blocks of the file may have run. A rollback file that fails on such
+  a file leaves the record as every failed rollback does: `Failed` with the
+  rollback blocks that ran, which migrate-down continues and migrate-up
+  refuses when some ran. A missing rollback file leaves the record with its
+  committed blocks, as it leaves a `Migrated` record, and the file stays
+  pending for the next migrate-up, which resumes it unless it runs the file
+  in full (a RunAlways file, changed SQL blocks, a CLI tool): a required one
+  aborts the chain with a message that names
+  the blocks and says that migrate-down rolls the file back once the rollback
+  file is there, one that is not required is skipped with a warning that names
+  them.
+- **Breaking (behaviour):** a rollback file now runs for a file that stopped
+  after committed blocks when migrate-down rolls back its release. A rollback
+  file must tolerate a partially applied file (`DROP TABLE IF EXISTS`,
+  `DELETE … WHERE`), as it must already for the error recovery of a
+  `MigrationErrorAction` and for the rollback of a `MigrationCancelledAction`,
+  which roll back the stopped file the same way; a rollback file that does not
+  now fails the migrate-down at that file (`Error`), where it succeeded before
+  and left the file's blocks behind.
 
 ### Fixed
 

@@ -25,7 +25,8 @@ public enum PendingMigrationReason
     /// The last attempt on the target failed, or stopped without a final status in a run that has ended, and left
     /// nothing to resume: no block committed (with MigrationErrorAction=Ignore: the first block failed), every block is
     /// counted on the Failed record, the blocks of the file changed since, a rollback ran, or a CLI tool runs the file on
-    /// the target and runs it whole. Migrate-up runs the file again from its first block.
+    /// the target and runs it whole. Migrate-up runs the file again from its first block. A migrate-down that rolls back
+    /// the release of the file rolls it back when its record counts committed blocks and no rollback ran.
     /// </summary>
     Failed = 20,
 
@@ -37,7 +38,8 @@ public enum PendingMigrationReason
     /// committed blocks (<see cref="PendingMigrationInfo.ResumeFromBlock"/>) and continues with the next one, or only
     /// finalizes the record when every block committed. A RunAlways file is never resumed or finalized, so it is
     /// <see cref="RunAlways"/> instead; neither is a file that a CLI tool runs on the target, because the tool runs the
-    /// whole file, so it is <see cref="Failed"/> instead.
+    /// whole file, so it is <see cref="Failed"/> instead. A migrate-down that rolls back the release of the file rolls it
+    /// back from its first rollback block instead, and migrate-up then runs it from its first block.
     /// </summary>
     Resumable = 30,
 
