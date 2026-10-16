@@ -328,6 +328,8 @@ Hardcoded default (false)
               ← Migration file TOML
 ```
 
+When `true`, the file runs on every migrate-up, always in full from its first block: the blocks that an earlier attempt committed before it failed or was cancelled run again. See [TOML Metadata: Run Always](../07-migration-files/toml-metadata.md#run-always).
+
 ### Environments
 
 ```

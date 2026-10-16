@@ -114,7 +114,7 @@ When `true`, this migration is executed on every migration run, even if it was s
 RunAlways = true
 ```
 
-During migrate-up, RunAlways files bypass the hash-based skip logic entirely and are always included in the execution list. The `validate-hash` command still checks RunAlways files for hash changes, so you can detect unintended modifications before deploying.
+During migrate-up, RunAlways files bypass the hash-based skip logic entirely and are always included in the execution list. They always run in full from their first block: a RunAlways file that failed or was cancelled after some of its blocks committed runs all of its blocks again on the next migrate-up, not just the remaining ones. The `validate-hash` command still checks RunAlways files for hash changes, so you can detect unintended modifications before deploying.
 
 ### RequireRollbackFile
 
@@ -619,6 +619,8 @@ GO
 ```
 
 **Hash validation:** During migrate-up, RunAlways files bypass the hash-based skip logic and are always re-executed regardless of whether their content has changed. To detect unintended changes to RunAlways files, use the `validate-hash` command, which compares current file hashes against the repository records.
+
+**Failed or cancelled runs:** Other files resume after the blocks that a failed or cancelled run committed. A RunAlways file always runs in full instead: the next `migrate-up` starts it at its first block, so the blocks that committed before the failure or the cancel run a second time, and `info` lists it as `RunAlways`, not as `Resumable after block n`. Make every block of a RunAlways file safe to repeat. A rollback of the file that stopped in the middle is the one exception, as for any file: `migrate-up` refuses to run until `migrate-down` has completed it.
 
 **Out-of-order detection:** A RunAlways file may live in any release. Once a target has received it, it is re-executed on every run without triggering the out-of-order check, even after newer releases have been migrated on that target. A RunAlways file that has never been executed on a target counts as out of order like any other new file in an older release and needs `--allow-out-of-order` for its first run on that target.
 

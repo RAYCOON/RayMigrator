@@ -10,10 +10,11 @@ namespace Raycoon.RayMigrator.Tests.Unit;
 /// <summary>
 /// P1: The reason the status gives a pending (file, target) pair follows what the next migrate-up does with its record
 /// (<see cref="MigrationService.ClassifyPendingMigration"/>): the open records of an open run are classified as the
-/// orphan repair before the first file leaves them (<see cref="MigrationService.ProjectOrphanRepair"/>), a record that
-/// migrate-up finalizes or resumes is Resumable with the committed blocks it skips (also for a RunAlways file), then
-/// RunAlways, HashMismatch for a Migrated record whose hash no longer matches, Failed for a failed attempt without a
-/// resume point, NotMigrated for the rest.
+/// orphan repair before the first file leaves them (<see cref="MigrationService.ProjectOrphanRepair"/>), a RunAlways file
+/// is RunAlways whatever its record says, because migrate-up always runs it in full (only a rollback stopped in the middle
+/// comes first), a record that migrate-up finalizes or resumes is Resumable with the committed blocks it skips,
+/// HashMismatch for a Migrated record whose hash no longer matches, Failed for a failed attempt without a resume point,
+/// NotMigrated for the rest.
 /// </summary>
 public class PendingMigrationClassificationTests
 {
@@ -39,8 +40,10 @@ public class PendingMigrationClassificationTests
     /// The status hands in the records as the orphan repair of the next migrate-up leaves them
     /// (<see cref="MigrationService.ProjectOrphanRepair"/>), and the pair is classified like any other.
     /// </summary>
-    private static (PendingMigrationReason Reason, int? ResumeFromBlock) ClassifyAfterTheRepair(MigrationRecord record)
-        => MigrationService.ClassifyPendingMigration(ThreeBlockFile(), "MainDB", MigrationService.ProjectOrphanRepair([record], OpenRunId), null);
+    private static (PendingMigrationReason Reason, int? ResumeFromBlock) ClassifyAfterTheRepair(
+        MigrationRecord record, bool runAlways = false)
+        => MigrationService.ClassifyPendingMigration(
+            ThreeBlockFile(runAlways), "MainDB", MigrationService.ProjectOrphanRepair([record], OpenRunId), null);
 
     [Fact]
     public void Classify_WithoutRecord_IsNotMigrated()
@@ -203,14 +206,57 @@ public class PendingMigrationClassificationTests
         result.Should().Be((PendingMigrationReason.RunAlways, (int?)null));
     }
 
-    [Fact]
-    public void Classify_RunAlwaysFileAfterCommittedBlocks_IsResumable()
+    [Theory]
+    [InlineData(MigrationStatus.Failed)]
+    [InlineData(MigrationStatus.Executing)]
+    public void Classify_RunAlwaysFileAfterCommittedBlocks_IsRunAlways(MigrationStatus status)
     {
         // Act
-        var result = Classify(ThreeBlockFile(runAlways: true), Record(MigrationStatus.Failed, blocksMigrated: 1));
+        var result = Classify(ThreeBlockFile(runAlways: true), Record(status, blocksMigrated: 1));
 
         // Assert
-        result.Should().Be((PendingMigrationReason.Resumable, (int?)1), because: "migrate-up resumes a RunAlways file like any other");
+        result.Should().Be((PendingMigrationReason.RunAlways, (int?)null),
+            because: "migrate-up runs a RunAlways file from its first block and does not resume it");
+    }
+
+    [Fact]
+    public void Classify_RunAlwaysFileWithEveryBlockOfAnEndedRun_IsRunAlways()
+    {
+        // Act
+        var result = Classify(ThreeBlockFile(runAlways: true), Record(MigrationStatus.Executing, blocksMigrated: 3));
+
+        // Assert
+        result.Should().Be((PendingMigrationReason.RunAlways, (int?)null),
+            because: "migrate-up does not finalize the record of a RunAlways file, it runs the file again");
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(3)]
+    public void Classify_OpenRecordOfARunAlwaysFile_IsRunAlways(int blocksMigrated)
+    {
+        // Act: the orphan repair settles the record (Failed with block 1, Migrated with every block)
+        var result = ClassifyAfterTheRepair(
+            Record(MigrationStatus.Executing, blocksMigrated: blocksMigrated, runId: OpenRunId), runAlways: true);
+
+        // Assert
+        result.Should().Be((PendingMigrationReason.RunAlways, (int?)null),
+            because: "the next migrate-up runs the RunAlways file in full after the repair");
+    }
+
+    [Theory]
+    [InlineData(MigrationStatus.Failed, 1)]
+    [InlineData(MigrationStatus.Executing, 2)]
+    [InlineData(MigrationStatus.Executing, 3)]
+    public void Classify_FileOfACliToolAfterCommittedBlocks_IsFailed(MigrationStatus status, int blocksMigrated)
+    {
+        // Act: an earlier attempt committed some or every block, for example on the DAL before the target got the tool
+        var result = MigrationService.ClassifyPendingMigration(
+            ThreeBlockFile(), "MainDB", [Record(status, blocksMigrated: blocksMigrated)], null, runsThroughCliTool: true);
+
+        // Assert
+        result.Should().Be((PendingMigrationReason.Failed, (int?)null),
+            because: "a CLI tool runs the whole file, so migrate-up neither resumes nor finalizes an earlier attempt of it");
     }
 
     [Fact]

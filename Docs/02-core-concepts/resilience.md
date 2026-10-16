@@ -49,7 +49,7 @@ The `MigrationRecord` table includes columns for block tracking:
 
 ### Resume Behavior
 
-On re-run after a failure, RayMigrator automatically resumes from the last failed block. The `FindResumableBlock()` method in `MigrationService` checks the `FileUpBlocksMigrated` count for the migration and skips already-executed blocks.
+On re-run after a failure, RayMigrator automatically resumes from the last failed block. The `FindResumableBlock()` method in `MigrationService` checks the `FileUpBlocksMigrated` count for the migration and skips already-executed blocks. A `RunAlways` file is the exception: it runs in full from its first block on every run, also after a failed or cancelled attempt that committed some of its blocks.
 
 ```
 Resume Behavior (implemented):

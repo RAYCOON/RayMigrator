@@ -181,7 +181,7 @@ This document provides a comprehensive overview of unit and engine test coverage
 | Rollback (Release) | `RollbackReleaseTests.cs` | SqlServer, MariaDb, MySql, Sqlite | Roll back only latest release; preserve earlier |
 | Terminate | `TerminateTests.cs` | SqlServer, MariaDb, MySql, Sqlite | Stop execution, record failures |
 | Ignore | `IgnoreTests.cs` | SqlServer, MariaDb, MySql, Sqlite | Continue despite errors |
-| RunAlways | `RunAlwaysTests.cs` | SqlServer, MariaDb, MySql, Sqlite | Re-execute on each run without `--allow-out-of-order`; a third run after a failed re-run is still in order |
+| RunAlways | `RunAlwaysTests.cs` | SqlServer, MariaDb, MySql, Sqlite | Re-execute on each run without `--allow-out-of-order`; a third run after a failed re-run is still in order; the file runs in full from block 1 after an attempt that committed blocks: a failure (FileByFile and TargetByTarget), a cancel, a record on the atomic shared connection that is neither resumed nor finalized, and the open record of an orphaned run after its repair (`Infrastructure/RunAlwaysContract.cs`) |
 | FlatLayout | `FlatLayoutTests.cs` | SqlServer, MariaDb, MySql, Sqlite | Files at release root (no /Backend) |
 | Incremental | `IncrementalTests.cs` | SqlServer, MariaDb, MySql, Sqlite | Multiple migration runs, partial state progression |
 | MultiTarget | `MultiTargetTests.cs` | SqlServer, MariaDb, MySql, Sqlite | Multiple databases per target group |
@@ -249,7 +249,7 @@ Also tested as part of:
 
 | Category | Base File | DB Variants | Key Scenarios |
 |----------|-----------|-------------|---------------|
-| Info | `InfoTests.cs` | SqlServer, MariaDb, MySql, Sqlite | I1: fresh repo zero counts; I2: full migration; I3: partial migration; I4: baseline; I5: target group status; I6: failed migration error state; I7: multiple runs history; I8: run details; the pending list (`PendingFiles`) with every `PendingMigrationReason` in the order of the next migrate-up, the pending count and `LastMigrationDate` of every target group; the open record of a run that ended abruptly as the orphan repair leaves it; `RollbackIncomplete` with its rollback blocks after a migrate-down cancelled in the middle (`CancellationTests` x5 DBs) |
+| Info | `InfoTests.cs` | SqlServer, MariaDb, MySql, Sqlite | I1: fresh repo zero counts; I2: full migration; I3: partial migration; I4: baseline; I5: target group status; I6: failed migration error state; I7: multiple runs history; I8: run details; the pending list (`PendingFiles`) with every `PendingMigrationReason` in the order of the next migrate-up, the pending count and `LastMigrationDate` of every target group; the open record of a run that ended abruptly as the orphan repair leaves it; a RunAlways file with committed blocks of a cancelled attempt as `RunAlways`; a file that a CLI tool runs, with committed blocks or every block of an earlier attempt, as `Failed`, which the next migrate-up runs in full; `RollbackIncomplete` with its rollback blocks after a migrate-down cancelled in the middle (`CancellationTests` x5 DBs) |
 
 **Unit test files**:
 - `P3_BaselineAndInfoModelTests.cs` — `MigrationStatusModelTests`, `MigrationHistoryModelTests`, `PendingMigrationModelTests` (model/property tests)

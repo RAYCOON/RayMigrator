@@ -395,8 +395,9 @@ The repository is the audit trail (current state, terminal transitions, runs wit
 to the repository only and calls `IMigrationService.GetStatusAsync` and `GetHistoryAsync(product, 10)`: `MigrationStatusInfo`
 reports `CurrentRelease`, `PendingMigrations` (counted per file and target pair), `PendingFiles` (one `PendingMigrationInfo` per
 file and target in the order of the next `migrate-up` without `--target-group-migration-order`, with a `PendingMigrationReason`:
-`NotMigrated`, `Failed`, `Resumable` with `ResumeFromBlock`, `RunAlways`, `HashMismatch` or `RollbackIncomplete` with the
-rollback blocks of a rollback that stopped in the middle, which `migrate-up` refuses to run), `TotalMigrationsExecuted` and a
+`NotMigrated`, `Failed`, `Resumable` with `ResumeFromBlock`, `RunAlways` (such a file runs in full on every run and is never
+`Resumable`), `HashMismatch` or `RollbackIncomplete` with the rollback blocks of a rollback that stopped in the middle, which
+`migrate-up` refuses to run), `TotalMigrationsExecuted` and a
 `TargetGroupStatus` per target group (`DatabaseType`, `CurrentRelease`, `ExecutedMigrations`, `PendingMigrations`,
 `LastMigrationDate`, `Targets`); `info` prints the first 50 pending entries and counts the rest. `MigrationHistory.Runs`
 lists `MigrationRunInfo` entries (`Operation`, `Result`, `RunMode`, timestamps, counts) built from

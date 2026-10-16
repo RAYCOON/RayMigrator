@@ -35,13 +35,17 @@ public enum PendingMigrationReason
     /// open record the orphan repair settles with its committed blocks, or a failed block that MigrationErrorAction=Ignore
     /// skipped, after which the record counts the blocks before it. Migrate-up skips the
     /// committed blocks (<see cref="PendingMigrationInfo.ResumeFromBlock"/>) and continues with the next one, or only
-    /// finalizes the record when every block committed. A RunAlways file is resumed like any other, so this reason
-    /// takes precedence over <see cref="RunAlways"/>.
+    /// finalizes the record when every block committed. A RunAlways file is never resumed or finalized, so it is
+    /// <see cref="RunAlways"/> instead; neither is a file that a CLI tool runs on the target, because the tool runs the
+    /// whole file, so it is <see cref="Failed"/> instead.
     /// </summary>
     Resumable = 30,
 
     /// <summary>
-    /// The file runs on every migrate-up (<c>RunAlways = true</c>), whatever its record says.
+    /// The file runs on every migrate-up (<c>RunAlways = true</c>), whatever its record says, and always in full from its
+    /// first block: migrate-up skips no block that an earlier attempt committed and finalizes no record of an earlier
+    /// attempt, so this reason takes precedence over <see cref="Resumable"/> and every other reason except
+    /// <see cref="RollbackIncomplete"/>.
     /// </summary>
     RunAlways = 40,
 

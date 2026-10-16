@@ -22,7 +22,7 @@ When `migrate-up` runs again after a failure, files with status `Failed` (30) or
 
 ### 2. Resume Mechanism (FindResumableBlock)
 
-If a migration file was partially executed (some SQL blocks succeeded before the error), RayMigrator tracks the block progress (`FileUpBlocksMigrated` / `FileUpBlocksTotal`). On the next run, if the file content hash matches (`FileUpBlocksHash`), execution resumes from block N+1 rather than re-executing the entire file. If the file was modified (hash changed), it is re-executed from block 1.
+If a migration file was partially executed (some SQL blocks succeeded before the error), RayMigrator tracks the block progress (`FileUpBlocksMigrated` / `FileUpBlocksTotal`). On the next run, if the file content hash matches (`FileUpBlocksHash`), execution resumes from block N+1 rather than re-executing the entire file. If the file was modified (hash changed), it is re-executed from block 1. A `RunAlways` file is never resumed: it runs in full from block 1 on every run, also after a partial run (Category 8).
 
 ### 3. Hash Mismatch Behavior
 
@@ -634,7 +634,7 @@ All scenarios use a standard 3-release, 9-file migration set unless otherwise no
 
 **Inconsistency**: None — the second run's failure does not affect the first run's successful state.
 
-**Recovery**: Fix the `RunAlways` file to be idempotent (use `INSERT ... ON CONFLICT DO NOTHING` or equivalent), re-run.
+**Recovery**: Fix the `RunAlways` file to be idempotent (use `INSERT ... ON CONFLICT DO NOTHING` or equivalent), re-run. The re-run executes the whole file from block 1, also the blocks that committed before the failed one: a `RunAlways` file is never resumed after a partial run (rule 2), so every block must be safe to run again.
 
 #### S30 — RunAlways File Fails on Re-Run (Rollback)
 
@@ -927,8 +927,8 @@ These scenarios test what happens when `RequireRollbackFile = false` and specifi
 | Repository (rollback failed, status ≠ DB state) | Partial | May need manual SQL to align DB with desired state, then re-run |
 | Logical (Ignore left Failed + Migrated mix) | Yes | Fix the failed file, re-run `migrate-up` |
 | Missing rollback files | No | Create the rollback files, manually fix DB if needed, then re-run |
-| Orphaned run (stuck `Running`) | Yes | Start the next run once the last heartbeat is older than `Repository.OrphanedRunThresholdInMinutes` (default 2 minutes; auto-fix) or run `fix` command; the interrupted file keeps its committed blocks, and the next `migrate-up` runs at most the block that was running again |
-| Cancelled run (`Cancelled`, CLI exit code 130) | Yes | Re-run `migrate-up`: the interrupted file resumes with its first uncommitted block (`Terminate`), or runs again after the rollback of the cancel action. Re-run a cancelled `migrate-down`: it continues the record in progress |
+| Orphaned run (stuck `Running`) | Yes | Start the next run once the last heartbeat is older than `Repository.OrphanedRunThresholdInMinutes` (default 2 minutes; auto-fix) or run `fix` command; the interrupted file keeps its committed blocks, and the next `migrate-up` runs at most the block that was running again (a `RunAlways` file runs in full) |
+| Cancelled run (`Cancelled`, CLI exit code 130) | Yes | Re-run `migrate-up`: the interrupted file resumes with its first uncommitted block (`Terminate`; a `RunAlways` file runs again from block 1), or runs again after the rollback of the cancel action. Re-run a cancelled `migrate-down`: it continues the record in progress |
 | Failed run whose error recovery a cancel stopped (`Error` with the code of the failure, CLI exit code 1) | Partial | Run `migrate-down` to a release before the files of the run: it continues a record whose rollback stopped in the middle and rolls back the files the recovery did not reach. Then fix the failed file and re-run `migrate-up` |
 | Rollback stopped in the middle (`Failed` with k of n rollback blocks, after a cancelled `migrate-down` or error recovery or a failed rollback block after the first) | Partial | `migrate-up` refuses to run while such a record exists. Run `migrate-down` to a release before the file: it continues the rollback at block k+1. Then re-run `migrate-up` ([A Rollback That Stopped in the Middle](error-handling.md#a-rollback-that-stopped-in-the-middle)) |
 

@@ -108,7 +108,7 @@ Migration 004 ✓ (Migrated — execution continues)
 
 > **Warning:** With Ignore, the migration run is persisted as PartialSuccess (50) because at least one file failed; all other files are still executed and the CLI exit code is 1. An aborted run is Error (90).
 
-A failed file keeps the blocks that committed before its first failed block. The next `migrate-up` resumes at that block, as long as the SQL blocks of the file did not change, and runs the blocks after it again; when the first block failed, or the file was changed, it runs the whole file.
+A failed file keeps the blocks that committed before its first failed block. The next `migrate-up` resumes at that block, as long as the SQL blocks of the file did not change, and runs the blocks after it again; when the first block failed, or the file was changed, it runs the whole file. A `RunAlways` file always runs as a whole: the next `migrate-up` runs all of its blocks again.
 
 ---
 

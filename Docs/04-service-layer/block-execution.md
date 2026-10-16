@@ -327,14 +327,16 @@ RayMigrator automatically resumes partially-executed migrations. When a migratio
 
 ### Resume Conditions
 
-All four conditions must be met for a resume to occur:
+All six conditions must be met for a resume to occur:
 
 1. A **Failed** or **Executing** record exists in the repository for the same file, release, target group, and target
 2. Some blocks were migrated but not all (`FileUpBlocksMigrated > 0` and `< FileUpBlocksTotal`)
 3. No rollback was attempted (`FileDownHash` is null)
 4. The file's SQL blocks hash has not changed since the partial execution (`FileUpBlocksHash` match)
+5. The file is not a `RunAlways` file
+6. No CLI tool runs the file on the target: migrate-up does not look for a resume point then, because the tool runs the whole file
 
-If the hash has changed (i.e., the migration file was modified), the file is re-executed from block 1 with a warning logged.
+If the hash has changed (i.e., the migration file was modified), the file is re-executed from block 1 with a warning logged. A `RunAlways` file always runs in full from block 1: the blocks an earlier attempt committed run again, and a Debug line says so; `TryFinalizeCompletedMigrationAsync` does not finalize its record either. The static helpers behind both checks (`ResumableBlockOf`, `FindFinalizableRecord`) carry this rule, so that the pending list of `info` reports such a file as `RunAlways`.
 
 ### Resume Flow
 
@@ -344,6 +346,9 @@ internal int FindResumableBlock(
     string targetAlias,
     List<MigrationRecord> existingRecords)
 {
+    if (file.RunAlways)
+        return 0; // runs in full from block 1
+
     var partialRecord = existingRecords
         .Where(r => r.Filename == file.Filename
             && r.ReleaseVersion == file.ReleaseVersion

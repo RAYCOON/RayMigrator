@@ -132,6 +132,7 @@ Raycoon.RayMigrator.Tests.Engine/
 │   ├── RepositoryMaintenanceContract.cs — Shared assertions of RepositoryMaintenanceTests: the retention of IRepositoryMaintenanceService on the history and the log (ADR-027), the oldest rows first, a cancel and a failure after a deleted batch
 │   ├── RepositoryPrefixContract.cs — Shared assertions of RepositoryPrefixTests: a second repository with another table prefix beside a migrated one
 │   ├── RepositorySchemaServiceContract.cs — Shared assertions of RepositorySchemaServiceTests: create a repository from its options, then find it current
+│   ├── RunAlwaysContract.cs        — Shared assertions of the RunAlways tests: a RunAlways file runs in full from block 1 after an attempt that committed blocks (a failure, a cancel, a record on the atomic shared connection, the open record of an orphaned run), neither resumed nor finalized
 │   ├── RunInitiatorValues.cs       — Initiator values a scenario passes to the engine (source, user, subject, host)
 │   ├── ScenarioBuilder.cs          — Fluent API for test scenario configuration
 │   ├── ScenarioContext.cs          — Execution + assertions
@@ -367,6 +368,13 @@ The catalog lists the unique test scenarios defined for the base PostgreSQL test
 | #59 | RA-4 | RunAlwaysFalse_NotReExecuted | RunAlwaysTests |
 | #60 | FL-1 | MixedFlatAndTraditionalLayout_AllReleasesMigrateSuccessfully | FlatLayoutTests |
 | #61 | FL-2 | MixedLayout_MigrateDownToRelease2_RollsBackFlatAndTraditionalReleases | FlatLayoutTests |
+| #62 | RA-5 | RunAlways_FailedAfterACommittedBlock_NextRunStartsAtBlockOne | RunAlwaysTests |
+| #63 | RA-6 | RunAlways_FailedAfterACommittedBlockInTargetByTargetOrder_NextRunStartsAtBlockOne | RunAlwaysTests |
+| #64 | RA-7 | RunAlways_CancelledAfterBlockOne_NextRunStartsAtBlockOne | RunAlwaysTests |
+| #65 | RA-8 | RunAlways_EarlierAttemptOnTheSharedConnection_RunsInFull (Failed with block 1, Executing with every block) | RunAlwaysTests |
+| #66 | RA-9 | RunAlways_OpenRecordOfAnOrphanedRun_RunsInFullAfterTheRepair | RunAlwaysTests |
+
+RA-5 to RA-9 come from `Infrastructure/RunAlwaysContract.cs` and make the three-block seed of release 1.0 a RunAlways file: after an attempt that committed blocks (a failure at block 2, a cancel after block 1, a record state written by SQL on the atomic shared connection, the open record of an orphaned run), the next migrate-up starts the file with `ResumeFromBlock` 0 and runs every block, block 1 a second time; it neither finalizes a record that committed every block nor carries the blocks of the earlier attempt over to the new record, and the orphan repair settles an open record of the file by its progress (`Failed` with block 1) before the file runs in full.
 
 **Features tests** (all 5 engines have 30 base feature test classes each; SqlServer, PostgreSQL, MariaDb and MySql add the DAL timeout class, SqlServer the atomic-shared-connection and killed-pooled-session classes, MariaDb and MySql the DAL user lock class, Sqlite the datetime-CHECK-constraint, command-profile, file-encoding and CLI signal classes, plus a P2 file shared between MySql and MariaDb):
 
@@ -378,7 +386,7 @@ The catalog lists the unique test scenarios defined for the base PostgreSQL test
 | `DatabaseLogDefaultTests` | 3 | Database logging into the repository by default at Information, a section with only MinimumLevel, `Enabled: false` creates no log tables |
 | `ReadModelContractTests` | 1 | After a migrate-up every repository table reads through `RepositoryNaming.SelectStatement` via the engine DAL and maps with `RepositoryRowMapper`: schema version, run, records, lookups, log rows, UTC timestamps (`Infrastructure/ReadModelContract.cs`) |
 | `FixTests` | 9 | Fix command: no orphans, fix orphan, simulate, older-than filter, fix-then-migrate, multiple orphans, details, assumed-status=Migrated, scope all |
-| `InfoTests` | 25 | Info command: fresh repo, full/partial migration, baseline, target groups, error state, a modified file counted as pending, multiple-run history, run details, the history of a migrate-down and of a rolled back migrate-up, the runs of the requested environment only; the pending list (`Infrastructure/PendingMigrationsContract.cs`): every file `NotMigrated` on a fresh repository, the remaining files after a partial run, `Failed`, `Resumable` after a cancel in a file, `RunAlways` after every run, `HashMismatch`, the open record of a run that ended abruptly as the orphan repair of the next migrate-up leaves it (`Resumable` after its committed blocks, not listed with every block committed), a modified file of an older release listed although migrate-up refuses it out of order, the pending pairs after a failed second target in both `TargetMigrationOrder`s, the target groups in their `TargetGroupMigrationOrder`, and per target group the pending count and `LastMigrationDate`; each scenario then runs the next migrate-up and compares the files it starts with the list |
+| `InfoTests` | 28 | Info command: fresh repo, full/partial migration, baseline, target groups, error state, a modified file counted as pending, multiple-run history, run details, the history of a migrate-down and of a rolled back migrate-up, the runs of the requested environment only; the pending list (`Infrastructure/PendingMigrationsContract.cs`): every file `NotMigrated` on a fresh repository, the remaining files after a partial run, `Failed`, `Resumable` after a cancel in a file, `RunAlways` after every run and also after a cancel in it, which the next migrate-up runs from block 1, `Failed` for a file that a CLI tool runs after committed blocks or every block of an earlier attempt, which the next migrate-up runs in full in both `TargetMigrationOrder`s, `HashMismatch`, the open record of a run that ended abruptly as the orphan repair of the next migrate-up leaves it (`Resumable` after its committed blocks, not listed with every block committed), a modified file of an older release listed although migrate-up refuses it out of order, the pending pairs after a failed second target in both `TargetMigrationOrder`s, the target groups in their `TargetGroupMigrationOrder`, and per target group the pending count and `LastMigrationDate`; each scenario then runs the next migrate-up and compares the files it starts with the list |
 | `MigrationRunMetaTests` | 8 | MigrationRunSettingsJson content (console options, product, masked credentials, MigrateDown masking, Baseline masking), `FromReleaseVersion` as the highest migrated release when the run started |
 | `MigSettingsInheritanceTests` | 13 | migsettings.txt inheritance (root, release, target group, TOML override) |
 | `OutOfOrderBlockingTests` | 3 | Out-of-order migration blocking (false=blocked, true=allowed, data integrity after blocking) |
@@ -491,7 +499,9 @@ Tests validate that for each of the 4 Docker presets (sqlcmd-docker, psql-docker
 | **Success** | IN-1 | MD-1,2,3, EC-1,2,3 | RT-1 | RC-2 | RA-1, RA-4 |
 | **Error + Rollback** | IN-2, IN-4 | — | — | — | RA-3 |
 | **Error + RbRelease** | IN-3, IN-5 | — | RT-2 | — | — |
-| **Error + Terminate** | — | — | — | RC-1 | RA-2 |
+| **Error + Terminate** | — | — | — | RC-1 | RA-2, RA-5, RA-6 |
+| **Cancel + Terminate** | — | — | — | — | RA-7 |
+| **Earlier attempt (record by SQL)** | — | — | — | — | RA-8, RA-9 |
 | **Down-Error** | — | ME-1,2,3,4 | — | — | — |
 
 #### Block-Level (SqlServer only)
@@ -525,7 +535,7 @@ Tests verify the following database columns via `MigrationRecordExpectation` and
 
 - **Non-Ignore mode, error file**: `FileUpBlocksMigrated` = the blocks that committed before the failing one (0 when the first block fails, and on the atomic shared connection, whose transaction rolls the whole file back) (#11)
 - **Ignore mode, error file**: `FileUpBlocksMigrated` = the blocks before the first failed block, while the file runs (also after a later block committed; DB record updated after every block attempt) and when it ends; the next migrate-up resumes at the failed block, or runs the whole file when the first block failed. A `FileUpBlocksMigrated` equal to `FileUpBlocksTotal` always means that every block committed
-- **While a file runs**: `FileUpBlocksMigrated` = the leading blocks that committed; 0 while a CLI tool runs; a resumed file shows the blocks it resumes after from the start (`BlockProgressContract`)
+- **While a file runs**: `FileUpBlocksMigrated` = the leading blocks that committed; 0 while a CLI tool runs; a resumed file shows the blocks it resumes after from the start; a file that a CLI tool runs starts at block 1 also after committed blocks of an earlier attempt (`BlockProgressContract`), and is not finalized from one (`PendingMigrationsContract`)
 - **Cancelled file**: status `Failed` and `FileUpBlocksMigrated` = the blocks that committed before the cancel, so the next migrate-up resumes with the first block that did not commit (on the atomic shared connection only those of an earlier attempt, normally 0; in Ignore mode the blocks before the first failed one, as at the end of such a file)
 - **Rollback cancelled in the middle**: status `Failed` with `0 < FileDownBlocksMigrated < FileDownBlocksTotal`; the next migrate-up refuses to start, the next migrate-down continues with rollback block `FileDownBlocksMigrated + 1`
 - **Open record after the orphan repair**: `Failed` with `0 < FileUpBlocksMigrated < FileUpBlocksTotal` when some blocks committed, so the next migrate-up resumes after them; `Migrated` when every block committed; `NotMigrated` without a committed block; a rollback that was running `Failed` with its rollback blocks, `Failed` without rollback progress, or `NotMigrated` when every rollback block ran; the counters stay, `FinishedAt` is the time of the repair and `DurationInMs` stays `NULL` (`OrphanRepairContract`)

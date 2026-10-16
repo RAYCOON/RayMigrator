@@ -84,7 +84,7 @@ Key parsing is **case-insensitive**. Enum values (`MigrationErrorAction`, `Rollb
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `UseTransaction` | bool | `true` | Wrap migration in a database transaction |
-| `RunAlways` | bool | `false` | Re-execute every migration run |
+| `RunAlways` | bool | `false` | Re-execute every migration run, always in full from the first block |
 | `RequireRollbackFile` | bool? | inherits | Require a rollback file. When omitted, inherits from parent migsettings or product config (default: `true`) |
 | `StopRollbackOnMissingRollbackFile` | bool? | inherits | Accepted by the parser (to avoid an "unknown key" error) but has no effect. The effective value at runtime is resolved from appsettings only: CLI option → TargetGroup → Product → ProductDefaults → default (`true`). Unlike other migsettings parameters, this value is not applied to individual file metadata or consulted during rollback chain execution. |
 | `Environments` | array | not specified (= all) | Allowed environments. Use `["*"]` or omit for all |

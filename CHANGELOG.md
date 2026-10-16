@@ -209,15 +209,16 @@ RayMigrator follows Semantic Versioning where applicable.
   of its target group. The new `PendingMigrationReason` (`Undefined` 0,
   `NotMigrated` 10, `Failed` 20, `Resumable` 30, `RunAlways` 40,
   `HashMismatch` 50, `RollbackIncomplete` 60) says why: first
-  `RollbackIncomplete` for a record `Failed` with some but not all of its
-  rollback blocks, also of a RunAlways file, which migrate-up refuses to
-  run until migrate-down has completed the rollback; then `Resumable` when
-  migrate-up skips committed blocks (a failed or cancelled file whose
+  `RollbackIncomplete` for a record `Failed`, or `Executing` in a run that
+  has ended, with some but not all of its rollback blocks, also of a
+  RunAlways file, which migrate-up refuses to
+  run until migrate-down has completed the rollback; then `RunAlways` for a
+  RunAlways file, which migrate-up always runs in full; then `Resumable`
+  when migrate-up skips committed blocks (a failed or cancelled file whose
   blocks did not change, or an Executing record with every block that
-  migrate-up only finalizes), also for a RunAlways file, which migrate-up
-  resumes like any other; then
-  `RunAlways`; `HashMismatch` for a Migrated record whose hash no longer
-  matches; `Failed` for a failed attempt without a resume point; otherwise
+  migrate-up only finalizes); `HashMismatch` for a Migrated record whose
+  hash no longer matches; `Failed` for a failed attempt without a resume
+  point; otherwise
   `NotMigrated` (no record, a rolled back one, or a Pending or Executing
   record of a run that is still open, if the orphan repair of the next
   migrate-up settles it as `NotMigrated`: without a committed block, or
@@ -576,6 +577,15 @@ RayMigrator follows Semantic Versioning where applicable.
   record. A template of an earlier version writes the status 0 to the
   records, which no command handles; an external DAL ships the rule (the
   stub in `Database.Example` describes it).
+- A RunAlways file always runs in full: migrate-up no longer resumes it
+  after committed blocks of a failed or cancelled attempt and no longer
+  finalizes a record of it that committed every block; it runs the file
+  from its first block on every target its `Targets` filter selects, and
+  `FileStartedEvent.ResumeFromBlock` is 0. The orphan repair settles an
+  open record of a RunAlways file by its progress like any other, and the
+  file still runs in full afterwards. The pending list reports it as
+  `RunAlways` with no `ResumeFromBlock`; only `RollbackIncomplete`
+  precedes it.
 
 ### Fixed
 

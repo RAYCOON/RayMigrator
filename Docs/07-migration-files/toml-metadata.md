@@ -41,7 +41,7 @@ If you do not need a description and the defaults are suitable, the file needs n
 | `Environments` | array | not specified (= all) | Allowed environments. Use `["*"]` explicitly, omit entirely, or use `[]` (empty array) for all environments |
 | `Targets` | array | not specified (= all) | Targets of the target group on which the file runs. Use `["*"]` explicitly, omit entirely, or use `[]` (empty array) for all targets. Every alias must be a configured target of the file's target group |
 | `UseTransaction` | bool | `true` | Wrap in transaction |
-| `RunAlways` | bool | `false` | Re-execute every run |
+| `RunAlways` | bool | `false` | Re-execute every run, always in full from the first block |
 | `RequireRollbackFile` | bool? | inherits | Require a rollback file. When omitted, inherits from migsettings or product config (default: `true`) |
 | `StopRollbackOnMissingRollbackFile` | bool? | (no effect) | Accepted by the parser (to avoid an "unknown key" error) but the value is immediately discarded and has no runtime effect. The effective rollback chain behavior is controlled entirely by the appsettings-level setting (`ProductDefaults`, `Product`, `TargetGroup`) and the CLI `--stop-rollback-on-missing-rollback-file` option. |
 | `MigrationErrorAction` | string? | inherits | Error handling strategy per file. When omitted, inherits from migsettings or product config. Values: `Terminate`, `Rollback`, `RollbackErrorOnly`, `RollbackRelease`, `Ignore` |
@@ -188,6 +188,8 @@ Description = "Refresh lookup data"
 TRUNCATE TABLE LookupData;
 INSERT INTO LookupData VALUES (...);
 ```
+
+A RunAlways file runs on every migrate-up, on every target its `Targets` filter selects, and always in full from its first block. Migrate-up does not resume it after the blocks that an earlier attempt committed before it failed, was cancelled or ended abruptly, and it does not finalize a record of an earlier attempt that committed every block: those blocks run again, so every block must be safe to repeat, like the file as a whole. `info` lists such a file as `RunAlways`, never as `Resumable`. The one exception is a rollback of the file that stopped in the middle: migrate-up refuses to run until migrate-down has completed it (`RollbackIncomplete`), as for any other file.
 
 **Use Cases for `RunAlways = true`**:
 - Refresh lookup/reference data

@@ -400,6 +400,110 @@ internal static class PendingMigrationsContract
     }
 
     /// <summary>
+    /// (l) A RunAlways file with committed blocks of an earlier attempt is RunAlways, not Resumable: the cancel of (d) after
+    /// block 1 of the seed leaves its record Failed with block 1, which any other file resumes after, but migrate-up runs a
+    /// RunAlways file in full. The list names the seed RunAlways without a resume point, the next migrate-up starts it with
+    /// ResumeFromBlock 0, so that block 1 runs a second time, and the seed stays pending afterwards.
+    /// </summary>
+    public static async Task VerifyRunAlwaysFileAfterCommittedBlocksAsync(ScenarioBuilder builder, EngineConfig config)
+    {
+        // Arrange
+        await using var ctx = await CancellationContract.WithThreeBlockSeed(builder, config)
+            .SetFileToml(Release1, Seed, "RunAlways", "true")
+            .WithTargetConnectionString(config.ConnectionString2!)
+            .BuildAsync();
+        using var cancellation = new RunCancellation();
+        ctx.UseProgressObserver(new CancellingProgressObserver(
+            CancellingProgressObserver.AfterBlock(Seed, 1, MigrationOperation.MigrateUp),
+            () => cancellation.Cancel(MigrationCancelledAction.Terminate, "stopped by the test")));
+        var cancelled = await ctx.MigrateUpAsync(cancellation: cancellation);
+        cancelled.Result.Should().Be(MigrationRunResult.Cancelled, because: $"the cancel stops the run: {cancelled.ErrorMessage}");
+        ctx.AssertMigrationRecord(Seed, new MigrationRecordExpectation
+        {
+            MigrationStatusId = (int)MigrationStatus.Failed,
+            FileUpBlocksMigrated = 1,
+            FileUpBlocksTotal = 3
+        });
+        await ctx.RebuildForAsync(MigrationCommand.Info, MigrationRunMode.Migrate);
+
+        // Act
+        var status = await ctx.InfoAsync();
+
+        // Assert
+        AssertConsistent(status);
+        status.PendingFiles[0].Should().Be(new PendingMigrationInfo(Release1, Backend, MainDb, Seed, 3, PendingMigrationReason.RunAlways, null),
+            because: "migrate-up runs a RunAlways file in full, also after committed blocks");
+        status.PendingFiles.Skip(1).Select(p => (p.ReleaseVersion, p.Filename)).Should().Equal(
+            StandardFiles.Skip(1).SelectMany(r => r.Files.Select(f => (r.Release, f))));
+        status.PendingFiles.Skip(1).Should().OnlyContain(p => p.Reason == PendingMigrationReason.NotMigrated);
+        await AssertLastMigrationDateAsync(ctx, status, Backend);
+
+        var next = await RunNextMigrateUpAsync(ctx, status);
+        next.Success.Should().BeTrue(because: $"the files of the list migrate: {next.ErrorMessage}");
+        ctx.AssertRowCountOnConnection(config.ConnectionString2!, "tablea", 4);
+        await ctx.RebuildForAsync(MigrationCommand.Info, MigrationRunMode.Migrate);
+        (await ctx.InfoAsync()).PendingFiles.Should().Equal(
+            [new PendingMigrationInfo(Release1, Backend, MainDb, Seed, 3, PendingMigrationReason.RunAlways, null)],
+            because: "the RunAlways file stays pending after it ran, every other file is migrated");
+    }
+
+    /// <summary>
+    /// (m) A file that a CLI tool runs is never Resumable: the tool runs the whole file. The cancel of (d) after block 1 of
+    /// the seed leaves its record Failed with block 1 of 3 on the DAL, then every target gets the tool. The list names the
+    /// seed Failed without a resume point, and the next migrate-up starts it with ResumeFromBlock 0. A record with every
+    /// block of an attempt that never got its final status (Executing, as an engine before this version left the record of
+    /// a tool it started) is Failed as well, because migrate-up does not finalize it but runs the file again through the
+    /// tool. The tool is a shell that exits at once (not on Windows). <paramref name="order"/> TargetByTarget covers the
+    /// other file loop of migrate-up.
+    /// </summary>
+    public static async Task VerifyCliToolFileAfterCommittedBlocksAsync(ScenarioBuilder builder, EngineConfig config, TargetMigrationOrder order)
+    {
+        Assert.SkipWhen(OperatingSystem.IsWindows(), "The CLI tool of the test is /bin/sh");
+
+        // Arrange: block 1 of the seed committed on the DAL, then every target gets the tool
+        await using var ctx = await CancellationContract.WithThreeBlockSeed(builder, config)
+            .WithTargetConnectionString(config.ConnectionString2!)
+            .WithTargetMigrationOrder(order)
+            .WithCliTool("shell", "/bin/sh", "-c \"exit 0\" shell {FilePath}", timeoutInSeconds: 60)
+            .BuildAsync();
+        using var cancellation = new RunCancellation();
+        ctx.UseProgressObserver(new CancellingProgressObserver(
+            CancellingProgressObserver.AfterBlock(Seed, 1, MigrationOperation.MigrateUp),
+            () => cancellation.Cancel(MigrationCancelledAction.Terminate, "stopped by the test")));
+        var cancelled = await ctx.MigrateUpAsync(cancellation: cancellation);
+        cancelled.Result.Should().Be(MigrationRunResult.Cancelled, because: $"the cancel stops the run: {cancelled.ErrorMessage}");
+        BlockProgressContract.UseCliToolOnEveryTarget(ctx, "shell");
+        await ctx.RebuildForAsync(MigrationCommand.Info, MigrationRunMode.Migrate);
+
+        // Act
+        var status = await ctx.InfoAsync();
+
+        // Assert
+        AssertConsistent(status);
+        status.PendingFiles[0].Should().Be(new PendingMigrationInfo(Release1, Backend, MainDb, Seed, 3, PendingMigrationReason.Failed, null),
+            because: "the tool runs the whole file, also after committed blocks");
+        status.PendingFiles.Skip(1).Select(p => (p.ReleaseVersion, p.Filename)).Should().Equal(
+            StandardFiles.Skip(1).SelectMany(r => r.Files.Select(f => (r.Release, f))));
+        var next = await RunNextMigrateUpAsync(ctx, status);
+        next.Success.Should().BeTrue(because: $"the files of the list migrate: {next.ErrorMessage}");
+
+        // Arrange: the record of the seed shows every block of an attempt that never got its final status
+        ctx.SetMigrationRecordState(Seed, MainDb, MigrationStatus.Executing, fileUpBlocksMigrated: 1);
+        await ctx.RebuildForAsync(MigrationCommand.Info, MigrationRunMode.Migrate);
+
+        // Act
+        var afterEveryBlock = await ctx.InfoAsync();
+
+        // Assert
+        afterEveryBlock.PendingFiles.Should().Equal(
+            [new PendingMigrationInfo(Release1, Backend, MainDb, Seed, 3, PendingMigrationReason.Failed, null)],
+            because: "migrate-up does not finalize the record of a file that the tool runs, it runs the file again");
+        var again = await RunNextMigrateUpAsync(ctx, afterEveryBlock, allowOutOfOrder: true);
+        again.Success.Should().BeTrue(because: $"the tool runs the seed again: {again.ErrorMessage}");
+        await AssertNothingPendingAsync(ctx);
+    }
+
+    /// <summary>
     /// Runs the next migrate-up with a recorder and asserts that it starts exactly the listed pairs, in the order of the
     /// list, each with the committed blocks the list names (0 for a file that starts from its first block).
     /// </summary>

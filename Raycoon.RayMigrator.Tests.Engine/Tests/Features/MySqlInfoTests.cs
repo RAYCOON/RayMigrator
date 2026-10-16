@@ -469,4 +469,32 @@ public class MySqlInfoTests : MySqlTestBase
 
         await PendingMigrationsContract.VerifyOpenRecordWithEveryBlockCommittedAsync(CreateScenario(), Fixture.EngineConfig);
     }
+
+    /// <summary>
+    /// I23: A RunAlways file with committed blocks of a cancelled attempt is listed as RunAlways, and the next migrate-up
+    /// runs it in full.
+    /// </summary>
+    [Fact]
+    public async Task Info_RunAlwaysFileAfterCommittedBlocks_IsListedAsRunAlways()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        Assert.SkipWhen(Fixture.EngineConfig.ConnectionString2 is null, "Second connection string not configured");
+
+        await PendingMigrationsContract.VerifyRunAlwaysFileAfterCommittedBlocksAsync(CreateScenario(), Fixture.EngineConfig);
+    }
+
+    /// <summary>
+    /// I24: A file that a CLI tool runs, with committed blocks or every block of an earlier attempt, is listed as Failed,
+    /// not Resumable, and the next migrate-up runs it in full instead of resuming or finalizing the record.
+    /// </summary>
+    [Theory]
+    [InlineData(TargetMigrationOrder.FileByFile)]
+    [InlineData(TargetMigrationOrder.TargetByTarget)]
+    public async Task Info_CliToolFileAfterCommittedBlocks_IsListedAsFailed(TargetMigrationOrder order)
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        Assert.SkipWhen(Fixture.EngineConfig.ConnectionString2 is null, "Second connection string not configured");
+
+        await PendingMigrationsContract.VerifyCliToolFileAfterCommittedBlocksAsync(CreateScenario(), Fixture.EngineConfig, order);
+    }
 }

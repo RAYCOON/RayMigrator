@@ -540,7 +540,7 @@ You can also set `RunAlways = true` at the directory level using a `migsettings.
 RunAlways = true
 ```
 
-> **Warning:** RunAlways files are re-executed on every migration run. Ensure they are idempotent -- they must produce the same result regardless of how many times they run.
+> **Warning:** RunAlways files are re-executed on every migration run. Ensure they are idempotent -- they must produce the same result regardless of how many times they run. A RunAlways file always runs in full from its first block, also after a run that failed or was cancelled in the middle of it, so the blocks that committed in that run run again.
 
 ---
 
@@ -757,7 +757,7 @@ The exact code lists ship as `DataAccessLayers/{DatabaseType}/TransientErrorCode
 
 ### Block-Level Recovery
 
-If a migration file with multiple SQL blocks fails partway through, RayMigrator records which blocks were completed. On re-run, it automatically resumes from the last failed block rather than re-executing the entire file.
+If a migration file with multiple SQL blocks fails partway through, RayMigrator records which blocks were completed. On re-run, it automatically resumes from the last failed block rather than re-executing the entire file. A [RunAlways](#runalways-migrations) file is the exception: it runs in full on every run.
 
 > **Tip:** Target databases default to 0 retries (disabled) to avoid masking persistent errors in migration files. Repository operations default to 100 retries because repository availability is critical for state tracking.
 

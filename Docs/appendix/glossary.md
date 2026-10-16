@@ -285,8 +285,8 @@ A file that the next migrate-up runs on a target, as `info` lists it and `Migrat
 - **Undefined** (0): Invalid value
 - **NotMigrated** (10): The file has not run on the target, was rolled back, or its record belongs to a run that is still open and the orphan repair of the next migrate-up settles it as `NotMigrated` (no block of it committed, or its rollback had completed)
 - **Failed** (20): The last attempt failed and left nothing to resume; migrate-up runs the file from its first block
-- **Resumable** (30): Leading blocks committed (after a failure or a cancel); migrate-up continues after them (`ResumeFromBlock`), or only completes the record when every block committed
-- **RunAlways** (40): The file runs on every migrate-up
+- **Resumable** (30): Leading blocks committed (after a failure or a cancel); migrate-up continues after them (`ResumeFromBlock`), or only completes the record when every block committed; never for a RunAlways file
+- **RunAlways** (40): The file runs on every migrate-up, always in full from its first block, also after blocks that an earlier attempt committed
 - **HashMismatch** (50): The file changed after it was migrated; migrate-up runs it again and logs a warning
 - **RollbackIncomplete** (60): The rollback of the file stopped in the middle (`Failed`, or `Executing` in a run that has ended, with `RollbackBlocksMigrated` of `RollbackBlocksTotal` rollback blocks, as a cancel, a failed rollback block after the first or the orphan repair of a run that ended abruptly leaves it); migrate-up refuses to run until migrate-down has completed the rollback, and this reason comes before every other
 
@@ -331,7 +331,7 @@ Configuration that determines behavior when a rollback operation encounters an e
 A file containing SQL to undo a migration, named with `.rollback.sql` extension (configurable).
 
 ### RunAlways
-TOML setting that determines whether a migration file is executed on every migration run, even if it has been applied before. Files with `RunAlways = true` are re-executed each time. Default: `false`.
+TOML setting that determines whether a migration file is executed on every migration run, even if it has been applied before. Files with `RunAlways = true` are re-executed each time, always in full from the first block: a failed or cancelled attempt is never resumed after its committed blocks. Default: `false`.
 
 ### Run Mode
 How migrations execute (`MigrationRunMode` enum):

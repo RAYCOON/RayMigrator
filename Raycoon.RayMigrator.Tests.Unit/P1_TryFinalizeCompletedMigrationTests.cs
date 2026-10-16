@@ -13,33 +13,18 @@ namespace Raycoon.RayMigrator.Tests.Unit;
 /// are correctly detected and finalized, preventing unnecessary re-execution.
 /// Note: TryFinalizeCompletedMigration calls RepositoryMigrationUpdate which requires
 /// TemplateExecutor. Since the uninitialized service has no TemplateExecutor, these tests
-/// use a separate static query method to test the detection logic independently.
+/// check the detection through <see cref="MigrationService.FindFinalizableRecord"/>, which
+/// TryFinalizeCompletedMigration and the pending list of the status share.
 /// </summary>
 public class TryFinalizeCompletedMigrationTests
 {
     /// <summary>
-    /// Extracts the detection logic from TryFinalizeCompletedMigration for unit testing
-    /// without requiring TemplateExecutor (which performs the actual DB update).
+    /// The record TryFinalizeCompletedMigration finalizes, without the repository update it performs.
     /// Returns the matching record ID or -1.
     /// </summary>
     private static int FindCompletedButNotFinalized(
         MigrationFileInfo file, string targetAlias, List<MigrationRecord> existingRecords)
-    {
-        var completedRecord = existingRecords
-            .Where(r => r.Filename == file.Filename
-                && r.ReleaseVersion == file.ReleaseVersion
-                && r.TargetGroupAlias == file.TargetGroupAlias
-                && r.TargetAlias == targetAlias
-                && r.MigrationStatusId == MigrationStatus.Executing
-                && r.FileUpBlocksMigrated > 0
-                && r.FileUpBlocksMigrated >= r.FileUpBlocksTotal
-                && r.FileUpBlocksHash == file.FileUpBlocksHash
-                && r.FileDownHash == null)
-            .OrderByDescending(r => r.Id)
-            .FirstOrDefault();
-
-        return completedRecord?.Id ?? -1;
-    }
+        => MigrationService.FindFinalizableRecord(file, targetAlias, existingRecords)?.Id ?? -1;
 
     [Fact]
     public void ExecutingWithAllBlocksComplete_ReturnsRecordId()
@@ -59,6 +44,52 @@ public class TryFinalizeCompletedMigrationTests
         var result = FindCompletedButNotFinalized(file, "MainDB", records);
 
         result.Should().Be(42);
+    }
+
+    [Fact]
+    public void RunAlwaysFileExecutingWithAllBlocksComplete_ReturnsMinusOne()
+    {
+        // Arrange: an earlier attempt of the RunAlways file committed every block but never got its final status
+        var file = TestFactories.CreateMigrationFile(blocksHash: "hash_abc", runAlways: true);
+        var records = new List<MigrationRecord>
+        {
+            TestFactories.CreateMigrationRecord(
+                id: 42,
+                status: MigrationStatus.Executing,
+                blocksHash: "hash_abc",
+                fileUpBlocksMigrated: 5,
+                fileUpBlocksTotal: 5)
+        };
+
+        // Act
+        var result = FindCompletedButNotFinalized(file, "MainDB", records);
+
+        // Assert
+        result.Should().Be(-1, because: "migrate-up runs a RunAlways file in full instead of finalizing a record of an earlier attempt");
+    }
+
+    [Fact]
+    public async Task TryFinalize_RunAlwaysFileExecutingWithAllBlocksComplete_FinalizesNothing()
+    {
+        // Arrange: the uninitialized service has no TemplateExecutor, so a finalization would fail on the repository update
+        var (service, logger) = TestFactories.CreateMigrationServiceWithCapturingLogger();
+        var file = TestFactories.CreateMigrationFile(blocksHash: "hash_abc", runAlways: true);
+        var records = new List<MigrationRecord>
+        {
+            TestFactories.CreateMigrationRecord(
+                id: 42,
+                status: MigrationStatus.Executing,
+                blocksHash: "hash_abc",
+                fileUpBlocksMigrated: 5,
+                fileUpBlocksTotal: 5)
+        };
+
+        // Act
+        var result = await service.TryFinalizeCompletedMigrationAsync(file, "MainDB", records, TestContext.Current.CancellationToken);
+
+        // Assert
+        result.Should().Be(-1, because: "migrate-up runs the RunAlways file instead of recovering the record");
+        logger.Entries.Should().NotContain(e => e.Message.Contains("Recovery"));
     }
 
     [Fact]

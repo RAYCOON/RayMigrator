@@ -4956,6 +4956,7 @@ public class MigrationService : IMigrationService
     /// it) while the run row could still be closed.
     /// If found, updates the record to Migrated status in the repository.
     /// Returns the existing record ID if finalized, or -1 if no such record exists.
+    /// A RunAlways file is never finalized from an earlier attempt; it runs in full (<see cref="FindFinalizableRecord"/>).
     /// </summary>
     /// <remarks>
     /// A cancel is observed before the record is finalized; the update itself takes no token, like every
@@ -4988,22 +4989,25 @@ public class MigrationService : IMigrationService
 
     /// <summary>
     /// The record <see cref="TryFinalizeCompletedMigrationAsync"/> finalizes for a file+target combination: the most
-    /// recent Executing record that committed every block of the unchanged file and saw no rollback, or null.
+    /// recent Executing record that committed every block of the unchanged file and saw no rollback, or null. A RunAlways
+    /// file has none: migrate-up runs it in full on every run, so it never finalizes a record of an earlier attempt.
     /// </summary>
     internal static MigrationRecord? FindFinalizableRecord(
         MigrationFileInfo file, string targetAlias, List<MigrationRecord> existingRecords)
-        => existingRecords
-            .Where(r => r.Filename == file.Filename
-                && r.ReleaseVersion == file.ReleaseVersion
-                && r.TargetGroupAlias == file.TargetGroupAlias
-                && r.TargetAlias == targetAlias
-                && r.MigrationStatusId == MigrationStatus.Executing
-                && r.FileUpBlocksMigrated > 0
-                && r.FileUpBlocksMigrated >= r.FileUpBlocksTotal
-                && r.FileUpBlocksHash == file.FileUpBlocksHash
-                && r.FileDownHash == null)
-            .OrderByDescending(r => r.Id)
-            .FirstOrDefault();
+        => file.RunAlways
+            ? null
+            : existingRecords
+                .Where(r => r.Filename == file.Filename
+                    && r.ReleaseVersion == file.ReleaseVersion
+                    && r.TargetGroupAlias == file.TargetGroupAlias
+                    && r.TargetAlias == targetAlias
+                    && r.MigrationStatusId == MigrationStatus.Executing
+                    && r.FileUpBlocksMigrated > 0
+                    && r.FileUpBlocksMigrated >= r.FileUpBlocksTotal
+                    && r.FileUpBlocksHash == file.FileUpBlocksHash
+                    && r.FileDownHash == null)
+                .OrderByDescending(r => r.Id)
+                .FirstOrDefault();
 
     /// <summary>
     /// Checks if a file+target combination can be resumed from a previous partial execution.
@@ -5013,6 +5017,7 @@ public class MigrationService : IMigrationService
     ///   2. Some blocks were migrated but not all (partial execution)
     ///   3. No rollback was attempted (FileDownHash is null)
     ///   4. The file's SQL blocks hash has not changed since the partial execution
+    ///   5. The file is not a RunAlways file, which always runs in full from its first block
     /// </summary>
     internal int FindResumableBlock(
         MigrationFileInfo file,
@@ -5021,7 +5026,16 @@ public class MigrationService : IMigrationService
     {
         int startFromBlock = ResumableBlockOf(file, targetAlias, existingRecords, out var partialRecord);
         if (partialRecord == null)
+        {
+            if (file.RunAlways && PartialAttemptOf(file, targetAlias, existingRecords) is { } earlierAttempt)
+            {
+                _logger.LogDebug(
+                    "RunAlways file {Filename} runs in full on target {Target}: the {Done} block(s) an earlier attempt committed run again",
+                    file.Filename, targetAlias, earlierAttempt.FileUpBlocksMigrated);
+            }
+
             return 0;
+        }
 
         // Hash comparison: file must not have changed since partial execution
         if (startFromBlock == 0)
@@ -5044,7 +5058,8 @@ public class MigrationService : IMigrationService
     /// The block <see cref="FindResumableBlock"/> resumes a file+target combination from, without its log lines: the
     /// committed blocks of <paramref name="partialRecord"/>, the most recent Failed or Executing record that committed
     /// some but not all blocks and saw no rollback, or 0 when there is no such record or the SQL blocks of the file
-    /// changed since. The status reports the same value as <see cref="PendingMigrationInfo.ResumeFromBlock"/>.
+    /// changed since. A RunAlways file has no such record and starts at its first block, because migrate-up runs it in
+    /// full on every run. The status reports the same value as <see cref="PendingMigrationInfo.ResumeFromBlock"/>.
     /// </summary>
     internal static int ResumableBlockOf(
         MigrationFileInfo file,
@@ -5052,8 +5067,28 @@ public class MigrationService : IMigrationService
         List<MigrationRecord> existingRecords,
         out MigrationRecord? partialRecord)
     {
-        // Find the most recent Failed/Executing record for this file+target
-        partialRecord = existingRecords
+        // A RunAlways file always runs in full: the blocks an earlier attempt committed run again
+        if (file.RunAlways)
+        {
+            partialRecord = null;
+            return 0;
+        }
+
+        partialRecord = PartialAttemptOf(file, targetAlias, existingRecords);
+
+        // Hash comparison: file must not have changed since partial execution
+        return partialRecord != null && partialRecord.FileUpBlocksHash == file.FileUpBlocksHash
+            ? partialRecord.FileUpBlocksMigrated
+            : 0;
+    }
+
+    /// <summary>
+    /// The most recent Failed or Executing record of a file+target combination that committed some but not all blocks
+    /// and saw no rollback, whether or not the SQL blocks of the file changed since; null when there is none.
+    /// </summary>
+    private static MigrationRecord? PartialAttemptOf(
+        MigrationFileInfo file, string targetAlias, List<MigrationRecord> existingRecords)
+        => existingRecords
             .Where(r => r.Filename == file.Filename
                 && r.ReleaseVersion == file.ReleaseVersion
                 && r.TargetGroupAlias == file.TargetGroupAlias
@@ -5064,12 +5099,6 @@ public class MigrationService : IMigrationService
                 && r.FileDownHash == null)  // No rollback attempted
             .OrderByDescending(r => r.Id)   // Most recent record
             .FirstOrDefault();
-
-        // Hash comparison: file must not have changed since partial execution
-        return partialRecord != null && partialRecord.FileUpBlocksHash == file.FileUpBlocksHash
-            ? partialRecord.FileUpBlocksMigrated
-            : 0;
-    }
 
     /// <summary>
     /// Constructs the rollback filename from a forward migration filename.
@@ -6392,13 +6421,19 @@ public class MigrationService : IMigrationService
             }
 
             var scope = ResolveHashValidationScope(file.TargetGroupAlias, productOptions);
+            var targetGroup = productOptions.TargetGroups?
+                .FirstOrDefault(tg => string.Equals(tg.Alias, file.TargetGroupAlias, StringComparison.OrdinalIgnoreCase));
             foreach (var targetAlias in targetAliases)
             {
                 MigrationRecord? migratedRecord = null;
                 if (!file.RunAlways && IsAppliedOnTarget(file, targetAlias, existingRecords, scope, out migratedRecord))
                     continue;
 
-                var (reason, resumeFromBlock) = ClassifyPendingMigration(file, targetAlias, existingRecords, migratedRecord);
+                // The CLI tool that migrate-up runs the file with on the target; a target that only a Targets filter or a
+                // record names has the tool of the file
+                var targetOptions = targetGroup?.Targets?.FirstOrDefault(t => t.Alias == targetAlias);
+                bool runsThroughCliTool = (targetOptions != null ? ResolveUseCliToolAlias(file, targetOptions) : file.UseCliToolAlias) != null;
+                var (reason, resumeFromBlock) = ClassifyPendingMigration(file, targetAlias, existingRecords, migratedRecord, runsThroughCliTool);
                 var incompleteRollback = reason == PendingMigrationReason.RollbackIncomplete
                     ? FindIncompleteRollback(file, targetAlias, existingRecords)
                     : null;
@@ -6416,31 +6451,36 @@ public class MigrationService : IMigrationService
     /// order in which migrate-up treats the record of the pair. The records are those the next migrate-up reads: the status
     /// hands them in after the orphan repair of an open run (<see cref="ProjectOrphanRepair"/>). A record whose rollback
     /// stopped in the middle (<see cref="FindIncompleteRollback"/>) is RollbackIncomplete first, because migrate-up refuses
-    /// to run while there is one, whatever the file is. Otherwise a record that <see cref="TryFinalizeCompletedMigrationAsync"/>
-    /// finalizes is Resumable after every block and one that <see cref="FindResumableBlock"/> resumes is Resumable after
-    /// its committed blocks, also for a RunAlways file, which migrate-up resumes like any other. Then a RunAlways file is
-    /// RunAlways, a Migrated record (<paramref name="migratedRecord"/>, whose hash no longer matches) HashMismatch, a Failed
-    /// record or an Executing record of a run that has ended Failed, and anything else NotMigrated. The record of the pair
-    /// is found with the ordinal comparisons of the checks of migrate-up.
+    /// to run while there is one, whatever the file is. Then a RunAlways file is RunAlways, whatever its record says,
+    /// because migrate-up runs it in full from its first block: it neither finalizes nor resumes a record of an earlier
+    /// attempt of it. Otherwise a record that <see cref="TryFinalizeCompletedMigrationAsync"/> finalizes is Resumable after
+    /// every block and one that <see cref="FindResumableBlock"/> resumes is Resumable after its committed blocks, unless a
+    /// CLI tool runs the file on the target (<paramref name="runsThroughCliTool"/>): the tool runs the whole file, so
+    /// migrate-up neither finalizes nor resumes an earlier attempt of it either. Then a Migrated record
+    /// (<paramref name="migratedRecord"/>, whose hash no longer matches) is HashMismatch, a Failed record or an Executing
+    /// record of a run that has ended Failed, and anything else NotMigrated. The record of the pair is found with the
+    /// ordinal comparisons of the checks of migrate-up.
     /// </summary>
     internal static (PendingMigrationReason Reason, int? ResumeFromBlock) ClassifyPendingMigration(
         MigrationFileInfo file,
         string targetAlias,
         List<MigrationRecord> existingRecords,
-        MigrationRecord? migratedRecord)
+        MigrationRecord? migratedRecord,
+        bool runsThroughCliTool = false)
     {
         if (FindIncompleteRollback(file, targetAlias, existingRecords) != null)
             return (PendingMigrationReason.RollbackIncomplete, null);
 
-        if (FindFinalizableRecord(file, targetAlias, existingRecords) != null)
+        if (file.RunAlways)
+            return (PendingMigrationReason.RunAlways, null);
+
+        if (!runsThroughCliTool && FindFinalizableRecord(file, targetAlias, existingRecords) != null)
             return (PendingMigrationReason.Resumable, file.FileUpBlocksTotal);
 
-        int resumeFromBlock = ResumableBlockOf(file, targetAlias, existingRecords, out _);
+        int resumeFromBlock = runsThroughCliTool ? 0 : ResumableBlockOf(file, targetAlias, existingRecords, out _);
         if (resumeFromBlock > 0)
             return (PendingMigrationReason.Resumable, resumeFromBlock);
 
-        if (file.RunAlways)
-            return (PendingMigrationReason.RunAlways, null);
         if (migratedRecord != null)
             return (PendingMigrationReason.HashMismatch, null);
 

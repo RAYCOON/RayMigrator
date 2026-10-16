@@ -135,7 +135,7 @@ Two additional validations run inside `DiscoverAndPrepareMigrationFiles` before 
 
 `FilterAlreadyMigratedFiles` compares discovered files against existing `MigrationRecord` entries from the repository. A file is considered already migrated when a record with matching `Filename`, `ReleaseVersion`, `TargetGroupAlias`, and `MigrationStatusId = Migrated` exists.
 
-- **RunAlways files**: Always included regardless of existing records.
+- **RunAlways files**: Always included regardless of existing records, on every target their `Targets` filter selects. Migrate-up runs them in full from the first block: it neither resumes nor finalizes a record of an earlier attempt of a RunAlways file.
 - **Hash-changed files**: If an already-migrated file's `FileUpHash` no longer matches the repository record, it is re-included with a warning.
 - **Validate mode**: When the run mode does not read the repository (`Validate`), all discovered files are included. `Simulate` and `Migrate` modes read the repository and filter accordingly.
 
