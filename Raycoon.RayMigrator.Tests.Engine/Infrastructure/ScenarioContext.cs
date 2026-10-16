@@ -29,6 +29,7 @@ public class ScenarioContext : IAsyncDisposable
     private OperationResult? _lastResult;
     private string _environment = "Docker";
     private readonly RunInitiatorValues? _initiator;
+    private readonly PrefixTableCleanup _prefixTableCleanup;
 
     /// <summary>
     /// The temporary working directory containing the copied migration files.
@@ -63,6 +64,7 @@ public class ScenarioContext : IAsyncDisposable
         string workDir,
         string configPath,
         string productAlias,
+        PrefixTableCleanup prefixTableCleanup,
         RunInitiatorValues? initiator = null)
     {
         _host = host;
@@ -71,6 +73,7 @@ public class ScenarioContext : IAsyncDisposable
         _workDir = workDir;
         _configPath = configPath;
         _productAlias = productAlias;
+        _prefixTableCleanup = prefixTableCleanup;
         _initiator = initiator;
     }
 
@@ -733,9 +736,16 @@ public class ScenarioContext : IAsyncDisposable
         _queryHelper.InsertRunningMigrationRun(productId, "Docker");
     }
 
+    /// <summary>
+    /// Disposes the host, drops the tables of the scenario's table prefix (<see cref="PrefixTableCleanup"/>; a scenario
+    /// without a prefix keeps its tables for inspection) and deletes the working directory. Neither clean-up throws, so
+    /// that neither can hide the result of the test.
+    /// </summary>
     public async ValueTask DisposeAsync()
     {
+        // The host goes first: its disposal flushes the database log into the tables the cleanup drops
         _host.Dispose();
+        _prefixTableCleanup.Run();
 
         try
         {

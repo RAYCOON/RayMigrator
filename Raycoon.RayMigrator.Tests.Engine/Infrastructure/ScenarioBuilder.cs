@@ -117,7 +117,8 @@ public class ScenarioBuilder
 
     /// <summary>
     /// Gives the repository (and the database log, when it is written explicitly) a table prefix
-    /// (<c>Repository.TableBaseName</c>); the cleanup and the query helper of the scenario use the same prefix.
+    /// (<c>Repository.TableBaseName</c>); the cleanup and the query helper of the scenario use the same prefix, and the
+    /// scenario drops the tables of the prefix again when it ends (<see cref="PrefixTableCleanup"/>).
     /// </summary>
     public ScenarioBuilder WithTableBaseName(string tableBaseName)
     {
@@ -515,7 +516,7 @@ public class ScenarioBuilder
     /// Enables database logging like <see cref="WithDatabaseLogging"/>, but into the database of
     /// <paramref name="connectionString"/> with the schema and prefix of the repository: a log of its own beside the
     /// repository, which the repository database does not have. The builder drops the log tables of that database before
-    /// the scenario starts.
+    /// the scenario starts, and a scenario with a table prefix drops them again when it ends.
     /// </summary>
     public ScenarioBuilder WithDatabaseLoggingInto(string connectionString, string? minimumLevel = "Debug")
     {
@@ -591,14 +592,19 @@ public class ScenarioBuilder
         string productAlias = _hostProductAlias;
         GenerateConfig(configPath, workDir, MainProductAlias);
 
-        // 5. Clean databases
-        DatabaseCleanupHelper.CleanDatabase(_engineConfig.DatabaseType, _engineConfig.ConnectionString, _engineConfig.SchemaName, _tableBaseName);
+        // 5. Clean databases: the repository and a log database of its own with the prefix of the scenario (the scenario
+        // drops their tables of the prefix again when it ends), the targets without a prefix
+        List<string> prefixedDatabases = [_engineConfig.ConnectionString];
+        if (_databaseLoggingConnectionString != null && _databaseLoggingConnectionString != _engineConfig.ConnectionString)
+            prefixedDatabases.Add(_databaseLoggingConnectionString);
+        var prefixTableCleanup = new PrefixTableCleanup(
+            _engineConfig.DatabaseType, _engineConfig.SchemaName, _tableBaseName, prefixedDatabases);
+        foreach (string connectionString in prefixedDatabases)
+            DatabaseCleanupHelper.CleanDatabase(_engineConfig.DatabaseType, connectionString, _engineConfig.SchemaName, _tableBaseName);
         if (_mainTargetConnectionString != null && _mainTargetConnectionString != _engineConfig.ConnectionString)
             DatabaseCleanupHelper.CleanDatabase(_engineConfig.DatabaseType, _mainTargetConnectionString, _engineConfig.SchemaName);
         if (_secondConnectionString != null)
             DatabaseCleanupHelper.CleanDatabase(_engineConfig.DatabaseType, _secondConnectionString, _engineConfig.SchemaName);
-        if (_databaseLoggingConnectionString != null && _databaseLoggingConnectionString != _engineConfig.ConnectionString)
-            DatabaseCleanupHelper.CleanDatabase(_engineConfig.DatabaseType, _databaseLoggingConnectionString, _engineConfig.SchemaName, _tableBaseName);
 
         foreach (var (_, dbType, connStr, _, _) in _additionalTargetGroups)
             DatabaseCleanupHelper.CleanDatabase(dbType, connStr, _engineConfig.SchemaName);
@@ -611,7 +617,9 @@ public class ScenarioBuilder
         }
         catch
         {
+            // A host that fails after it initialized its database log has created the log tables of the prefix
             host.Dispose();
+            prefixTableCleanup.Run();
             try { Directory.Delete(workDir, recursive: true); } catch { /* best effort */ }
             throw;
         }
@@ -620,7 +628,7 @@ public class ScenarioBuilder
         var queryHelper = new RepositoryQueryHelper(_engineConfig.DatabaseType, _engineConfig.ConnectionString, _engineConfig.SchemaName, _tableBaseName);
 
         // 8. Return context
-        return new ScenarioContext(host, queryHelper, _engineConfig, workDir, configPath, productAlias, _initiator);
+        return new ScenarioContext(host, queryHelper, _engineConfig, workDir, configPath, productAlias, prefixTableCleanup, _initiator);
     }
 
     /// <summary>
