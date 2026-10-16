@@ -44,7 +44,7 @@ The `MigrationRecord` table includes columns for block tracking:
 | Column | Description |
 |--------|-------------|
 | `FileUpBlocksTotal` | Total number of blocks in the file |
-| `FileUpBlocksMigrated` | Number of blocks successfully executed |
+| `FileUpBlocksMigrated` | Number of leading blocks that committed on the target; it holds them at every moment of a run (a block after an ignored failure does not count, also when the file ends, a file that a CLI tool runs counts 0 while the tool runs, a resumed file shows the blocks it resumes after from its start), so a run that ends abruptly leaves a counter the next start can trust |
 | `MigrationStatusId` | Current status: Pending (10), Executing (20), Failed (30), NotMigrated (50), Migrated (100) |
 
 ### Resume Behavior

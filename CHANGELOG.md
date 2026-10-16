@@ -31,7 +31,9 @@ RayMigrator follows Semantic Versioning where applicable.
   `SLEEP()` early without an error, and the further statements of the block
   run; SQLite only checks before a block). The
   interrupted file reports `FileOutcome.Cancelled` (100) and its record is
-  `Failed` with the blocks that committed (none on the atomic path), so the
+  `Failed` with the leading blocks that committed (with
+  `MigrationErrorAction=Ignore` those before the first failed block; on the
+  atomic path only those of an earlier attempt, normally none), so the
   next migrate-up resumes it like a failed file. Then the run takes the
   action: `Terminate` (10, the default) does nothing else, `RollbackFile`
   (21), `RollbackRun` (20) and `RollbackRelease` (22) run the rollback
@@ -53,9 +55,10 @@ RayMigrator follows Semantic Versioning where applicable.
   baseline and an error recovery that is already running stop at the next
   block or file and ignore the action (logged when it is not `Terminate`):
   the record in progress of a migrate-down or an error recovery is `Failed`
-  with its rollback blocks and the next migrate-down continues it, and the
-  records a baseline wrote stay. A migrate-up that failed at a file and
-  whose error recovery the cancel stopped stays `Error` with the code of
+  with its leading rollback blocks and the next migrate-down continues it,
+  unless its first rollback block failed under `RollbackErrorAction=Ignore`,
+  and the records a baseline wrote stay. A migrate-up that failed at a file
+  and whose error recovery the cancel stopped stays `Error` with the code of
   that failure, not `Cancelled`: the run failed before the cancel, which
   only stopped the handling of the failure, so error rates, the exit code of
   the CLI (1, not 130) and the operator see the failed file. Its message
@@ -68,7 +71,12 @@ RayMigrator follows Semantic Versioning where applicable.
   files this run migrated stay Migrated` or `… after i of m rollback(s): the
   files it did not reach keep their state`. The first block of a rollback
   file, an atomic rollback and a rollback through a CLI tool always
-  complete, so a record never ends `Failed` without rollback progress. A
+  complete, so a cancel leaves a record `Failed` without rollback progress
+  only where `RollbackErrorAction=Ignore` went on after a failed first
+  rollback block, which the message names: `… in the rollback of <file> on
+  target <target>, whose first rollback block failed under
+  RollbackErrorAction=Ignore: <file> is Failed without rollback progress,
+  which migrate-down does not continue`. A
   migrate-up refuses to start while a file it would run has a record
   `Failed`, or `Executing` in a run that has ended, with some but not all of
   its rollback blocks (left by such a cancel, by a failed rollback block
@@ -435,6 +443,52 @@ RayMigrator follows Semantic Versioning where applicable.
   longer the placeholder `Repository_MigrationRecordHistory_Archive.sql`,
   which had no `TemplateType`: the update templates write the history, and
   the retention templates delete it.
+- The block counters of a migration record count the leading blocks that
+  committed on the target at every moment of a run, so that a run that
+  ends abruptly leaves a counter the next start can trust. The record of a
+  file that a CLI tool runs counts 0 committed blocks while the tool runs
+  (it counted 1 before), and migrate-up neither resumes nor finalizes an
+  earlier attempt of such a file, because the tool runs the whole file: an
+  older record with committed blocks, for example of an attempt on the DAL
+  before the target got the tool, made migrate-up log and report
+  (`FileStartedEvent.ResumeFromBlock`) a resume after them, and a record
+  that an older engine left `Executing` with every block was finalized as
+  `Migrated`; `info` lists such a file as `Failed`. A rollback through such
+  a tool reports `FileStartedEvent.ResumeFromBlock` 0 as well, because the
+  tool runs the whole rollback file (it reported the rollback blocks of an
+  earlier attempt on the DAL). With
+  `MigrationErrorAction=Ignore` the record of a
+  file with failed blocks counts the contiguous leading blocks that
+  committed, the blocks before the first failed one: while the file runs
+  (it counted the attempted blocks before), when the file ends and when a
+  cancel stops it (both stored the block count of the file before), and
+  also when the file fails with an exception, as under every other error
+  action. The next migrate-up resumes such a file at its first failed
+  block instead of running the whole file again, and runs the blocks after
+  it again; when the first block failed, or the SQL blocks of the file
+  changed, it runs the whole file; `info` lists such a file as
+  `Resumable` after its committed blocks (`Failed` when none committed).
+  From this version on, a `FileUpBlocksMigrated` equal to
+  `FileUpBlocksTotal` always means that every block committed. With
+  `RollbackErrorAction=Ignore` `FileDownBlocksMigrated` counts the leading
+  rollback blocks that ran the same way while the rollback runs (it counted
+  every rollback block that ran, also after a failed one); the completed
+  rollback still stores the block count with `Failed`. A cancel of such a
+  rollback keeps the leading rollback blocks as well, so that the next
+  migrate-down runs the failed rollback block again; after a failed first
+  rollback block it keeps none, and migrate-down does not continue the
+  record. A failed atomic
+  rollback keeps the rollback blocks of the attempt it continued (it stored
+  0, so that migrate-down did not continue the rollback and migrate-up ran
+  the file again over a half rolled back target), and a rollback through a
+  CLI tool that fails under a `RollbackErrorAction`
+  other than `Ignore` leaves its record `Failed` with these rollback blocks
+  (it left the record `Executing` in a run that had ended). A resumed file
+  carries its committed blocks on its record before its first block runs,
+  and a rollback that continues one that stopped in the middle its
+  rollback blocks; both counted 0 until the next block committed. A
+  rollback through a CLI tool leaves `FileUpBlocksMigrated` of its record
+  alone (it set it to 1).
 
 ### Fixed
 

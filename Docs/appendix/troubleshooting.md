@@ -457,7 +457,7 @@ The `Repository_Product_CheckInsert` template rejects a `NULL`/empty `Name` para
 1. **Check `RollbackErrorAction` configuration**
    The `RollbackErrorAction` setting controls behavior when a rollback operation encounters an error:
    - `Terminate` (default) -- Instantly terminate the rollback chain and do not perform any further rollbacks.
-   - `Ignore` -- Skip the failed rollback file (mark it as Failed) and continue the rollback chain with the next file.
+   - `Ignore` -- Skip the failed rollback block, run the remaining blocks of the rollback file, mark the record as Failed and continue the rollback chain with the next file.
 
    ```json
    {
@@ -622,7 +622,7 @@ The `Repository_Product_CheckInsert` template rejects a `NULL`/empty `Name` para
 
 **Symptoms:**
 - The process ended at once on a second Ctrl+C or SIGTERM, or was killed, for example after the grace period of a container stop
-- The run row stays `Running` and the record of the file in progress `Executing` (or `Pending`, when no block had committed or the file ran on the atomic path)
+- The run row stays `Running` and the record of the file in progress `Executing` with the blocks that had committed, or `Pending` (see [After a Hard Abort](../02-core-concepts/migration-state-machine.md#after-a-hard-abort))
 - Until two minutes have passed since the last heartbeat of that run, the next start fails with "RayMigrator aborted because another migration is already running"
 
 **Explanation:** Only the first signal cancels cleanly; a second one ends the process like a crash. The run writes no more heartbeats, and once its last heartbeat is older than `Repository.OrphanedRunThresholdInMinutes` (default 2 minutes) the next start for the same product and environment closes it as orphaned (see [Auto-Fix of Orphaned Runs](#auto-fix-of-orphaned-runs)).
@@ -1107,8 +1107,8 @@ When a migration file has `UseTransaction` explicitly set in its TOML header but
 
 ### SQL Block Splitting Skipped for CLI Tool Execution
 
-When a migration file is executed by an external CLI tool (via `UseCliToolAlias`), SQL block splitting (e.g., splitting on `GO` for SQL Server) is skipped. CLI tools execute the entire file as a single unit, so delimiter-based splitting is not needed. This means:
-- Block-level tracking (`FileUpBlocksMigrated` / `FileUpBlocksTotal`) always shows 1 block total for CLI-tool-executed files.
+When a migration file names an external CLI tool (`UseCliToolAlias` in its TOML header or migsettings), or every target of its target group runs one, SQL block splitting (e.g., splitting on `GO` for SQL Server) is skipped. CLI tools execute the entire file as a single unit, so delimiter-based splitting is not needed. This means:
+- Block-level tracking (`FileUpBlocksMigrated` / `FileUpBlocksTotal`) shows 1 block total for such a file; `FileUpBlocksMigrated` is 0 while the tool runs and 1 once it finished. A file that is split for the targets of its group on the DAL counts its blocks on a target with a tool as well: 0 while the tool runs, every block once it finished.
 - The `GO` inside comments/string literals limitation does not apply to CLI-tool-executed files.
 
 ### Atomic Shared Connection Activates Automatically
@@ -1145,7 +1145,7 @@ A cancel takes effect at the next block boundary, and some work always runs to i
 - On MySQL a cancel interrupts only the statement in progress (`KILL QUERY`) and the further statements of the block still run; SQLite cannot interrupt a statement at all. On both, the block in progress may complete, and the run stops before the next block. SQL Server, PostgreSQL and MariaDB abort the block in progress; on MariaDB, as on MySQL, `KILL QUERY` ends a `SLEEP()` early without an error, so a block that waits in `SLEEP()` runs to its end as well.
 - During a rollback (a migrate-down, or the error recovery of a migrate-up), the first block of a rollback file, an atomic rollback and a rollback through a CLI tool run to their end.
 - The rollback that a `--cancelled-action` other than `terminate` starts cannot be cancelled again.
-- With `MigrationErrorAction` = `Ignore`, the interrupted record keeps the block count of the file, as after an ignored error, so the next migrate-up runs the whole file again from its first block.
+- With `MigrationErrorAction` = `Ignore`, the interrupted record keeps the blocks before the first failed one, as after a file that ran to its end with an ignored error, so the next migrate-up resumes at the failed block.
 
 See [ADR-028](../arc42/09-Architecture-Decisions.md#adr-028-a-run-cancels-at-the-next-block-boundary-with-a-migrationcancelledaction-and-records-cancelled) and [Error Handling — Cancellation](../02-core-concepts/error-handling.md#cancellation).
 

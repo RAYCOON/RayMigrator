@@ -31,7 +31,7 @@ All string properties support `{ENV:VARIABLE_NAME}` placeholders.
 | `Rollback` | Execute rollback scripts for all migrations performed in the current run |
 | `RollbackErrorOnly` | Rollback only the failed migration using its associated rollback file |
 | `RollbackRelease` | Rollback the current run's migrations of the release that caused the error. Migrations from earlier releases remain intact. |
-| `Ignore` | Ignore the error and continue execution. Failed SQL blocks are skipped, and the migration file is marked as Failed. The migration run continues with the next file. |
+| `Ignore` | Ignore the error and continue execution. Failed SQL blocks are skipped, and the migration file is marked as Failed with the blocks before the first failed one, so the next run resumes at that block. The migration run continues with the next file. |
 
 See [Error Handling](../02-core-concepts/error-handling.md) for detailed behavior descriptions, flow diagrams, and the full priority chain.
 

@@ -21,14 +21,16 @@ public enum PendingMigrationReason
 
     /// <summary>
     /// The last attempt on the target failed, or stopped without a final status in a run that has ended, and left
-    /// nothing to resume: no block committed, the blocks of the file changed since, a rollback ran, or
-    /// MigrationErrorAction=Ignore skipped failed blocks. Migrate-up runs the file again from its first block.
+    /// nothing to resume: no block committed (with MigrationErrorAction=Ignore: the first block failed), every block is
+    /// counted on the Failed record, the blocks of the file changed since, a rollback ran, or a CLI tool runs the file on
+    /// the target and runs it whole. Migrate-up runs the file again from its first block.
     /// </summary>
     Failed = 20,
 
     /// <summary>
     /// A previous run committed the leading blocks of the file on the target and stopped: a failure, a cancel with
-    /// Terminate, or a run that ended after the last block without finalizing the record. Migrate-up skips the
+    /// Terminate, a run that ended after the last block without finalizing the record, or a failed block that
+    /// MigrationErrorAction=Ignore skipped, after which the record counts the blocks before it. Migrate-up skips the
     /// committed blocks (<see cref="PendingMigrationInfo.ResumeFromBlock"/>) and continues with the next one, or only
     /// finalizes the record when every block committed. A RunAlways file is resumed like any other, so this reason
     /// takes precedence over <see cref="RunAlways"/>.

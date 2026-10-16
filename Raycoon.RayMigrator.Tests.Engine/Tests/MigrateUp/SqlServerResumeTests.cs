@@ -1,4 +1,5 @@
 using Raycoon.RayMigrator.Core.Configuration.Enums;
+using Raycoon.RayMigrator.Core.Progress;
 using Raycoon.RayMigrator.Testing;
 using Raycoon.RayMigrator.Tests.Engine.Fixtures;
 using Raycoon.RayMigrator.Tests.Engine.Infrastructure;
@@ -121,12 +122,13 @@ public class SqlServerResumeTests : SqlServerTestBase
     }
 
     /// <summary>
-    /// Guard: with MigrationErrorAction=Ignore every block is attempted and the failed ones are skipped, so the
-    /// successfully migrated blocks are not a contiguous prefix. Such a record must never be resumed: the
-    /// second run re-executes the whole file. (Passes today; must keep passing after the resume fix.)
+    /// With MigrationErrorAction=Ignore every block is attempted and the failed ones are skipped; the record keeps the
+    /// leading blocks that committed before the first failed one, so the second run resumes at the failed block and does
+    /// not run the blocks before it again, only the blocks after it. Ignore rules out the atomic path, so the target that
+    /// shares the repository's connection runs block by block here.
     /// </summary>
     [Fact]
-    public async Task FailedBlock_IgnoreMode_SecondRunReExecutesWholeFile()
+    public async Task FailedBlock_IgnoreMode_SecondRunResumesAtTheFailedBlock()
     {
         Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
 
@@ -135,23 +137,32 @@ public class SqlServerResumeTests : SqlServerTestBase
             .WithMigrationErrorAction(MigrationErrorAction.Ignore)
             .BuildAsync();
 
-        // Run 1: blocks 1 and 3 succeed, block 2 is skipped, file is Failed, run continues
+        // Run 1: blocks 1 and 3 succeed, block 2 is skipped, the file is Failed with block 1, run continues
         await ctx.MigrateUpAsync("Release_1.0");
         ctx.AssertSuccess(false);
         ctx.AssertRunResult(MigrationRunResult.PartialSuccess);
-        ctx.AssertFileStatus("03_SeedDataA.sql", MigrationStatus.Failed);
+        ctx.AssertMigrationRecord("03_SeedDataA.sql", new MigrationRecordExpectation
+        {
+            MigrationStatusId = (int)MigrationStatus.Failed,
+            FileUpBlocksMigrated = 1,
+            FileUpBlocksTotal = 3
+        });
         ctx.AssertRowCount("TableA", 2);
 
         ctx.ExecuteOnConnection(Fixture.EngineConfig.ConnectionString, CreateResumeProbe);
 
-        // Run 2: no resume, the whole file runs again
+        // Run 2: resume with block 2, then block 3 again; block 1 does not run again
         await ctx.RebuildForAsync(MigrationCommand.MigrateUp, MigrationRunMode.Migrate, "Release_1.0");
+        var resume = new RecordingProgressObserver();
+        ctx.UseProgressObserver(resume);
         await ctx.MigrateUpAsync("Release_1.0");
         ctx.AssertSuccess(true);
         ctx.AssertRunResult(MigrationRunResult.Ok);
 
+        resume.Of<FileStartedEvent>().Should().ContainSingle(f => f.FileName == "03_SeedDataA.sql")
+            .Which.ResumeFromBlock.Should().Be(1);
         ctx.AssertFileStatus("03_SeedDataA.sql", MigrationStatus.Migrated);
         ctx.AssertRowCount("ResumeProbe", 1);
-        ctx.AssertRowCount("TableA", 4);
+        ctx.AssertRowCount("TableA", 3);
     }
 }

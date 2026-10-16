@@ -112,7 +112,7 @@ flowchart TD
 
 ## Rollback Order
 
-The query filters for migration records that are either in `Migrated` status or in `Failed` status with partial rollback progress (i.e., a previous rollback was interrupted partway through). This enables **rollback resumption** -- if a rollback was partially completed and then aborted, a subsequent migrate-down will resume from where it left off rather than re-executing already-completed rollback blocks.
+The query filters for migration records that are either in `Migrated` status or in `Failed` status with partial rollback progress (i.e., a previous rollback was interrupted partway through). This enables **rollback resumption** -- if a rollback was partially completed and then aborted, a subsequent migrate-down will resume from where it left off rather than re-executing already-completed rollback blocks. The record keeps those rollback blocks from the start of the resumed rollback, so a migrate-down that ends before its next rollback block leaves the rollback for the next migrate-down as well.
 
 Migrations are rolled back in **reverse** order of their original execution:
 
@@ -233,11 +233,15 @@ If rollback SQL fails with `RollbackErrorAction=Terminate`, or rollback file is 
 |--------|-------|-------|
 | Migrated | Failed | Aborted |
 
+A record whose rollback SQL failed keeps the rollback blocks that ran before the failed block; an atomic rollback and a rollback through a CLI tool keep those of the attempt they continued (0 without one). A record with some but not all of its rollback blocks is a rollback that stopped in the middle: the next migrate-down continues it at the failed block, and migrate-up refuses to run its file until then.
+
 If rollback SQL fails with `RollbackErrorAction=Ignore`:
 
 | Before | After | Chain |
 |--------|-------|-------|
 | Migrated | Failed | Continues |
+
+The rollback that ran to its end accepts its failed blocks: the record is `Failed` with every rollback block, migrate-down does not pick it again, and migrate-up runs the file again from its first block. A cancel or a run that ends abruptly before that end accepts nothing: the record keeps the rollback blocks before the first failed one, and the next migrate-down runs the failed block again, unless it was the first rollback block, which leaves no rollback block to continue after.
 
 If rollback file is missing with `RequireRollbackFile=false`:
 

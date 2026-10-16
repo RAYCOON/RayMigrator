@@ -307,7 +307,7 @@ stateDiagram-v2
     Executing --> NotMigrated: fix (orphaned run) - RepositoryMigrationRecordFixOrphanedAsync(assumed status)
 ```
 
-`fix` writes the status of `--last-migration-status` (`NotMigrated` or `Migrated`) to every `Pending`/`Executing` record of an orphaned run; the auto-fix in `RepositoryMigrationRunInsertWithAutoFix()` always uses `NotMigrated`. `Undefined` (0) is never persisted. A cancelled file keeps the blocks that committed before the cancel (none on the atomic path), so the next migrate-up resumes it like a failed file; under `MigrationErrorAction=Ignore` the record stores the block count of the file instead, and the next migrate-up runs the whole file again.
+`fix` writes the status of `--last-migration-status` (`NotMigrated` or `Migrated`) to every `Pending`/`Executing` record of an orphaned run; the auto-fix in `RepositoryMigrationRunInsertWithAutoFix()` always uses `NotMigrated`. `Undefined` (0) is never persisted. A cancelled file keeps the blocks that committed before the cancel (none on the atomic path), so the next migrate-up resumes it like a failed file; under `MigrationErrorAction=Ignore` these are the blocks before the first failed one, as at the end of such a file.
 
 ### MigrationRunResult (per run)
 

@@ -151,7 +151,7 @@ raymigrator migrate-down --product <alias> --environment <env> --to-release <ver
 
 **--target-group**: Filters rollback to specific target groups. Can be specified multiple times. If omitted, all target groups are rolled back.
 
-**--cancelled-action**: Accepted with the values of migrate-up so that a script can pass the same options to every run command, and ignored (logged when it is not `terminate`): a cancelled migrate-down stops at the next rollback block, leaves the record in progress `Failed` with its rollback blocks and records the run as `Cancelled`; the next migrate-down continues it. See [Cancelling a Run](global-options.md#cancelling-a-run).
+**--cancelled-action**: Accepted with the values of migrate-up so that a script can pass the same options to every run command, and ignored (logged when it is not `terminate`): a cancelled migrate-down stops at the next rollback block, leaves the record in progress `Failed` with its rollback blocks and records the run as `Cancelled`; the next migrate-down continues it, unless its first rollback block failed under `RollbackErrorAction=Ignore`. See [Cancelling a Run](global-options.md#cancelling-a-run).
 
 ### Property Mapping
 

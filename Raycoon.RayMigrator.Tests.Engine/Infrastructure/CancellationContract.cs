@@ -36,10 +36,11 @@ internal static class CancellationContract
     /// The seed file of release 1.0 as three blocks of one row each (alpha, beta, gamma) in the block syntax of the
     /// database; a block can be replaced, for example by an error or a sleep.
     /// </summary>
-    public static ScenarioBuilder WithThreeBlockSeed(ScenarioBuilder builder, EngineConfig config, string? secondBlock = null, string? thirdBlock = null)
+    public static ScenarioBuilder WithThreeBlockSeed(
+        ScenarioBuilder builder, EngineConfig config, string? secondBlock = null, string? thirdBlock = null, string? firstBlock = null)
     {
         string body = SqlDialect.JoinBlocks(config.DatabaseType,
-            SqlDialect.GetInsertIntoTableASql(config.DatabaseType, "alpha", 10),
+            firstBlock ?? SqlDialect.GetInsertIntoTableASql(config.DatabaseType, "alpha", 10),
             secondBlock ?? SqlDialect.GetInsertIntoTableASql(config.DatabaseType, "beta", 20),
             thirdBlock ?? SqlDialect.GetInsertIntoTableASql(config.DatabaseType, "gamma", 30));
         return builder.WithFileBytes($"{Release1}/Backend/{Seed}", Encoding.UTF8.GetBytes(SeedHeader + body + "\n"));

@@ -144,7 +144,7 @@ Authoritative pages: [Environment variables](https://github.com/RAYCOON/RayMigra
 ### Block-Level Execution and Transactions
 
 `SplitSqlIntoBlocks` splits the SQL part of a file at the engine's `DalSpecificProperties.SqlBlockDelimiter` standing alone on a
-line (case insensitive) and falls back to one block; files routed to a CLI tool are not split (`ShouldSkipBlockSplitting`). Each
+line (case insensitive) and falls back to one block; a file that names a CLI tool, or whose target group runs every target through one, is not split (`ShouldSkipBlockSplitting`). Each
 block is one `IDal.ExecuteNonQueryAsync` call: the DAL opens a connection and, when `UseTransaction` is `true`, begins and commits
 a transaction per block, and `RepositoryMigrationUpdateAsync` persists `Executing` with the committed block count after every block.
 The transaction spans a block, not a file, and `FindResumableBlock` uses the counter to continue an interrupted file. Only when
@@ -297,7 +297,7 @@ failure, because the failure decides the run. `update-hash` and `fix` return `10
 without the signal). A cancel is logged
 as a warning without the exception, whose stack trace goes to `Debug`. A second signal ends the CLI at once and leaves the run to the orphan repair. Known gaps: a
 failed first rollback block leaves a record `Failed` without rollback progress, MySQL runs the further statements of a block after the
-cancel, MySQL and MariaDB run a block in `SLEEP()` to its end, and a cancel with `MigrationErrorAction.Ignore` makes the next `migrate-up` run the whole file again.
+cancel, and MySQL and MariaDB run a block in `SLEEP()` to its end.
 Decision: [ADR-028](09-Architecture-Decisions.md#adr-028-a-run-cancels-at-the-next-block-boundary-with-a-migrationcancelledaction-and-records-cancelled). Scenario: [Runtime View 6.10](06-Runtime-View.md#610-cancellation-of-a-run). Authoritative page: [Error handling: Cancellation](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/02-core-concepts/error-handling.md#cancellation).
 
 ### Retry on Transient Errors

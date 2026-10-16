@@ -771,8 +771,11 @@ public class MigrationService : IMigrationService
                     // Checkpoint: a cancelled run stops before the next file or target
                     cancellationToken.ThrowIfCancellationRequested();
 
+                    // A CLI tool runs the whole file, so a file it runs neither finalizes nor resumes an earlier attempt
+                    string? resolvedCliAlias = ResolveUseCliToolAlias(file, targetOptions);
+
                     // OPT-1: Check if a previous run completed all blocks but wasn't finalized
-                    if (request.RunMode.ShouldWriteRepository())
+                    if (request.RunMode.ShouldWriteRepository() && resolvedCliAlias == null)
                     {
                         int finalizedId = await TryFinalizeCompletedMigrationAsync(file, targetOptions.Alias!, existingRecords, cancellationToken);
                         if (finalizedId > 0)
@@ -828,12 +831,16 @@ public class MigrationService : IMigrationService
                     _ctxAccessor.Current.MigrationState.FileBlocksCommitted = 0;
 
                     // Check if this file+target can resume from a previous partial execution
-                    int startFromBlock = FindResumableBlock(file, targetOptions.Alias!, existingRecords);
+                    int startFromBlock = resolvedCliAlias == null ? FindResumableBlock(file, targetOptions.Alias!, existingRecords) : 0;
 
                     // Branch: CLI tool or DAL execution
                     int succeededBlocks, failedBlocks;
                     bool atomicCommitCompleted;
-                    string? resolvedCliAlias = ResolveUseCliToolAlias(file, targetOptions);
+                    if (startFromBlock > 0 && request.RunMode.ShouldWriteRepository())
+                    {
+                        await MarkResumedRecordAsync(migrationRecordId, startFromBlock);
+                    }
+
                     ReportFileStarted(MigrationOperation.MigrateUp, file, targetOptions.Alias!, migrationRecordId, startFromBlock, targetStartTime,
                         blocksTotal: resolvedCliAlias != null ? 1 : file.FileUpBlocksTotal);
                     currentFileStarted = true;
@@ -841,7 +848,7 @@ public class MigrationService : IMigrationService
                     {
                         var cliTool = GetCliToolByAlias(resolvedCliAlias);
                         (succeededBlocks, failedBlocks) = await ExecuteWithCliTool(
-                            file, targetGroupOptions, targetOptions, migrationRecordId, request.RunMode, cliTool, cancellationToken);
+                            file, targetGroupOptions, targetOptions, migrationRecordId, request.RunMode, cliTool, cancellationToken: cancellationToken);
                         atomicCommitCompleted = false;
                     }
                     else
@@ -866,11 +873,11 @@ public class MigrationService : IMigrationService
 
                         if (request.RunMode.ShouldWriteRepository())
                         {
-                            // Ignore mode attempts every block and skips the failed ones, so the committed blocks are
-                            // not a contiguous prefix. Store the total so that FindResumableBlock never resumes this
-                            // record; the next run re-executes the whole file (#11).
+                            // Ignore mode attempts every block and skips the failed ones. The record keeps the leading
+                            // blocks that committed before the first failed one, so the next run resumes at that block
+                            // and runs the blocks after it again, as after a cancel or a run that ended abruptly (#11).
                             await _templateExecutor.RepositoryMigrationUpdateAsync(
-                                migrationRecordId, MigrationStatus.Failed, file.FileUpBlocksTotal);
+                                migrationRecordId, MigrationStatus.Failed, _ctxAccessor.Current.MigrationState.FileBlocksCommitted);
                         }
 
                         break; // Skip remaining targets for this file
@@ -938,7 +945,7 @@ public class MigrationService : IMigrationService
                 }
 
                 await CompleteCancelledFileAsync(result, migrationResults, file, currentTargetAlias, currentRecordId,
-                    currentFileStarted, ignoreErrors, request.RunMode, fileStartTime, targetStartTime, ex);
+                    currentFileStarted, request.RunMode, fileStartTime, targetStartTime, ex);
                 return result;
             }
             catch (Exception ex)
@@ -955,8 +962,7 @@ public class MigrationService : IMigrationService
                     if (request.RunMode.ShouldWriteRepository() && currentRecordId > 0)
                     {
                         await _templateExecutor.RepositoryMigrationUpdateAsync(
-                            currentRecordId, MigrationStatus.Failed,
-                            ignoreErrors ? file.FileUpBlocksTotal : _ctxAccessor.Current.MigrationState.FileBlocksCommitted);
+                            currentRecordId, MigrationStatus.Failed, _ctxAccessor.Current.MigrationState.FileBlocksCommitted);
                     }
                 }
                 catch (Exception updateEx)
@@ -1060,8 +1066,11 @@ public class MigrationService : IMigrationService
                     // Checkpoint: a cancelled run stops before the next file
                     cancellationToken.ThrowIfCancellationRequested();
 
+                    // A CLI tool runs the whole file, so a file it runs neither finalizes nor resumes an earlier attempt
+                    string? resolvedCliAlias = ResolveUseCliToolAlias(file, targetOptions);
+
                     // OPT-1: Check if a previous run completed all blocks but wasn't finalized
-                    if (request.RunMode.ShouldWriteRepository())
+                    if (request.RunMode.ShouldWriteRepository() && resolvedCliAlias == null)
                     {
                         int finalizedId = await TryFinalizeCompletedMigrationAsync(file, targetOptions.Alias!, existingRecords, cancellationToken);
                         if (finalizedId > 0)
@@ -1129,12 +1138,16 @@ public class MigrationService : IMigrationService
                     _ctxAccessor.Current.MigrationState.FileBlocksCommitted = 0;
 
                     // Check if this file+target can resume from a previous partial execution
-                    int startFromBlock = FindResumableBlock(file, targetOptions.Alias!, existingRecords);
+                    int startFromBlock = resolvedCliAlias == null ? FindResumableBlock(file, targetOptions.Alias!, existingRecords) : 0;
 
                     // Branch: CLI tool or DAL execution
                     int succeededBlocks, failedBlocks;
                     bool atomicCommitCompleted;
-                    string? resolvedCliAlias = ResolveUseCliToolAlias(file, targetOptions);
+                    if (startFromBlock > 0 && request.RunMode.ShouldWriteRepository())
+                    {
+                        await MarkResumedRecordAsync(migrationRecordId, startFromBlock);
+                    }
+
                     ReportFileStarted(MigrationOperation.MigrateUp, file, targetOptions.Alias!, migrationRecordId, startFromBlock, fileStartTime,
                         blocksTotal: resolvedCliAlias != null ? 1 : file.FileUpBlocksTotal);
                     currentFileStarted = true;
@@ -1142,7 +1155,7 @@ public class MigrationService : IMigrationService
                     {
                         var cliTool = GetCliToolByAlias(resolvedCliAlias);
                         (succeededBlocks, failedBlocks) = await ExecuteWithCliTool(
-                            file, targetGroupOptions, targetOptions, migrationRecordId, request.RunMode, cliTool, cancellationToken);
+                            file, targetGroupOptions, targetOptions, migrationRecordId, request.RunMode, cliTool, cancellationToken: cancellationToken);
                         atomicCommitCompleted = false;
                     }
                     else
@@ -1165,11 +1178,11 @@ public class MigrationService : IMigrationService
 
                         if (request.RunMode.ShouldWriteRepository())
                         {
-                            // Ignore mode attempts every block and skips the failed ones, so the committed blocks are
-                            // not a contiguous prefix. Store the total so that FindResumableBlock never resumes this
-                            // record; the next run re-executes the whole file (#11).
+                            // Ignore mode attempts every block and skips the failed ones. The record keeps the leading
+                            // blocks that committed before the first failed one, so the next run resumes at that block
+                            // and runs the blocks after it again, as after a cancel or a run that ended abruptly (#11).
                             await _templateExecutor.RepositoryMigrationUpdateAsync(
-                                migrationRecordId, MigrationStatus.Failed, file.FileUpBlocksTotal);
+                                migrationRecordId, MigrationStatus.Failed, _ctxAccessor.Current.MigrationState.FileBlocksCommitted);
                         }
 
                         result.FailCount++;
@@ -1218,7 +1231,7 @@ public class MigrationService : IMigrationService
                 catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
                 {
                     await CompleteCancelledFileAsync(result, migrationResults, file, targetOptions.Alias!, currentRecordId,
-                        currentFileStarted, ignoreErrors, request.RunMode, fileStartTime, fileStartTime, ex);
+                        currentFileStarted, request.RunMode, fileStartTime, fileStartTime, ex);
                     return result;
                 }
                 catch (Exception ex)
@@ -1235,8 +1248,7 @@ public class MigrationService : IMigrationService
                         if (request.RunMode.ShouldWriteRepository() && currentRecordId > 0)
                         {
                             await _templateExecutor.RepositoryMigrationUpdateAsync(
-                                currentRecordId, MigrationStatus.Failed,
-                                ignoreErrors ? file.FileUpBlocksTotal : _ctxAccessor.Current.MigrationState.FileBlocksCommitted);
+                                currentRecordId, MigrationStatus.Failed, _ctxAccessor.Current.MigrationState.FileBlocksCommitted);
                         }
                     }
                     catch (Exception updateEx)
@@ -1299,11 +1311,27 @@ public class MigrationService : IMigrationService
     }
 
     /// <summary>
+    /// Marks the record of a file that resumes after <paramref name="committedBlocks"/> blocks of an earlier attempt as
+    /// Executing with those blocks, before its first block runs. The record insert of this attempt has reset the counter,
+    /// and a run that ends before the next block commits must leave the committed blocks on the record, so that the next
+    /// start resumes after them instead of running them again. The count is set first, so that a failure of this write
+    /// leaves the record Failed with the committed blocks like a failure of the next block. The write goes through the
+    /// repository's own connection, also on the atomic path, whose transaction starts later.
+    /// </summary>
+    private async Task MarkResumedRecordAsync(int migrationRecordId, int committedBlocks)
+    {
+        _ctxAccessor.Current.MigrationState.FileBlocksCommitted = committedBlocks;
+        await _templateExecutor.RepositoryMigrationUpdateAsync(migrationRecordId, MigrationStatus.Executing, committedBlocks);
+    }
+
+    /// <summary>
     /// Ends the file a cancel interrupted on a target. The block in progress did not commit; the record is Failed with
-    /// the blocks that committed before the cancel (the total for MigrationErrorAction=Ignore, whose committed blocks
-    /// are no contiguous prefix), so the next migrate-up resumes it like a failed file. The write takes no token and
-    /// goes through the repository's own connection, which is also what PostgreSQL needs after a cancel aborted a
-    /// shared transaction. A run cancelled before the file started on the target leaves nothing to end.
+    /// the leading blocks that committed before the cancel, so the next migrate-up resumes it like a failed file. With
+    /// MigrationErrorAction=Ignore these are the blocks before the first failed one, so the next migrate-up resumes at
+    /// that block and runs the blocks after it again, as after a file that ran to its end with a failed block or a run
+    /// that ended abruptly. The write takes no token and goes through the repository's own connection, which is also
+    /// what PostgreSQL needs after a cancel aborted a shared transaction. A run cancelled before the file started on the
+    /// target leaves nothing to end.
     /// </summary>
     private async Task CompleteCancelledFileAsync(
         TargetGroupExecutionResult result,
@@ -1312,7 +1340,6 @@ public class MigrationService : IMigrationService
         string targetAlias,
         int migrationRecordId,
         bool fileStarted,
-        bool ignoreErrors,
         MigrationRunMode runMode,
         DateTime fileStartTime,
         DateTime targetStartTime,
@@ -1327,7 +1354,7 @@ public class MigrationService : IMigrationService
             return;
         }
 
-        int committedBlocks = ignoreErrors ? file.FileUpBlocksTotal : _ctxAccessor.Current.MigrationState.FileBlocksCommitted;
+        int committedBlocks = _ctxAccessor.Current.MigrationState.FileBlocksCommitted;
 
         // A cancel is no failure: the warning names the message of the exception, which also names a provider error that
         // met the cancel (DalBase puts it there), and the exception with its stack trace goes to Debug
@@ -2410,9 +2437,9 @@ public class MigrationService : IMigrationService
     /// </summary>
     /// <remarks>
     /// A cancel of <paramref name="cancellationToken"/> stops the chain before the next record, which keeps its state,
-    /// or before the next rollback block of the record in progress, which ends Failed with the rollback blocks that ran
-    /// (<see cref="RollbackResult.Cancelled"/>). The first block of a rollback file, an atomic rollback and a rollback
-    /// through a CLI tool always run to their end: stopped earlier, the record would be Failed without rollback
+    /// or before the next rollback block of the record in progress, which ends Failed with the leading rollback blocks
+    /// that ran (<see cref="RollbackResult.Cancelled"/>). The first block of a rollback file, an atomic rollback and a
+    /// rollback through a CLI tool always run to their end: stopped earlier, the record would be Failed without rollback
     /// progress, a state migrate-down does not continue and migrate-up cannot resume. The rollback of a cancel action
     /// passes <see cref="CancellationToken.None"/>.
     /// </remarks>
@@ -2477,8 +2504,9 @@ public class MigrationService : IMigrationService
                     record.Filename, record.Id, outcome, fileStartTime, errorMessage);
             }
 
-            // Ends the record a cancel stopped between two of its rollback blocks: Failed with the rollback blocks that
-            // ran, which the next migrate-down continues; the write takes no token
+            // Ends the record a cancel stopped between two of its rollback blocks: Failed with the leading rollback blocks
+            // that ran (with RollbackErrorAction=Ignore those before the first failed one), which the next migrate-down
+            // continues, so that it runs a failed block again; the write takes no token
             async Task<RollbackResult> StopCancelledRollbackAsync(MigrationFileInfo rollbackFile, int blocksDone, Exception? cancelException)
             {
                 result.Stop = new RollbackStop(
@@ -2628,7 +2656,9 @@ public class MigrationService : IMigrationService
                         $"Target '{record.TargetAlias}' not found in target group '{record.TargetGroupAlias}'");
                 }
 
-                // Update migration record with rollback metadata (initial)
+                // Update migration record with rollback metadata (initial). A rollback that continues one that stopped in
+                // the middle keeps the rollback blocks that ran: the record counts them from the start, so a migrate-down
+                // that ends before the next block commits still leaves a rollback that migrate-down continues.
                 if (runMode.ShouldWriteRepository())
                 {
                     await _templateExecutor.RepositoryMigrationUpdateRollbackAsync(
@@ -2637,12 +2667,18 @@ public class MigrationService : IMigrationService
                         rollbackFileInfo.FileUpHash,
                         rollbackFileInfo.FileUpConfigHash,
                         rollbackFileInfo.FileUpBlocksHash,
-                        0,
+                        record.FileDownBlocksMigrated ?? 0,
                         rollbackFileInfo.FileUpBlocksTotal,
                         rollbackFileInfo.FileUpConfigJson);
                 }
 
-                ReportRollbackFileStarted(rollbackFileInfo.FileUpBlocksTotal, record.FileDownBlocksMigrated ?? 0);
+                // A CLI tool runs the whole rollback file, so a rollback through a tool continues no earlier attempt: it
+                // starts at the first rollback block, whatever rollback blocks the record kept, and it is one block, as
+                // a file that a tool runs on the way up, also where the file is split into blocks for other targets
+                string? rollbackCliAlias = ResolveUseCliToolAlias(rollbackFileInfo, targetOptions);
+                ReportRollbackFileStarted(
+                    rollbackCliAlias == null ? rollbackFileInfo.FileUpBlocksTotal : 1,
+                    rollbackCliAlias == null ? record.FileDownBlocksMigrated ?? 0 : 0);
 
                 // Execute rollback SQL blocks
                 bool fileHadBlockError = false;
@@ -2650,26 +2686,44 @@ public class MigrationService : IMigrationService
                 if (runMode.ShouldExecuteSql())
                 {
                     // Check if CLI tool should be used for rollback
-                    string? rollbackCliAlias = ResolveUseCliToolAlias(rollbackFileInfo, targetOptions);
                     if (rollbackCliAlias != null)
                     {
                         // CLI tool execution for rollback: the entire file is one unit. ExecuteWithCliTool never
-                        // reports failed blocks, it throws on a non-zero exit code. With RollbackErrorAction=Ignore
+                        // reports failed blocks, it throws when the tool fails: a non-zero exit code, a tool that does
+                        // not start or runs too long, or any other exception. With RollbackErrorAction=Ignore
                         // that failure is handled like a failed block on the DAL path: the record is marked Failed
-                        // and the chain continues with the next rollback (#15).
+                        // and the chain continues with the next rollback (#15). Any other action handles it like a
+                        // failed rollback block as well: the record is Failed with the rollback blocks that ran
+                        // before the tool started, and the chain aborts.
                         var cliTool = GetCliToolByAlias(rollbackCliAlias);
                         try
                         {
                             // One unit that must not stop halfway: the cancel takes effect before the next record
                             await ExecuteWithCliTool(
-                                rollbackFileInfo, targetGroupOptions, targetOptions, record.Id, runMode, cliTool, CancellationToken.None);
+                                rollbackFileInfo, targetGroupOptions, targetOptions, record.Id, runMode, cliTool,
+                                markRecordExecuting: false, CancellationToken.None);
                         }
-                        catch (MigrationExecutionException cliEx) when (rollbackErrorAction == RollbackErrorAction.Ignore)
+                        catch (Exception cliEx) when (cliEx is not OperationCanceledException && rollbackErrorAction == RollbackErrorAction.Ignore)
                         {
                             _logger.LogWarning(cliEx,
                                 "RollbackErrorAction=Ignore: CLI tool '{CliTool}' failed for rollback file {RollbackFile} of migration {MigrationRecordId} ({Filename}) on target {Target}. Marking as Failed and continuing with next rollback.",
                                 cliTool.Alias, rollbackFileInfo.Filename, record.Id, record.Filename, record.TargetAlias);
                             fileHadBlockError = true;
+                        }
+                        catch (Exception cliEx) when (cliEx is not OperationCanceledException)
+                        {
+                            // The tool counts no rollback block, so the record keeps those of an earlier attempt (none
+                            // without one); the catch of the record reports the failure and aborts the chain
+                            await _templateExecutor.RepositoryMigrationUpdateRollbackAsync(
+                                record.Id,
+                                MigrationStatus.Failed,
+                                rollbackFileInfo.FileUpHash,
+                                rollbackFileInfo.FileUpConfigHash,
+                                rollbackFileInfo.FileUpBlocksHash,
+                                record.FileDownBlocksMigrated ?? 0,
+                                rollbackFileInfo.FileUpBlocksTotal,
+                                rollbackFileInfo.FileUpConfigJson);
+                            throw;
                         }
                     }
                     else
@@ -2721,7 +2775,8 @@ public class MigrationService : IMigrationService
                             catch (Exception blockEx)
                             {
                                 // Atomic transaction was rolled back -- all repo updates within it are gone.
-                                // Write Failed status via non-shared path (separate connection).
+                                // Write Failed status via non-shared path (separate connection), with the rollback
+                                // blocks an earlier attempt ran: the transaction took back only the blocks of this one.
                                 _logger.LogCritical(blockEx,
                                     "CRITICAL: Atomic rollback failed for migration {MigrationRecordId} ({Filename}). RollbackErrorAction=Terminate — rollback chain ABORTED.",
                                     record.Id, record.Filename);
@@ -2734,7 +2789,7 @@ public class MigrationService : IMigrationService
                                         rollbackFileInfo.FileUpHash,
                                         rollbackFileInfo.FileUpConfigHash,
                                         rollbackFileInfo.FileUpBlocksHash,
-                                        0,
+                                        rollbackStartBlock,
                                         rollbackFileInfo.FileUpBlocksTotal,
                                         rollbackFileInfo.FileUpConfigJson);
                                 }
@@ -2749,14 +2804,19 @@ public class MigrationService : IMigrationService
                         }
                         else
                         {
+                            // The record counts the leading rollback blocks that ran; with RollbackErrorAction=Ignore a
+                            // failed block ends that count, as on the way up
+                            int leadingRollbackBlocks = rollbackStartBlock;
+
                             for (int blockIndex = rollbackStartBlock; blockIndex < rollbackFileInfo.SqlBlocks.Count; blockIndex++)
                             {
                                 // Checkpoint before the next rollback block. The first block of a rollback file runs to
-                                // its end, so a cancelled record always has rollback progress to continue from.
+                                // its end, so a cancelled record has rollback progress to continue from, unless that block
+                                // failed under RollbackErrorAction=Ignore.
                                 bool cancellable = blockIndex > 0;
                                 if (cancellable && cancellationToken.IsCancellationRequested)
                                 {
-                                    return await StopCancelledRollbackAsync(rollbackFileInfo, blockIndex, null);
+                                    return await StopCancelledRollbackAsync(rollbackFileInfo, leadingRollbackBlocks, null);
                                 }
 
                                 string sqlBlock = ReplaceEnvironmentVariablesInSqlBlock(
@@ -2775,6 +2835,11 @@ public class MigrationService : IMigrationService
                                     await targetDal!.ExecuteNonQueryAsync(sqlBlock, dalSettings,
                                         cancellationToken: cancellable ? cancellationToken : CancellationToken.None);
 
+                                    if (!fileHadBlockError)
+                                    {
+                                        leadingRollbackBlocks = blockIndex + 1;
+                                    }
+
                                     // Update block progress
                                     await _templateExecutor.RepositoryMigrationUpdateRollbackAsync(
                                         record.Id,
@@ -2782,7 +2847,7 @@ public class MigrationService : IMigrationService
                                         rollbackFileInfo.FileUpHash,
                                         rollbackFileInfo.FileUpConfigHash,
                                         rollbackFileInfo.FileUpBlocksHash,
-                                        blockIndex + 1,
+                                        leadingRollbackBlocks,
                                         rollbackFileInfo.FileUpBlocksTotal,
                                         rollbackFileInfo.FileUpConfigJson);
                                     ReportBlockCompleted(RollbackOperation(isErrorRecovery), record, rollbackFileInfo.FileUpBlocksTotal, blockIndex + 1, true, null);
@@ -2790,7 +2855,7 @@ public class MigrationService : IMigrationService
                                 catch (OperationCanceledException cancelEx) when (cancellable && cancellationToken.IsCancellationRequested)
                                 {
                                     // The block in progress did not commit; the blocks before it did
-                                    return await StopCancelledRollbackAsync(rollbackFileInfo, blockIndex, cancelEx);
+                                    return await StopCancelledRollbackAsync(rollbackFileInfo, leadingRollbackBlocks, cancelEx);
                                 }
                                 catch (Exception blockEx)
                                 {
@@ -2800,14 +2865,15 @@ public class MigrationService : IMigrationService
                                             "CRITICAL: Rollback block {Block}/{Total} failed for migration {MigrationRecordId} ({Filename}). RollbackErrorAction=Terminate — rollback chain ABORTED.",
                                             blockIndex + 1, rollbackFileInfo.FileUpBlocksTotal, record.Id, record.Filename);
 
-                                        // Mark as failed - cannot recover from a failed rollback
+                                        // Mark as failed - cannot recover from a failed rollback. The record keeps the
+                                        // rollback blocks that ran: a block whose progress write failed ran and counts
                                         await _templateExecutor.RepositoryMigrationUpdateRollbackAsync(
                                             record.Id,
                                             MigrationStatus.Failed,
                                             rollbackFileInfo.FileUpHash,
                                             rollbackFileInfo.FileUpConfigHash,
                                             rollbackFileInfo.FileUpBlocksHash,
-                                            blockIndex,
+                                            leadingRollbackBlocks,
                                             rollbackFileInfo.FileUpBlocksTotal,
                                             rollbackFileInfo.FileUpConfigJson);
 
@@ -3819,6 +3885,11 @@ public class MigrationService : IMigrationService
     /// A cancel of <paramref name="cancellationToken"/> kills the tool; the file counts as interrupted with no
     /// committed block.
     /// </summary>
+    /// <param name="markRecordExecuting">
+    /// Whether the record is marked Executing with no committed block before the tool starts: the tool commits nothing
+    /// the engine can count, so a run that ends while it runs leaves nothing to resume. A rollback passes false, because
+    /// the rollback has marked its record already and the up counter of the record is not the tool's.
+    /// </param>
     internal async Task<(int succeededBlocks, int failedBlocks)> ExecuteWithCliTool(
         MigrationFileInfo file,
         TargetGroupOptions targetGroupOptions,
@@ -3826,22 +3897,18 @@ public class MigrationService : IMigrationService
         int migrationRecordId,
         MigrationRunMode runMode,
         CliToolOptions cliToolOptions,
+        bool markRecordExecuting = true,
         CancellationToken cancellationToken = default)
     {
         if (!runMode.ShouldExecuteSql())
         {
+            // A run mode that executes no SQL writes no repository either
             _logger.LogInformation(
                 "[{RunMode}] Would execute CLI tool '{CliTool}' | Product: {Product} | Env: {Environment} | TargetGroup: {TargetGroup} | Target: {Target} | File: {Filename} | MigrationRecordId: {MigrationRecordId}",
                 runMode, cliToolOptions.Alias,
                 _ctxAccessor.Current.RayMigratorConsoleOptions.Product,
                 _ctxAccessor.Current.RayMigratorConsoleOptions.Environment,
                 targetGroupOptions.Alias, targetOptions.Alias, file.Filename, migrationRecordId);
-
-            if (runMode.ShouldWriteRepository())
-            {
-                await _templateExecutor.RepositoryMigrationUpdateAsync(
-                    migrationRecordId, MigrationStatus.Executing, 1);
-            }
 
             return (file.FileUpBlocksTotal, 0);
         }
@@ -3872,9 +3939,11 @@ public class MigrationService : IMigrationService
             ExitCodeMatcher = cliToolOptions.ExitCodeMatcherInstance
         };
 
-        // Update repository: mark as executing
-        await _templateExecutor.RepositoryMigrationUpdateAsync(
-            migrationRecordId, MigrationStatus.Executing, 1);
+        if (markRecordExecuting)
+        {
+            await _templateExecutor.RepositoryMigrationUpdateAsync(
+                migrationRecordId, MigrationStatus.Executing, 0);
+        }
 
         cancellationToken.ThrowIfCancellationRequested();
         var result = await _cliToolExecutor.ExecuteAsync(request, cancellationToken);
@@ -3982,7 +4051,9 @@ public class MigrationService : IMigrationService
         }
 
         // Blocks before startFromBlock were committed by a previous run (FindResumableBlock); every block that
-        // succeeds below commits on its own, so the committed count advances block by block (#11).
+        // succeeds below commits on its own, so the committed count advances block by block (#11). It counts the leading
+        // blocks only: with ignoreBlockErrors a failed block ends the count, and a block that commits after it is no part
+        // of it, so neither the record of a run that ends abruptly nor that of a cancel shows a gap behind the counter.
         _ctxAccessor.Current.MigrationState.FileBlocksCommitted = startFromBlock;
 
         for (int blockIndex = startFromBlock; blockIndex < file.SqlBlocks.Count; blockIndex++)
@@ -4009,7 +4080,6 @@ public class MigrationService : IMigrationService
                 {
                     await targetDal!.ExecuteNonQueryAsync(sqlBlock, dalSettings, cancellationToken: cancellationToken);
                     succeededBlocks++;
-                    _ctxAccessor.Current.MigrationState.FileBlocksCommitted = blockIndex + 1;
                 }
                 catch (Exception blockEx) when (!cancellationToken.IsCancellationRequested)
                 {
@@ -4025,12 +4095,16 @@ public class MigrationService : IMigrationService
             {
                 await targetDal!.ExecuteNonQueryAsync(sqlBlock, dalSettings, cancellationToken: cancellationToken);
                 succeededBlocks++;
+            }
+
+            if (failedBlocks == 0)
+            {
                 _ctxAccessor.Current.MigrationState.FileBlocksCommitted = blockIndex + 1;
             }
 
             // Update block progress in repository
             await _templateExecutor.RepositoryMigrationUpdateAsync(
-                migrationRecordId, MigrationStatus.Executing, blockIndex + 1);
+                migrationRecordId, MigrationStatus.Executing, _ctxAccessor.Current.MigrationState.FileBlocksCommitted);
             ReportBlockCompleted(MigrationOperation.MigrateUp, file, targetOptions.Alias!, migrationRecordId, blockIndex + 1, blockSucceeded, blockError);
         }
 

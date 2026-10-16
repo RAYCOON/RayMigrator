@@ -270,7 +270,7 @@ While a command runs, the first Ctrl+C or SIGTERM cancels it instead of ending t
 | Command | Stops | Records |
 |---------|-------|---------|
 | migrate-up | at the next block boundary; SQL Server, PostgreSQL and MariaDB abort the block in progress (on MariaDB except a `SLEEP()`, which ends early without an error), on MySQL and SQLite it may run to its end | run `Cancelled` (engine code `1004`); the interrupted file `Failed` with the blocks that committed; then the `--cancelled-action`. A run that had failed at a file and was in its error recovery stays `Error` and exits with `1` (see below) |
-| migrate-down | at the next rollback block; the first block of a rollback file, an atomic rollback and a rollback through a CLI tool always complete | run `Cancelled`; the record in progress `Failed` with its rollback blocks, which the next migrate-down continues; migrate-up refuses to run that file until then |
+| migrate-down | at the next rollback block; the first block of a rollback file, an atomic rollback and a rollback through a CLI tool always complete | run `Cancelled`; the record in progress `Failed` with its rollback blocks, which the next migrate-down continues (not after a first rollback block that failed under `RollbackErrorAction=Ignore`); migrate-up refuses to run that file until then |
 | baseline | before the next file | run `Cancelled`; the records written so far stay `Migrated` |
 | update-hash, fix | before the next record or run | what they did so far stays |
 | validate-hash, info | at once | nothing |

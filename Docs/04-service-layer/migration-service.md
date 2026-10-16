@@ -816,7 +816,7 @@ public async Task<MigrationOperationResult> MigrateDownAsync(MigrateDownRequest 
 
     if (rollbackResult.Cancelled)
     {
-        // The record in progress is Failed with its rollback blocks; the next migrate-down continues it,
+        // The record in progress is Failed with its leading rollback blocks; the next migrate-down continues it when some ran,
         // and migrate-up refuses to run the file until then
         await _templateExecutor.RepositoryMigrationRunUpdateAsync(MigrationRunResult.Cancelled, "1004", cancelledMessage);
         return cancelledResult;
@@ -967,7 +967,7 @@ A cancel stops before the next run and returns `Success = false`, `ErrorCode = 1
 
 Executes migrations in **file-first** order: `foreach file -> foreach target`. This means each migration file is applied to all targets before moving to the next file.
 
-An error aborts the entire TargetGroup unless `MigrationErrorAction` is `Ignore`, in which case the file is marked as Failed and execution continues to the next file. Within the FileByFile loop, when block-level failures occur with Ignore, remaining targets for that file are skipped (`break`), and the next file is processed.
+An error aborts the entire TargetGroup unless `MigrationErrorAction` is `Ignore`, in which case the file is marked as Failed with the blocks before its first failed block, which the next run resumes after, and execution continues to the next file. Within the FileByFile loop, when block-level failures occur with Ignore, remaining targets for that file are skipped (`break`), and the next file is processed.
 
 ```csharp
 internal async Task<TargetGroupExecutionResult> ExecuteTargetGroupFileByFile(
@@ -985,13 +985,13 @@ Each file/target execution:
 3. Inserts a migration record (`RepositoryMigrationInsertAsync`)
 4. Sets `_ctxAccessor.Current.MigrationState` fields (MigrationRecordId, ReleaseVersionFromFileNameWithPath, FilenameWithRelativePath, FileOrderId, TargetGroupAlias, TargetAlias, FileBlockId, FileBlocksCommitted)
 5. Checks for resumable partial execution (`FindResumableBlock`)
-6. Resolves CLI tool alias via `ResolveUseCliToolAlias(file, targetOptions)`
+6. Resolves CLI tool alias via `ResolveUseCliToolAlias(file, targetOptions)`; a file that resumes on the DAL path writes the blocks it resumes after to its record before its first block (`MarkResumedRecordAsync`: `Executing` with those blocks), because the insert reset the counter and a run that ends before the next block commits must keep them
 7. If a CLI tool alias is resolved: executes via `ExecuteWithCliTool()` (entire file as single unit)
 8. Otherwise: executes SQL blocks via `ExecuteSqlBlocks()` (block-wise DAL execution, a checkpoint before every block)
 9. Updates migration record status (`RepositoryMigrationUpdateAsync`)
 10. Adds `(file, migrationRecordId, targetOptions.Alias!)` to `successfullyMigratedRecords`
 
-An `OperationCanceledException` while the token is cancelled goes to `CompleteCancelledFileAsync`: the block in progress did not commit where the provider interrupted it (SQLite, MySQL after `KILL QUERY`, and MariaDB in a `SLEEP()` that its `KILL QUERY` ended without an error may have run it to its end), the record is `Failed` with `MigrationState.FileBlocksCommitted` (the block count of the file under `MigrationErrorAction = Ignore`, whose committed blocks are no contiguous prefix), written without the token on the repository's own connection, and `FileCompletedEvent` reports `FileOutcome.Cancelled`. The method returns with `Cancelled = true`, `CancelledFile` and `CancelledMigrationRecordId`; a run cancelled before the file started on the target leaves no interrupted file. A cancel before the next target of a file that migrated on a target of this run already counts that file like a finished file (`SuccessCount`, a `MigrationFileResult` with `Success = true`), as the error path counts a file that failed on one of its targets; `RollbackFile` then has no interrupted file to roll back.
+An `OperationCanceledException` while the token is cancelled goes to `CompleteCancelledFileAsync`: the block in progress did not commit where the provider interrupted it (SQLite, MySQL after `KILL QUERY`, and MariaDB in a `SLEEP()` that its `KILL QUERY` ended without an error may have run it to its end), the record is `Failed` with `MigrationState.FileBlocksCommitted` (under `MigrationErrorAction = Ignore` the blocks before the first failed one, as at the end of such a file), written without the token on the repository's own connection, and `FileCompletedEvent` reports `FileOutcome.Cancelled`. The method returns with `Cancelled = true`, `CancelledFile` and `CancelledMigrationRecordId`; a run cancelled before the file started on the target leaves no interrupted file. A cancel before the next target of a file that migrated on a target of this run already counts that file like a finished file (`SuccessCount`, a `MigrationFileResult` with `Success = true`), as the error path counts a file that failed on one of its targets; `RollbackFile` then has no interrupted file to roll back.
 
 ### ExecuteTargetGroupTargetByTarget
 
@@ -1116,12 +1116,13 @@ internal async Task<(int succeededBlocks, int failedBlocks)> ExecuteWithCliTool(
     int migrationRecordId,
     MigrationRunMode runMode,
     CliToolOptions cliToolOptions,
+    bool markRecordExecuting = true,
     CancellationToken cancellationToken = default)
 ```
 
 Behavior:
-- **Non-Migrate modes** (Validate/Simulate): Logs the CLI tool that would be invoked; optionally updates repository
-- **Migrate mode**: Builds arguments via `ResolveCliToolArguments`, reads file content for `Stdin` input mode, delegates to `ICliToolExecutor.ExecuteAsync(request, cancellationToken)`
+- **Non-Migrate modes** (Validate/Simulate): Logs the CLI tool that would be invoked and writes nothing
+- **Migrate mode**: Builds arguments via `ResolveCliToolArguments`, reads file content for `Stdin` input mode, marks the record `Executing` with 0 committed blocks (the tool commits nothing the engine can count, so a run that ends while the tool runs leaves nothing to resume or to finalize; the rollback chain passes `markRecordExecuting: false`, because it marked its record already and the up counter is not the tool's), delegates to `ICliToolExecutor.ExecuteAsync(request, cancellationToken)`
 - On success: returns `(file.FileUpBlocksTotal, 0)`
 - On failure: throws `MigrationExecutionException` with exit code and stderr details
 - On cancel: the tool is killed with the processes it started and the call ends with an `OperationCanceledException`; the rollback chain calls it with `CancellationToken.None`, because a rollback through a CLI tool always completes. A tool that has exited when the cancel takes effect is judged by its exit code (a success keeps its result if the tool got the whole file); a tool that fails, or that did not get the whole file in `Stdin` mode, after the cancel ends the call with an `OperationCanceledException` as well, so it counts as the cancel and not as a failure for `MigrationErrorAction` (Ctrl+C reaches the whole process group on Linux and macOS, and the cancel may cut off the write of the file)
@@ -1273,7 +1274,7 @@ The return type of `ExecuteSqlBlocks` includes a `bool atomicCommitCompleted` fl
 
 Applies the same atomic pattern to rollback operations. All rollback blocks + the final `NotMigrated` status update run in a single transaction with file-level retry. The chain calls it with `CancellationToken.None`: interrupted, the transaction would leave the record `Failed` without rollback progress, so an atomic rollback always completes and a cancel takes effect before the next record.
 
-If the rollback itself fails (broken rollback SQL), the transaction is rolled back and the `Failed` status is written via the normal (non-shared) path — a separate connection that is independent of the rolled-back transaction.
+If the rollback itself fails (broken rollback SQL), the transaction is rolled back and the `Failed` status is written via the normal (non-shared) path — a separate connection that is independent of the rolled-back transaction. The record keeps the rollback blocks of the attempt the rollback continued (`rollbackStartBlock`, 0 without one): the transaction took back only the blocks of this attempt.
 
 > **See also**: [Error Handling — Atomic Shared Connection](../02-core-concepts/error-handling.md#atomic-shared-connection) for the conceptual overview.
 
@@ -1335,15 +1336,15 @@ For each migration record to rollback:
 3. If missing and `RequireRollbackFile=false` during **error-recovery rollback** (`MigrationErrorAction=Rollback/RollbackRelease/RollbackErrorOnly`): checks `StopRollbackOnMissingRollbackFile` (CLI > TargetGroup > Product, default `true`). If `true`, stops the chain (adds warning, returns without marking Failed). If `false`, logs a warning and continues to the next record without updating the migration status.
 4. If missing and `RequireRollbackFile=false` during **explicit migrate-down**: always logs a warning and continues the chain (skips the record, does not update status)
 5. Parses rollback file and resolves `RollbackErrorAction` (file-level override -> product-level -> default `Terminate`)
-6. Updates migration record with rollback metadata (`RepositoryMigrationUpdateRollbackAsync`)
+6. Updates migration record with rollback metadata (`RepositoryMigrationUpdateRollbackAsync`), `Executing` with the rollback blocks the record already counts (a rollback that continues one that stopped in the middle keeps them, so a migrate-down that ends before the next rollback block leaves a rollback that migrate-down continues)
 7. Resolves CLI tool alias via `ResolveUseCliToolAlias(rollbackFileInfo, targetOptions)`
-8. If a CLI tool alias is resolved: executes via `ExecuteWithCliTool()` (entire rollback file as single unit)
+8. If a CLI tool alias is resolved: executes via `ExecuteWithCliTool()` (entire rollback file as single unit); a failure of the tool counts as a failed block under `RollbackErrorAction.Ignore`, and under any other action marks the record `Failed` with the rollback blocks of an earlier attempt (the tool counts none) and aborts the chain
 9. Otherwise: executes rollback SQL blocks via DAL (supports resume from partial rollback via `FileDownBlocksMigrated`)
-10. On block failure with `RollbackErrorAction.Terminate`: aborts entire rollback chain
-11. On block failure with `RollbackErrorAction.Ignore`: skips failed block, continues rollback
+10. On block failure with `RollbackErrorAction.Terminate`: marks the record `Failed` with the rollback blocks before the failed one (on the atomic path those of the attempt it continued) and aborts entire rollback chain
+11. On block failure with `RollbackErrorAction.Ignore`: skips failed block, continues rollback; `FileDownBlocksMigrated` keeps the leading rollback blocks that ran before the first failure until the rollback ends, and a cancel keeps them, so that the next migrate-down runs the failed block again; the rollback that ran to its end is `Failed` with every rollback block
 12. On all blocks successful: marks migration as `NotMigrated`
 
-A cancel of the token stops the chain before the next record, which keeps its state, or before the next rollback block of the record in progress, which ends `Failed` with the rollback blocks that ran (`StopCancelledRollbackAsync`, `FileOutcome.Cancelled`, the write takes no token) and which migrate-up refuses to run until migrate-down completed it; the result has `Cancelled = true`. The first block of a rollback file, an atomic rollback and a rollback through a CLI tool always run to their end. The chain of a cancel action receives `CancellationToken.None`.
+A cancel of the token stops the chain before the next record, which keeps its state, or before the next rollback block of the record in progress, which ends `Failed` with the leading rollback blocks that ran (with `RollbackErrorAction.Ignore` those before the first failed one; `StopCancelledRollbackAsync`, `FileOutcome.Cancelled`, the write takes no token) and which migrate-up refuses to run until migrate-down completed it; the result has `Cancelled = true`. The first block of a rollback file, an atomic rollback and a rollback through a CLI tool always run to their end. The chain of a cancel action receives `CancellationToken.None`.
 
 ### ExtractErrorCode
 
@@ -1574,7 +1575,7 @@ The three run operations report their progress through `MigrationContext.Progres
 | Event | Raised | Carries |
 |-------|--------|---------|
 | `RunStartedEvent` | once, after the run row exists (migrate-up, migrate-down, baseline) or, in a run mode without a run row, after the repository records were read; before the completion when the operation ended earlier | product, environment, command, run mode, `MigrationRunId` (0 without a run row), `FromRelease` (the highest migrated release, in Simulate and Validate as well), `TargetRelease` |
-| `FileStartedEvent` | per file and target, after the record exists and the resume offset and the executor (DAL or CLI tool) are known; a record a previous run completed but never finalized is reported as started and `Recovered` without SQL; for rollbacks once the record is taken up, before its rollback file is looked up; for baseline after the record exists | operation (`MigrateUp`, `MigrateDown`, `Rollback` for error recovery, `Baseline`), release, target group, target, file, `FileOrderId`, `MigrationRecordId`, `BlocksTotal` (1 for a CLI tool; for a rollback that never reached its file, what the repository recorded), `ResumeFromBlock` |
+| `FileStartedEvent` | per file and target, after the record exists and the resume offset and the executor (DAL or CLI tool) are known; a record a previous run completed but never finalized is reported as started and `Recovered` without SQL; for rollbacks once the record is taken up, before its rollback file is looked up; for baseline after the record exists | operation (`MigrateUp`, `MigrateDown`, `Rollback` for error recovery, `Baseline`), release, target group, target, file, `FileOrderId`, `MigrationRecordId`, `BlocksTotal` (1 for a CLI tool; for a rollback that never reached its file, what the repository recorded), `ResumeFromBlock` (0 for a file or a rollback file that a CLI tool runs, because the tool runs it whole) |
 | `BlockCompletedEvent` | per executed SQL block: on the block-by-block and simulate paths as the block completes, on the atomic path after the commit of the file; migrations and rollbacks; not for files that run through a CLI tool | block number and total, `Success` (false only under the Ignore error action), error message |
 | `FileCompletedEvent` | per file and target, always after its `FileStartedEvent`; a failure before the record insert names the file and target it hit, with record id 0 | `FileOutcome`: `Migrated`, `Recovered`, `Simulated`, `Failed`, `FailedIgnored`, `RolledBack`, `RollbackFailed`, `Skipped` (a rollback without a rollback file, or a chain that stopped at one), `Baselined`, `Cancelled` (100: a cancel interrupted the file or its rollback; a rollback that follows reports its own start and completion); duration; error message |
 | `RunCompletedEvent` | once per operation, as the last event | success, the `MigrationRunResult` the operation returned (also `Cancelled`, and for baseline `BaselineResult.Result`; null when the operation threw), the counts of the result, duration, error message |

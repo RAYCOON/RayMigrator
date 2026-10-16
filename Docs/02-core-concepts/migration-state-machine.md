@@ -56,11 +56,11 @@ A migration file is in `Pending` status when:
 A migration file is in `Executing` status when:
 - SQL blocks are actively being executed against the target database (MigrateUp)
 - Rollback blocks are actively being executed against the target database (MigrateDown / error recovery)
-- Progress is tracked per block (`FileUpBlocksMigrated` for up-migrations, `FileDownBlocksMigrated` for rollbacks)
+- Progress is tracked per block (`FileUpBlocksMigrated` for up-migrations, `FileDownBlocksMigrated` for rollbacks): the counter holds the leading blocks that committed on the target at every moment, see [Block-Level State](#block-level-state)
 
 **Valid Operations**: Completes to `Migrated` on up-migration success, `NotMigrated` on rollback success, transitions to `Failed` on error or on a cancel
 
-A record also stays `Executing` (or `Pending`) when the process ended in the middle of the file: a crash, a kill, or a second Ctrl+C or SIGTERM in the CLI. It keeps that status until the run is closed as orphaned (see [After a Hard Abort](#after-a-hard-abort)).
+A record also stays `Executing` (or `Pending`) with its counter when the process ended in the middle of the file: a crash, a kill, or a second Ctrl+C or SIGTERM in the CLI. It keeps that status until the run is closed as orphaned (see [After a Hard Abort](#after-a-hard-abort)).
 
 ### NotMigrated (50)
 
@@ -91,7 +91,7 @@ A migration file is in `Failed` status when:
 - Error occurred during error recovery rollback (rollback block failed)
 - Partial block execution with `MigrationErrorAction=Ignore` (some blocks succeeded, some failed)
 - Rollback file missing during rollback chain when `RequireRollbackFile=true` (status updated to `Failed` explicitly)
-- A cancel interrupted the file (the record keeps the blocks that committed) or stopped a migrate-down or an error recovery between two rollback blocks (the record keeps the rollback blocks that ran); see [After a Cancel](#after-a-cancel)
+- A cancel interrupted the file (the record keeps the blocks that committed) or stopped a migrate-down or an error recovery between two rollback blocks (the record keeps the leading rollback blocks that ran); see [After a Cancel](#after-a-cancel)
 
 **Valid Operations**: Manual investigation required
 
@@ -199,11 +199,11 @@ flowchart TD
     G -->|failure or warning| H[Run: Error, code 1005]
 ```
 
-The first block of a rollback file, an atomic rollback and a rollback through a CLI tool always complete, so a cancel never leaves a record `Failed` without rollback progress.
+The first block of a rollback file, an atomic rollback and a rollback through a CLI tool always complete, so a cancel leaves a record `Failed` without rollback progress only where `RollbackErrorAction=Ignore` went on after a failed first rollback block, which migrate-down does not continue (see [Error Handling: Known Gaps](error-handling.md#known-gaps)).
 
 ## After a Hard Abort
 
-A process that ends in the middle of a run writes nothing more: a crash, a kill, a `SIGKILL` after the grace period of a container stop, or a second Ctrl+C or SIGTERM in the CLI. The run row stays `Running` and the record of the file in progress `Executing` with the blocks that committed, or `Pending` when no block had committed yet, and always on the atomic path, whose transaction the abort rolls back. The heartbeat of the run stops. The next migrate-up, migrate-down or baseline for the same product and environment closes the run as `Error` once its last heartbeat is older than `Repository.OrphanedRunThresholdInMinutes` (default 2) and marks its open records `NotMigrated`; `fix --scope orphanedruns` does the same with `--older-than` and sets the records to `--last-migration-status` (default `NotMigrated`). `info` lists such a record as `NotMigrated` while the run is open, because that repair comes first. See [Concurrency Control](concurrency-control.md#scenario-3-process-crash).
+A process that ends in the middle of a run writes nothing more: a crash, a kill, a `SIGKILL` after the grace period of a container stop, or a second Ctrl+C or SIGTERM in the CLI. The run row stays `Running` and the record of the file in progress `Executing` with the leading blocks that committed (0 while a CLI tool runs, those of the earlier attempt from the start of a resumed file), or `Pending` when a file that does not resume had not committed a block yet; on the atomic path, whose transaction the abort rolls back, the record keeps what it showed before that transaction: `Pending`, or `Executing` with the blocks a resumed file resumes after. A rollback in progress leaves `Executing` with the rollback blocks that ran. The heartbeat of the run stops. The next migrate-up, migrate-down or baseline for the same product and environment closes the run as `Error` once its last heartbeat is older than `Repository.OrphanedRunThresholdInMinutes` (default 2) and marks its open records `NotMigrated`; `fix --scope orphanedruns` does the same with `--older-than` and sets the records to `--last-migration-status` (default `NotMigrated`). `info` lists such a record as `NotMigrated` while the run is open, because that repair comes first. See [Concurrency Control](concurrency-control.md#scenario-3-process-crash).
 
 ## Block-Level State
 
@@ -214,14 +214,14 @@ For multi-block migrations (SQL Server with `GO` separator), state is tracked at
 | Field | Description |
 |-------|-------------|
 | `FileUpBlocksTotal` | Total blocks in the up-migration file |
-| `FileUpBlocksMigrated` | Blocks successfully executed |
+| `FileUpBlocksMigrated` | Leading blocks that committed on the target |
 
 ### Rollback Blocks
 
 | Field | Description |
 |-------|-------------|
 | `FileDownBlocksTotal` | Total blocks in the rollback file |
-| `FileDownBlocksMigrated` | Rollback blocks successfully executed |
+| `FileDownBlocksMigrated` | Leading rollback blocks that ran on the target |
 
 **Example**: A file with 5 up-migration blocks where block 3 fails:
 
@@ -236,6 +236,14 @@ FileUpBlocksTotal = 5
 FileUpBlocksMigrated = 2
 MigrationStatus = Failed
 ```
+
+The counters hold the leading blocks that committed at every moment of a run, so that a run that ends abruptly leaves a counter the next start can trust: `FileUpBlocksMigrated` the blocks that committed in a row from block 1, `FileDownBlocksMigrated` the rollback blocks that ran in a row from rollback block 1. Every decision about a record reads its counters, its `FileDownHash` and the hash of its SQL blocks, never how the attempt ended: whether migrate-up finalizes or resumes a file, whether it refuses a file whose rollback stopped in the middle, which records migrate-down picks and what `info` lists. The exceptions are named below and under [After a Hard Abort](#after-a-hard-abort).
+
+- A block that commits after a failed one does not count: with `MigrationErrorAction=Ignore` the counter stays at the blocks before the first failure while the file goes on, and the record keeps it when the file ends or a cancel stops it, so that the next migrate-up resumes at the failed block (and runs the whole file when the first block failed). A counter equal to the block count therefore always means that every block committed. With `RollbackErrorAction=Ignore` the rollback counter stays at the rollback blocks before the first failure the same way while the rollback goes on, and a cancel keeps it, so that the next migrate-down runs the failed rollback block again (after a failed first rollback block the count is 0, a known gap, see [Error Handling: Known Gaps](error-handling.md#known-gaps)). Only a rollback that ran to its end stores its block count with `Failed`: it accepts its failed blocks. This exception to the rule is on purpose: a count of the leading rollback blocks would leave a rollback that stopped in the middle, which migrate-up refuses and migrate-down continues at the failed block, which fails again under `Ignore` and stops at the same count, without end.
+- A file that a CLI tool runs counts 0 while the tool runs: the tool commits nothing the engine can count. The completed file counts all its blocks: one when the file names the tool or every target of its target group runs one, so that the file is not split, otherwise the blocks it was split into for the targets on the DAL. Because the tool runs the whole file, migrate-up neither resumes nor finalizes an earlier attempt of a file it runs through a tool, also when an attempt on the DAL committed some or every block before the target got the tool. A rollback through a CLI tool leaves `FileUpBlocksMigrated` alone.
+- A resumed file carries the committed blocks of its earlier attempt from the start of the run: the record insert of the new attempt resets the counter to 0, and the run writes the blocks it resumes after before its first block. A rollback that continues one that stopped in the middle carries its rollback blocks the same way.
+- On the atomic shared connection the progress updates share the transaction of the file, so until it commits the counter shows what it showed before that transaction: 0, or the blocks a resumed file resumes after.
+- A rollback that fails keeps the rollback blocks that ran before it: those before a failed rollback block, and on the atomic path and through a CLI tool, which take back or count nothing of their own attempt, those of the earlier attempt they continued (0 without one).
 
 ## Repository Database Tracking
 

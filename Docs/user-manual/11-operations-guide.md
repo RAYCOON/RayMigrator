@@ -410,7 +410,7 @@ When a rollback itself fails, the `RollbackErrorAction` setting controls what ha
 | RollbackErrorAction | Behavior |
 |---------------------|----------|
 | `Terminate` (default) | Stop the rollback chain immediately |
-| `Ignore` | Skip the failed rollback, continue with remaining files |
+| `Ignore` | Skip the failed rollback block, run the remaining blocks and continue with the remaining files |
 
 ### Manual Rollback
 

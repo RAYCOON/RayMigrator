@@ -75,7 +75,8 @@ public class MigrationRecord
     public string FileUpBlocksHash { get; set; } = string.Empty;
 
     /// <summary>
-    /// Number of blocks successfully migrated (up).
+    /// The leading blocks that committed on the target, in a row from block 1; a block that commits after a failed one
+    /// (MigrationErrorAction=Ignore) does not count.
     /// </summary>
     public int FileUpBlocksMigrated { get; set; }
 
@@ -105,7 +106,8 @@ public class MigrationRecord
     public string? FileDownBlocksHash { get; set; }
 
     /// <summary>
-    /// Number of rollback blocks successfully executed.
+    /// The leading rollback blocks that ran on the target, in a row from rollback block 1; a rollback that ran to its end
+    /// with rollback errors that RollbackErrorAction=Ignore skipped stores the number of its rollback blocks.
     /// </summary>
     public int? FileDownBlocksMigrated { get; set; }
 

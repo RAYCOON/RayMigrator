@@ -503,7 +503,7 @@ All scenarios use a standard 3-release, 9-file migration set unless otherwise no
 
 **Inconsistency**: **Logical inconsistency** — R2F2 failed but later files that may depend on R2F2's data executed successfully. The `MigrationRunResult` is `PartialSuccess` (50), not `Error`: the run finished, but a file was left `Failed`.
 
-**Recovery**: Fix `02_InsertDataB.sql`, re-run `migrate-up`. Only the `Failed` file is retried; all `Migrated` files are skipped.
+**Recovery**: Fix `02_InsertDataB.sql`, re-run `migrate-up`. Only the `Failed` file is retried; all `Migrated` files are skipped. The record of a file with several blocks keeps the blocks before its first failed block, and a retry of the unchanged file resumes at that block; the fixed file has new SQL blocks and runs from block 1.
 
 > **Note**: With `Ignore`, the `MigrationRunResult` is `PartialSuccess` (50) when any file failed: execution continued and completed for all other files, the failed ones are `Failed`. The CLI exit code is still 1. An aborted run (Terminate, Rollback) is `Error` (90).
 

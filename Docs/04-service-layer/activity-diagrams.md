@@ -99,7 +99,8 @@ flowchart TD
     AddRecovered --> TargetLoop
     WasFinalized -->|No| InsertMig["RepositoryMigrationInsertAsync()"]
 
-    InsertMig --> CliCheck{UseCliToolAlias?}
+    InsertMig --> MarkResumed["FindResumableBlock(): a resumed file on the DAL path<br/>marks its record Executing with the committed blocks"]
+    MarkResumed --> CliCheck{UseCliToolAlias?}
     CliCheck -->|Yes| ExecCli["ExecuteWithCliTool()"]
     CliCheck -->|No| ExecSql["ExecuteSqlBlocks()"]
     ExecCli --> BlockResult
@@ -109,7 +110,7 @@ flowchart TD
     BlockResult -->|No| MarkOk["Update record → Migrated<br/>Add to successfullyMigratedRecords"]
     MarkOk --> TargetLoop
 
-    BlockResult -->|Yes| MarkFailed["Update record → Failed<br/>Break target loop"]
+    BlockResult -->|Yes| MarkFailed["Update record → Failed with the blocks<br/>before the first failed one<br/>Break target loop"]
     MarkFailed --> FailCount["result.FailCount++"]
     FailCount --> FileLoop
 
@@ -125,7 +126,7 @@ flowchart TD
     end
 
     subgraph Cancel Path
-        CatchCancel["OperationCanceledException<br/>while the token is cancelled"] --> CompleteFile["CompleteCancelledFileAsync():<br/>record → Failed with the committed blocks<br/>(the block count under Ignore)<br/>FileOutcome.Cancelled"]
+        CatchCancel["OperationCanceledException<br/>while the token is cancelled"] --> CompleteFile["CompleteCancelledFileAsync():<br/>record → Failed with the committed blocks<br/>(under Ignore those before the first failed one)<br/>FileOutcome.Cancelled"]
         CompleteFile --> ReturnCancelled["result.Cancelled = true<br/>Return immediately"]
     end
 
@@ -199,7 +200,7 @@ flowchart TD
     BlockError --> SkipExec
 
     BlockLoop --> BlockCancel{"Token cancelled<br/>(not before block 1)?"}
-    BlockCancel -->|Yes| StopBlock(["StopCancelledRollbackAsync():<br/>record → Failed with the rollback blocks that ran<br/>result.Cancelled = true"])
+    BlockCancel -->|Yes| StopBlock(["StopCancelledRollbackAsync():<br/>record → Failed with the leading rollback blocks that ran<br/>result.Cancelled = true"])
     BlockCancel -->|No| ExecBlock["ExecuteNonQueryAsync()"]
     ExecBlock --> BlockOk["Update rollback progress"]
     BlockOk --> BlockLoop

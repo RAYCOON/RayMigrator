@@ -115,7 +115,7 @@ All four files are searched in the directory specified by `--config-dir` (or the
 - **Partial recovery**: Resume from failed block, not entire file
 - **Large migrations**: Track progress within large migration files
 - **Hash validation**: Validate at file, config, or block level
-- **Clean stop**: A cancelled run stops at the next block boundary; with the default action `Terminate` the committed blocks stay and the next migrate-up resumes the file (under `MigrationErrorAction = Ignore` it runs the whole file again) ([ADR-028](../arc42/09-Architecture-Decisions.md#adr-028-a-run-cancels-at-the-next-block-boundary-with-a-migrationcancelledaction-and-records-cancelled))
+- **Clean stop**: A cancelled run stops at the next block boundary; with the default action `Terminate` the committed blocks stay and the next migrate-up resumes the file (under `MigrationErrorAction = Ignore` at its first failed block) ([ADR-028](../arc42/09-Architecture-Decisions.md#adr-028-a-run-cancels-at-the-next-block-boundary-with-a-migrationcancelledaction-and-records-cancelled))
 
 ## TOML for Migration Metadata
 

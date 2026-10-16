@@ -108,6 +108,8 @@ Migration 004 ✓ (Migrated — execution continues)
 
 > **Warning:** With Ignore, the migration run is persisted as PartialSuccess (50) because at least one file failed; all other files are still executed and the CLI exit code is 1. An aborted run is Error (90).
 
+A failed file keeps the blocks that committed before its first failed block. The next `migrate-up` resumes at that block, as long as the SQL blocks of the file did not change, and runs the blocks after it again; when the first block failed, or the file was changed, it runs the whole file.
+
 ---
 
 ## RollbackErrorAction: When a Rollback Fails
@@ -326,9 +328,9 @@ A cancel does not turn a failure into a cancel. When a file has already failed a
 Some work always runs to its end, so that the repository never records a step half done:
 
 - The block in progress on MySQL, which interrupts only the statement in progress and runs the rest of the block, and on SQLite, which cannot interrupt a statement. SQL Server, PostgreSQL and MariaDB abort it, except that MariaDB, like MySQL, ends a `SLEEP()` early without an error and runs the rest of the block.
-- During a rollback (a `migrate-down`, or the error recovery of a `migrate-up`): the first block of a rollback file, an atomic rollback and a rollback through a CLI tool. A cancelled `migrate-down` leaves the record in progress `Failed` with its rollback blocks, and the next `migrate-down` continues it; until then `migrate-up` refuses to run that file (see [Rolling Back Migrations](09-rollback-guide.md#block-level-rollback-tracking)).
+- During a rollback (a `migrate-down`, or the error recovery of a `migrate-up`): the first block of a rollback file, an atomic rollback and a rollback through a CLI tool. A cancelled `migrate-down` leaves the record in progress `Failed` with its rollback blocks, and the next `migrate-down` continues it unless its first rollback block failed under `RollbackErrorAction=Ignore`; until then `migrate-up` refuses to run that file (see [Rolling Back Migrations](09-rollback-guide.md#block-level-rollback-tracking)).
 
-With `MigrationErrorAction` = `Ignore`, the interrupted file is stored like a file with ignored errors: its record is `Failed` with the block count of the file, and the next `migrate-up` runs the whole file again from its first block.
+With `MigrationErrorAction` = `Ignore`, the interrupted file is stored like a file with ignored errors: its record is `Failed` with the blocks before the first failed one, and the next `migrate-up` resumes at the failed block.
 
 A second Ctrl+C ends the process at once. That abandons the run like a crash: it stays `Running` until RayMigrator closes it as orphaned (next section) or you run `fix`.
 

@@ -103,7 +103,7 @@ as deliberate scope boundaries and are not tracked as open risks:
 
 | Category | Items | Highest priority |
 |----------|-------|------------------|
-| Code | TD-C-01 to TD-C-08, TD-C-10, TD-C-11 | TD-C-01 (exit code contract for configuration errors) |
+| Code | TD-C-01 to TD-C-08, TD-C-10 | TD-C-01 (exit code contract for configuration errors) |
 | Database access layer audit | DAL-001 to DAL-025 | none open; all 25 items are done in the master list and the plan files |
 | Documentation | none open | the documentation debt of the 2026-09 review is resolved |
 | Test coverage | five gaps below | engine suite in CI (R-10) |
@@ -124,6 +124,7 @@ listed so that readers of older documentation know which findings are closed.
 | `CliTools[].InputMode` required; silent `File` default removed (`RULE_3_11`) | 0.14.0 | #19 |
 | Parallel run guard no longer filters on `MigrationRunModeId` | 0.14.0 | #19 |
 | TD-C-09: the placeholder `Repository_MigrationRecordHistory_Archive.sql` of `Database.Example`, which had no `TemplateType` member, removed; old history rows are deleted on a host's request through `IRepositoryMaintenanceService` and the retention templates that every DAL ships | 0.20.0 | TD-C-09, ADR-027 |
+| TD-C-11: a cancel during a `migrate-up` with `MigrationErrorAction.Ignore`, and the end of such a file with a failed block, store the blocks before the first failed one instead of the block count of the file, so the next `migrate-up` resumes at the failed block and no longer runs the committed blocks again | 0.20.0 | TD-C-11, ADR-028 |
 
 ### Code
 
@@ -137,8 +138,7 @@ listed so that readers of older documentation know which findings are closed.
 | TD-C-06 | The release archive ships no `appsettings*.json` (`CopyToPublishDirectory=Never`). | `Raycoon.RayMigrator.Console/Raycoon.RayMigrator.Console.csproj` | First contact with the binary yields exit code `4` (no `Serilog` node) until the user creates files from the Config Wizard or the documentation examples | Ship an `appsettings.example.json` next to the binary or print the wizard URL in the exit `4` message |
 | TD-C-07 | The run lock predicate is product, environment and open run; the engine level serialization differs: `pg_advisory_xact_lock` keyed by product only on PostgreSQL, `GET_LOCK` named by product and environment on MariaDB and MySQL. | `Repository_MigrationRun_Insert.sql` in `Raycoon.RayMigrator.Database.PostgreSQL/Templates` and `.MariaDb/Templates`, `.MySql/Templates` | Behavior is correct (the row check runs inside the lock) but runs of different environments of one product serialize on PostgreSQL; the asymmetry is undocumented and easy to break during template edits | Key the PostgreSQL advisory lock by product and environment; add a unit test that compares the lock names across templates |
 | TD-C-08 | `MigrationRecoveryException` and `DatabaseTransientException` are declared and documented in `Docs/02-core-concepts/resilience.md` but never thrown; `DatabaseParameterException` is thrown by `DalSqlServer` only. | `Raycoon.RayMigrator.Shared/Exceptions/CustomExceptions.cs`; `Raycoon.RayMigrator.Database.SqlServer/DalSqlServer.cs` | Consumers may catch types that cannot occur; the other four DALs report parameter errors differently | Remove the unused types or throw them consistently in `DalBase` |
-| TD-C-10 | A failed first block of a rollback file leaves the record `Failed` with no rollback block, a state that `migrate-down` does not continue and `migrate-up` cannot resume. A cancel cannot produce it, because the first rollback block, an atomic rollback and a rollback through a CLI tool run to their end; a failure still does. | `Raycoon.RayMigrator.Services/MigrationService.cs` (`ExecuteRollbackForMigrations`) | The operator inspects the target and repairs the record by hand | Record the start of the rollback before its first block, so that `migrate-down` can continue such a record |
-| TD-C-11 | A cancel during a `migrate-up` with `MigrationErrorAction.Ignore` writes the interrupted record `Failed` with the block count of the file, as an `Ignore` failure does, because the committed blocks of such a file are no contiguous prefix. | `Raycoon.RayMigrator.Services/MigrationService.cs` (`CompleteCancelledFileAsync`) | The next `migrate-up` runs the whole file again, including the blocks that committed before the cancel; blocks that are not idempotent fail or apply twice | Store the committed blocks when no block of the file has failed before the cancel |
+| TD-C-10 | A failed first block of a rollback file leaves the record `Failed` with no rollback block, a state that `migrate-down` does not continue and `migrate-up` cannot resume. A cancel alone cannot produce it, because the first rollback block, an atomic rollback and a rollback through a CLI tool run to their end; a failure still does, and a cancel keeps it after a first rollback block that failed under `RollbackErrorAction=Ignore`. | `Raycoon.RayMigrator.Services/MigrationService.cs` (`ExecuteRollbackForMigrations`) | The operator inspects the target and repairs the record by hand | Record the start of the rollback before its first block, so that `migrate-down` can continue such a record |
 
 ### Database access layer audit
 

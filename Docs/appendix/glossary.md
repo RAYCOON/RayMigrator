@@ -325,7 +325,7 @@ The process of reversing previously applied migrations using rollback files.
 Configuration that determines behavior when a rollback operation encounters an error (`RollbackErrorAction` enum). Applies both during explicit `migrate-down` execution and during error recovery rollback triggered by `MigrationErrorAction` (Rollback, RollbackErrorOnly, or RollbackRelease) in `migrate-up`. See [Error Handling](../02-core-concepts/error-handling.md).
 - **Undefined** (0): Invalid value
 - **Terminate** (10): Stop the rollback chain immediately (default)
-- **Ignore** (30): Skip the failed rollback file (mark it as Failed) and continue the rollback chain with the next file
+- **Ignore** (30): Skip the failed rollback block, run the remaining blocks of the rollback file, mark the record as Failed and continue the rollback chain with the next file
 
 ### Rollback File
 A file containing SQL to undo a migration, named with `.rollback.sql` extension (configurable).

@@ -143,8 +143,8 @@ sequenceDiagram
             alt ignoreBlockErrors=true and block fails (not cancelled)
                 Svc->>Svc: Log warning, increment failedBlocks
             end
-            Svc->>Ctx: MigrationState.FileBlocksCommitted = blockIndex+1 (block succeeded)
-            Svc->>Tmpl: RepositoryMigrationUpdateAsync(migrationRecordId, Executing, blockIndex+1)
+            Svc->>Ctx: MigrationState.FileBlocksCommitted = blockIndex+1 while no block of the file failed
+            Svc->>Tmpl: RepositoryMigrationUpdateAsync(migrationRecordId, Executing, MigrationState.FileBlocksCommitted)
             Tmpl->>Repo: Update block progress (called even on ignored block failure; no token)
         end
         Svc-->>Svc: Return (succeededBlocks, failedBlocks, false)
@@ -162,7 +162,7 @@ The repository tracks block-level progress:
 | Column | Description |
 |--------|-------------|
 | `FileUpBlocksTotal` | Total blocks in migration file |
-| `FileUpBlocksMigrated` | Blocks successfully executed |
+| `FileUpBlocksMigrated` | Leading blocks that committed on the target |
 | `FileUpBlocksHash` | Combined hash of all blocks |
 
 ### Example: Partial Failure
@@ -181,6 +181,8 @@ Final state:
 - FileUpBlocksMigrated = 2
 - MigrationStatus = Failed
 ```
+
+The counter holds the leading blocks that committed at every moment of the file, so that a run that ends abruptly leaves a counter the next start can trust. With `MigrationErrorAction=Ignore` a failed block ends the count: the update after each later block writes the blocks before the first failure, and the completed file keeps them with `Failed`, so the next run resumes at the failed block, or runs the whole file when the first block failed (#11). A value equal to `FileUpBlocksTotal` therefore always means that every block committed. A file that a CLI tool runs counts 0 while the tool runs and its block total once the tool finished. A resumed file writes the blocks it resumes after to its record before its first block (`MarkResumedRecordAsync`), because the record insert of the new attempt reset the counter to 0. The rollback blocks follow the same rules in `FileDownBlocksMigrated`; a rollback block whose progress write fails ran and counts.
 
 ## Transaction Handling
 
@@ -377,9 +379,9 @@ At the start of each `MigrateUpAsync` call (when `RunMode.ShouldWriteRepository(
 
 When a migration has partially executed blocks, the repository stores the progress:
 
-1. `FileUpBlocksMigrated` records how many blocks completed successfully
+1. `FileUpBlocksMigrated` records how many leading blocks committed
 2. `MigrationStatus = Failed` or `Executing` marks the migration as partially applied
-3. On the next run, `FindResumableBlock()` determines the resume point
+3. On the next run, `FindResumableBlock()` determines the resume point; the record insert of that run resets the counter, and the run writes the resume point back to the record (`Executing`) before its first block, so that a run that ends before the next block commits keeps it
 
 A cancelled file is resumed the same way: its record is `Failed` with the blocks that committed before the cancel.
 
@@ -392,10 +394,10 @@ A cancelled run (`RunCancellation` or the token of the call, Ctrl+C or SIGTERM i
 | Block by block (`ExecuteSqlBlocks`) | Before every block | The token reaches the DAL call; the block's own transaction rolls back where the provider interrupts the statement; on SQLite, on MySQL after `KILL QUERY`, and on MariaDB in a `SLEEP()` that `KILL QUERY` ends without an error, the block may run to its end and commit | `Failed` with `FileUpBlocksMigrated` = the blocks that committed; resumed with the next block |
 | Atomic (`ExecuteSqlBlocksAtomic`) | Before every block | The token reaches the DAL call and the repository updates inside the file's transaction; the whole file rolls back | `Failed` with the blocks before the resume offset (normally 0), written on the repository's own connection; the next run starts the file there |
 | Simulate / Validate | Before every walked block | Nothing runs | Nothing is persisted |
-| CLI tool (`ExecuteWithCliTool`) | Before the file; a tool is not started once the token is cancelled | The tool is killed together with the processes it started. A tool that has exited when the cancel takes effect is judged by its exit code; one that fails after the cancel counts as the cancel, not as a failure for `MigrationErrorAction` | `Failed` with 0 blocks, the next run runs the file again; `Migrated` when the tool had exited with success |
-| Rollback blocks (`ExecuteRollbackForMigrations`) | Before every rollback block after the first, and before every record | The token reaches the DAL call | `Failed` with `FileDownBlocksMigrated` = the rollback blocks that ran; the next migrate-down continues it |
+| CLI tool (`ExecuteWithCliTool`) | Before the file; a tool is not started once the token is cancelled | The tool is killed together with the processes it started. A tool that has exited when the cancel takes effect is judged by its exit code; one that fails, or that did not get the whole file in `Stdin` mode, after the cancel counts as the cancel, not as a failure for `MigrationErrorAction` | `Failed` with 0 blocks, the next run runs the file again; `Migrated` when the tool had exited with success after it got the whole file |
+| Rollback blocks (`ExecuteRollbackForMigrations`) | Before every rollback block after the first, and before every record | The token reaches the DAL call | `Failed` with `FileDownBlocksMigrated` = the leading rollback blocks that ran (with `RollbackErrorAction=Ignore` those before the first failed one); the next migrate-down continues it, a failed rollback block included, unless its first rollback block failed under `RollbackErrorAction=Ignore` |
 
-The first block of a rollback file, an atomic rollback and a rollback through a CLI tool always run to their end. The repository update after each block takes no token: a repository write that has started always completes. SQL Server, PostgreSQL and MariaDB interrupt the statement in progress (PostgreSQL leaves the transaction unusable, and it is rolled back); MySQL ends only the statement in progress through `KILL QUERY` and runs the further statements of a block, so a block with several statements stops at its end; on MySQL and MariaDB `KILL QUERY` ends a `SLEEP()` early without an error, and the block runs on; SQLite checks only before a block. Under `MigrationErrorAction = Ignore` a cancel ends the loop as well (a cancelled block is not counted as a failed one), and the record stores the block count of the file as after an ignored failure, so the next run executes the whole file again.
+The first block of a rollback file, an atomic rollback and a rollback through a CLI tool always run to their end. The repository update after each block takes no token: a repository write that has started always completes. SQL Server, PostgreSQL and MariaDB interrupt the statement in progress (PostgreSQL leaves the transaction unusable, and it is rolled back); MySQL ends only the statement in progress through `KILL QUERY` and runs the further statements of a block, so a block with several statements stops at its end; on MySQL and MariaDB `KILL QUERY` ends a `SLEEP()` early without an error, and the block runs on; SQLite checks only before a block. Under `MigrationErrorAction = Ignore` a cancel ends the loop as well (a cancelled block is not counted as a failed one), and the record keeps the blocks before the first failed one, as at the end of such a file, so the next run resumes at that block.
 
 ## Best Practices
 

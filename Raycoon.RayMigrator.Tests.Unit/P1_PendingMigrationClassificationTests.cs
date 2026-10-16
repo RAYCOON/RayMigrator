@@ -90,7 +90,8 @@ public class PendingMigrationClassificationTests
     [Fact]
     public void Classify_FailedWithEveryBlockCounted_IsFailed()
     {
-        // Act: MigrationErrorAction=Ignore stores the total, so the record is never resumed (#11)
+        // Act: every block committed, but the record ended Failed (the final status update failed); there is no block
+        // left to resume at, and migrate-up finalizes only Executing records, so it runs the file again (#11)
         var result = Classify(ThreeBlockFile(), Record(MigrationStatus.Failed, blocksMigrated: 3));
 
         // Assert

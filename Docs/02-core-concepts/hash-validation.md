@@ -244,7 +244,7 @@ For multi-block migrations, track progress at block level:
 | Column | Description |
 |--------|-------------|
 | `FileUpBlocksTotal` | Total blocks in file |
-| `FileUpBlocksMigrated` | Blocks successfully executed |
+| `FileUpBlocksMigrated` | Leading blocks that committed on the target |
 
 This enables:
 - Resume from failed block

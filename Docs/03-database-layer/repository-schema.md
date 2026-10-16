@@ -313,19 +313,21 @@ Individual migration file records.
 | `FileUpHash` | VARCHAR(100) | SHA256 of up file |
 | `FileUpConfigHash` | VARCHAR(100) | SHA256 of config section |
 | `FileUpBlocksHash` | VARCHAR(100) | SHA256 of SQL blocks |
-| `FileUpBlocksMigrated` | INT | Blocks executed |
+| `FileUpBlocksMigrated` | INT | Leading blocks committed on the target (see below) |
 | `FileUpBlocksTotal` | INT | Total blocks in file |
 | `FileUpConfigJson` | NVARCHAR(MAX) | TOML config as JSON |
 | `MigrateDownFileExists` | BIT | Has rollback file |
 | `FileDownHash` | VARCHAR(100) | SHA256 of down file |
 | `FileDownConfigHash` | VARCHAR(100) | SHA256 of down config |
 | `FileDownBlocksHash` | VARCHAR(100) | SHA256 of down SQL |
-| `FileDownBlocksMigrated` | INT | Down blocks executed |
+| `FileDownBlocksMigrated` | INT | Leading rollback blocks that ran (see below) |
 | `FileDownBlocksTotal` | INT | Total down blocks |
 | `FileDownConfigJson` | NVARCHAR(MAX) | Down TOML as JSON |
 | `StartedAt` | DATETIME2(3) | Execution start |
 | `FinishedAt` | DATETIME2(3) | Execution end |
 | `DurationInMs` | BIGINT | Duration in milliseconds |
+
+The two block counters count the leading blocks that committed on the target at every moment of a run, so that a run that ends abruptly leaves a counter the next start can trust. A block that commits after a failed one (`MigrationErrorAction=Ignore`, `RollbackErrorAction=Ignore`) does not count: the record of such a file keeps the blocks before the first failed one also when the file ends or a cancel stops it, so the next migrate-up resumes at that block, and a `FileUpBlocksMigrated` equal to `FileUpBlocksTotal` always means that every block committed; a rollback that ran to its end with an ignored failure stores its block count in `FileDownBlocksMigrated` with `Failed`; a file that a CLI tool runs counts 0 until the tool has finished; a resumed file and a continued rollback carry the blocks of their earlier attempt from their start (the record insert of a new attempt resets `FileUpBlocksMigrated` to 0 and the `FileDown*` columns to NULL).
 
 `Repository_MigrationRecord_Select` and `Repository_MigrationRecordHistory_Select` return `StartedAt` and `FinishedAt` since 0.20.0 (`MigrationRecord.StartedAt`/`FinishedAt`, UTC); `TargetGroupStatus.LastMigrationDate` of the status is the latest `FinishedAt` of the Migrated records of a target group. A select without the two columns (an external DAL with the older templates) maps its records with null dates.
 

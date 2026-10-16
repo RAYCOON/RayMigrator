@@ -568,7 +568,11 @@ public class TemplateExecutor
     /// <param name="fileUpBlocksMigrated">
     /// Number of leading blocks that are committed on the target. For a <see cref="MigrationStatus.Failed"/> record this
     /// is what the next run skips when it resumes the file (<c>FindResumableBlock</c>), so it must never include the
-    /// block that failed (#11). Ignore-mode failures store the total to opt out of resuming.
+    /// block that failed (#11); with MigrationErrorAction=Ignore it ends before the first failed block, also when the
+    /// file ran to its end, so a value equal to the block count always means that every block committed. While the file
+    /// runs (<see cref="MigrationStatus.Executing"/>) it counts the same, so that a run that ends abruptly leaves a
+    /// counter the next start can trust: a block that commits after a failed one does not count, and a file that a CLI
+    /// tool runs counts 0.
     /// </param>
     /// <exception cref="TemplateExecutionException"></exception>
     public async Task RepositoryMigrationUpdateAsync(

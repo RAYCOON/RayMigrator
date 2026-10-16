@@ -155,7 +155,7 @@ RollbackErrorAction = "Terminate"
 Valid values:
 
 - `Terminate` — Stop the rollback chain immediately. No further rollbacks are performed. This is the default.
-- `Ignore` — Skip the failed rollback and continue with the next rollback file in the chain.
+- `Ignore` — Skip the failed rollback block, run the remaining blocks of the rollback file and continue with the next rollback file in the chain.
 
 If omitted, the value is inherited from the nearest `migsettings.txt` / `migsettings.{Environment}.txt` file in the directory hierarchy, or from the product configuration.
 

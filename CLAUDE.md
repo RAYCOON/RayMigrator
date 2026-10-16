@@ -28,7 +28,7 @@ RayMigrator is a database migration framework for SQL Server, PostgreSQL, MariaD
 | Test support (NuGet) | `Testing` | Reusable integration-test infrastructure. |
 | Config Wizard | `ConfigWizard.Core`, `ConfigWizard.Web` | Core has zero dependencies. Web is Blazor WASM, MudBlazor, `net10.0` only, deployed to Azure Static Web Apps. |
 | Example | `Database.Example` | MIT-licensed skeleton for external DAL plugins. Not packed. |
-| Tests | `Tests.Unit` (~2980), `Tests.Engine` (~1560, Docker), `Tests.Unit.ConfigWizard.Core` (~480), `Tests.Unit.ConfigWizard.Web` (~350), `Tests.Unit.Validation` (~100) | All `net10.0` only. xunit.v3, AwesomeAssertions, NSubstitute. No bUnit. |
+| Tests | `Tests.Unit` (~2980), `Tests.Engine` (~1600, Docker), `Tests.Unit.ConfigWizard.Core` (~480), `Tests.Unit.ConfigWizard.Web` (~350), `Tests.Unit.Validation` (~100) | All `net10.0` only. xunit.v3, AwesomeAssertions, NSubstitute. No bUnit. |
 
 There is no `Tests.Integration` project and no Terminal.Gui wizard. Integration tests are `Tests.Engine`.
 

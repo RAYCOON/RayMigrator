@@ -27,7 +27,10 @@ public interface IMigrationService
     /// Executes rollback migrations down to a specified release
     /// </summary>
     /// <param name="request">Rollback request parameters</param>
-    /// <param name="cancellationToken">Stops the rollback at the next rollback block; the next migrate-down continues it.</param>
+    /// <param name="cancellationToken">
+    /// Stops the rollback at the next rollback block; the next migrate-down continues it, unless the first rollback block
+    /// of the record in progress failed under RollbackErrorAction=Ignore.
+    /// </param>
     /// <returns>Result of the rollback operation</returns>
     Task<MigrationOperationResult> MigrateDownAsync(MigrateDownRequest request, CancellationToken cancellationToken = default);
 

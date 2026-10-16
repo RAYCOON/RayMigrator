@@ -38,8 +38,8 @@ public class MigrateDownRequest
     public string[]? TargetGroupAliases { get; set; }
     /// <summary>
     /// The handle the host cancels this run with, or null. A migrate-down stops at the next rollback block and
-    /// ignores the action the handle carries: the record in progress stays Failed with its rollback blocks, and the
-    /// next migrate-down continues it.
+    /// ignores the action the handle carries: the record in progress stays Failed with its leading rollback blocks, and
+    /// the next migrate-down continues it unless its first rollback block failed under RollbackErrorAction=Ignore.
     /// </summary>
     public RunCancellation? Cancellation { get; set; }
 }

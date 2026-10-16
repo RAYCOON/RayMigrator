@@ -74,6 +74,39 @@ public static class SqlDialect
     }
 
     /// <summary>
+    /// Returns a DROP of a table that <see cref="GetCreateSimpleTableSql"/> creates, which does nothing when the table
+    /// does not exist.
+    /// </summary>
+    public static string GetDropSimpleTableIfExistsSql(string databaseType, string tableName)
+    {
+        return databaseType switch
+        {
+            "SqlServer" => $"IF OBJECT_ID('[dbo].[{tableName}]', 'U') IS NOT NULL DROP TABLE [dbo].[{tableName}];",
+            "PostgreSQL" => $"DROP TABLE IF EXISTS public.{tableName.ToLower()} CASCADE;",
+            "MariaDb" or "MySql" => $"DROP TABLE IF EXISTS `{tableName.ToLower()}`;",
+            "Sqlite" => $"DROP TABLE IF EXISTS {tableName.ToLower()};",
+            _ => throw new NotSupportedException($"Unsupported database type: {databaseType}")
+        };
+    }
+
+    /// <summary>
+    /// Returns an INSERT of one row into a table that <see cref="GetCreateSimpleTableSql"/> creates. As a block of a
+    /// migration file it fails while the table does not exist and succeeds once a test created it, so the file keeps its
+    /// hash between two runs.
+    /// </summary>
+    public static string GetInsertIntoSimpleTableSql(string databaseType, string tableName, string name)
+    {
+        return databaseType switch
+        {
+            "SqlServer" => $"INSERT INTO [dbo].[{tableName}] ([Name]) VALUES ('{name}')",
+            "PostgreSQL" => $"INSERT INTO public.{tableName.ToLower()} (name) VALUES ('{name}')",
+            "MariaDb" or "MySql" => $"INSERT INTO `{tableName.ToLower()}` (Name) VALUES ('{name}')",
+            "Sqlite" => $"INSERT INTO {tableName.ToLower()} (Name) VALUES ('{name}')",
+            _ => throw new NotSupportedException($"Unsupported database type: {databaseType}")
+        };
+    }
+
+    /// <summary>
     /// Generates a TOML metadata header block for migration files.
     /// Only emits non-default fields. Returns empty string if all values are defaults and description is empty.
     /// </summary>
