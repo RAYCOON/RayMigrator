@@ -39,6 +39,12 @@ public class ScenarioContext : IAsyncDisposable
     public RepositoryOptions RepositoryOptions => _host.RayMigratorOptions.Repository!;
 
     /// <summary>
+    /// The database log the host writes to (database type, connection string, schema, table prefix), the repository
+    /// unless the scenario names other values.
+    /// </summary>
+    public DatabaseLoggingOptions DatabaseLoggingOptions => _host.RayMigratorOptions.DatabaseLogging!;
+
+    /// <summary>
     /// Returns the host's migration service and binds the host's MigrationContext to the ambient
     /// <see cref="MigrationLoggingContext"/> of the current async flow. EngineTestHost sets the AsyncLocal inside
     /// <c>BuildAsync</c>, which runs in an async flow of its own and is therefore invisible to the test method; without this
@@ -629,6 +635,12 @@ public class ScenarioContext : IAsyncDisposable
     /// Flushes the host's DatabaseLogWriter queue; call before asserting on <see cref="CountLogEntries"/>.
     /// </summary>
     public void FlushDatabaseLog() => _host.FlushDatabaseLog();
+
+    /// <summary>
+    /// Initializes the database log once more, as the next start of a host does (<c>DatabaseLogging_CheckCreate</c>);
+    /// true when it created the log tables, false when they existed.
+    /// </summary>
+    public Task<bool> InitDatabaseLoggerAsync() => _host.InitDatabaseLoggerAsync();
 
     /// <summary>
     /// Counts MigrationLog entries at a specific log level.

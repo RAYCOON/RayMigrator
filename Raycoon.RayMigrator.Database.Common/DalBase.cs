@@ -147,6 +147,25 @@ public abstract class DalBase : IDal
         return ex.InnerException != null ? IsTransient(ex.InnerException) : (false, null);
     }
 
+    /// <summary>
+    /// Determines if an exception reports that a command ran into its command timeout. A retry of such a call starts the
+    /// work from the beginning and waits out the timeout again, so a caller whose work may be long does not retry it,
+    /// although a timeout counts as transient for every other call (the index build of <c>DatabaseLogging_CheckCreate</c>).
+    /// The base recognises a <see cref="TimeoutException"/> in the chain of inner exceptions, as Npgsql reports a timeout;
+    /// a DAL whose provider reports it in another way overrides this (SqlClient with error -2, MySqlConnector with
+    /// <c>CommandTimeoutExpired</c>). A cancellation is never a timeout.
+    /// </summary>
+    public virtual bool IsTimeout(Exception ex)
+    {
+        if (ex is OperationCanceledException { CancellationToken.IsCancellationRequested: true })
+            return false;
+
+        if (ex is TimeoutException)
+            return true;
+
+        return ex.InnerException != null && IsTimeout(ex.InnerException);
+    }
+
     private IReadOnlySet<string>? _transientErrorCodes;
 
     /// <summary>

@@ -181,6 +181,36 @@ public class MySqlMariaDbIdentifierCasingTests
             $"Found: {string.Join(", ", strayMatches)}");
     }
 
+    /// <summary>
+    /// Every index and constraint name of the schema templates is snake_case after its prefix (DAL-018). The guards
+    /// above only find backticked PascalCase, so an unquoted PascalCase name would pass them. information_schema
+    /// compares index names without case on both engines, so this is the convention of the templates, not a lookup
+    /// that would fail.
+    /// </summary>
+    [Theory]
+    [InlineData("MySql", "Repository_Upgrade_1.sql")]
+    [InlineData("MySql", "Repository_Upgrade_2.sql")]
+    [InlineData("MySql", "Repository_Upgrade_3.sql")]
+    [InlineData("MySql", "DatabaseLogging_CheckCreate.sql")]
+    [InlineData("MariaDb", "Repository_Upgrade_1.sql")]
+    [InlineData("MariaDb", "Repository_Upgrade_2.sql")]
+    [InlineData("MariaDb", "Repository_Upgrade_3.sql")]
+    [InlineData("MariaDb", "DatabaseLogging_CheckCreate.sql")]
+    public void Template_IndexAndConstraintNames_AreLowerCase(string engine, string templateFile)
+    {
+        // Arrange: the SQL without the TOML header and the line comments
+        string sql = Regex.Replace(ReadTemplate(engine, templateFile), @"/\*.*?\*/", string.Empty, RegexOptions.Singleline);
+        sql = Regex.Replace(sql, @"--[^\r\n]*", string.Empty);
+
+        // Act
+        var names = Regex.Matches(sql, @"\b(?:pk|fk|ix|uix)_\{CFG:TableBaseName\}(?<rest>\w+)").ToList();
+
+        // Assert
+        names.Should().NotBeEmpty(because: $"{engine}/{templateFile} names at least one index or constraint");
+        names.Where(m => m.Groups["rest"].Value.Any(char.IsUpper)).Select(m => m.Value).Should().BeEmpty(
+            because: $"{engine}/{templateFile} must write every index and constraint name in snake_case (DAL-018)");
+    }
+
     // -------------------------------------------------------------------------
     // 2. Template counts
     // -------------------------------------------------------------------------

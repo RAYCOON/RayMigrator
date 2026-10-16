@@ -103,6 +103,39 @@ RayMigrator follows Semantic Versioning where applicable.
 - `BaselineResult.Result` names the result the run row records (`Ok`,
   `Error` or `Cancelled`), and `RunCompletedEvent.Result` carries it for
   baseline as well; it was null for baseline before.
+- The log table `MigrationLog` has two indexes, for the readers of the log
+  and for a cleanup by age: `ix_{TableBaseName}MigrationLog_MigrationRunId`
+  (`MigrationRunId`) and `ix_{TableBaseName}MigrationLog_CreatedAt`
+  (`CreatedAt`), in snake_case on PostgreSQL, MySQL and MariaDB.
+  `DatabaseLogging_CheckCreate` (every DAL) creates each index when it is
+  missing, whether or not it creates the tables, so the next
+  initialization of the database log also adds them to a log table that an
+  older engine created and still reports that the log existed (result 0).
+  This holds as well for a log database of its own, with its own
+  connection, schema and prefix; the log tables are not part of the
+  repository schema version. A parallel start of another host does not
+  fail on the indexes: SQL Server, PostgreSQL and MySQL serialise the
+  initialization with a lock apart from the repository schema lock,
+  MariaDB and SQLite rely on `CREATE INDEX IF NOT EXISTS`. The wait for
+  that lock ends with the command timeout of `DatabaseLogging`
+  (`DbCommandTimeoutInSeconds`, 20 seconds by default); SQL Server and
+  MySQL give up after 60 seconds and report -1 only when that timeout is
+  longer, and PostgreSQL waits for the lock until the timeout. The start
+  that adds the indexes needs the right to create indexes on the log
+  table; a later start finds them and needs that right no more. That first
+  start builds them on the rows already there within the same command
+  timeout. A timeout of `DatabaseLogging_CheckCreate` is not retried,
+  other transient failures are, as for every log write: the attempt was
+  rolled back whole, and a retry would build the indexes again and hold
+  back the log writes of other hosts once more. The start then fails with
+  a message that names the index build and
+  `DatabaseLogging.DbCommandTimeoutInSeconds`; when updating, raise that
+  timeout for the first start on a large log. `DalBase.IsTimeout` (new,
+  virtual) tells a timeout from other failures: a `TimeoutException` in
+  the chain, SqlClient error -2 and the `CommandTimeoutExpired` of
+  MySqlConnector, and a DAL overrides it when its provider reports a
+  timeout in another way. Like the shipped DALs, an external
+  DAL adds the two indexes to its own `DatabaseLogging_CheckCreate`.
 
 ### Changed
 

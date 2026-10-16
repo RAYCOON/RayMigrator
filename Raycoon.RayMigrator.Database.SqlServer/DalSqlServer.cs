@@ -128,6 +128,10 @@ public class DalSqlServer : DalBase, IDal
         return base.IsTransient(ex);
     }
 
+    /// <inheritdoc />
+    /// <remarks>SqlClient reports a command timeout as a <see cref="SqlException"/> with error number -2.</remarks>
+    public override bool IsTimeout(Exception ex) => ex is SqlException { Number: -2 } || base.IsTimeout(ex);
+
     public override void CheckConnectionStringOrValidateConnection(bool validateConnection)
     {
         using (var connection = new SqlConnection(_connectionString))

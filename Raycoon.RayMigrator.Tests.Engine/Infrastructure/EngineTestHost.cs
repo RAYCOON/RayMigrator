@@ -288,6 +288,23 @@ public sealed class EngineTestHost : IDisposable
     /// </summary>
     public void FlushDatabaseLog(TimeSpan? timeout = null) => _dbLogWriter?.Flush(timeout ?? TimeSpan.FromSeconds(30));
 
+    /// <summary>
+    /// Runs the initialization of the database log once more, as the next start of a host does: the host's
+    /// <see cref="DatabaseLogWriter"/> executes <c>DatabaseLogging_CheckCreate</c> against the log database again.
+    /// </summary>
+    /// <returns>True when the template created the log tables (result 1), false when they existed (result 0).</returns>
+    public Task<bool> InitDatabaseLoggerAsync()
+    {
+        var options = RayMigratorOptions;
+        if (!options.IsDatabaseLoggingEnabled())
+            throw new InvalidOperationException("The scenario has database logging switched off.");
+
+        return _dbLogWriter!.InitDatabaseLoggerAsync(
+            options.DatabaseLogging!.DatabaseType!,
+            Services.GetRequiredService<TemplateCache>(),
+            Services.GetRequiredService<TemplateExecutor>());
+    }
+
     public void Dispose()
     {
         // Flush pending database log entries before disposal

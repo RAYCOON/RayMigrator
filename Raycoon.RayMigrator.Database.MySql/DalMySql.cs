@@ -58,6 +58,10 @@ public class DalMySql : DalBase, IDal
         return base.IsTransient(ex);
     }
 
+    /// <inheritdoc />
+    /// <remarks>MySqlConnector reports a command timeout as a <see cref="MySqlException"/> with <c>CommandTimeoutExpired</c>.</remarks>
+    public override bool IsTimeout(Exception ex) => ex is MySqlException { ErrorCode: MySqlErrorCode.CommandTimeoutExpired } || base.IsTimeout(ex);
+
     public override void CheckConnectionStringOrValidateConnection(bool validateConnection)
     {
         using var connection = new MySqlConnection(_connectionString);

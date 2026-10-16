@@ -134,6 +134,33 @@ public class PostgreSqlIdentifierCasingTests
             "if you added a new template, also add it to P2_PostgreSqlIdentifierCasingTests");
     }
 
+    /// <summary>
+    /// Every index and constraint name of the schema templates is lower case after its prefix. The guard above only
+    /// finds quoted PascalCase: an unquoted PascalCase name passes it and PostgreSQL folds it to lower case, so the
+    /// lookup of DatabaseLogging_CheckCreate in pg_indexes, which compares the name as written, would not find the
+    /// index, and every later start would try to create it again and fail.
+    /// </summary>
+    [Theory]
+    [InlineData("Repository_CheckCreate.sql")]
+    [InlineData("Repository_Upgrade_1.sql")]
+    [InlineData("Repository_Upgrade_2.sql")]
+    [InlineData("Repository_Upgrade_3.sql")]
+    [InlineData("DatabaseLogging_CheckCreate.sql")]
+    public void PgTemplate_IndexAndConstraintNames_AreLowerCase(string templateFile)
+    {
+        // Arrange: the SQL without the TOML header and the line comments
+        string sql = Regex.Replace(ReadTemplate("PostgreSQL", templateFile), @"/\*.*?\*/", string.Empty, RegexOptions.Singleline);
+        sql = Regex.Replace(sql, @"--[^\r\n]*", string.Empty);
+
+        // Act
+        var names = Regex.Matches(sql, @"\b(?:pk|fk|ix|uix)_\{CFG:TableBaseName\}(?<rest>\w+)").ToList();
+
+        // Assert
+        names.Should().NotBeEmpty(because: $"{templateFile} names at least one index or constraint");
+        names.Where(m => m.Groups["rest"].Value.Any(char.IsUpper)).Select(m => m.Value).Should().BeEmpty(
+            because: $"{templateFile} must write every index and constraint name in snake_case (DAL-017)");
+    }
+
     // -------------------------------------------------------------------------
     // 2. Reader-output SELECT alias counts (Strategy B contract)
     // -------------------------------------------------------------------------

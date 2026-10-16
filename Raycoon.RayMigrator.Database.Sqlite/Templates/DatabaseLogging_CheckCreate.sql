@@ -6,20 +6,23 @@ RayMigrator SQL Template
 TemplateType   = "DatabaseLogging_CheckCreate"
 DatabaseType   = "Sqlite"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-09-09.1"
+Version        = "2026-10-16.1"
 
 [Description]
 Function = """
 Checks for database logging infrastructure existence.
-Creates MigrationLog and MigrationEvent tables if they don't exist.
+Creates MigrationLog and MigrationEvent tables if they don't exist, and the indexes the
+readers of the log filter by (rows per run, rows per time) when they are missing.
 Used for database-level logging of migration events.
 """
 
 Behaviour = """
-- Return value = 0: Logging infrastructure already exists
+- Return value = 0: Logging infrastructure already exists (also when only the indexes were added)
 - Return value = 1: Logging infrastructure was created
 - Return value < 0: Error (logged at Error level)
 - Inserts master data for MigrationEvent types
+- Creates the indexes on MigrationLog (MigrationRunId) and (CreatedAt) when missing, also on a log
+  table an older engine created
 """
 
 [ConfigPlaceholders]
@@ -43,6 +46,8 @@ Note5 = "MigrationLog.CreatedAt defaults to datetime('now')"
 Note6 = "Uses idempotent CREATE TABLE IF NOT EXISTS; the MigrationEvent catalogue is inserted only when the log tables are created in this run (gated on _rc_log_check.existed = 0)"
 Note7 = "Uses temp table to capture pre-DDL state since SQLite has no session variables"
 Note8 = "DAL-021: MigrationLog.CreatedAt carries a strict-ISO-8601 CHECK constraint"
+Note9 = "The indexes stand outside the creation gate: CREATE INDEX IF NOT EXISTS runs on every start and adds them to a log table an older engine created"
+Note10 = "A parallel start of another host is safe without a lock: SQLite serialises the DDL through its write lock and IF NOT EXISTS makes the second statement a no-op"
 ================================================================================
 */
 
@@ -121,6 +126,10 @@ SELECT "column1", "column2", "column3" FROM (VALUES
     (1000, 'RayMigratorServiceShutdown', '')
 )
 WHERE (SELECT "existed" FROM "_rc_log_check") = 0;
+
+-- Outside the creation gate, so that a log table an older engine created gets the indexes at its next start.
+CREATE INDEX IF NOT EXISTS "ix_{CFG:TableBaseName}MigrationLog_MigrationRunId" ON "{CFG:TableBaseName}MigrationLog" ("MigrationRunId");
+CREATE INDEX IF NOT EXISTS "ix_{CFG:TableBaseName}MigrationLog_CreatedAt" ON "{CFG:TableBaseName}MigrationLog" ("CreatedAt");
 
 SELECT CASE WHEN (SELECT "existed" FROM "_rc_log_check") > 0
     THEN '0,Database logging infrastructure already exists'

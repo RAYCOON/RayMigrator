@@ -46,6 +46,11 @@ public class RepositoryTemplatePrefixTests
     [InlineData("Sqlite", "Repository_Upgrade_3.sql", "ix_{CFG:TableBaseName}MigrationRecord_Product_Environment")]
     [InlineData("SqlServer", "DatabaseLogging_CheckCreate.sql", "pk_{CFG:TableBaseName}MigrationLog")]
     [InlineData("PostgreSQL", "DatabaseLogging_CheckCreate.sql", "pk_{CFG:TableBaseName}migration_log")]
+    [InlineData("SqlServer", "DatabaseLogging_CheckCreate.sql", "ix_{CFG:TableBaseName}MigrationLog_MigrationRunId")]
+    [InlineData("PostgreSQL", "DatabaseLogging_CheckCreate.sql", "ix_{CFG:TableBaseName}migration_log_created_at")]
+    [InlineData("MySql", "DatabaseLogging_CheckCreate.sql", "ix_{CFG:TableBaseName}migration_log_migration_run_id")]
+    [InlineData("MariaDb", "DatabaseLogging_CheckCreate.sql", "ix_{CFG:TableBaseName}migration_log_created_at")]
+    [InlineData("Sqlite", "DatabaseLogging_CheckCreate.sql", "ix_{CFG:TableBaseName}MigrationLog_CreatedAt")]
     public void SchemaTemplate_NamesTheConstraintWithThePrefix(string engine, string template, string expectedName)
     {
         string sql = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "DataAccessLayers", engine, template));
