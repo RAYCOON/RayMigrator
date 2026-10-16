@@ -112,7 +112,7 @@ The `MigrationRunResult` enum tracks the overall outcome of a migration run in t
 | `PartialSuccess` | 50 | Finished, but at least one file was skipped or left Failed |
 | `Cancelled` | 70 | Stopped on request at the next block or file boundary, and the `MigrationCancelledAction` completed (engine code `1004`); since schema version 3 |
 | `Recovered` | 80 | Failed, but the error-recovery rollback (`Rollback`, `RollbackRelease`, `RollbackErrorOnly`) completed without a failure or warning (#18) |
-| `Error` | 90 | Migration(s) stopped due to error(s), or the error recovery did not complete cleanly; also a failed migrate-up whose error recovery a cancel stopped (with the code of the failure), a cancelled migrate-up whose rollback did not complete cleanly (engine code `1005`) and a run closed as orphaned |
+| `Error` | 90 | Migration(s) stopped due to error(s), or the error recovery did not complete cleanly; also a failed migrate-up whose error recovery a cancel stopped (with the code of the failure), a cancelled migrate-up whose rollback did not complete cleanly (engine code `1005`) and a run closed as orphaned (engine code `1006`) |
 | `Ok` | 100 | Migration(s) successfully executed and finished |
 
 ### Run Result Transitions
@@ -220,11 +220,11 @@ A process that ends in the middle of a run writes nothing more: a crash, a kill,
 
 The repair settles the record of a RunAlways file by the same rule, but the next migrate-up runs that file in full from block 1, as on every run, unless its rollback stopped in the middle. It does the same with a file that a CLI tool runs, whose record kept blocks of an attempt on the DAL.
 
-`fix --scope orphanedruns` applies the same rule with `--older-than`; `--last-migration-status migrated` or `not-migrated` sets that status on every open record of the run instead. The repair keeps the counters, sets `FinishedAt` to its time, leaves `DurationInMs` empty and writes no history row. `info` lists the open records of an open run as the repair will leave them, because the repair comes first. See [Concurrency Control](concurrency-control.md#scenario-3-process-crash).
+`fix --scope orphanedruns` applies the same rule with `--older-than`; `--last-migration-status migrated` or `not-migrated` sets that status on every open record of the run instead. The repair keeps the counters, sets `FinishedAt` to its time where it is empty, leaves `DurationInMs` as it is (empty for a file that was running; a record whose rollback was running keeps the end and the duration of its last terminal status) and writes no history row. It closes the run row as `Error` with the engine code `1006` (`OrphanedRunClosed`) and the message `Closed as orphaned by the repair: the run ended without finishing; last heartbeat <yyyy-MM-dd HH:mm:ss> UTC` (`LastHeartbeatAt`, or `StartedAt` for a run without one), the same for the auto-fix and for `fix`, so that the run history tells an abrupt end from a failure; a code or a message that the row has already stays. `info` lists the open records of an open run as the repair will leave them, because the repair comes first. See [Concurrency Control](concurrency-control.md#scenario-3-process-crash).
 
 After the repair a run that ended abruptly leaves its records as a cancel or a failure at the same block leaves them, because the counters are the same (see [Block-Level State](#block-level-state)), and the next run does the same after either; at most a record without a committed block is `NotMigrated` instead of `Failed`. Two things differ on purpose:
 
-- The run row: a cancel closes the run as `Cancelled` (70) with `1004`, or as `Error` (90) with `1005`; the repair closes a run that ended abruptly as `Error` (90).
+- The run row: a cancel closes the run as `Cancelled` (70) with `1004`, or as `Error` (90) with `1005`; the repair closes a run that ended abruptly as `Error` (90) with `1006` and a message that names its last heartbeat.
 - The `MigrationCancelledAction`: only a cancel takes it. A run that ends abruptly rolls nothing back, as with `Terminate`, so the files it migrated stay `Migrated`. A second Ctrl+C or SIGTERM during the rollback of a `RollbackFile`, `RollbackRun` or `RollbackRelease` ends the process at once: the record that rollback is working on stays `Executing` with the leading rollback blocks that ran, as after any hard abort, until the repair settles it by the table above; the records it did not reach keep their state, and the repair closes the run as `Error` instead of `Cancelled`.
 
 ## Block-Level State

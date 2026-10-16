@@ -77,6 +77,16 @@ public static class TemplateResultCode
     /// </summary>
     public const int CancelledRollbackIncomplete = 1005;
 
+    /// <summary>
+    /// The orphan repair closed the run: a later start (the auto-fix of a migrate-up, migrate-down or baseline) or
+    /// <c>fix</c> found it open with a stale heartbeat, because the process ended without finishing it (a crash, a kill,
+    /// a second Ctrl+C or SIGTERM). <c>Repository_MigrationRun_FixOrphaned</c> writes it into <c>MigrationRun.ErrorCode</c>
+    /// of the run it closes as <c>MigrationRunResult.Error</c>, with a message that names the last heartbeat; a code or a
+    /// message the row has already stays. It is no result code of a template, and it is never the <c>ErrorCode</c> of a
+    /// command's result; the run history reports it with the run it closed.
+    /// </summary>
+    public const int OrphanedRunClosed = 1006;
+
     // ===== Known Code Registry =====
 
     private static readonly HashSet<int> KnownNegativeCodes =

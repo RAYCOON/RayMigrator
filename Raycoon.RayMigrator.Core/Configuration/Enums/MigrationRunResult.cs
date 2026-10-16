@@ -45,6 +45,10 @@ public enum MigrationRunResult : byte
 
     /// <summary>
     /// Migration(s) stopped due to error(s): aborted without recovery, or the error recovery did not complete cleanly.
+    /// Also a cancelled migrate-up whose rollback of its <see cref="MigrationCancelledAction"/> did not complete cleanly
+    /// (engine code 1005, <c>TemplateResultCode.CancelledRollbackIncomplete</c>), a migrate-up that failed at a file
+    /// before a cancel stopped its error recovery (the code of that failure), and a run that ended abruptly, which the
+    /// orphan repair of a later start or <c>fix</c> closes (engine code 1006, <c>TemplateResultCode.OrphanedRunClosed</c>).
     /// </summary>
     Error = 90,
 

@@ -18,7 +18,7 @@ RayMigrator uses SQL templates with placeholder substitution for database-agnost
 | `Repository_MigrationRun_Insert` | Create new migration run |
 | `Repository_MigrationRun_Update` | Update migration run status |
 | `Repository_MigrationRun_SelectOrphaned` | Select open migration runs with their heartbeat age (`MinutesSinceHeartbeat`) |
-| `Repository_MigrationRun_FixOrphaned` | Fix an orphaned MigrationRun entry whose heartbeat is older than `@ThresholdMinutes` |
+| `Repository_MigrationRun_FixOrphaned` | Fix an orphaned MigrationRun entry whose heartbeat is older than `@ThresholdMinutes`: `Error` with the engine code `1006` and a message that names the last heartbeat |
 | `Repository_MigrationRun_Heartbeat` | Refresh `LastHeartbeatAt` of a running MigrationRun (every `Repository.HeartbeatIntervalInSeconds`) |
 | `Repository_MigrationRecord_FixOrphaned` | Settle the open Migration entries of an orphaned MigrationRun: `@MigrationStatusId = 0` decides per entry from its progress (`Failed` with committed blocks, `Migrated` with every block, `NotMigrated` without progress; rollbacks likewise), another status is set on every open entry; sets `FinishedAt` where it is empty |
 | `Repository_MigrationRecord_Select` | Query migration records |

@@ -396,8 +396,8 @@ raymigrator fix -p BookStore -env Production
 
 For each orphaned `MigrationRun` that matches the age threshold:
 
-1. Settles the open `MigrationRecord` rows (entries stuck in `Pending` or `Executing`): without `--last-migration-status` by the progress of each file, `Failed` with its committed blocks (the next `migrate-up` resumes after them), `Migrated` when every block committed, `NotMigrated` without progress; with the option to the status it names. The rows get `FinishedAt`, the time of the repair.
-2. Marks the `MigrationRun` itself as `Error` and sets its `FinishedAt` timestamp.
+1. Settles the open `MigrationRecord` rows (entries stuck in `Pending` or `Executing`): without `--last-migration-status` by the progress of each file, `Failed` with its committed blocks (the next `migrate-up` resumes after them), `Migrated` when every block committed, `NotMigrated` without progress; with the option to the status it names. Rows without an end get `FinishedAt`, the time of the repair; a row whose rollback was running keeps its end and its duration.
+2. Marks the `MigrationRun` itself as `Error` and sets its `FinishedAt` timestamp. Its `ErrorCode` becomes `1006` and its `ErrorMessage` `Closed as orphaned by the repair: the run ended without finishing; last heartbeat <yyyy-MM-dd HH:mm:ss> UTC`, so that the run history tells such a run from one that failed; a code or a message that the run has already stays.
 
 ### Choosing --last-migration-status
 

@@ -351,6 +351,11 @@ RayMigrator follows Semantic Versioning where applicable.
   runs the retention templates of one repository without a migration
   context and without the retries of the repository; its
   `LogTableExistsAsync` asks for the log table without a count.
+- `TemplateResultCode.OrphanedRunClosed` (1006), the engine code of a run
+  that the orphan repair closed. `Repository_MigrationRun_FixOrphaned`
+  writes it into `MigrationRun.ErrorCode`; it is never the `ErrorCode` of
+  a command's result, and the run history reports it with the run it closed
+  (see Changed).
 
 ### Changed
 
@@ -578,6 +583,21 @@ RayMigrator follows Semantic Versioning where applicable.
   record. A template of an earlier version writes the status 0 to the
   records, which no command handles; an external DAL ships the rule (the
   stub in `Database.Example` describes it).
+- The orphan repair records why it closed a run. The run row that the
+  auto-fix of the next migrate-up, migrate-down or baseline, or `fix`,
+  closes as `Error` gets the `ErrorCode` 1006
+  (`TemplateResultCode.OrphanedRunClosed`) and the `ErrorMessage` `Closed as
+  orphaned by the repair: the run ended without finishing; last heartbeat
+  <yyyy-MM-dd HH:mm:ss> UTC`, with `LastHeartbeatAt`, or `StartedAt` for a
+  run without a heartbeat. Both stayed empty before, so the run history
+  (`MigrationRunInfo.ErrorCode` and `ErrorMessage`, the read model) could
+  not tell a run that ended abruptly from one that failed. A code or a
+  message that the row has already stays. The message is the same for the
+  auto-fix and for `fix`. `Repository_MigrationRun_FixOrphaned` of every
+  DAL writes both; the template of an external DAL can set them the same
+  way (the stub in `Database.Example` describes them), and one that leaves
+  them alone keeps working: its run rows stay `Error` without a cause, as
+  before.
 - A RunAlways file always runs in full: migrate-up no longer resumes it
   after committed blocks of a failed or cancelled attempt and no longer
   finalizes a record of it that committed every block; it runs the file

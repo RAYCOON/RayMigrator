@@ -453,7 +453,7 @@ raymigrator fix --product <alias> --environment <env> [--scope <scope>] [--older
 
 **--run-mode**: `migrate` repairs the orphaned runs; `simulate` lists the runs that would be repaired, writes nothing and leaves no DatabaseLogging rows. `validate` is rejected for `fix` (#22).
 
-**--last-migration-status**: Without the option every open (`Pending`, `Executing`) record of an orphaned run keeps its progress: `Failed` after committed blocks, so that the next migrate-up resumes after them, `Migrated` when every block committed, `NotMigrated` without progress; a rollback that was running ends `Failed` with its rollback blocks, which migrate-down continues, or `NotMigrated` when every rollback block ran. `migrated` (`MigrationStatus.Migrated`) and `not-migrated` (`MigrationStatus.NotMigrated`) set that status on every open record of the run, for an operator who has checked the target. The counters of the records stay; the repair sets `FinishedAt` and leaves `DurationInMs` empty.
+**--last-migration-status**: Without the option every open (`Pending`, `Executing`) record of an orphaned run keeps its progress: `Failed` after committed blocks, so that the next migrate-up resumes after them, `Migrated` when every block committed, `NotMigrated` without progress; a rollback that was running ends `Failed` with its rollback blocks, which migrate-down continues, or `NotMigrated` when every rollback block ran. `migrated` (`MigrationStatus.Migrated`) and `not-migrated` (`MigrationStatus.NotMigrated`) set that status on every open record of the run, for an operator who has checked the target. The counters of the records stay; the repair sets `FinishedAt` where it is empty and leaves `DurationInMs` as it is. The run itself becomes `Error` with the engine code `1006` (`OrphanedRunClosed`) and a message that names its last heartbeat.
 
 ### Property Mapping
 
@@ -672,7 +672,7 @@ Represents the final result of a MigrationRun record (displayed by the Info comm
 | `PartialSuccess` | 50 | Finished, but at least one file was skipped or left Failed (migrate-up with `Ignore`, migrate-down that skipped a missing rollback file or ignored a failed rollback) |
 | `Cancelled` | 70 | Stopped on request (Ctrl+C or SIGTERM in the CLI) and the `MigrationCancelledAction` completed; exit code 130 |
 | `Recovered` | 80 | Failed, but the configured error recovery (`Rollback`, `RollbackRelease`, `RollbackErrorOnly`) rolled back without a failure or warning; repository and database are consistent. Exit code stays 1 |
-| `Error` | 90 | Migration(s) stopped due to error(s), or the error recovery did not complete cleanly, also when Ctrl+C or SIGTERM stopped it (with the code of the failure, exit code 1), or the rollback of a cancelled migrate-up did not complete cleanly (engine code `1005`, exit code 1) |
+| `Error` | 90 | Migration(s) stopped due to error(s), or the error recovery did not complete cleanly, also when Ctrl+C or SIGTERM stopped it (with the code of the failure, exit code 1), or the rollback of a cancelled migrate-up did not complete cleanly (engine code `1005`, exit code 1); also a run that the orphan repair of a later start or `fix` closed (engine code `1006`) |
 | `Ok` | 100 | Migration(s) successfully executed and finished |
 
 Source: `Raycoon.RayMigrator.Core/Configuration/Enums/MigrationRunResult.cs`

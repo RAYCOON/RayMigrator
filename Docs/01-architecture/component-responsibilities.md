@@ -699,7 +699,7 @@ The package `Raycoon.RayMigrator.Repository.ReadModel` (ADR-025) is the contract
 | Class | Purpose |
 |-------|---------|
 | `InternalConstants` | Internal string constants (e.g., `RayMigratorSectionName`) |
-| `TemplateResultCode` | Catalog of negative result codes returned by SQL templates and of the positive engine error codes (1001 to 1005, among them `Cancelled` 1004 and `CancelledRollbackIncomplete` 1005) |
+| `TemplateResultCode` | Catalog of negative result codes returned by SQL templates and of the positive engine error codes (1001 to 1006, among them `Cancelled` 1004, `CancelledRollbackIncomplete` 1005 and `OrphanedRunClosed` 1006, which the orphan repair writes into the run row) |
 
 ### Exceptions
 **Location**: `Raycoon.RayMigrator.Shared/Exceptions/CustomExceptions.cs`

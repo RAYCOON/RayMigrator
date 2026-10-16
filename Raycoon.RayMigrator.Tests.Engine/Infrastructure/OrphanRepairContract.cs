@@ -1,11 +1,14 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 using Raycoon.RayMigrator.Core.Configuration.Enums;
 using Raycoon.RayMigrator.Core.Models;
 using Raycoon.RayMigrator.Core.Progress;
 using Raycoon.RayMigrator.Repository.ReadModel;
 using Raycoon.RayMigrator.Services;
 using Raycoon.RayMigrator.Services.Abstractions;
+using Raycoon.RayMigrator.Shared.Constants;
 using Serilog.Events;
 
 namespace Raycoon.RayMigrator.Tests.Engine.Infrastructure;
@@ -17,7 +20,11 @@ namespace Raycoon.RayMigrator.Tests.Engine.Infrastructure;
 /// after them; one with every block committed becomes Migrated; a rollback that was running becomes Failed with its
 /// rollback blocks (migrate-up refuses the file, migrate-down continues), Failed without rollback progress, or
 /// NotMigrated when every rollback block had run; a record without progress becomes NotMigrated. The repair sets
-/// FinishedAt and leaves DurationInMs empty. <c>fix</c> with an explicit status sets that status on every open record.
+/// FinishedAt to the time of the repair where it is empty and leaves DurationInMs as it is: a file that was running gets
+/// the time of the repair without a duration, a rollback that was running keeps the end and the duration of its last
+/// terminal status. It closes the run as Error with the engine code <see cref="TemplateResultCode.OrphanedRunClosed"/>
+/// and a message that names its last heartbeat in UTC. <c>fix</c> with an explicit status sets that status on every
+/// open record.
 /// The engine leaves the committed blocks where it can (a cancel, a full migrate-down); the two facts of an abrupt end
 /// that no command leaves are written by SQL: the open run, whose heartbeat is older than the threshold of two minutes
 /// (<see cref="ScenarioContext.InsertOrphanedMigrationRun"/>), and the open record of that run
@@ -108,9 +115,38 @@ internal static class OrphanRepairContract
     }
 
     /// <summary>
+    /// Asserts that the repair closed the run at <paramref name="runIndex"/> (1-based, oldest first) as Error with the
+    /// engine code <see cref="TemplateResultCode.OrphanedRunClosed"/> and a message that says so and names the last
+    /// heartbeat in UTC, so that the history tells the abrupt end from a failure: the heartbeat the history reads from the
+    /// run row as a UTC time, to the second, three minutes before the repair (<see cref="InsertOrphanRun"/>). A message
+    /// in the time zone of the session differs from it by the offset of that zone, which the scenarios on PostgreSQL bring
+    /// about in every environment, also in UTC, because their sessions run in a time zone other than UTC.
+    /// </summary>
+    private static async Task AssertClosedByTheRepairAsync(ScenarioContext ctx, int runIndex)
+    {
+        var run = ctx.GetMigrationRun(runIndex)!;
+        run.MigrationRunResultId.Should().Be((int)MigrationRunResult.Error, because: "the repair closes the orphaned run");
+        run.ErrorCode.Should().Be(TemplateResultCode.OrphanedRunClosed.ToString(CultureInfo.InvariantCulture),
+            because: "the run row says that the repair closed it");
+        var message = Regex.Match(run.ErrorMessage ?? string.Empty,
+            @"^Closed as orphaned by the repair: the run ended without finishing; last heartbeat (?<heartbeat>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) UTC$");
+        message.Success.Should().BeTrue(because: $"the message says that the repair closed the run and names its last heartbeat: '{run.ErrorMessage}'");
+        DateTime heartbeat = DateTime.ParseExact(message.Groups["heartbeat"].Value, "yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal);
+        var history = await ctx.GetHistoryAsync();
+        DateTime? lastHeartbeat = history.Runs.Should().ContainSingle(r => r.MigrationRunId == run.Id).Which.LastHeartbeatAt;
+        lastHeartbeat.Should().NotBeNull(because: "the test wrote a heartbeat for the run");
+        heartbeat.Should().Be(lastHeartbeat!.Value.AddTicks(-(lastHeartbeat.Value.Ticks % TimeSpan.TicksPerSecond)),
+            because: "the message names the last heartbeat of the run in UTC, to the second");
+        heartbeat.Should().BeCloseTo(DateTime.UtcNow.AddMinutes(-3), TimeSpan.FromMinutes(5),
+            because: "the test wrote the heartbeat three minutes in the past");
+    }
+
+    /// <summary>
     /// (a) The auto-fix of the next migrate-up keeps the committed blocks: the seed committed block 1 in a run that ended
-    /// abruptly while block 2 ran (Executing with block 1). The next migrate-up closes that run as Error, repairs the record
-    /// to Failed with block 1 and resumes the seed with block 2, so block 1 does not run again.
+    /// abruptly while block 2 ran (Executing with block 1). The next migrate-up closes that run as Error with the code and
+    /// the message of the repair, repairs the record to Failed with block 1 and resumes the seed with block 2, so block 1
+    /// does not run again.
     /// </summary>
     public static async Task VerifyAutoFixResumesAfterTheCommittedBlocksAsync(ScenarioBuilder builder, EngineConfig config)
     {
@@ -129,7 +165,7 @@ internal static class OrphanRepairContract
 
         // Assert
         result.Success.Should().BeTrue(because: $"the repaired seed is resumed: {result.ErrorMessage}");
-        ctx.GetMigrationRun(2)!.MigrationRunResultId.Should().Be((int)MigrationRunResult.Error, because: "the auto-fix closes the orphaned run");
+        await AssertClosedByTheRepairAsync(ctx, 2);
         recorder.Of<FileStartedEvent>().Should().ContainSingle(f => f.FileName == Seed)
             .Which.ResumeFromBlock.Should().Be(1, because: "the repair kept block 1, which committed before the abrupt end");
         ctx.AssertMigrationRecord(Seed, new MigrationRecordExpectation { MigrationStatusId = (int)MigrationStatus.Migrated, FileUpBlocksMigrated = 3 });
@@ -139,8 +175,9 @@ internal static class OrphanRepairContract
     }
 
     /// <summary>
-    /// (b) <c>fix</c> without a status applies the same rule: the record of the seed becomes Failed with block 1 and gets
-    /// an end, and the next migrate-up resumes with block 2.
+    /// (b) <c>fix</c> without a status applies the same rule: it closes the run as Error with the code and the message of
+    /// the repair, the record of the seed becomes Failed with block 1 and gets an end, and the next migrate-up resumes with
+    /// block 2.
     /// </summary>
     public static async Task VerifyFixKeepsTheCommittedBlocksAsync(ScenarioBuilder builder, EngineConfig config)
     {
@@ -157,6 +194,7 @@ internal static class OrphanRepairContract
         // Assert
         fix.Success.Should().BeTrue(because: $"fix closes the orphaned run: {fix.ErrorMessage}");
         fix.OrphanedRunsFixed.Should().Be(1);
+        await AssertClosedByTheRepairAsync(ctx, 2);
         ctx.AssertMigrationRecord(Seed, new MigrationRecordExpectation
         {
             MigrationStatusId = (int)MigrationStatus.Failed,

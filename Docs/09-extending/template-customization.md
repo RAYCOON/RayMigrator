@@ -191,6 +191,7 @@ Unknown negative codes (e.g., from user-customized templates) throw `UndefinedTe
 | `1003` | `ConfigurationValidationFailed` | Configuration validation error |
 | `1004` | `Cancelled` | The host cancelled the run and the engine stopped it: the run of a migrate-up, migrate-down or baseline is `MigrationRunResult.Cancelled`. Also the `ErrorCode` of an update-hash or fix that stopped early. The read commands (validate-hash, status, history) throw an `OperationCanceledException` instead, and the repository maintenance service reports a stopped cleanup with `RetentionResult.Completed = false` and no code |
 | `1005` | `CancelledRollbackIncomplete` | A cancelled migrate-up whose rollback did not complete cleanly (`MigrationRunResult.Error`) |
+| `1006` | `OrphanedRunClosed` | The orphan repair closed the run (`MigrationRunResult.Error`): `Repository_MigrationRun_FixOrphaned` writes it into `MigrationRun.ErrorCode`, with a message that names the last heartbeat, where the row has none; it is never the `ErrorCode` of a command's result, and the run history reports it with the run it closed |
 
 ## Template Examples
 

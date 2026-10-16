@@ -371,7 +371,9 @@ public class TemplateExecutor
     /// <summary>
     /// Marks a single orphaned MigrationRun as Error with FinishedAt set, provided its last heartbeat (or its
     /// start, when it never wrote one) is at least <paramref name="thresholdMinutes"/> old; a run that is alive
-    /// is left open and reported as <c>-31</c>. Used by the Fix command and the auto-fix of a parallel start.
+    /// is left open and reported as <c>-31</c>. The shipped templates record why where the row has no value yet:
+    /// ErrorCode <see cref="TemplateResultCode.OrphanedRunClosed"/> and a message that names the last heartbeat.
+    /// Used by the Fix command and the auto-fix of a parallel start.
     /// Parameters are passed directly (not from MigrationContext).
     /// </summary>
     /// <param name="migrationRunId">The ID of the orphaned MigrationRun to fix.</param>

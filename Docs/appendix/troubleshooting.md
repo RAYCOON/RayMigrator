@@ -635,7 +635,7 @@ The `Repository_Product_CheckInsert` template rejects a `NULL`/empty `Name` para
 raymigrator fix -p MyProduct -env Production --scope orphanedruns --run-mode simulate
 raymigrator fix -p MyProduct -env Production --scope orphanedruns
 ```
-The orphan repair of the next start and `fix` without `--last-migration-status` keep the progress of the file: the record becomes `Failed` with its committed blocks, and the next `migrate-up` resumes after them, so at most the block that was running runs again; a record whose every block committed becomes `Migrated`, and a rollback that was running keeps its rollback blocks for the next `migrate-down`. `--last-migration-status` sets one status on every open record of the run instead (`not-migrated` runs the file again from its first block), so use it only after you have checked the target.
+The orphan repair of the next start and `fix` without `--last-migration-status` keep the progress of the file: the record becomes `Failed` with its committed blocks, and the next `migrate-up` resumes after them, so normally only the block that was running runs again; a record whose every block committed becomes `Migrated`, and a rollback that was running keeps its rollback blocks for the next `migrate-down`. `--last-migration-status` sets one status on every open record of the run instead (`not-migrated` runs the file again from its first block), so use it only after you have checked the target. Either way the run row ends `Error` with the engine code `1006` (`OrphanedRunClosed`) and the message `Closed as orphaned by the repair: the run ended without finishing; last heartbeat <yyyy-MM-dd HH:mm:ss> UTC`, which tells it apart from a run that failed.
 
 ### Interrupted Migration Detected
 
@@ -702,12 +702,14 @@ The orphan repair of the next start and `fix` without `--last-migration-status` 
 
 2. **Manual cleanup**
    ```sql
-   -- Mark as error-terminated
+   -- Mark as error-terminated, with the code and a message as the repair writes them
    UPDATE MigrationRun
    SET
        MigrationRunResultId = 90,  -- Error
        FinishedAt = SYSUTCDATETIME(),
-       DurationInMs = DATEDIFF(MILLISECOND, StartedAt, SYSUTCDATETIME())
+       DurationInMs = DATEDIFF(MILLISECOND, StartedAt, SYSUTCDATETIME()),
+       ErrorCode = COALESCE(ErrorCode, '1006'),  -- OrphanedRunClosed
+       ErrorMessage = COALESCE(ErrorMessage, 'Closed as orphaned by hand')
    WHERE Id = @OrphanedRunId;
    ```
 
@@ -741,7 +743,7 @@ The orphan repair of the next start and `fix` without `--last-migration-status` 
 
 **Explanation:**
 
-When RayMigrator detects a parallel-run conflict (another migration appears to be running), it checks whether the existing run is orphaned: its last heartbeat (`MigrationRun.LastHeartbeatAt`, refreshed every `Repository.HeartbeatIntervalInSeconds`, default 30 seconds) is older than `Repository.OrphanedRunThresholdInMinutes` (default 2 minutes). If so, it automatically marks the orphaned run as Error, settles its open records by their progress (`Failed` with the committed blocks, which the new migration resumes after, `Migrated` when every block committed, `NotMigrated` without progress) and proceeds with the new migration.
+When RayMigrator detects a parallel-run conflict (another migration appears to be running), it checks whether the existing run is orphaned: its last heartbeat (`MigrationRun.LastHeartbeatAt`, refreshed every `Repository.HeartbeatIntervalInSeconds`, default 30 seconds) is older than `Repository.OrphanedRunThresholdInMinutes` (default 2 minutes). If so, it automatically marks the orphaned run as Error, with the engine code `1006` and a message that names its last heartbeat, settles its open records by their progress (`Failed` with the committed blocks, which the new migration resumes after, `Migrated` when every block committed, `NotMigrated` without progress) and proceeds with the new migration.
 
 If the open run still writes heartbeats, it is alive and RayMigrator aborts with a `MigrationAlreadyRunningException`. Use the `fix` command with `--older-than 0` for immediate manual cleanup; `fix` closes only runs whose heartbeat is older than the given age.
 

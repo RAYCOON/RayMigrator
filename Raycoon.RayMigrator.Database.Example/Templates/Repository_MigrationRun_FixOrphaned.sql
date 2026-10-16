@@ -2,7 +2,16 @@
 -- Purpose: Fixes orphaned migration run records
 -- See the corresponding template in Database.SqlServer or Database.PostgreSQL for reference.
 --
+-- Closes the open run @MigrationRunId (MigrationRunResultId = 10, FinishedAt NULL) whose last heartbeat (LastHeartbeatAt,
+-- or StartedAt without one) is at least @ThresholdMinutes old: MigrationRunResultId = 90 (Error), FinishedAt = the UTC
+-- time of the repair, DurationInMs from StartedAt. It records why where the row has no value yet (COALESCE):
+-- ErrorCode = '1006' (TemplateResultCode.OrphanedRunClosed) and ErrorMessage =
+-- 'Closed as orphaned by the repair: the run ended without finishing; last heartbeat <yyyy-MM-dd HH:mm:ss> UTC'.
+-- A template that leaves ErrorCode and ErrorMessage alone still works; the run row then says Error without a cause.
+-- Return 'MigrationRunId,message' when the run was closed, '-31,message' when it is not open or still alive.
+--
 -- Parameters used in this template:
 -- {CFG:SchemaName} - The repository schema name
 -- {CFG:TableBaseName} - The table name prefix
--- @ParameterName - SQL parameters (see reference implementations)
+-- @MigrationRunId - The orphaned migration run
+-- @ThresholdMinutes - The minimum age of the last heartbeat in minutes; 0 closes the run regardless

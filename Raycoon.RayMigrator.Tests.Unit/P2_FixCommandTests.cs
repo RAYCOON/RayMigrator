@@ -4,6 +4,7 @@ using Raycoon.RayMigrator.Core.Configuration.Enums;
 using Raycoon.RayMigrator.Core.Configuration.Options;
 using Raycoon.RayMigrator.Core.Templates;
 using Raycoon.RayMigrator.Services.Abstractions;
+using Raycoon.RayMigrator.Shared.Constants;
 // Note: CLI parsing tests would require System.CommandLine dependency in test project
 // These are covered by integration tests and manual testing instead
 
@@ -249,6 +250,25 @@ public class FixCommandSqlTemplateStructureTests
         content.Should().Contain("FinishedAt", $"{engine} FixOrphanedRun should set FinishedAt");
         content.Should().Contain("DurationInMs", $"{engine} FixOrphanedRun should calculate DurationInMs");
         content.Should().Contain("orphaned run cleanup", $"{engine} FixOrphanedRun should include cleanup message");
+    }
+
+    [Theory]
+    [InlineData("SqlServer")]
+    [InlineData("PostgreSQL")]
+    [InlineData("MariaDb")]
+    [InlineData("MySql")]
+    [InlineData("Sqlite")]
+    public void FixOrphanedRun_Template_RecordsWhyTheRepairClosedTheRun(string engine)
+    {
+        var content = File.ReadAllText(GetTemplatePath(engine, "Repository_MigrationRun_FixOrphaned.sql"));
+        string body = content.Substring(content.IndexOf("*/", StringComparison.Ordinal) + 2);
+
+        body.Should().MatchRegex($@"(?i)error_?code\W*\s*=\s*COALESCE\(\W*error_?code\W*\s*,\s*'{TemplateResultCode.OrphanedRunClosed}'\)",
+            $"{engine} FixOrphanedRun should write the engine code of the repair and keep a code the run has");
+        body.Should().MatchRegex(@"(?i)error_?message\W*\s*=\s*COALESCE\(\W*error_?message\W*\s*,",
+            $"{engine} FixOrphanedRun should keep a message the run has");
+        body.Should().Contain("'Closed as orphaned by the repair: the run ended without finishing; last heartbeat '",
+            $"{engine} FixOrphanedRun should say why it closed the run");
     }
 
     [Theory]

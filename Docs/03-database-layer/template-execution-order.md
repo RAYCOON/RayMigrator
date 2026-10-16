@@ -337,7 +337,7 @@ These templates exist in the template cache but are only used during specific op
 | `Repository_MigrationRecord_UpdateHash` | Update hash fields (used by update-hash command) |
 | `Repository_MigrationRecord_Select` | Query existing migration records for filtering, rollback and the status (pending list, `LastMigrationDate` from `FinishedAt`) |
 | `Repository_MigrationRun_SelectOrphaned` | `FixIssuesAsync` (fix command): select orphaned runs (also used by `RepositoryMigrationRunInsertWithAutoFix` for auto-fix) |
-| `Repository_MigrationRun_FixOrphaned` | `FixIssuesAsync` in `Migrate` run mode: mark orphaned MigrationRun as Error (also used by `RepositoryMigrationRunInsertWithAutoFix` for auto-fix) |
+| `Repository_MigrationRun_FixOrphaned` | `FixIssuesAsync` in `Migrate` run mode: mark orphaned MigrationRun as Error with the engine code `1006` (`OrphanedRunClosed`) and a message that names its last heartbeat, where the row has none (also used by `RepositoryMigrationRunInsertWithAutoFix` for auto-fix) |
 | `Repository_MigrationRecord_FixOrphaned` | `FixIssuesAsync` in `Migrate` run mode: settle the open Migration entries of the run by their progress, or set the status of `--last-migration-status` on all of them (also used by `RepositoryMigrationRunInsertWithAutoFix` for auto-fix, always by progress) |
 | `Repository_MigrationRun_Select` | Query MigrationRun records (`GetStatusAsync` reads the latest run, `GetHistoryAsync` the last `limit` runs; both back the info command) |
 | `Repository_MigrationRecordHistory_Select` | Query `MigrationRecordHistory` rows (`GetHistoryAsync`, info command); returns the same columns as `Repository_MigrationRecord_Select`, `StartedAt` and `FinishedAt` included |

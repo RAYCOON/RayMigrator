@@ -291,7 +291,7 @@ The records of the run stay `Pending` or `Executing`; `fix` settles them as well
 
 ### Manual Cleanup via Fix Command
 
-The `fix` command identifies orphaned runs using `RepositoryMigrationRunSelectOrphanedAsync` and fixes them using `RepositoryMigrationRunFixOrphanedAsync` (sets `MigrationRunResultId` to Error and `FinishedAt` to current UTC time). It also settles the open MigrationRecord entries of the run via `RepositoryMigrationRecordFixOrphanedAsync`: by their progress as the auto-fix does, or with the status of `--last-migration-status` on every one of them. The default age threshold is 2 minutes since the last heartbeat (`--older-than` option), the default of the auto-fix threshold; `--older-than 0` closes every open run.
+The `fix` command identifies orphaned runs using `RepositoryMigrationRunSelectOrphanedAsync` and fixes them using `RepositoryMigrationRunFixOrphanedAsync` (sets `MigrationRunResultId` to Error and `FinishedAt` to current UTC time, and, where the row has none, `ErrorCode` to `1006` (`OrphanedRunClosed`) and `ErrorMessage` to `Closed as orphaned by the repair: the run ended without finishing; last heartbeat <yyyy-MM-dd HH:mm:ss> UTC`). It also settles the open MigrationRecord entries of the run via `RepositoryMigrationRecordFixOrphanedAsync`: by their progress as the auto-fix does, or with the status of `--last-migration-status` on every one of them. The default age threshold is 2 minutes since the last heartbeat (`--older-than` option), the default of the auto-fix threshold; `--older-than 0` closes every open run.
 
 ## Best Practices
 

@@ -276,8 +276,8 @@ Migration execution sessions.
 | `InitiatedBy` | NVARCHAR(200) NULL | Display name of the person or service account that started the run (the OS user for the CLI) |
 | `InitiatedBySubject` | NVARCHAR(200) NULL | Stable identifier of the initiator, for example the subject claim of an identity provider (Studio) |
 | `Host` | NVARCHAR(200) NULL | The machine the run executed on (the machine name unless the host names another) |
-| `ErrorCode` | NVARCHAR(100) NULL | Engine error code of the failure that decided a result other than Ok, also when a cancel stopped the error recovery of a failed migrate-up; `1004` for a cancelled run, `1005` when the rollback of a cancelled migrate-up did not complete (`TemplateResultCode`) |
-| `ErrorMessage` | NVARCHAR(MAX) NULL | Message of that failure, cut to 4000 characters; for a cancelled run `Cancelled on request (<action>): <outcome>` with the reason the host gave |
+| `ErrorCode` | NVARCHAR(100) NULL | Engine error code of the failure that decided a result other than Ok, also when a cancel stopped the error recovery of a failed migrate-up; `1004` for a cancelled run, `1005` when the rollback of a cancelled migrate-up did not complete, `1006` for a run that the orphan repair closed (`TemplateResultCode`) |
+| `ErrorMessage` | NVARCHAR(MAX) NULL | Message of that failure, cut to 4000 characters; for a cancelled run `Cancelled on request (<action>): <outcome>` with the reason the host gave; for a run that the orphan repair closed `Closed as orphaned by the repair: the run ended without finishing; last heartbeat <yyyy-MM-dd HH:mm:ss> UTC` (`LastHeartbeatAt`, or `StartedAt` without one) |
 | `LastHeartbeatAt` | DATETIME2(3) NULL | When the run last reported that it was alive: the start at insert, refreshed by `Repository_MigrationRun_Heartbeat` every `Repository.HeartbeatIntervalInSeconds`; an open run whose heartbeat is older than `Repository.OrphanedRunThresholdInMinutes` is orphaned |
 
 The run row is the only place these details live: the records of a run say nothing about who started it, and the `info` run history reads the operation from the row instead of deriving it from the records.
@@ -386,7 +386,7 @@ All five lookup tables (`MigrationOperation`, `MigrationRunResult`, `MigrationRu
 | 90 | Error | Migration(s) stopped due to error(s) |
 | 100 | Ok | Migration(s) successfully executed |
 
-A run the host cancelled is `Cancelled` with the engine code `1004`, or `Error` with `1005` when the rollback its `MigrationCancelledAction` started did not complete cleanly; a migrate-up that failed at a file before the cancel stopped its error recovery stays `Error` with the code of the failure (see [Error handling: Cancellation](../02-core-concepts/error-handling.md#cancellation), ADR-028).
+A run the host cancelled is `Cancelled` with the engine code `1004`, or `Error` with `1005` when the rollback its `MigrationCancelledAction` started did not complete cleanly; a migrate-up that failed at a file before the cancel stopped its error recovery stays `Error` with the code of the failure (see [Error handling: Cancellation](../02-core-concepts/error-handling.md#cancellation), ADR-028). A run that ended abruptly is closed by the orphan repair of a later start or `fix` (`Repository_MigrationRun_FixOrphaned`) as `Error` with the engine code `1006` and the message above; a code or a message the row has already stays (see [Migration State Machine: After a Hard Abort](../02-core-concepts/migration-state-machine.md#after-a-hard-abort)).
 
 ### MigrationStatus
 
