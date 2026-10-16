@@ -319,6 +319,39 @@ raymigrator info --product <alias> --environment <env> [global-options]
 raymigrator info --product MyProduct --environment Production
 ```
 
+### Output
+
+`info` prints the status of the product in the environment, the files the next migrate-up runs, the target groups and the last ten runs. Every log event starts with the prefix of the console sink, left out here; each of the two tables is one event, so only the empty line above it carries the prefix:
+
+```
+--- Migration Status for product MyProduct, environment Production ---
+  Current Release:     Release 1.2
+  Total Executed:      12
+  Pending Migrations:  3
+
+    Release      Target group  Target  File               Reason
+    ───────────  ────────────  ──────  ─────────────────  ───────────────────────
+    Release 1.2  Backend       Main    010_AddColumn.sql  Resumable after block 2
+    Release 1.2  Backend       Main    020_Seed.sql       NotMigrated
+    Release 1.2  Frontend      Web     010_Views.sql      HashMismatch
+--- Target Groups ---
+  [Backend] Type=SqlServer, Release=Release 1.1, Executed=8, Pending=2, LastMigration=2026-10-14 09:12:44, Targets=[Main]
+  [Frontend] Type=PostgreSQL, Release=Release 1.2, Executed=4, Pending=1, LastMigration=2026-10-14 09:13:02, Targets=[Web]
+
+--- Last 2 Migration Runs ---
+    RunId  Operation     RunMode     Result     # Migrations  StartedAt            FinishedAt           DurationInMs
+  ───────  ────────────  ──────────  ─────────  ────────────  ───────────────────  ───────────────────  ────────────
+       42  MigrateUp     Migrate     Cancelled             1  2026-10-15 17:40:02  2026-10-15 17:40:09          7012
+       41  MigrateUp     Migrate     Ok                   12  2026-10-14 09:12:31  2026-10-14 09:13:02         31188
+```
+
+- **Pending Migrations** counts one entry per file and target (`MigrationStatusInfo.PendingMigrations`). The list below it comes from `MigrationStatusInfo.PendingFiles` and is in the order of the next migrate-up without `--target-group-migration-order`: releases, the target groups of a release in their `TargetGroupMigrationOrder`, then file by file or target by target. It shows the first 50 entries and ends with `… and n more` when there are more; a host reads the whole list from `PendingFiles`.
+- **Reason** says why the file runs: `NotMigrated` (no record, a rolled back one, or a record of a run that is still open), `Failed` (a failed attempt without a resume point), `Resumable after block n` (blocks 1 to n committed; migrate-up continues with block n + 1, or only finalizes the record when every block committed), `RunAlways`, `HashMismatch` (a migrated file whose hash no longer matches), or `RollbackIncomplete after k of n rollback blocks, run migrate-down` (the rollback of the file stopped after k of its n rollback blocks, for example after a cancelled migrate-down; migrate-up refuses to run while such an entry is listed, and migrate-down continues the rollback at block k + 1).
+- A run with `--to-release` or `--target-group` runs a part of the list, and files of a release older than what a target has migrated are listed although migrate-up refuses them without `--allow-out-of-order`.
+- Every target group line names its pending count and its last migration, the end of its `Migrated` record that finished last (`—` when none has an end, for example with an external DAL whose selects lack `FinishedAt`).
+- **# Migrations** of the run history counts the records the run brought to a terminal state, read from `MigrationRecordHistory`; a run whose history rows a retention policy deleted shows `0` ([ADR-027](../arc42/09-Architecture-Decisions.md#adr-027-the-engine-deletes-log-and-history-rows-on-a-hosts-request-and-never-reads-them-for-a-decision)).
+- A Ctrl+C or SIGTERM ends `info` at once with exit code `130` ([Cancelling a Run](global-options.md#cancelling-a-run)).
+
 ---
 
 ## Baseline
@@ -638,7 +671,7 @@ Represents the final result of a MigrationRun record (displayed by the Info comm
 | `PartialSuccess` | 50 | Finished, but at least one file was skipped or left Failed (migrate-up with `Ignore`, migrate-down that skipped a missing rollback file or ignored a failed rollback) |
 | `Cancelled` | 70 | Stopped on request (Ctrl+C or SIGTERM in the CLI) and the `MigrationCancelledAction` completed; exit code 130 |
 | `Recovered` | 80 | Failed, but the configured error recovery (`Rollback`, `RollbackRelease`, `RollbackErrorOnly`) rolled back without a failure or warning; repository and database are consistent. Exit code stays 1 |
-| `Error` | 90 | Migration(s) stopped due to error(s), or the error recovery did not complete cleanly |
+| `Error` | 90 | Migration(s) stopped due to error(s), or the error recovery did not complete cleanly, also when Ctrl+C or SIGTERM stopped it (with the code of the failure, exit code 1), or the rollback of a cancelled migrate-up did not complete cleanly (engine code `1005`, exit code 1) |
 | `Ok` | 100 | Migration(s) successfully executed and finished |
 
 Source: `Raycoon.RayMigrator.Core/Configuration/Enums/MigrationRunResult.cs`

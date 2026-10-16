@@ -26,9 +26,10 @@ Configuration files are loaded and merged in priority order (later overrides ear
 - `RevealSensitiveData` (`bool`): Include sensitive data in logs via `--reveal-sensitive-data` / `-rsd` (default: false)
 - `AllowOutOfOrder` (`bool?`): Allow out-of-order migration execution via `--allow-out-of-order` / `-ooo`
 - `FixScope` (`FixScope?`): Fix command scope (OrphanedRuns, All = every known repair) via `--scope` / `-s` (default: OrphanedRuns)
-- `FixOlderThanMinutes` (`int?`): Fix command age threshold via `--older-than` / `-ot` (default: 60)
+- `FixOlderThanMinutes` (`int?`): Fix command age threshold via `--older-than` / `-ot`: only runs whose last heartbeat (or start, when they have none) is older than N minutes are fixed (default: 2, `0` fixes every open run)
 - `FixAssumedMigrationStatus` (`MigrationStatus?`): Fix command status for orphaned migrations via `--last-migration-status` / `-lms`
 - `StopRollbackOnMissingRollbackFile` (`bool?`): CLI override for the `StopRollbackOnMissingRollbackFile` configuration option via `--stop-rollback-on-missing-rollback-file` / `-sromrf` (default: null — defers to configuration)
+- `CancelledAction` (`MigrationCancelledAction`): What a run does when Ctrl+C or SIGTERM cancels the process, via `--cancelled-action` / `-ca` on migrate-up, migrate-down and baseline (`terminate`, `rollback-file`, `rollback-run`, `rollback-release`; default: `Terminate`, also for every other command). Migrate-down and baseline accept it and ignore it; see [Cancellation](error-handling.md#cancellation)
 - `ConfigDir` (`string?`): Override directory where RayMigrator searches for configuration files (`appsettings.json` hierarchy) via `--config-dir` / `-cd` (default: current working directory; always resolved to an absolute path at parse time)
 
 Namespace: `Raycoon.RayMigrator.Core.Configuration.Options`
@@ -267,7 +268,7 @@ sequenceDiagram
 
 ### Options Built in Memory
 
-A host that runs the engine in-process does not go through `JsonOptionsSource` and `DirectModePipeline`: it builds `RayMigratorOptions` in memory and creates the context of each run through `IMigrationContextFactory.Create`, which reduces the options to the product of the run (`RayMigratorOptionsPreparer.IsolateProduct`, ADR-026) and prepares them with `RayMigratorOptionsPreparer` (see [Validation](#validation) and [Hosting the engine in-process](migration-context.md#hosting-the-engine-in-process)). A host that binds a document of its own and wants the rule catalog to see the connection strings as written reduces the document with `ConfigurationProductScope.Isolate` (`Raycoon.RayMigrator.Shared`) before it binds, as the loader does. To create or upgrade a repository before any product runs against it, the host passes its `RepositoryOptions` to `IRepositorySchemaService.Ensure`, which validates them the way the context factory validates the repository of a run (see [Creating or upgrading a repository without a run](migration-context.md#creating-or-upgrading-a-repository-without-a-run)).
+A host that runs the engine in-process does not go through `JsonOptionsSource` and `DirectModePipeline`: it builds `RayMigratorOptions` in memory and creates the context of each run through `IMigrationContextFactory.Create`, which reduces the options to the product of the run (`RayMigratorOptionsPreparer.IsolateProduct`, ADR-026) and prepares them with `RayMigratorOptionsPreparer` (see [Validation](#validation) and [Hosting the engine in-process](migration-context.md#hosting-the-engine-in-process)). A host that binds a document of its own and wants the rule catalog to see the connection strings as written reduces the document with `ConfigurationProductScope.Isolate` (`Raycoon.RayMigrator.Shared`) before it binds, as the loader does. To create or upgrade a repository before any product runs against it, the host passes its `RepositoryOptions` to `IRepositorySchemaService.EnsureAsync`, which validates them the way the context factory validates the repository of a run (see [Creating or upgrading a repository without a run](migration-context.md#creating-or-upgrading-a-repository-without-a-run)).
 
 ## Options Source Abstraction
 

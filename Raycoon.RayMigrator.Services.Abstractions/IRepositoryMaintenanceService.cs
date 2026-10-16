@@ -50,9 +50,9 @@ public interface IRepositoryMaintenanceService
     /// <param name="request">The cutoffs, the batch size, the time budget and whether to count only.</param>
     /// <param name="cancellationToken">Checked before every batch and handed to the batch in progress, which the providers
     /// that can interrupt a statement (SQL Server, PostgreSQL, MySQL, MariaDB) abort and roll back; SQLite runs a batch
-    /// that has started to its end. Once the cleanup has started to delete, a cancellation returns the rows deleted so far
-    /// with <see cref="RetentionResult.Completed"/> false; during the checks before that, and in a dry run, it ends the
-    /// call with an <see cref="OperationCanceledException"/>.</param>
+    /// that has started to its end. After the checks of the options and the schema version, a cancellation returns the rows
+    /// deleted so far, possibly none, with <see cref="RetentionResult.Completed"/> false; during those checks, and in a dry
+    /// run, it ends the call with an <see cref="OperationCanceledException"/>.</param>
     /// <exception cref="ArgumentException">Both cutoffs are null, a cutoff is not a UTC time, the batch size is not
     /// positive or the time budget is negative.</exception>
     /// <exception cref="Raycoon.RayMigrator.Shared.Exceptions.ConfigurationValidationException">The options are incomplete

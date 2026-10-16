@@ -8,7 +8,7 @@ RayMigrator uses a **plugin architecture** for database providers. Each database
 
 1. A new project referencing `Database.Common` and `Shared`
 2. A DAL class extending `DalBase` and decorated with `[DatabaseType]`
-3. The 25 required SQL templates for repository and logging operations
+3. The 30 required SQL templates for repository and logging operations
 4. No manual registration -- `DalFactory` auto-discovers implementations via dual-mode discovery (DependencyContext scanning for built-in DALs and filesystem scanning of `DataAccessLayers/` directory for external DAL plugins)
 
 ## Alternative: CLI Tool Execution Mode
@@ -47,7 +47,7 @@ Use these as reference when building a new DAL:
 The fastest way to start is to copy the `Raycoon.RayMigrator.Database.Example` skeleton project. It contains:
 
 - `DalExample.cs` -- DAL class with all abstract methods stubbed as `NotImplementedException` and a commented-out `IsTransient` override template
-- `Templates/` -- All 26 SQL template files with placeholder comments (25 required by the engine plus `Repository_MigrationRecordHistory_Archive.sql`)
+- `Templates/` -- All 30 SQL template files the engine requires, with placeholder comments
 - `.csproj` -- Pre-configured with template copying and DLL output targets
 
 ```bash
@@ -67,14 +67,19 @@ Raycoon.RayMigrator.Database.Oracle/
 ├── DalOracle.cs                                  # DAL class extending DalBase (includes IsTransient override)
 ├── Templates/
 │   ├── DatabaseLogging_CheckCreate.sql
+│   ├── DatabaseLogging_Count.sql
+│   ├── DatabaseLogging_Delete.sql
 │   ├── DatabaseLogging_Insert.sql
 │   ├── Repository_CheckCreate.sql
 │   ├── Repository_Upgrade_1.sql
 │   ├── Repository_Upgrade_2.sql
+│   ├── Repository_Upgrade_3.sql
 │   ├── Repository_MigratorMeta_CheckInsert.sql
 │   ├── Repository_Drop.sql
 │   ├── Repository_Environment_CheckInsert.sql
 │   ├── Repository_Environment_Select.sql
+│   ├── Repository_MigrationRecordHistory_Count.sql
+│   ├── Repository_MigrationRecordHistory_Delete.sql
 │   ├── Repository_MigrationRecordHistory_Select.sql
 │   ├── Repository_MigrationRecord_FixOrphaned.sql
 │   ├── Repository_MigrationRecord_GetInterrupted.sql
@@ -94,7 +99,7 @@ Raycoon.RayMigrator.Database.Oracle/
 └── Raycoon.RayMigrator.Database.Oracle.csproj
 ```
 
-> Note: The `Database.Example` skeleton also includes a `Repository_MigrationRecordHistory_Archive.sql` placeholder beyond the 25 required templates. This file has no matching `TemplateType` enum value and is silently skipped by `TemplateCache` during initialization.
+> Note: `Database.Example/Templates/` contains exactly these 30 files as placeholders. The extra `Repository_MigrationRecordHistory_Archive.sql` placeholder of earlier versions, which had no `TemplateType`, is gone.
 
 ### Project File (.csproj)
 
@@ -193,8 +198,8 @@ public class DalOracle : DalBase, IDal
     // Override IsTransient to detect transient errors from your database driver.
     // Check your ADO.NET driver's exception type and compare the error code
     // against known transient error codes for your database engine.
-    // The base implementation already handles TimeoutException
-    // and recursively checks InnerException.
+    // The base implementation already handles TimeoutException, recursively checks
+    // InnerException and never counts a cancellation as transient.
     public override (bool isTransient, string? errorCode) IsTransient(Exception ex)
     {
         var exceptionType = ex.GetType();
@@ -219,8 +224,10 @@ public class DalOracle : DalBase, IDal
         }
     }
 
-    public override async Task ExecuteNonQueryAsync(string sqlCode, IDalSettings dalSettings,
-        DalParameterList? dalParameterList = null)
+    // DalBase implements the IDal member ExecuteNonQueryAsync on top of this and turns whatever it throws
+    // after the cancellation into an OperationCanceledException with the caller's token
+    protected override async Task ExecuteNonQueryCoreAsync(string sqlCode, IDalSettings dalSettings,
+        DalParameterList? dalParameterList, CancellationToken cancellationToken)
     {
         // Use the DalBase retry helpers which automatically route through your IsTransient override:
         await ExecuteWithRetryAsync(
@@ -228,61 +235,65 @@ public class DalOracle : DalBase, IDal
             {
                 // Open connection, build command, execute — your implementation here
                 await using var connection = new OracleConnection(_connectionString);
-                await connection.OpenAsync();
-                // ... build and execute command
+                await connection.OpenAsync(cancellationToken);
+                // ... build the command and await command.ExecuteNonQueryAsync(cancellationToken);
+                // commit without the token: a commit that has started must complete
             },
-            dalSettings);
+            dalSettings, cancellationToken: cancellationToken);
     }
 
     // Shared-connection methods: no retry, no connection management
     public override DbConnection CreateConnection() => new OracleConnection(_connectionString);
 
-    public override async Task ExecuteNonQueryAsync(string sqlCode, DbConnection connection,
-        DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList = null)
+    protected override async Task ExecuteNonQueryCoreAsync(string sqlCode, DbConnection connection,
+        DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList,
+        CancellationToken cancellationToken)
     {
         // Execute command on the caller-provided connection/transaction — do NOT open, close, or retry
-        // ... build command from (OracleConnection)connection, attach (OracleTransaction)transaction
+        // ... build command from (OracleConnection)connection, attach (OracleTransaction)transaction, pass the token
     }
 
-    public override async Task<object?> ExecuteScalarAsync(string sqlCode, DbConnection connection,
-        DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList = null)
+    protected override async Task<object?> ExecuteScalarCoreAsync(string sqlCode, DbConnection connection,
+        DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList,
+        CancellationToken cancellationToken)
     {
         // Execute scalar on the caller-provided connection/transaction — do NOT open, close, or retry
-        // ... build command from (OracleConnection)connection, attach (OracleTransaction)transaction
+        // ... build command from (OracleConnection)connection, attach (OracleTransaction)transaction, pass the token
         return null; // replace with actual result
     }
 
-    // ... implement remaining abstract methods (ExecuteNonQuery, ExecuteScalarAsync(IDalSettings),
-    //     ExecuteReaderAsync, IsConnectionValid)
+    // ... implement remaining abstract methods (ExecuteNonQuery, ExecuteScalarCoreAsync(IDalSettings),
+    //     ExecuteReaderCoreAsync, IsConnectionValidCoreAsync)
 }
 ```
 
 ### Abstract Methods to Implement
 
-All of the following methods from `DalBase` must be implemented:
+All of the following methods from `DalBase` must be implemented. `DalBase` exposes the `…CoreAsync` members as the asynchronous `IDal` members (`ExecuteNonQueryAsync`, `ExecuteScalarAsync`, `ExecuteReaderAsync`, `IsConnectionValidAsync`), each with `CancellationToken cancellationToken = default` as its last parameter:
 
 | Method | Description |
 |--------|-------------|
 | `CheckConnectionStringOrValidateConnection(bool)` | Parse and optionally validate the connection string |
-| `ExecuteNonQueryAsync(string, IDalSettings, DalParameterList?)` | Async non-query execution (INSERT, UPDATE, DDL) |
-| `ExecuteNonQuery(string, IDalSettings, DalParameterList?)` | Synchronous non-query execution |
-| `ExecuteScalarAsync(string, IDalSettings, DalParameterList?)` | Async scalar query (returns single value) |
-| `ExecuteReaderAsync(string, IDalSettings, DalParameterList?)` | Async reader query (returns `List<Dictionary<string, object?>>`) |
-| `IsConnectionValid(string, IDalSettings)` | Async test whether a connection string is valid (returns `Task<bool>`) |
+| `ExecuteNonQueryCoreAsync(string, IDalSettings, DalParameterList?, CancellationToken)` | Async non-query execution (INSERT, UPDATE, DDL) |
+| `ExecuteNonQuery(string, IDalSettings, DalParameterList?)` | Synchronous non-query execution (the database log writer's thread; no token) |
+| `ExecuteScalarCoreAsync(string, IDalSettings, DalParameterList?, CancellationToken)` | Async scalar query (returns single value) |
+| `ExecuteReaderCoreAsync(string, IDalSettings, DalParameterList?, CancellationToken)` | Async reader query (returns `List<Dictionary<string, object?>>`) |
+| `IsConnectionValidCoreAsync(string, IDalSettings, CancellationToken)` | Async test whether a connection string is valid (returns `Task<bool>`); answers false for a failure only while the token is not cancelled |
 | `CreateConnection()` | Returns a new unopened `DbConnection` using the DAL's connection string; used for shared-connection (atomic) scenarios |
-| `ExecuteNonQueryAsync(string, DbConnection, DbTransaction, int, DalParameterList?)` | Execute a non-query on a caller-provided connection and transaction; must not create connections, manage transactions, or add retry logic |
-| `ExecuteScalarAsync(string, DbConnection, DbTransaction, int, DalParameterList?)` | Execute a scalar query on a caller-provided connection and transaction; must not create connections, manage transactions, or add retry logic |
+| `ExecuteNonQueryCoreAsync(string, DbConnection, DbTransaction, int, DalParameterList?, CancellationToken)` | Execute a non-query on a caller-provided connection and transaction; must not create connections, manage transactions, or add retry logic |
+| `ExecuteScalarCoreAsync(string, DbConnection, DbTransaction, int, DalParameterList?, CancellationToken)` | Execute a scalar query on a caller-provided connection and transaction; must not create connections, manage transactions, or add retry logic |
 
-The three managed-lifecycle methods (`ExecuteNonQueryAsync(IDalSettings)`, `ExecuteScalarAsync(IDalSettings)`, `ExecuteNonQuery`) support normal operation where the DAL controls connection and retry lifecycle. Each should:
+The three managed-lifecycle methods (`ExecuteNonQueryCoreAsync(IDalSettings)`, `ExecuteScalarCoreAsync(IDalSettings)`, `ExecuteNonQuery`) support normal operation where the DAL controls connection and retry lifecycle. Each should:
 1. Convert `DalParameterList` to database-specific parameters (using `TryGetDbSpecificSqlParameter<T>`)
 2. Respect `dalSettings.UseTransaction` to wrap execution in a transaction when requested
 3. Respect `dalSettings.DbCommandTimeoutInSeconds` for command timeout
 4. Use `ExecuteWithRetryAsync` / `ExecuteWithRetry` (the protected `DalBase` helpers) to handle retries; they automatically route through your `IsTransient` override
+5. Pass the token (asynchronous methods) to opening the connection, to the command and to `ExecuteWithRetryAsync`, not to commit and rollback; a driver that cannot interrupt a statement checks the token before the batch starts, as the SQLite DAL does
 
-The three shared-connection methods (`CreateConnection`, `ExecuteNonQueryAsync(DbConnection, ...)`, `ExecuteScalarAsync(DbConnection, ...)`) are used by the atomic shared-connection path when the repository and target database are on the same server. The caller opens the connection, begins the transaction, and passes both in. These methods must execute the command using only the provided connection and transaction.
+The three shared-connection methods (`CreateConnection`, `ExecuteNonQueryCoreAsync(DbConnection, ...)`, `ExecuteScalarCoreAsync(DbConnection, ...)`) are used by the atomic shared-connection path when the repository and target database are on the same server. The caller opens the connection, begins the transaction, and passes both in. These methods must execute the command using only the provided connection and transaction.
 
 You may also optionally override the following virtual methods from `DalBase`:
-- `IsTransient(Exception ex)` -- detect transient errors specific to your database driver; the base implementation handles `TimeoutException` and `InnerException` recursion
+- `IsTransient(Exception ex)` -- detect transient errors specific to your database driver; the base implementation handles `TimeoutException` and `InnerException` recursion and never counts a cancellation as transient
 - `CreateParameter<T>(DbType dbType, string parameterName, object? parameterValue)` -- for database-specific parameter adjustments (e.g., SQL Server sets `SqlParameter.Size` for strings)
 - `ConvertToDbValue(object? value)` -- for database-specific value conversions (e.g., SQL Server clamps dates before 1753)
 
@@ -294,7 +305,7 @@ You may also optionally override the following virtual methods from `DalBase`:
 
 ## Step 3: Create SQL Templates
 
-All 25 templates must be present. `TemplateCache` validates their existence at startup. Templates are loaded from the filesystem (`DataAccessLayers/{Type}/`), delivered as `<Content>` items that propagate transitively through ProjectReference and as `contentFiles` in NuGet packages.
+All 30 templates must be present. `TemplateCache` validates their existence at startup, for every DAL folder under `DataAccessLayers/`: a folder that lacks one stops every command of the host. Templates are loaded from the filesystem (`DataAccessLayers/{Type}/`), delivered as `<Content>` items that propagate transitively through ProjectReference and as `contentFiles` in NuGet packages.
 
 ### Template Placeholders
 
@@ -316,13 +327,13 @@ SELECT '1,Operation successful';
 SELECT '-1,Error description';
 ```
 
-See `Database.SqlServer/Templates/` or `Database.PostgreSQL/Templates/` for reference implementations. All five built-in DALs (`SqlServer`, `PostgreSQL`, `MariaDb`, `MySql`, `Sqlite`) provide complete template sets of 25 files. Each template file in `Database.Example/Templates/` contains a TODO comment pointing to the reference implementations. Note that the extra `Repository_MigrationRecordHistory_Archive.sql` file in `Database.Example/Templates/` is not required by the engine and is silently skipped during loading.
+See `Database.SqlServer/Templates/` or `Database.PostgreSQL/Templates/` for reference implementations. All five built-in DALs (`SqlServer`, `PostgreSQL`, `MariaDb`, `MySql`, `Sqlite`) provide complete template sets of 30 files. Each template file in `Database.Example/Templates/` contains a TODO comment pointing to the reference implementations. The contracts of the schema step `Repository_Upgrade_3.sql`, the two log indexes of `DatabaseLogging_CheckCreate.sql` and the four retention templates are listed in [External DAL Development](external-dal-development.md#required-templates).
 
 > **Note on `Repository_Product_CheckInsert.sql` and `Repository_Environment_CheckInsert.sql`**: both templates bind two SQL parameters — `@Name` (original casing) and `@NameLower` (pre-computed lowercase). Lookup must be performed by `NameLower` to remain case-insensitive; the `Product` and `Environment` tables each have a `UNIQUE` index on `NameLower`.
 
 ### Constraint and Index Names
 
-Every primary key, foreign key and index of the repository and log tables carries the table prefix right after its `pk_`, `fk_`, `ix_` or `uix_`: `pk_{CFG:TableBaseName}MigrationRun`, `fk_{CFG:TableBaseName}MigrationRun_Product`, `ix_{CFG:TableBaseName}MigrationRecordHistory`, `uix_{CFG:TableBaseName}Product_NameLower` (snake_case on PostgreSQL, MySQL and MariaDB). Most engines keep these names unique per schema or database, so two repositories with different prefixes can share one only when every name carries the prefix; a guard that looks for a constraint (as `Repository_Upgrade_2` does) looks for the prefixed name. `TableBaseName` has at most 16 characters (RULE_4_4): your longest name without the prefix plus 16 characters must fit the identifier limit of your engine. See [Naming Conventions per Engine](../03-database-layer/sql-dialects.md#naming-conventions-per-engine).
+Every primary key, foreign key and index of the repository and log tables carries the table prefix right after its `pk_`, `fk_`, `ix_` or `uix_`: `pk_{CFG:TableBaseName}MigrationRun`, `fk_{CFG:TableBaseName}MigrationRun_Product`, `ix_{CFG:TableBaseName}MigrationRecordHistory`, `uix_{CFG:TableBaseName}Product_NameLower`, `ix_{CFG:TableBaseName}MigrationLog_CreatedAt` (snake_case on PostgreSQL, MySQL and MariaDB). Most engines keep these names unique per schema or database, so two repositories with different prefixes can share one only when every name carries the prefix; a guard that looks for a constraint or an index (as `Repository_Upgrade_2`, `Repository_Upgrade_3` and `DatabaseLogging_CheckCreate` do) looks for the prefixed name. `TableBaseName` has at most 16 characters (RULE_4_4): your longest name without the prefix plus 16 characters must fit the identifier limit of your engine. See [Naming Conventions per Engine](../03-database-layer/sql-dialects.md#naming-conventions-per-engine).
 
 ## Step 4: RetryHelper Integration
 
@@ -353,19 +364,19 @@ Use the protected `DalBase` retry helpers in your method implementations:
 
 ```csharp
 // Async (void)
-public override async Task ExecuteNonQueryAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null)
+protected override async Task ExecuteNonQueryCoreAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList, CancellationToken cancellationToken)
 {
     await ExecuteWithRetryAsync(
-        async () => { await ExecuteNonQueryAsyncInternal(sqlCode, dalSettings, dalParameterList); },
-        dalSettings);
+        async () => { await ExecuteNonQueryAsyncInternal(sqlCode, dalSettings, dalParameterList, cancellationToken); },
+        dalSettings, cancellationToken: cancellationToken);
 }
 
 // Async (with return value)
-public override async Task<object?> ExecuteScalarAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null)
+protected override async Task<object?> ExecuteScalarCoreAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList, CancellationToken cancellationToken)
 {
     return await ExecuteWithRetryAsync(
-        async () => await ExecuteScalarAsyncInternal(sqlCode, dalSettings, dalParameterList),
-        dalSettings);
+        async () => await ExecuteScalarAsyncInternal(sqlCode, dalSettings, dalParameterList, cancellationToken),
+        dalSettings, cancellationToken: cancellationToken);
 }
 
 // Sync
@@ -406,7 +417,7 @@ When all retries are exhausted, `RetryHelper` (used internally by `DalBase`) thr
    └── DataAccessLayers/
        └── Oracle/
            ├── Raycoon.RayMigrator.Database.Oracle.dll
-           └── *.sql (25 template files)
+           └── *.sql (30 template files)
    ```
 3. Copy any ADO.NET driver DLLs that are **not** already present in the RayMigrator root directory into the `DataAccessLayers/Oracle/` directory
 4. **Do NOT copy** `Database.Common.dll` or `Shared.dll` -- they must come from the app's root directory
@@ -436,18 +447,18 @@ Create a Docker container for testing and add tests to the integration test proj
 - [ ] Implement `public` class extending `DalBase` with `[DatabaseType("YourType")]` attribute
 - [ ] Accept `string connectionString` as the sole constructor parameter
 - [ ] Set `DalSpecificProperties` (block delimiter, comment markers, `SupportsSchema`, `SupportsTransactionalDdl`, identifier quoting, `DefaultSchema`)
-- [ ] Implement all 9 abstract methods:
+- [ ] Implement all 9 abstract methods, passing the token of the asynchronous ones to opening the connection and to the command:
   - [ ] `CheckConnectionStringOrValidateConnection`
-  - [ ] `ExecuteNonQueryAsync(string, IDalSettings, DalParameterList?)`
+  - [ ] `ExecuteNonQueryCoreAsync(string, IDalSettings, DalParameterList?, CancellationToken)`
   - [ ] `ExecuteNonQuery`
-  - [ ] `ExecuteScalarAsync(string, IDalSettings, DalParameterList?)`
-  - [ ] `ExecuteReaderAsync`
-  - [ ] `IsConnectionValid`
+  - [ ] `ExecuteScalarCoreAsync(string, IDalSettings, DalParameterList?, CancellationToken)`
+  - [ ] `ExecuteReaderCoreAsync`
+  - [ ] `IsConnectionValidCoreAsync`
   - [ ] `CreateConnection`
-  - [ ] `ExecuteNonQueryAsync(string, DbConnection, DbTransaction, int, DalParameterList?)`
-  - [ ] `ExecuteScalarAsync(string, DbConnection, DbTransaction, int, DalParameterList?)`
+  - [ ] `ExecuteNonQueryCoreAsync(string, DbConnection, DbTransaction, int, DalParameterList?, CancellationToken)`
+  - [ ] `ExecuteScalarCoreAsync(string, DbConnection, DbTransaction, int, DalParameterList?, CancellationToken)`
 - [ ] Override `DefaultTransientErrorCodes` and `IsTransient(Exception)` to detect your database's transient error codes; optionally ship a `TransientErrorCodes.txt`
-- [ ] Create all 25 SQL templates in `Templates/` directory, every `pk_`, `fk_`, `ix_` and `uix_` name prefixed with `{CFG:TableBaseName}`
+- [ ] Create all 30 SQL templates in `Templates/` directory (schema steps 1 to 3, the two log indexes in `DatabaseLogging_CheckCreate`, the four retention templates), every `pk_`, `fk_`, `ix_` and `uix_` name prefixed with `{CFG:TableBaseName}`
 - [ ] Configure `.csproj` template copying and DLL output targets
 - [ ] For monorepo: add `ProjectReference` and copy target to `Console.csproj`
 - [ ] Verify `DalFactory` auto-discovers the new DAL at runtime

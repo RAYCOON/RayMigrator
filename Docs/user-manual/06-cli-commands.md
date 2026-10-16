@@ -70,9 +70,9 @@ Discover and execute pending migration files on target databases.
 raymigrator migrate-up -p BookStore -env Production -rm migrate
 ```
 
-Key options: `--run-mode` (Validate/Simulate/Migrate), `--to-release`, `--target-group`, `--allow-out-of-order`, `--target-group-migration-order` (`-tgmo`), `--stop-rollback-on-missing-rollback-file` (`-sromrf`). See [migrate-up Reference](../08-cli-reference/migrate-up.md) for the full option table.
+Key options: `--run-mode` (Validate/Simulate/Migrate), `--to-release`, `--target-group`, `--allow-out-of-order`, `--target-group-migration-order` (`-tgmo`), `--stop-rollback-on-missing-rollback-file` (`-sromrf`), `--cancelled-action` (`-ca`, see [Stopping a Command with Ctrl+C](#stopping-a-command-with-ctrlc)). See [migrate-up Reference](../08-cli-reference/migrate-up.md) for the full option table.
 
-> **Tip:** Use `--run-mode validate` first to preview which migrations would be applied without touching the database or repository. See [Chapter 7 -- Execution Modes](07-execution-modes.md) for the recommended workflow.
+> **Tip:** Use `--run-mode validate` first to preview which migrations would be applied without running SQL on the targets or writing the repository. See [Chapter 7 -- Execution Modes](07-execution-modes.md) for the recommended workflow.
 
 ---
 
@@ -133,6 +133,30 @@ raymigrator info -p BookStore -env Production
 ```
 
 Database access: repository only, read-only (target databases do not have to be reachable). Audit log (DatabaseLogging): no. The run history lists each run's **Operation** (`MigrateUp`, `MigrateDown`, `Baseline`) next to its RunMode.
+
+The output (shown here without timestamps and level prefixes) starts with the status and lists the files the next `migrate-up` runs, one line per file and target in the order it runs them; then come the target groups and the last ten runs:
+
+```
+--- Migration Status for product BookStore, environment Production ---
+  Current Release:     Release 1.1
+  Total Executed:      6
+  Pending Migrations:  1
+
+    Release      Target group  Target  File                     Reason
+    ───────────  ────────────  ──────  ───────────────────────  ───────────────────────
+    Release 2.0  Backend       MainDB  001_RefactorAuthors.sql  Resumable after block 2
+--- Target Groups ---
+  [Backend] Type=SqlServer, Release=Release 1.1, Executed=6, Pending=1, LastMigration=2026-10-15 16:40:12, Targets=[MainDB]
+
+--- Last 3 Migration Runs ---
+    RunId  Operation     RunMode     Result     # Migrations  StartedAt            FinishedAt           DurationInMs
+  ───────  ────────────  ──────────  ─────────  ────────────  ───────────────────  ───────────────────  ────────────
+        3  MigrateUp     Migrate     Cancelled             1  2026-10-16 09:14:02  2026-10-16 09:14:05          3120
+        2  MigrateUp     Migrate     Ok                    2  2026-10-15 16:40:11  2026-10-15 16:40:12          1034
+        1  MigrateUp     Migrate     Ok                    4  2026-10-14 10:02:31  2026-10-14 10:02:33          1870
+```
+
+The **Reason** column says why a file is pending: `NotMigrated` (it has not run on the target, or it was rolled back), `Failed` (the last attempt failed and left nothing to resume), `Resumable after block n` (blocks 1 to n committed and `migrate-up` continues after them, here after the run that Ctrl+C stopped; when n is the block count of the file, it only completes the record), `RunAlways` (the file runs on every `migrate-up`), `HashMismatch` (the file changed after it was migrated, so `migrate-up` runs it again and logs a warning) or `RollbackIncomplete after k of n rollback blocks, run migrate-down` (a rollback of the file stopped after k of its n rollback blocks, for example when Ctrl+C stopped a `migrate-down`; `migrate-up` refuses to run until `migrate-down` has completed the rollback, see [Rolling Back Migrations](09-rollback-guide.md#block-level-rollback-tracking)). The order is that of a `migrate-up` without `--target-group-migration-order`; a file of an older release than the target has already migrated is listed as well, although `migrate-up` refuses it without `--allow-out-of-order`. The list shows the first 50 entries and ends with `… and n more` when there are more; the count above it is always complete. Every target group line names the number of its pending files (`Pending`) and when its last migration finished (`LastMigration`).
 
 ---
 
@@ -202,9 +226,22 @@ raymigrator migrate-down -p BookStore -env Production -rm migrate -tr "Release 1
 
 ---
 
+## Stopping a Command with Ctrl+C
+
+While a command runs, the first Ctrl+C (on Linux and macOS also a SIGTERM, as a container stop or a cancelled CI job sends it) stops it cleanly at its next checkpoint instead of killing the process. A `migrate-up` stops at the next block boundary, keeps the blocks that committed and records the run as `Cancelled`; the next `migrate-up` resumes the interrupted file. `--cancelled-action` chooses what a cancelled `migrate-up` does after it stopped:
+
+```bash
+# Roll back the interrupted file when the run is cancelled
+raymigrator migrate-up -p BookStore -env Production -rm migrate --cancelled-action rollback-file
+```
+
+`terminate` (the default) does nothing else; `rollback-file`, `rollback-run` and `rollback-release` roll back like the error actions `RollbackErrorOnly`, `Rollback` and `RollbackRelease`. A command that stopped this way exits with `130`; when the rollback of a cancelled `migrate-up` does not complete cleanly, the run is `Error` and the exit code `1`, and so is a `migrate-up` that had already failed at a file and was in its error recovery when the signal came. A second Ctrl+C ends the process at once and leaves the run open until RayMigrator closes it as orphaned (see [Chapter 8](08-error-handling.md#stopping-a-run-with-ctrlc)). What each command does when it is cancelled is listed in [Cancelling a Run](../08-cli-reference/global-options.md#cancelling-a-run).
+
+---
+
 ## Exit Codes
 
-→ See [Global Options — Exit Codes](../08-cli-reference/global-options.md#exit-codes) for the complete exit code table.
+→ See [Global Options — Exit Codes](../08-cli-reference/global-options.md#exit-codes) for the complete exit code table. `130` means that Ctrl+C or SIGTERM cancelled the command and it stopped cleanly.
 
 ---
 

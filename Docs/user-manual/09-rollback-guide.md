@@ -64,7 +64,9 @@ When a rollback file is not found, the behavior depends on two settings: `Requir
 
 RayMigrator tracks rollback progress at the SQL block level. Each rollback file is split into blocks (separated by the engine's block separator on a line of its own: `GO` for SQL Server, `;` for the other engines; a `;` at the end of a statement does not split). As each block executes successfully, the repository records `FileDownBlocksMigrated` and `FileDownBlocksTotal`.
 
-If a rollback is interrupted (e.g., by a block error with `RollbackErrorAction=Terminate`), the partially-rolled-back record retains its block progress. A subsequent `migrate-down` command will detect this record and **resume from the last successful block**, rather than re-executing blocks that already completed.
+If a rollback is interrupted (e.g., by a block error with `RollbackErrorAction=Terminate`, or by Ctrl+C, which stops a `migrate-down` before its next rollback block and records the run as `Cancelled`), the partially-rolled-back record retains its block progress. A subsequent `migrate-down` command will detect this record and **resume from the last successful block**, rather than re-executing blocks that already completed. The first block of a rollback file, an atomic rollback and a rollback through a CLI tool always run to their end before a Ctrl+C takes effect, so a cancelled record always has rollback progress to resume from.
+
+Until the rollback is complete, `migrate-up` refuses to run: it would run the file again from its first block on a database that kept part of it. The run ends with exit code `1` before any file runs, and the message names the release, the file, the target and how far the rollback got, for example `Release 2.0/001_RefactorAuthors.sql on target MainDB: 1 of 3 rollback blocks, migrate-down continues at block 2`. `info` lists the file as `RollbackIncomplete after 1 of 3 rollback blocks, run migrate-down`. Run `migrate-down` to a release before the file (it continues the rollback and also rolls back the migrated files of the later releases, as every `migrate-down` does; preview with `--run-mode simulate`), then `migrate-up`.
 
 ### RollbackErrorAction During migrate-down
 
@@ -117,8 +119,8 @@ raymigrator info -p BookStore -env Development
 
 You will see:
 - All Release 1.0 migrations remain with status `Migrated` (100)
-- All Release 1.1 migrations that had rollback files show status `NotMigrated` (50)
-- Migrations without rollback files (when `RequireRollbackFile=false`) retain their previous status (e.g., `Migrated` if they were previously applied)
+- All Release 1.1 migrations that had rollback files show status `NotMigrated` (50), and `info` lists them as pending migrations with the reason `NotMigrated`
+- Migrations without rollback files (when `RequireRollbackFile=false`) retain their previous status (e.g., `Migrated` if they were previously applied) and are not pending
 
 > **Tip:** Always verify with `info` after a rollback to confirm the expected state.
 

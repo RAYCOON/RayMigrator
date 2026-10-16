@@ -24,7 +24,7 @@ Behaviour = """
 # Replaced when loading the template (compile-time)
 # NOTE: For DatabaseLogging_* templates, values come from the 'Logging' section of appsettings
 SchemaName    = "Database schema from Logging configuration (e.g., 'ray')"
-TableBaseName = "Table name prefix from Logging configuration (e.g., '' or 'Log_')"
+TableBaseName = "Table name prefix from Logging configuration (e.g., '' or 'log_')"
 
 [Parameters]
 # SQL parameters bound at runtime

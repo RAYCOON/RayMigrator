@@ -73,9 +73,10 @@ index and constraint name (`pk_{prefix}...`, likewise `fk_`, `ix_`, `uix_`), so 
 has at most 16 bytes in UTF-8 (16 ASCII characters) (`RULE_4_4`) to keep the longest name within the 63 characters PostgreSQL allows. The schema is
 versioned (ADR-024): `Repository_CheckCreate` creates only `RepositorySchemaVersion` and reports the version found, the numbered
 steps `Repository_Upgrade_{n}` create the other 12 tables with their lookup seeds (step 1 the first 11, step 2 `MigrationRunSource` and the
-run details of `MigrationRun`) and every later change, and the first command of a newer engine applies the missing steps. A repository without a version row (created before 0.17.0) or with a version
-newer than the engine is refused. A host creates or upgrades a repository without a run through `IRepositorySchemaService`, which runs the
-same steps through `RepositorySchemaExecutor`.
+run details of `MigrationRun`, step 3 the lookup row `Cancelled` and four indexes for the readers) and every later change, and the first command of a newer engine applies the missing steps. A repository without a version row (created before 0.17.0) or with a version
+newer than the engine is refused. A host creates or upgrades a repository without a run through `IRepositorySchemaService.EnsureAsync`, which runs the
+same steps through `RepositorySchemaExecutor`, and deletes old history and log rows through `IRepositoryMaintenanceService`
+([Retention of history and log](#retention-of-history-and-log)).
 
 | Table | Purpose |
 |-------|---------|
@@ -85,11 +86,13 @@ same steps through `RepositorySchemaExecutor`.
 | `MigrationRun` | One row per run: mode, result, `FromReleaseVersion`, `ToReleaseVersion`, `StartedAt`, `FinishedAt`, `DurationInMs`; since schema version 2 also the operation, the source (`MigrationRunSource`), `InitiatedBy`, `InitiatedBySubject`, `Host`, `ErrorCode`, `ErrorMessage` and `LastHeartbeatAt`; the open row is the run lock |
 | `MigrationRunMeta` | `MigrationRunSettingsJson`, the masked snapshot of the effective settings of a run |
 | `MigrationRecord` | One row per file and target: status, `FileOrderId`, three up hashes, three down hashes, block counters, config JSON, timestamps |
-| `MigrationRecordHistory` | Snapshot of a record whenever it reaches `Failed`, `NotMigrated` or `Migrated`; source of the `info` run history |
+| `MigrationRecordHistory` | Snapshot of a record whenever it reaches `Failed`, `NotMigrated` or `Migrated`; source of the `info` run history and read for nothing else, so a host may delete old rows (ADR-027) |
 | `MigrationRunMode`, `MigrationOperation`, `MigrationRunResult`, `MigrationStatus`, `MigrationRunSource` | Lookup tables mirroring the Core enums of the same names |
 
 `MigrationEvent` and `MigrationLog`, created by `DatabaseLogging_CheckCreate`, live in the repository by default and carry no foreign
-keys to it, because a `DatabaseLogging` section may move them to another database.
+keys to it, because a `DatabaseLogging` section may move them to another database. They are not part of the schema version;
+`DatabaseLogging_CheckCreate` gives `MigrationLog` an index on `MigrationRunId` and one on `CreatedAt` whenever they are missing,
+also on a log table an older engine created.
 Authoritative pages: [Repository schema](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/03-database-layer/repository-schema.md), [Logging schema](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/03-database-layer/logging-schema.md).
 
 ## 8.2 Configuration
@@ -143,11 +146,12 @@ Authoritative pages: [Environment variables](https://github.com/RAYCOON/RayMigra
 `SplitSqlIntoBlocks` splits the SQL part of a file at the engine's `DalSpecificProperties.SqlBlockDelimiter` standing alone on a
 line (case insensitive) and falls back to one block; files routed to a CLI tool are not split (`ShouldSkipBlockSplitting`). Each
 block is one `IDal.ExecuteNonQueryAsync` call: the DAL opens a connection and, when `UseTransaction` is `true`, begins and commits
-a transaction per block, and `RepositoryMigrationUpdate` persists `Executing` with the committed block count after every block.
+a transaction per block, and `RepositoryMigrationUpdateAsync` persists `Executing` with the committed block count after every block.
 The transaction spans a block, not a file, and `FindResumableBlock` uses the counter to continue an interrupted file. Only when
 `CanUseSharedConnection` holds (same `DatabaseType` and byte identical connection string for repository and target,
 `UseTransaction`, error action not `Ignore`) does `ExecuteSqlBlocksAtomic` run all blocks and the repository updates in one
-transaction.
+transaction. A cancel stops a file at the next block boundary
+([Cancellation at the next block boundary](#cancellation-at-the-next-block-boundary)).
 
 | Engine | `SqlBlockDelimiter` | `SupportsTransactionalDdl` | `SupportsSchema` |
 |--------|---------------------|----------------------------|------------------|
@@ -189,9 +193,10 @@ Authoritative page: [Execution modes](https://github.com/RAYCOON/RayMigrator/blo
 
 ### Template-Driven Repository Schema
 
-All repository and log access goes through SQL templates. `TemplateType` has 25 members besides `Undefined`: 23 `Repository_*`
-(among them the schema steps `Repository_Upgrade_1` and `Repository_Upgrade_2` and `Repository_MigratorMeta_CheckInsert` of ADR-024) plus
-`DatabaseLogging_CheckCreate` and `DatabaseLogging_Insert`.
+All repository and log access goes through SQL templates. `TemplateType` has 30 members besides `Undefined`: 26 `Repository_*`
+(among them the schema steps `Repository_Upgrade_1` to `Repository_Upgrade_3` and `Repository_MigratorMeta_CheckInsert` of ADR-024, and
+`Repository_MigrationRecordHistory_Delete` and `Repository_MigrationRecordHistory_Count` of ADR-027) plus four `DatabaseLogging_*`
+(`CheckCreate`, `Insert`, and `Delete` and `Count` for the retention of the log).
 `TemplateCache` loads `DataAccessLayers/{Type}/*.sql` below the application base directory at construction, maps file names to
 `TemplateType`, replaces `{ENV:*}` once and throws `ConfigurationValidationException` when a type misses a template, a template is
 empty or a configured `DatabaseType` has no folder. `{CFG:*}` is replaced per call and limited to `SchemaName` and
@@ -204,7 +209,9 @@ Authoritative pages: [Template system](https://github.com/RAYCOON/RayMigrator/bl
 ### DAL Abstraction and plugin discovery
 
 `IDal` is the only engine contract: execute, scalar, reader, connection check and the shared connection overloads
-(`CreateConnection` plus calls taking `DbConnection` and `DbTransaction`). `DalBase` supplies the retry wrappers and type mapping;
+(`CreateConnection` plus calls taking `DbConnection` and `DbTransaction`); every asynchronous member takes a `CancellationToken`.
+`DalBase` implements those members on top of the protected `*CoreAsync` members a DAL overrides, turns whatever a call throws
+after the cancellation into an `OperationCanceledException` that carries the caller's token, and supplies the retry wrappers and type mapping;
 engine facts are data in `DalSpecificProperties`, copied into `MigrationContext.DalSpecificPropertiesDictionary`, so
 `MigrationService` never branches on an engine name. Discovery is static: the `DalFactory` constructor loads every runtime library
 named `Raycoon.RayMigrator.*` from `DependencyContext.Default` and every `DataAccessLayers/*/*.dll` next to the binary, keeps
@@ -218,12 +225,12 @@ Authoritative pages: [DAL architecture](https://github.com/RAYCOON/RayMigrator/b
 ### Plugin and Command Registration
 
 Both extension points follow a fixed checklist without touching existing code paths. A new engine: derive from `DalBase` with
-`[DatabaseType]` and the connection string constructor, override `IsTransient`, write the 25 templates in the engine's dialect
+`[DatabaseType]` and the connection string constructor, override `IsTransient` and the `*CoreAsync` members, write the 30 templates in the engine's dialect
 with `AS "PascalCase"` reader aliases, and set `RayMigratorDatabaseType` in the project so build output and NuGet `contentFiles`
 land in `DataAccessLayers/{Type}/`. A new CLI command: add a `MigrationCommand` value and its `CommandProfile` row in
 `GetProfile`, request and result DTOs in `Raycoon.RayMigrator.Services.Abstractions`, a method on `IMigrationService`, a
 `Create*Command()` factory and `Setup*Handler()` in `CommandLineConfiguration`, and an `Execute*Async` case in
-`RayMigratorService.DoWorkAsync`.
+`RayMigratorService.DoWorkAsync` that hands the token of the process to the service call and maps a cancel to `130`.
 Authoritative pages: [Adding a new CLI command](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/09-extending/new-command.md), [Adding a new database type](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/09-extending/new-database-type.md).
 
 ## 8.4 Safety and Consistency
@@ -244,9 +251,9 @@ Scenario: [Runtime View 6.6](06-Runtime-View.md#66-hash-validation-validate-hash
 ### Rollback Strategies
 
 `HandleMigrationError` resolves the effective `MigrationErrorAction` of the failed file
-(`MigrationFileInfo.MigrationErrorActionOverride`, else `ProductOptions.MigrationErrorActionEnum`) and selects the
-`MigrationRecord` rows to roll back; `ExecuteRollbackForMigrations` runs their rollback files in reverse order through the same
-block or CLI tool path.
+(`MigrationFileInfo.MigrationErrorActionOverride`, else `ProductOptions.MigrationErrorActionEnum`), `HandleStopAsync` selects the
+`MigrationRecord` rows to roll back, and `ExecuteRollbackForMigrations` runs their rollback files in reverse order through the same
+block or CLI tool path. The rollback actions of a cancel take the same chain (next section).
 
 | Setting | Values | Meaning |
 |---------|--------|---------|
@@ -260,15 +267,53 @@ ends the run as `MigrationRunResult.Recovered` 80, everything else as `Error` 90
 is `1` in all three cases.
 Scenarios: [Runtime View 6.4](06-Runtime-View.md#64-error-handling-and-rollback-during-migrate-up) and [6.5](06-Runtime-View.md#65-migrate-down). Authoritative pages: [Error handling](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/02-core-concepts/error-handling.md), [Rollback files](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/07-migration-files/rollback-files.md).
 
+### Cancellation at the next block boundary
+
+A host stops a run with the `RunCancellation` of its request (`Cancel(action, reason)`, the first call decides) or the token of the
+call; the CLI does the same on the first Ctrl+C or SIGTERM (SIGTERM on Linux and macOS) through `ConsoleCancellation`, with the action
+of `--cancelled-action`. The run stops at the next checkpoint (before every file, target and block); the token also reaches the target
+DAL, the atomic transaction of a file and `CliToolExecutor`, so SQL Server, PostgreSQL and MariaDB interrupt the statement in progress,
+MySQL ends only the statement in progress, the `KILL QUERY` of MySQL and MariaDB ends a `SLEEP()` early without an error, and
+SQLite only checks before a block. A CLI tool that exited before the cancel counts by its exit code if it got the whole file, and
+one that fails, or that did not get the whole file in `Stdin` mode, after the cancel counts as the cancel. Repository writes on a
+connection of their own never
+take the token, so a cancel never separates a record from its history row; on the atomic path the record updates are part of the file's
+transaction, which the token may interrupt and which then rolls back as a whole. The interrupted file reports `FileOutcome.Cancelled`
+and its record is `Failed` with the committed blocks, so the next `migrate-up` resumes it like a failed file.
+
+| `MigrationCancelledAction` | What a cancelled `migrate-up` does after it stopped |
+|----------------------------|-----------------------------------------------------|
+| `Terminate` 10 (default) | nothing else |
+| `RollbackRun` 20 | the rollback chain of `MigrationErrorAction.Rollback` |
+| `RollbackFile` 21 | the rollback chain of `MigrationErrorAction.RollbackErrorOnly` |
+| `RollbackRelease` 22 | the rollback chain of `MigrationErrorAction.RollbackRelease` |
+
+The rollback of an action cannot be cancelled again; `migrate-down`, `baseline` and a running error recovery stop and ignore the
+action, and the first block of a rollback file, an atomic rollback and a rollback through a CLI tool always complete. The run is
+recorded as `MigrationRunResult.Cancelled` (70) with the engine code `1004`, or as `Error` with `1005` when the rollback did not
+complete cleanly; a `migrate-up` that failed at a file before the cancel stopped its error recovery stays `Error` with the code of the
+failure, because the failure decides the run. `update-hash` and `fix` return `1004` with what they did, the read commands throw
+`OperationCanceledException`, and the CLI exits with `130` (`1` for `Error`, and for a `1004` or an `OperationCanceledException`
+without the signal). A cancel is logged
+as a warning without the exception, whose stack trace goes to `Debug`. A second signal ends the CLI at once and leaves the run to the orphan repair. Known gaps: a
+failed first rollback block leaves a record `Failed` without rollback progress, MySQL runs the further statements of a block after the
+cancel, MySQL and MariaDB run a block in `SLEEP()` to its end, and a cancel with `MigrationErrorAction.Ignore` makes the next `migrate-up` run the whole file again.
+Decision: [ADR-028](09-Architecture-Decisions.md#adr-028-a-run-cancels-at-the-next-block-boundary-with-a-migrationcancelledaction-and-records-cancelled). Scenario: [Runtime View 6.10](06-Runtime-View.md#610-cancellation-of-a-run). Authoritative page: [Error handling: Cancellation](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/02-core-concepts/error-handling.md#cancellation).
+
 ### Retry on Transient Errors
 
 `RetryHelper.ExecuteWithRetryAsync` and `ExecuteWithRetry` repeat an operation while the DAL's `IsTransient(Exception)` predicate
 returns true and attempts remain, sleeping `retryDelayMs * attempt` (linear backoff), then throw `RetryExhaustedException` (declared in `RetryHelper.cs` of `Database.Common`) with
-`AttemptsMade` and `LastErrorCode`. `DalBase.IsTransient` treats `TimeoutException` as transient and walks inner exceptions; each
+`AttemptsMade` and `LastErrorCode`. `ExecuteWithRetryAsync` waits with the caller's token and neither classifies nor retries a failure
+after the cancellation, and `IsTransient` never counts a cancellation as transient, so no layer starts another attempt. `DalBase.IsTransient` treats `TimeoutException` as transient and walks inner exceptions; each
 plugin adds its provider codes (for example SQL Server `-2` and `10060`, PostgreSQL SQLSTATE `08xxx` and `40001`, MariaDB and
 MySQL `1205` and `2013`, SQLite `5` and `6`); the built-in list of a plugin is replaced by `DataAccessLayers/{Type}/TransientErrorCodes.txt`
 when that file exists, loaded once per DAL instance by `DalFactory` (ADR-022). Retries wrap every block on the standard path; the atomic path re-executes the whole
-file after a rollback.
+file after a rollback. Two callers do not retry a timeout, because a retry would wait it out again: the initialization of the
+database log retries a transient failure of `DatabaseLogging_CheckCreate` but not a timeout (`DalBase.IsTimeout`, virtual, overridden
+for SqlClient error -2 and the `CommandTimeoutExpired` of MySqlConnector), since the attempt was rolled back whole and a retry would
+build the log indexes from the start again; the retention of `IRepositoryMaintenanceService` runs without the retries of the
+repository, and the next batch and the next call are its retry.
 
 | Scope | `DbCommandMaxRetries` | `DbCommandWaitTimeInMsBeforeRetry` | `DbCommandTimeoutInSeconds` | Source of the default |
 |-------|-----------------------|------------------------------------|-----------------------------|-----------------------|
@@ -285,11 +330,12 @@ The lock is the open `MigrationRun` row. `Repository_MigrationRun_Insert` refuse
 `ProductId` and `EnvironmentId` and `FinishedAt IS NULL` exists; the run mode is not part of the predicate, and `Validate` and
 `Simulate` runs never insert a row. The check is serialized inside the engine: `UPDLOCK, HOLDLOCK` on SQL Server,
 `pg_advisory_xact_lock` keyed by product on PostgreSQL, `GET_LOCK` named by product and environment on MariaDB and MySQL, a write
-transaction on SQLite. `TemplateExecutor.RepositoryMigrationRunInsert` converts the code into `MigrationAlreadyRunningException`;
+transaction on SQLite. `TemplateExecutor.RepositoryMigrationRunInsertAsync` converts the code into `MigrationAlreadyRunningException`;
 a running migrate-up, migrate-down or baseline refreshes `MigrationRun.LastHeartbeatAt` every
 `Repository.HeartbeatIntervalInSeconds` (30), and `RepositoryMigrationRunInsertWithAutoFix` closes runs whose last heartbeat (or
 start, without one) is older than `Repository.OrphanedRunThresholdInMinutes` (2) as `Error` and retries once; `fix` refuses to
-close a run whose heartbeat is younger (`-31`). `RepositoryMigrationRunUpdate` releases the lock by setting `FinishedAt`. The
+close a run whose heartbeat is younger (`-31`). `RepositoryMigrationRunUpdateAsync` releases the lock by setting `FinishedAt`, also for
+a cancelled run; only a process that dies before that write, for example after a second Ctrl+C or SIGTERM, leaves the row open. The
 `fix` command (`FixScope` `All` 1 or `OrphanedRuns` 2, `--older-than` default 2, `--last-migration-status`) lists or repairs orphans by heartbeat age with the
 `Repository_MigrationRun_SelectOrphaned` and `*_FixOrphaned` templates.
 Scenario: [Runtime View 6.7](06-Runtime-View.md#67-concurrency-exclusive-run-lock-and-orphaned-run-recovery-fix). Authoritative page: [Concurrency control](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/02-core-concepts/concurrency-control.md).
@@ -297,7 +343,9 @@ Scenario: [Runtime View 6.7](06-Runtime-View.md#67-concurrency-exclusive-run-loc
 ### Validate and Simulate Run Modes
 
 `Validate` parses, filters and hashes every file and, for `migrate-down`, checks that every rollback file exists and parses,
-without opening any database connection; it processes all files regardless of repository state. `Simulate` validates connections,
+without connecting to a target and without reading or writing the repository; it processes all files regardless of repository
+state. Only the startup initialization of the database log still runs (on the repository database by default), so a `Validate`
+run may create the log tables or their indexes once. `Simulate` validates connections,
 reads the repository read only (`Repository_Product_Select`, `Repository_Environment_Select`, `Repository_MigrationRecord_Select`)
 and logs the blocks or CLI tool calls it would execute, but writes neither repository nor log rows and never holds the lock.
 Authoritative page: [Execution modes](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/02-core-concepts/execution-modes.md#run-mode).
@@ -313,7 +361,15 @@ One Serilog pipeline serves all sinks. `SerilogFactory.Create` reads the `RayMig
 repository (`DatabaseLoggingDefaults` fills the section from `Repository`). The enricher reads the static `MigrationLoggingContext.Current` (an
 `AsyncLocal`) and adds run, target group, target, file and block properties for the text sinks plus `RunModeId`, `DbLogEnabled`,
 `ProductId`, `EnvironmentId`, `MigrationRecordId` and `ReleaseVersion` for the database sink. `DbLogEnabled` carries
-`CommandProfile.WritesDatabaseLog`, so `info`, `validate-hash` and simulated runs produce no rows.
+`CommandProfile.WritesDatabaseLog`, so `info`, `validate-hash` and simulated runs produce no rows. At startup
+`DatabaseLogWriter.InitDatabaseLoggerAsync` runs `DatabaseLogging_CheckCreate` in every run mode: it creates the log tables when
+they are missing and gives `MigrationLog` its indexes on `MigrationRunId` and `CreatedAt` for the readers and the cleanup by age,
+also on a table an older engine created; SQL Server, PostgreSQL and MySQL serialize that start with a lock of their own, apart from
+the repository schema lock. The start that adds the indexes needs the right to create indexes on the log table once and builds them
+on the rows already there within `DatabaseLogging.DbCommandTimeoutInSeconds` (20 seconds by default); on PostgreSQL, SQL Server
+and SQLite the build blocks the log writes of other hosts, whose queue reports a failed write on stderr only. A timeout of that start
+is not retried (other transient failures are): the start fails with a message that names the index build and the option to raise
+for the first start on a large log. The wait for the log lock ends with the same timeout.
 
 ```mermaid
 flowchart LR
@@ -336,11 +392,33 @@ Authoritative pages: [Logging options](https://github.com/RAYCOON/RayMigrator/bl
 
 The repository is the audit trail (current state, terminal transitions, runs with their masked settings snapshot). `info` connects
 to the repository only and calls `IMigrationService.GetStatusAsync` and `GetHistoryAsync(product, 10)`: `MigrationStatusInfo`
-reports `CurrentRelease`, `PendingMigrations` (counted per file and target pair), `TotalMigrationsExecuted` and a
-`TargetGroupStatus` per target group (`DatabaseType`, `CurrentRelease`, `ExecutedMigrations`, `Targets`); `MigrationHistory.Runs`
+reports `CurrentRelease`, `PendingMigrations` (counted per file and target pair), `PendingFiles` (one `PendingMigrationInfo` per
+file and target in the order of the next `migrate-up` without `--target-group-migration-order`, with a `PendingMigrationReason`:
+`NotMigrated`, `Failed`, `Resumable` with `ResumeFromBlock`, `RunAlways`, `HashMismatch` or `RollbackIncomplete` with the
+rollback blocks of a rollback that stopped in the middle, which `migrate-up` refuses to run), `TotalMigrationsExecuted` and a
+`TargetGroupStatus` per target group (`DatabaseType`, `CurrentRelease`, `ExecutedMigrations`, `PendingMigrations`,
+`LastMigrationDate`, `Targets`); `info` prints the first 50 pending entries and counts the rest. `MigrationHistory.Runs`
 lists `MigrationRunInfo` entries (`Operation`, `Result`, `RunMode`, timestamps, counts) built from
-`Repository_MigrationRun_Select` and `Repository_MigrationRecordHistory_Select`.
+`Repository_MigrationRun_Select` and `Repository_MigrationRecordHistory_Select`; the record and history selects return
+`StartedAt` and `FinishedAt` as well. Apart from the counts of the retention, the history select is the only reader of `MigrationRecordHistory` in the engine, and no engine
+code reads `MigrationLog`: a run whose history rows a host deleted reports no migrations in `info`.
 Authoritative pages: [Command reference](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/08-cli-reference/command-reference.md), [Migration state machine](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/02-core-concepts/migration-state-machine.md).
+
+### Retention of history and log
+
+`MigrationRecordHistory` and `MigrationLog` grow with every run, and no decision of the engine reads them: every command decides on
+`MigrationRecord`. A host that applies a retention policy, such as RayMigrator Studio, calls
+`IRepositoryMaintenanceService.CleanUpAsync(RepositoryOptions, RetentionRequest)` with a cutoff per table; the CLI has no retention
+command. The service validates the options like the schema service, refuses a database without a repository and a newer schema,
+cleans an older one without upgrading it, and runs the four retention templates of the repository: the history first, then the
+log, the oldest rows first, in batches of one statement that commit on their own (`BatchSize` 2,000 by default, below the lock
+escalation of SQL Server) until a batch deletes fewer rows or the time budget (60 seconds by default) runs out. The templates run
+with the command timeout of the repository but without its retries, and an error after a deleted batch ends the call with
+`Completed = false` and the error in its message. Before the log, `DatabaseLogging_Count` with `@ExistsOnly = 1` only checks that the
+log table is there, without a count; the dry run counts in full. Every batch spares
+the rows of an open run, a log row without a run falls by its age, and the log is cleaned only where it shares the database, schema
+and prefix of the repository (`LogSkipped` otherwise). `MigrationRecord`, `MigrationRun` and `MigrationRunMeta` are never deleted.
+Decision: [ADR-027](09-Architecture-Decisions.md#adr-027-the-engine-deletes-log-and-history-rows-on-a-hosts-request-and-never-reads-them-for-a-decision). Authoritative page: [Repository schema: Retention](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/03-database-layer/repository-schema.md#retention).
 
 ## 8.6 Security
 
@@ -354,8 +432,10 @@ blocks, template content and the `MigrationRunSettingsJson` snapshot; `--reveal-
 one run. `CliToolExecutor` never logs the rendered argument string and starts the process with `UseShellExecute = false`, passing
 the rendered template as `ProcessStartInfo.Arguments`; placeholder values are not shell interpreted but also not quoted by
 RayMigrator. Migration SQL runs exactly as written and `{ENV:*}` values are substituted into it without escaping; repository
-templates bind values as parameters. Least privilege: the repository account must create the schema and the 11 tables on first
-contact (`Repository_CheckCreate`) and needs only DML afterwards. `SECURITY.md` asks operators to restrict database accounts to
+templates bind values as parameters. Least privilege: the repository account must create the schema and the tables on first
+contact (`Repository_CheckCreate` and the schema steps) and keeps the DDL rights for the steps of later engine versions (ADR-024);
+the account of the log needs the right to create indexes once, for the start that adds the `MigrationLog` indexes; otherwise DML
+suffices, `DELETE` on history and log only for a host's retention. `SECURITY.md` asks operators to restrict database accounts to
 what the migrations need and to keep a verified backup; vulnerabilities are reported privately (GitHub private reporting or
 `raymigrator@raycoon.com`), acknowledged within five business days and fixed in the latest 0.19.x only.
 Authoritative pages: [Security policy](https://github.com/RAYCOON/RayMigrator/blob/main/SECURITY.md), [Environment variables](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/06-configuration-reference/environment-variables.md), [CLI tools options](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/06-configuration-reference/cli-tools-options.md).
@@ -367,7 +447,7 @@ Authoritative pages: [Security policy](https://github.com/RAYCOON/RayMigrator/bl
 `DirectModePipeline` builds a standard `IHost`: `RayMigratorOptions` with `RayMigratorDataAnnotationValidateOptions` and `ValidateOnStart`, the
 singletons `DatabaseLogWriter`, `TemplateCache`, `TemplateExecutor` and `MigrationContext`, the scoped `RayMigratorService`, and
 `AddRayMigratorServices(RayMigratorHostMode.Cli)` from `Raycoon.RayMigrator.Services`, which registers `IMigrationService` and
-`ICliToolExecutor` as scoped, `IMigrationContextFactory` and `IRepositorySchemaService` as singletons and the accessor per host mode,
+`ICliToolExecutor` as scoped, `IMigrationContextFactory`, `IRepositorySchemaService` and `IRepositoryMaintenanceService` as singletons and the accessor per host mode,
 also a singleton: `SingletonMigrationContextAccessor` for `Cli`, `AsyncLocalMigrationContextAccessor` (`AsyncLocal` backed, one
 context per async flow) for `Api` as used by RayMigrator Studio. Services read `IMigrationContextAccessor.Current` instead of receiving
 `MigrationContext` directly, and `TemplateExecutor` resolves the repository `IDal` lazily on first use. `MigrationContext` carries
@@ -401,7 +481,7 @@ and DAL or logger setup become `ApplicationStartupException`, while option valid
 exceptions into a failed `OperationResult` whose `ErrorCode` (`ExtractErrorCode`) is negative for a template `ResultCode` (`-2`
 `MigrationAlreadyRunning`), positive for engine codes (`1001` to `1005` in `TemplateResultCode`) and null when unclassified;
 `RayMigratorService.DoWorkAsync` maps a command that the cancel of the process ended to `130` and every other failed result
-and escaped exception to `1`. The pipeline creates one `RunCancellation` per process and arms `ConsoleCancellation` only while
+and escaped exception to `1`. `Program` creates one `RunCancellation` per process, and the pipeline arms `ConsoleCancellation` only while
 the command runs: the first Ctrl+C or SIGTERM (SIGTERM not on Windows) cancels it with `--cancelled-action` on a pool thread,
 a second one keeps the default and ends the process, which leaves the run row open for the orphan repair. The generic host of
 the pipeline is never started, so its `ConsoleLifetime` registers no signal handlers of its own.
@@ -414,7 +494,7 @@ the pipeline is never started, so its `ConsoleLifetime` registers no signal hand
 | `4` | `DirectModePipeline` | no `Serilog` node in the merged configuration |
 | `5` | `Program` | `System.CommandLine` threw while parsing or invoking; ordinary parse errors return the parser's own code |
 | `100` | `Program`, `DirectModePipeline` | any other exception before the command runs, which includes `ConfigurationValidationException` from option validation, `TemplateCache` and `DalFactory` (TD-C-01) |
-| `130` | `RayMigratorService` | Ctrl+C or SIGTERM cancelled the command: run result `Cancelled` (migrate-up, migrate-down, baseline), engine code `1004` (update-hash, fix), or an `OperationCanceledException` of validate-hash or info while the token of the process is cancelled; `Error` with `1005` (the rollback of the cancel action did not complete) stays `1` |
+| `130` | `RayMigratorService` | Ctrl+C or SIGTERM cancelled the command: run result `Cancelled` (migrate-up, migrate-down, baseline), and, while the token of the process is cancelled, engine code `1004` (update-hash, fix) or an `OperationCanceledException` of validate-hash or info; `Error` with `1005` (the rollback of the cancel action did not complete) stays `1`, and so do a `migrate-up` that failed at a file before the cancel stopped its error recovery (`Error` with the code of the failure), a `1004` and an `OperationCanceledException` without the signal |
 
 Authoritative pages: [Error handling](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/02-core-concepts/error-handling.md#error-categories), [Global options and exit codes](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/08-cli-reference/global-options.md#exit-codes), [Cancelling a run](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/08-cli-reference/global-options.md#cancelling-a-run), [Context and Scope](03-Context-and-Scope.md#exit-codes-as-the-automation-contract).
 

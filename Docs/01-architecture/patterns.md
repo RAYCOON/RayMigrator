@@ -88,6 +88,7 @@ The repository database is separate from target databases. SQL templates handle 
 Repository_CheckCreate.sql              - Report the schema version, create RepositorySchemaVersion if missing
 Repository_Upgrade_1.sql                - Schema step 1: create the repository tables with master data (ADR-024)
 Repository_Upgrade_2.sql                - Schema step 2: run details on MigrationRun, MigrationRunSource lookup
+Repository_Upgrade_3.sql                - Schema step 3: lookup row Cancelled, four indexes for the readers
 Repository_MigratorMeta_CheckInsert.sql - Register the engine version, return MigratorMetaId
 Repository_Drop.sql                     - Drop repository schema
 Repository_Product_CheckInsert.sql      - Ensure product exists (Name + NameLower)
@@ -108,8 +109,12 @@ Repository_MigrationRecord_Select.sql         - Query migrations
 Repository_MigrationRecord_FixOrphaned.sql    - Fix orphaned migration entries
 Repository_MigrationRecord_GetInterrupted.sql - Find interrupted migrations for recovery
 Repository_MigrationRecordHistory_Select.sql - Query terminal state transitions (info run history)
-DatabaseLogging_CheckCreate.sql         - Create database logging table
+Repository_MigrationRecordHistory_Delete.sql - Delete one batch of old history rows (retention, ADR-027)
+Repository_MigrationRecordHistory_Count.sql  - Count the history rows a delete would take
+DatabaseLogging_CheckCreate.sql         - Create the database logging tables and the indexes of MigrationLog
 DatabaseLogging_Insert.sql              - Insert log entry
+DatabaseLogging_Delete.sql              - Delete one batch of old log rows (retention, ADR-027)
+DatabaseLogging_Count.sql               - Count the log rows a delete would take, report whether the log table is there
 ```
 
 **Tables**:
@@ -120,10 +125,10 @@ DatabaseLogging_Insert.sql              - Insert log entry
 - `MigrationRun` - Migration run sessions
 - `MigrationRunMeta` - Run metadata (JSON settings)
 - `MigrationRecord` - Individual migrations with block-level tracking
-- `MigrationRecordHistory` - Migration audit trail (archived records)
+- `MigrationRecordHistory` - Migration audit trail (one row per terminal state transition of a record; a host's retention deletes old rows, ADR-027)
 - `MigrationRunMode` - Lookup: run modes (Migrate, Simulate, ...)
 - `MigrationOperation` - Lookup: operation types (MigrateUp, MigrateDown, ...)
-- `MigrationRunResult` - Lookup: run results (Running=10, PartialSuccess=50, Recovered=80, Error=90, Ok=100)
+- `MigrationRunResult` - Lookup: run results (Running=10, PartialSuccess=50, Cancelled=70, Recovered=80, Error=90, Ok=100; Cancelled since schema version 3)
 - `MigrationRunSource` - Lookup: where a run was started (Cli=10, Ci=20, Studio=30; schema version 2)
 - `MigrationStatus` - Lookup: migration status values
 
@@ -133,7 +138,7 @@ DatabaseLogging_Insert.sql              - Insert log entry
 
 **Implementation**:
 
-All `TemplateExecutor` methods are **synchronous** (internally calling async DAL methods with `.GetAwaiter().GetResult()`). Placeholder resolution happens in two stages:
+Every public `TemplateExecutor` method is **asynchronous** (`…Async`, with `CancellationToken cancellationToken = default` as its last parameter) and awaits the DAL. Placeholder resolution happens in two stages:
 
 ```csharp
 // Infrastructure/TemplateExecutor.cs (namespace: Raycoon.RayMigrator.Core)
@@ -154,7 +159,7 @@ public class TemplateExecutor
     private RepositoryOptions _repository { get => /* InitializeFromContext() if needed */ }
     private IDal _repositoryDal { get => /* InitializeFromContext() if needed */ }
 
-    public void RepositoryProductCheckInsert()
+    public async Task RepositoryProductCheckInsertAsync(CancellationToken cancellationToken = default)
     {
         // 1. Get template from cache ({ENV:*} already replaced during cache init)
         var template = _templateCache.GetRepositoryTemplate(TemplateType.Repository_Product_CheckInsert, _repository);
@@ -166,15 +171,15 @@ public class TemplateExecutor
         dalParameterList.AddParameter(new DalParameter("NameLower", productName.ToLowerInvariant(), typeof(string)));
 
         // 3. Execute via DAL (returns "ResultCode,ResultMessage" string)
-        var templateResponse = ExecuteScalarWithNegativeResultCodeException(
-            template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId);
+        var templateResponse = await ExecuteScalarWithNegativeResultCodeExceptionAsync(
+            template, _repositoryDal, _repository.GetDalSettings(), dalParameterList, _logger, eventId, cancellationToken);
 
         // 4. Use result (TemplateResponse has ResultCode + ResultMessage)
         _ctxAccessor.Current.MigrationState.ProductId = templateResponse.ResultCode;
     }
 
     // The schema steps (Repository_CheckCreate, Repository_Upgrade_{n}, Repository_MigratorMeta_CheckInsert)
-    // run in RepositorySchemaExecutor; RepositoryCheckCreate() hands it the values of the current context
+    // run in RepositorySchemaExecutor; RepositoryCheckCreateAsync() hands it the values of the current context
 }
 ```
 
@@ -295,6 +300,7 @@ public static IServiceCollection AddRayMigratorServices(this IServiceCollection 
 
     services.AddSingleton<IMigrationContextFactory, MigrationContextFactory>();
     services.AddSingleton<IRepositorySchemaService, RepositorySchemaService>();   // needs the host's TemplateCache
+    services.AddSingleton<IRepositoryMaintenanceService, RepositoryMaintenanceService>();   // retention (ADR-027), needs the host's TemplateCache
     return services;
 }
 ```
@@ -358,19 +364,19 @@ DataAccessLayers/
 ├── SqlServer/
 │   ├── Raycoon.RayMigrator.Database.SqlServer.dll
 │   ├── Repository_CheckCreate.sql
-│   └── ... (25 templates per DAL, flat layout)
+│   └── ... (30 templates per DAL, flat layout)
 ├── PostgreSQL/
 │   ├── Raycoon.RayMigrator.Database.PostgreSQL.dll
-│   └── *.sql (25 template files)
+│   └── *.sql (30 template files)
 ├── MariaDb/
 │   ├── Raycoon.RayMigrator.Database.MariaDb.dll
-│   └── *.sql (25 template files)
+│   └── *.sql (30 template files)
 ├── MySql/
 │   ├── Raycoon.RayMigrator.Database.MySql.dll
-│   └── *.sql (25 template files)
+│   └── *.sql (30 template files)
 └── Sqlite/
     ├── Raycoon.RayMigrator.Database.Sqlite.dll
-    └── *.sql (25 template files)
+    └── *.sql (30 template files)
 ```
 
 ```csharp
@@ -406,18 +412,18 @@ public interface IDal
 {
     string DatabaseType { get; }
     DalSpecificProperties DalSpecificProperties { get; }
-    Task ExecuteNonQueryAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null);
+    Task ExecuteNonQueryAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null, CancellationToken cancellationToken = default);
     void ExecuteNonQuery(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null);
-    Task<object?> ExecuteScalarAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null);
-    Task<List<Dictionary<string, object?>>> ExecuteReaderAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null);
-    Task<bool> IsConnectionValid(string connectionString, IDalSettings dalSettings);
+    Task<object?> ExecuteScalarAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null, CancellationToken cancellationToken = default);
+    Task<List<Dictionary<string, object?>>> ExecuteReaderAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null, CancellationToken cancellationToken = default);
+    Task<bool> IsConnectionValidAsync(string connectionString, IDalSettings dalSettings, CancellationToken cancellationToken = default);
     void CheckConnectionStringOrValidateConnection(bool validateConnection);
     bool TryGetDbTypeForType(Type type, out DbType dbType);
     bool TryGetDbSpecificSqlParameter<T>(DalParameterList dalParameterList, out List<T>? sqlParameterList) where T : class, IDbDataParameter, new();
     // Shared-connection methods for atomic operations (repository + target in one transaction):
     DbConnection CreateConnection();
-    Task ExecuteNonQueryAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList = null);
-    Task<object?> ExecuteScalarAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList = null);
+    Task ExecuteNonQueryAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList = null, CancellationToken cancellationToken = default);
+    Task<object?> ExecuteScalarAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList = null, CancellationToken cancellationToken = default);
 }
 
 // Factory (Database/DalFactory.cs) - static, not DI-registered
@@ -458,7 +464,10 @@ public static class DalFactory
                 _ => (IDal)Activator.CreateInstance(dalType, connectionString)!);
             return true;
         }
-        throw new ConfigurationValidationException($"Cannot create specific DataAccessLayer. Unknown DataAccessLayer for DatabaseType [{databaseType}].");
+        // "Cannot create specific DataAccessLayer. Unknown DataAccessLayer for DatabaseType [...]", followed by the
+        // assemblies whose types did not load (kept by ScanAssemblyForDals with their loader exceptions) and the hint
+        // that a DAL built against an earlier version of RayMigrator must be rebuilt
+        throw new ConfigurationValidationException(UnknownDalMessage(databaseType));
     }
 }
 ```
@@ -534,14 +543,14 @@ public class MigrationOperationResult : OperationResult
 // Service contract (Services.Abstractions/IMigrationService.cs)
 public interface IMigrationService
 {
-    Task<MigrationOperationResult> MigrateUpAsync(MigrateUpRequest request);
-    Task<MigrationOperationResult> MigrateDownAsync(MigrateDownRequest request);
-    Task<ValidationResult> ValidateHashAsync(ValidateHashRequest request);
-    Task<HashUpdateResult> UpdateHashAsync(UpdateHashRequest request);
-    Task<BaselineResult> BaselineAsync(BaselineRequest request);
-    Task<MigrationStatusInfo> GetStatusAsync(string productAlias);
-    Task<MigrationHistory> GetHistoryAsync(string productAlias, int limit = 100);
-    Task<FixIssuesResult> FixIssuesAsync(FixIssuesRequest request);
+    Task<MigrationOperationResult> MigrateUpAsync(MigrateUpRequest request, CancellationToken cancellationToken = default);
+    Task<MigrationOperationResult> MigrateDownAsync(MigrateDownRequest request, CancellationToken cancellationToken = default);
+    Task<ValidationResult> ValidateHashAsync(ValidateHashRequest request, CancellationToken cancellationToken = default);
+    Task<HashUpdateResult> UpdateHashAsync(UpdateHashRequest request, CancellationToken cancellationToken = default);
+    Task<BaselineResult> BaselineAsync(BaselineRequest request, CancellationToken cancellationToken = default);
+    Task<MigrationStatusInfo> GetStatusAsync(string productAlias, CancellationToken cancellationToken = default);
+    Task<MigrationHistory> GetHistoryAsync(string productAlias, int limit = 100, CancellationToken cancellationToken = default);
+    Task<FixIssuesResult> FixIssuesAsync(FixIssuesRequest request, CancellationToken cancellationToken = default);
 }
 ```
 
@@ -555,43 +564,36 @@ The `MigrationErrorAction` enum defines the available strategies. See [Error Han
 
 ```csharp
 // MigrationService.cs — supports file-level override via TOML MigrationErrorAction
-private async Task HandleMigrationError(
+private async Task<RollbackResult?> HandleMigrationError(
     ProductOptions productOptions,
     MigrationFileInfo failedFile,
     int failedMigrationRecordId,
-    List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)> successfullyMigratedRecords)
+    List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)> successfullyMigratedRecords,
+    MigrationRunMode runMode,
+    CancellationToken cancellationToken)
 {
     // File-level TOML override takes precedence over product-level setting
     var errorAction = failedFile.MigrationErrorActionOverride ?? productOptions.MigrationErrorActionEnum;
 
     switch (errorAction)
     {
-        case MigrationErrorAction.Terminate:
-            // No rollback - database may be in unclear state
-            break;
+        case MigrationErrorAction.Terminate:          // No rollback - database may be in unclear state
+        case MigrationErrorAction.Ignore:             // Log error and continue with next file
+            return null;
 
-        case MigrationErrorAction.RollbackErrorOnly:
-            // Rollback only the failed migration
-            await RollbackSingleMigration(productOptions, failedFile, failedMigrationRecordId);
-            break;
-
-        case MigrationErrorAction.Rollback:
-            // Rollback failed + all previously successful migrations (reverse order)
-            await ExecuteRollbackForMigrations(recordsToRollback, productOptions, runMode);
-            break;
-
-        case MigrationErrorAction.RollbackRelease:
-            // Rollback only migrations from the release that caused the error
-            // Filters successfullyMigratedRecords to same release as failedFile
-            await ExecuteRollbackForMigrations(releaseRecords, productOptions, runMode);
-            break;
-
-        case MigrationErrorAction.Ignore:
-            // Log error and continue with next file
+        case MigrationErrorAction.RollbackErrorOnly:  // the failed file only
+        case MigrationErrorAction.Rollback:           // the failed file and every file the run migrated, newest first
+        case MigrationErrorAction.RollbackRelease:    // the failed file and the files of its release the run migrated
             break;
     }
+
+    // The rollback chain an error and a cancel share
+    return await HandleStopAsync(
+        errorAction, failedFile, failedMigrationRecordId, successfullyMigratedRecords, productOptions, runMode, cancellationToken);
 }
 ```
+
+A cancelled migrate-up takes the same chain: `HandleCancelActionAsync` maps `MigrationCancelledAction.RollbackFile`, `RollbackRun` and `RollbackRelease` to `RollbackErrorOnly`, `Rollback` and `RollbackRelease` and calls `HandleStopAsync` with `CancellationToken.None`, so that this rollback cannot be cancelled again; `Terminate` rolls nothing back. See [Cancellation](../02-core-concepts/error-handling.md#cancellation).
 
 ## Builder Pattern
 

@@ -24,7 +24,7 @@ Behaviour = """
 
 [ConfigPlaceholders]
 SchemaName    = "Not used - SQLite has no schemas"
-TableBaseName = "Table name prefix from Repository configuration (e.g., '' or 'RM_')"
+TableBaseName = "Table name prefix from Repository configuration (e.g., '' or 'rm_')"
 
 [Parameters]
 MigrationRunId = "INT | REQUIRED | The ID of the running MigrationRun"

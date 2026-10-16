@@ -29,8 +29,11 @@ The mechanism by which RayMigrator tracks progress within a migration file at th
 
 ## C
 
+### Cancellation
+Stopping a running command on request: the first Ctrl+C, or SIGTERM on Linux and macOS, in the CLI, or a host's **RunCancellation** or the token of the call. The run stops at the next block boundary (there are checkpoints before every file, target and block; SQL Server, PostgreSQL and MariaDB also interrupt the block in progress, MariaDB except a `SLEEP()`), the interrupted file stays `Failed` with the blocks that committed, and a migrate-up then takes its **Migration Cancelled Action**. The run is recorded as `Cancelled` (70) with the engine code `1004`, and the CLI exits with `130`; when the rollback of the action did not complete cleanly, the run is `Error` with `1005` and the exit code is `1`. A migrate-up that failed at a file before the cancel stopped its error recovery stays `Error` with the code of the failure, and the exit code is `1`. A second signal ends the process at once and leaves an **Orphaned Run**. See [Error Handling — Cancellation](../02-core-concepts/error-handling.md#cancellation) and [ADR-028](../arc42/09-Architecture-Decisions.md#adr-028-a-run-cancels-at-the-next-block-boundary-with-a-migrationcancelledaction-and-records-cancelled).
+
 ### CLI Tool Executor
-A service (`CliToolExecutor`, implementing `ICliToolExecutor`) that executes external SQL CLI tools (e.g., sqlcmd, psql, mysql, mariadb, sqlite3) as an alternative to DAL-based SQL execution. Uses `System.Diagnostics.Process` to launch the tool, supports both file-path and stdin input modes, evaluates exit codes against configurable success/error code lists, and enforces a configurable timeout. Defined in `CliToolExecutor.cs` in the Services project. See also **CliToolOptions**, **UseCliToolAlias**.
+A service (`CliToolExecutor`, implementing `ICliToolExecutor`) that executes external SQL CLI tools (e.g., sqlcmd, psql, mysql, mariadb, sqlite3) as an alternative to DAL-based SQL execution. Uses `System.Diagnostics.Process` to launch the tool, supports both file-path and stdin input modes, evaluates exit codes against configurable success/error code lists, and enforces a configurable timeout. When the run is cancelled, it kills the tool together with the processes the tool started. Defined in `CliToolExecutor.cs` in the Services project. See also **CliToolOptions**, **UseCliToolAlias**.
 
 ### CliToolExecutionException
 An exception thrown when an external CLI tool execution fails (process start failure, unexpected exit code). Extends `MigrationExecutionException`. Properties include `ExecutablePath` (the CLI tool that was invoked) and `ExitCode` (the exit code, if the process started successfully). Carries a constant `AbortMessage` prefix. Defined in `CustomExceptions.cs` in the Shared project. See also **CliToolTimeoutException**.
@@ -76,7 +79,7 @@ A static class (`DalFactory`) that discovers and instantiates DAL implementation
 A self-contained database provider assembly that implements the `IDal` interface. Plugins typically extend `DalBase` (in `Database.Common`), which provides retry orchestration via `ExecuteWithRetryAsync` helpers and a virtual `IsTransient(Exception)` method for database-specific transient error detection. Each plugin is deployed to `DataAccessLayers/{DatabaseType}/` and is auto-discovered by the **DAL Factory**. Built-in plugins: `Database.SqlServer`, `Database.PostgreSQL`, `Database.MariaDb`, `Database.MySql`, `Database.Sqlite`. External plugins can be developed using **Database.Example** as a template.
 
 ### Database.Example
-A skeleton template project (`Raycoon.RayMigrator.Database.Example`) for developing external DAL plugins. Contains placeholder implementations for all required methods and 18 SQL templates. Developers fork this project, add their ADO.NET driver, implement the methods, and deploy the output to `DataAccessLayers/{DatabaseType}/`.
+A skeleton template project (`Raycoon.RayMigrator.Database.Example`) for developing external DAL plugins. Contains placeholder implementations for all required methods and 30 placeholder SQL templates, one per `TemplateType`. Developers fork this project, add their ADO.NET driver, implement the methods, and deploy the output to `DataAccessLayers/{DatabaseType}/`.
 
 ### Database Type
 An identifier for a specific database system, used to select the appropriate DAL via the `[DatabaseType]` attribute. Current values: `SqlServer`, `PostgreSQL`, `MariaDb`, `MySql`, `Sqlite`.
@@ -149,12 +152,12 @@ An interface (`IMigrationContextAccessor`) that provides access to the current `
 Registered via `RayMigratorHostMode` during DI setup. Defined in `IMigrationContextAccessor.cs` in the Core project. See also **RayMigratorHostMode**.
 
 ### InterruptedMigrationInfo
-A data class containing details about an interrupted migration that can be resumed. Properties include `MigrationRecordId`, `MigrationRunId`, `ReleaseVersion`, `Filename`, `BlocksMigrated`, `BlocksTotal`, `Environment`, `EnvironmentId`, `TargetGroupAlias`, `TargetAlias`. Computed properties: `NextBlockToResume` (1-based next block number) and `ProgressPercent` (completion percentage). Used by `RepositoryMigrationGetInterrupted()` for block-level recovery. Defined in `InterruptedMigrationInfo.cs` in the Core project (`Recovery/`).
+A data class containing details about an interrupted migration that can be resumed. Properties include `MigrationRecordId`, `MigrationRunId`, `ReleaseVersion`, `Filename`, `BlocksMigrated`, `BlocksTotal`, `Environment`, `EnvironmentId`, `TargetGroupAlias`, `TargetAlias`. Computed properties: `NextBlockToResume` (1-based next block number) and `ProgressPercent` (completion percentage). Used by `RepositoryMigrationGetInterruptedAsync()` for block-level recovery. Defined in `InterruptedMigrationInfo.cs` in the Core project (`Recovery/`).
 
 ## L
 
 ### Logging Database
-A database structure that stores detailed log entries for migration operations, separate from the main repository.
+The database that holds the log tables `MigrationEvent` and `MigrationLog`. By default the log is written into the repository database under the schema and table prefix of the repository; the `DatabaseLogging` section moves it to another schema or database, or switches it off. `DatabaseLogging_CheckCreate` creates the tables, and the indexes on `MigrationLog` (`MigrationRunId`, `CreatedAt`), at startup when they are missing. The engine never reads the log for a decision; old rows are deleted only on a host's request (see **Repository Maintenance Service**).
 
 ## M
 
@@ -163,6 +166,16 @@ The process of applying database changes, or a single file containing such chang
 
 ### MigrationAlreadyRunningException
 An exception thrown when attempting to start a migration while another migration is already running for the same product. Properties include `ProductId` and `ExistingMigrationRunId`. Defined in `CustomExceptions.cs` in the Shared project. See also **Exclusive Run**.
+
+### Migration Cancelled Action
+What a cancelled migrate-up does after it stopped (`MigrationCancelledAction` enum, a value of the run and not a configuration option; CLI option `--cancelled-action` / `-ca`):
+- **Undefined** (0): Invalid value
+- **Terminate** (10): Stop and do nothing else (default); the next migrate-up resumes the interrupted file
+- **RollbackRun** (20): Roll back the interrupted file and every file the run migrated before it, like `MigrationErrorAction.Rollback`
+- **RollbackFile** (21): Roll back the interrupted file only, like `MigrationErrorAction.RollbackErrorOnly`
+- **RollbackRelease** (22): Roll back the interrupted file and the files of its release the run migrated, like `MigrationErrorAction.RollbackRelease`
+
+The rollback of an action cannot be cancelled again. Migrate-down, baseline and an error recovery that is already running stop and ignore the action. See **Cancellation**.
 
 ### Migration Command
 The CLI operation to execute (`MigrationCommand` enum):
@@ -188,8 +201,8 @@ An exception thrown when a migration file cannot be parsed, for example due to i
 A class (`MigrationEvent`) defining structured `EventId` constants for logging throughout the migration lifecycle. Events are organized into categories:
 - **Unspecified** (0): UnspecifiedEvent
 - **Application Startup** (10-80): CommandLineParsing (10), EnvironmentVariableReplacement (20), CreateDatabaseLogger (31), ValidateRayMigratorOptions (40), CreateApplicationHost (50), InitializeDalSpecificProperties (60), ValidateConnectionStrings (70), RayMigratorServiceStart (80)
-- **Template Execution - Repository Operations** (100-121): TemplateExecutionRepositoryCheckCreate (100), TemplateExecutionRepositoryUpgrade (101), TemplateExecutionRepositoryMigratorMetaCheckInsert (102), TemplateExecutionRepositoryMigrationRunInsert (110), TemplateExecutionRepositoryMigrationRunUpdate (111), TemplateExecutionRepositoryMigrationRunSelectOrphaned (112), TemplateExecutionRepositoryMigrationRunFixOrphaned (113), TemplateExecutionRepositoryMigrationFixOrphaned (114), TemplateExecutionRepositoryProductCheckInsert (120), TemplateExecutionRepositoryEnvironmentCheckInsert (121)
-- **Template Execution - Migration Operations** (130-136): TemplateExecutionRepositoryMigrationInsert (130), TemplateExecutionRepositoryMigrationUpdate (131), TemplateExecutionRepositoryMigrationGetInterrupted (132), TemplateExecutionRepositoryMigrationUpdateRollback (133), TemplateExecutionRepositoryMigrationSelect (134), TemplateExecutionRepositoryMigrationUpdateHash (135), TemplateExecutionRepositoryMigrationRunSelect (136)
+- **Template Execution - Repository Operations** (100-123): TemplateExecutionRepositoryCheckCreate (100), TemplateExecutionRepositoryUpgrade (101), TemplateExecutionRepositoryMigratorMetaCheckInsert (102), TemplateExecutionRepositoryMigrationRunInsert (110), TemplateExecutionRepositoryMigrationRunUpdate (111), TemplateExecutionRepositoryMigrationRunSelectOrphaned (112), TemplateExecutionRepositoryMigrationRunFixOrphaned (113), TemplateExecutionRepositoryMigrationFixOrphaned (114), TemplateExecutionRepositoryMigrationRunHeartbeat (115), TemplateExecutionRepositoryProductCheckInsert (120), TemplateExecutionRepositoryEnvironmentCheckInsert (121), TemplateExecutionRepositoryProductSelect (122), TemplateExecutionRepositoryEnvironmentSelect (123)
+- **Template Execution - Migration Operations** (130-137): TemplateExecutionRepositoryMigrationInsert (130), TemplateExecutionRepositoryMigrationUpdate (131), TemplateExecutionRepositoryMigrationGetInterrupted (132), TemplateExecutionRepositoryMigrationUpdateRollback (133), TemplateExecutionRepositoryMigrationSelect (134), TemplateExecutionRepositoryMigrationUpdateHash (135), TemplateExecutionRepositoryMigrationRunSelect (136), TemplateExecutionRepositoryMigrationRecordHistorySelect (137)
 - **Application Shutdown** (1000): RayMigratorServiceShutdown
 
 ### Migration Error Action
@@ -232,6 +245,7 @@ The outcome of a migration run (`MigrationRunResult` enum):
 - **Undefined** (0): Value has not been set
 - **Running** (10): Migration process is currently running
 - **PartialSuccess** (50): Run finished, but at least one file was skipped or left Failed
+- **Cancelled** (70): Run stopped on request (Ctrl+C, SIGTERM or a host's cancel) and its cancel action completed; see **Cancellation**
 - **Recovered** (80): Run failed, the error-recovery rollback completed cleanly
 - **Error** (90): Migration stopped due to errors, or the error recovery did not complete cleanly
 - **Ok** (100): Migration successfully executed and finished
@@ -259,12 +273,22 @@ An exception thrown when a feature is planned but not yet implemented. Carries a
 A design pattern for accessing strongly-typed configuration through dependency injection.
 
 ### Orphaned Run
-A MigrationRun that remains in "Running" status due to a process crash or unexpected termination. Requires manual intervention or automatic cleanup after a configurable timeout period. See **Resilience**.
+A MigrationRun that remains in "Running" status because its process crashed, was killed or was abandoned with a second Ctrl+C. Once its last heartbeat (or its start, when it has none) is older than `Repository.OrphanedRunThresholdInMinutes` (default 2 minutes), a parallel start closes it automatically, or the `fix` command does. See **Auto-Fix Orphaned Runs** and **Resilience**.
 
 ### Orphaned Run Detection
-`RepositoryMigrationRunSelectOrphaned()` returns orphaned MigrationRun data as `List<Dictionary<string, object?>>` (not a typed class). Each dictionary contains column values from the query result, including run ID, product, start time, and duration. Used for detecting stuck runs that need manual intervention or automatic cleanup.
+`RepositoryMigrationRunSelectOrphanedAsync()` returns orphaned MigrationRun data as `List<Dictionary<string, object?>>` (not a typed class). Each dictionary contains column values from the query result, including run ID, product, start time, and duration. Used for detecting stuck runs that need manual intervention or automatic cleanup.
 
 ## P
+
+### Pending Migration
+A file that the next migrate-up runs on a target, as `info` lists it and `MigrationStatusInfo.PendingFiles` returns it to a host: one `PendingMigrationInfo` per file and target, in the order of the next migrate-up, with the reason (`PendingMigrationReason` enum):
+- **Undefined** (0): Invalid value
+- **NotMigrated** (10): The file has not run on the target, was rolled back, or its record belongs to a run that is still open
+- **Failed** (20): The last attempt failed and left nothing to resume; migrate-up runs the file from its first block
+- **Resumable** (30): Leading blocks committed (after a failure or a cancel); migrate-up continues after them (`ResumeFromBlock`), or only completes the record when every block committed
+- **RunAlways** (40): The file runs on every migrate-up
+- **HashMismatch** (50): The file changed after it was migrated; migrate-up runs it again and logs a warning
+- **RollbackIncomplete** (60): The rollback of the file stopped in the middle (`Failed` with `RollbackBlocksMigrated` of `RollbackBlocksTotal` rollback blocks); migrate-up refuses to run until migrate-down has completed the rollback, and this reason comes before every other
 
 ### Pipeline
 The execution pipeline project (`Raycoon.RayMigrator.Pipeline`) that orchestrates the complete lifecycle of a migration run. Contains `DirectModePipeline` (the lifecycle of a CLI run after the options are loaded from the `appsettings.json` hierarchy), `RayMigratorService` (the top-level service that dispatches to the appropriate migration command), `JsonOptionsSource` (loads configuration from JSON files), and `SerilogFactory` (creates Serilog logger instances). Configuration source abstractions (`IOptionsSource`, `OptionsSourceResult`) are defined in the Core project (`Core/Configuration/Sources/`). Extracted from the Console project to enable reuse across different host contexts.
@@ -289,7 +313,10 @@ The unique identifier for a product, used in configuration and CLI commands.
 A directory name representing a version of migrations (e.g., "Release 1.0", "v2.0.0"). Migrations are organized by release.
 
 ### Repository
-The database structure that tracks migration state, history, and metadata. Contains 13 tables (`RepositorySchemaVersion`, `MigratorMeta`, `Product`, `Environment`, `MigrationRun`, `MigrationRunMeta`, `MigrationRecord`, `MigrationRecordHistory`, plus five lookups); the schema is versioned and upgraded in numbered steps (ADR-024). A host creates or upgrades a repository without a run through `IRepositorySchemaService.Ensure(RepositoryOptions)`. See [Repository Schema](../03-database-layer/repository-schema.md).
+The database structure that tracks migration state, history, and metadata. Contains 13 tables (`RepositorySchemaVersion`, `MigratorMeta`, `Product`, `Environment`, `MigrationRun`, `MigrationRunMeta`, `MigrationRecord`, `MigrationRecordHistory`, plus five lookups); the schema is versioned and upgraded in numbered steps (ADR-024), schema version 3 in this release. A host creates or upgrades a repository without a run through `IRepositorySchemaService.EnsureAsync(RepositoryOptions)` and deletes old history and log rows through the **Repository Maintenance Service**. See [Repository Schema](../03-database-layer/repository-schema.md).
+
+### Repository Maintenance Service
+`IRepositoryMaintenanceService` (`Raycoon.RayMigrator.Services.Abstractions`), with which a host such as RayMigrator Studio applies a retention policy: `CleanUpAsync(RepositoryOptions, RetentionRequest)` deletes the `MigrationRecordHistory` and `MigrationLog` rows older than the cutoffs of the request, in batches (2,000 rows by default) within a time budget (60 seconds by default), and never the rows of a run that is still open; the log only where it lives in the repository database under the schema and prefix of the repository. A dry run only counts. `MigrationRecord`, `MigrationRun` and `MigrationRunMeta` are never deleted, and no decision of the engine reads the two tables ([ADR-027](../arc42/09-Architecture-Decisions.md#adr-027-the-engine-deletes-log-and-history-rows-on-a-hosts-request-and-never-reads-them-for-a-decision)). The CLI has no command for it. See [Retention](../03-database-layer/repository-schema.md#retention).
 
 ### Rollback
 The process of reversing previously applied migrations using rollback files.
@@ -309,9 +336,12 @@ TOML setting that determines whether a migration file is executed on every migra
 ### Run Mode
 How migrations execute (`MigrationRunMode` enum):
 - **Undefined** (0): Invalid value
-- **Validate** (10): Validate configuration and all migration files without connecting to databases
+- **Validate** (10): Validate configuration and all migration files without connecting to the targets or reading the repository; only the database log, in the repository database by default, is set up
 - **Simulate** (20): Validate, check DB connectivity, and read repository records without writing repository records or executing SQL against target databases
 - **Migrate** (100): Validate configuration and perform actual migrations against target databases
+
+### RunCancellation
+The handle (`Raycoon.RayMigrator.Services.Abstractions`) a host passes in `MigrateUpRequest`, `MigrateDownRequest` or `BaselineRequest` to cancel one run: the first `Cancel(action, reason)` cancels its `Token` and decides the **Migration Cancelled Action**, later calls return false. The engine links the token with the token of the call; a cancel through the token of the call alone means `Terminate`. The CLI creates one per process and cancels it on the first Ctrl+C or SIGTERM with the value of `--cancelled-action`. See **Cancellation**.
 
 ### Resilience
 The ability of RayMigrator to handle failures gracefully and recover from interruptions. Includes transient error retry, block-level tracking, and orphaned run detection. See [Resilience documentation](../02-core-concepts/resilience.md).
@@ -387,7 +417,7 @@ Stored as `RayMigratorConsoleOptions.TargetGroupMigrationOrder` (CLI) and `MigSe
 The `--target-group` / `-tg` CLI option, available on `migrate-up`, `migrate-down`, `validate-hash`, `update-hash`, and `baseline` commands. Accepts one or more target group aliases to restrict execution to specific target groups. When omitted, all target groups are processed. Stored as `RayMigratorConsoleOptions.TargetGroupAliases`.
 
 ### Template
-A SQL file with placeholders that gets processed and executed by RayMigrator. Used for repository and logging schema creation.
+A SQL file with placeholders that gets processed and executed by RayMigrator. Every repository and log operation runs through one: schema creation and upgrade, run and record bookkeeping, the database log, and the deletion of old history and log rows. Each DAL ships 30, one per `TemplateType`.
 
 ### Template Result Code
 A static class (`TemplateResultCode`) defining all known `ResultCode` values returned by SQL templates and C# backend error codes. Convention: negative values are SQL template errors, positive values are C# backend errors, and 0 means no error. Reserved ranges:
@@ -412,6 +442,8 @@ Currently assigned codes:
 - **1001**: `RequireRollbackFileValidationFailed`
 - **1002**: `MigrationFileParsingFailed`
 - **1003**: `ConfigurationValidationFailed`
+- **1004**: `Cancelled` (the run was cancelled on request and its cancel action completed; also update-hash and fix that stopped early)
+- **1005**: `CancelledRollbackIncomplete` (a cancelled migrate-up whose rollback did not complete cleanly; the run is `Error`)
 
 `IsKnown(int)` can be used to check whether a negative code belongs to the known catalog (unknown negative codes from user-customized templates cause an `UndefinedTemplateResultException`). Defined in `TemplateResultCode.cs` in the Shared project.
 
@@ -422,7 +454,7 @@ An exception thrown when an error occurs during the execution of a SQL template 
 An exception thrown when a SQL template returns a negative `ResultCode`, indicating a domain-level error (e.g., repository incomplete, product name empty, migration run not found). Includes a `ResultCode` property. The subclass `UndefinedTemplateResultException` is thrown when the `ResultCode` is not in the known catalog. Defined in `CustomExceptions.cs` in the Shared project.
 
 ### Template Cache
-A component (`TemplateCache`) that loads and caches SQL templates from the `DataAccessLayers/{DatabaseType}/` directories at startup (flat layout, no `Templates/` subdirectory). Validates that all required templates exist for every configured database type. Provides `GetAvailableDatabaseTypes()` and `ValidateConfigurationAgainstTemplateCache()` for configuration validation.
+A component (`TemplateCache`) that loads and caches SQL templates from the `DataAccessLayers/{DatabaseType}/` directories at startup (flat layout, no `Templates/` subdirectory). Validates at startup that every DAL folder carries one template per `TemplateType` (30) and, per configuration, that every configured database type has a folder; a DAL folder that lacks a template, such as an external DAL without the templates of a newer engine, stops every command. Provides `GetAvailableDatabaseTypes()` and `ValidateConfigurationAgainstTemplateCache()` for configuration validation.
 
 ### Template Executor
 The component that processes templates, resolves placeholders, and executes the resulting SQL.

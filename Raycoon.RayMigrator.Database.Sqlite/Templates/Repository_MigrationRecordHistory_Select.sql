@@ -26,7 +26,7 @@ Behaviour = """
 
 [ConfigPlaceholders]
 SchemaName    = "Not used for SQLite (no schema support)"
-TableBaseName = "Table name prefix from Repository configuration (e.g., '' or 'RM_')"
+TableBaseName = "Table name prefix from Repository configuration (e.g., '' or 'rm_')"
 
 [Parameters]
 ProductId          = "INT | REQUIRED | The product ID to query history rows for"

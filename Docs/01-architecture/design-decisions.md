@@ -105,7 +105,7 @@ All four files are searched in the directory specified by `--config-dir` (or the
 - **Cross-database support**: Track migrations across different database types
 - **Centralized tracking**: Single source of truth for all products
 - **Isolation**: Repository failures don't affect target databases
-- **Audit compliance**: Dedicated logging and history tables
+- **Audit compliance**: Dedicated logging and history tables; a host that applies a retention policy deletes their old rows through the engine, which decides nothing on them ([ADR-027](../arc42/09-Architecture-Decisions.md#adr-027-the-engine-deletes-log-and-history-rows-on-a-hosts-request-and-never-reads-them-for-a-decision))
 
 ## Block-Level Execution
 
@@ -115,6 +115,7 @@ All four files are searched in the directory specified by `--config-dir` (or the
 - **Partial recovery**: Resume from failed block, not entire file
 - **Large migrations**: Track progress within large migration files
 - **Hash validation**: Validate at file, config, or block level
+- **Clean stop**: A cancelled run stops at the next block boundary; with the default action `Terminate` the committed blocks stay and the next migrate-up resumes the file (under `MigrationErrorAction = Ignore` it runs the whole file again) ([ADR-028](../arc42/09-Architecture-Decisions.md#adr-028-a-run-cancels-at-the-next-block-boundary-with-a-migrationcancelledaction-and-records-cancelled))
 
 ## TOML for Migration Metadata
 

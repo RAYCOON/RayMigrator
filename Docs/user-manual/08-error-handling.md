@@ -303,15 +303,48 @@ For a complete matrix of all error scenarios — including every combination of 
 
 ---
 
+## Stopping a Run with Ctrl+C
+
+A cancel is not an error. When you press Ctrl+C while a `migrate-up` runs, or a container stop or a cancelled CI job sends SIGTERM (Linux and macOS), RayMigrator does not die in the middle of a block: it stops at the next block boundary, logs a warning (no error and no stack trace), records the run as `Cancelled` (70) and exits with code `130`.
+
+```
+Migration 001 ✓ (Migrated)
+Migration 002 ■ (cancelled after block 2 of 4)
+
+Result with --cancelled-action terminate (the default):
+  001 → Migrated — kept
+  002 → Failed with 2 committed blocks — the next migrate-up continues with block 3
+  003 → never executed
+```
+
+The example assumes a target with a connection of its own. In the BookStore setup of this guide the target uses the connection string of the repository and the files set `UseTransaction = true`, so every file runs on the atomic shared-connection path: its blocks and their record updates share one transaction, a cancel rolls the whole file back, its record is `Failed` with no committed block, and the next `migrate-up` runs it again from block 1 (see [Atomic Shared Connection](../02-core-concepts/error-handling.md#atomic-shared-connection)).
+
+`--cancelled-action` decides what happens after the stop. `terminate` (the default) does nothing else. `rollback-file`, `rollback-run` and `rollback-release` roll back like the error actions `RollbackErrorOnly`, `Rollback` and `RollbackRelease`, with the same rules for missing rollback files and `RollbackErrorAction`. That rollback cannot be cancelled again; when it does not complete cleanly, the run is `Error` and the exit code is `1`.
+
+A cancel does not turn a failure into a cancel. When a file has already failed and Ctrl+C stops the error recovery of its `MigrationErrorAction` (`Rollback`, `RollbackErrorOnly`, `RollbackRelease`), the run stays `Error` with the error code of the failed file and the exit code is `1`, so a pipeline sees the failure. The message names the failure first, then where the cancel stopped the recovery and what that leaves; complete the rollback with `migrate-down`. `--cancelled-action` is ignored then, because a rollback is already running.
+
+Some work always runs to its end, so that the repository never records a step half done:
+
+- The block in progress on MySQL, which interrupts only the statement in progress and runs the rest of the block, and on SQLite, which cannot interrupt a statement. SQL Server, PostgreSQL and MariaDB abort it, except that MariaDB, like MySQL, ends a `SLEEP()` early without an error and runs the rest of the block.
+- During a rollback (a `migrate-down`, or the error recovery of a `migrate-up`): the first block of a rollback file, an atomic rollback and a rollback through a CLI tool. A cancelled `migrate-down` leaves the record in progress `Failed` with its rollback blocks, and the next `migrate-down` continues it; until then `migrate-up` refuses to run that file (see [Rolling Back Migrations](09-rollback-guide.md#block-level-rollback-tracking)).
+
+With `MigrationErrorAction` = `Ignore`, the interrupted file is stored like a file with ignored errors: its record is `Failed` with the block count of the file, and the next `migrate-up` runs the whole file again from its first block.
+
+A second Ctrl+C ends the process at once. That abandons the run like a crash: it stays `Running` until RayMigrator closes it as orphaned (next section) or you run `fix`.
+
+The detailed semantics, also for hosts that cancel a run through the engine API, are in [Error Handling — Cancellation](../02-core-concepts/error-handling.md#cancellation) and [ADR-028](../arc42/09-Architecture-Decisions.md#adr-028-a-run-cancels-at-the-next-block-boundary-with-a-migrationcancelledaction-and-records-cancelled); what every command does when it is cancelled is listed in [Cancelling a Run](../08-cli-reference/global-options.md#cancelling-a-run).
+
+---
+
 ## When a Migration Is Already Running
 
 When RayMigrator starts a new migration run, it checks the repository for any existing runs in `Running` state for the same product. If one is found, RayMigrator attempts an automatic recovery before failing.
 
 ### Automatic Orphaned Run Recovery
 
-Before throwing an error, RayMigrator checks if the blocking run is an orphaned run (older than 10 minutes). If orphaned runs are found, they are automatically fixed (marked as `Error` with orphaned migrations set to `NotMigrated`), and the migration run is retried. This handles the common case where a previous process crashed without cleaning up.
+Before throwing an error, RayMigrator checks whether the blocking run is orphaned. A running command refreshes its heartbeat (`MigrationRun.LastHeartbeatAt`) every `Repository.HeartbeatIntervalInSeconds` (default 30 seconds); a run whose last heartbeat, or whose start when it has none, is older than `Repository.OrphanedRunThresholdInMinutes` (default 2 minutes) is orphaned. Orphaned runs are fixed automatically (marked as `Error` with orphaned migrations set to `NotMigrated`), and the migration run is retried. This handles the common case where a previous process crashed or was killed without cleaning up.
 
-If no orphaned runs older than 10 minutes are found, RayMigrator assumes the blocking run is genuinely active and throws a `MigrationAlreadyRunningException`, exiting with code `1`:
+If the blocking run still writes heartbeats, RayMigrator assumes it is genuinely active and throws a `MigrationAlreadyRunningException`, exiting with code `1`:
 
 ```
 RayMigrator aborted because another migration is already running.
@@ -320,7 +353,7 @@ RayMigrator aborted because another migration is already running.
 This can happen in two scenarios:
 
 1. **Legitimate concurrent access**: Another process is genuinely running migrations for the same product. Wait for it to finish before starting a new run.
-2. **Recently orphaned run**: A previous migration was interrupted less than 10 minutes ago and the `MigrationRun` record was never closed. The run still appears as `Running` in the repository even though no process is executing it. Wait for the 10-minute threshold to pass, or use the `fix` command.
+2. **Recently orphaned run**: A previous migration was killed (or abandoned with a second Ctrl+C) and wrote its last heartbeat less than 2 minutes ago, and the `MigrationRun` record was never closed. The run still appears as `Running` in the repository even though no process is executing it. Wait for the threshold to pass, or use the `fix` command with `--older-than 0`.
 
 RayMigrator also provides a guidance message:
 
@@ -344,7 +377,7 @@ See [Fix Reference](../08-cli-reference/command-reference.md#fix) for all option
 # Always preview before fixing
 raymigrator fix -p BookStore -env Production --run-mode simulate
 
-# Fix orphaned runs older than 60 minutes (default)
+# Fix orphaned runs whose last heartbeat is older than 2 minutes (default)
 raymigrator fix -p BookStore -env Production
 ```
 
@@ -353,7 +386,7 @@ raymigrator fix -p BookStore -env Production
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--scope` | `OrphanedRuns` | What to fix: `OrphanedRuns` or `All` |
-| `--older-than` | `60` | Minimum age in minutes for a run to be considered orphaned |
+| `--older-than` | `2` | Minutes since the last heartbeat (or the start of a run without one) after which an open run counts as orphaned; `0` fixes every open run |
 | `--run-mode` | `migrate` | `simulate` previews what would be fixed without making changes |
 | `--last-migration-status` | `not-migrated` | Status to assign to orphaned MigrationRecord rows: `not-migrated` or `migrated` |
 
@@ -391,6 +424,7 @@ Key takeaways:
 - Choose your `RollbackErrorAction` based on whether you prefer a safe abort or a best-effort rollback when rollback scripts fail.
 - Always write rollback files, especially for MariaDB and MySQL where DDL cannot be transactionally rolled back.
 - Use `Simulate` run mode to preview what will happen before committing to a real migration run.
+- Stop a running migration with Ctrl+C rather than killing the process: the run ends `Cancelled`, and with the default `--cancelled-action terminate` the next run continues where it stopped.
 - Use the `fix` command to clean up after unexpected interruptions.
 
 ---

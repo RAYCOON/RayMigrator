@@ -17,7 +17,7 @@ namespace Raycoon.RayMigrator.Database.Example;
 ///    replace the list without a rebuild through DataAccessLayers/{YourDatabaseType}/TransientErrorCodes.txt
 /// 5. Implement all methods using your database's connection/command classes; the asynchronous ones are the
 ///    *CoreAsync members, DalBase wraps them so that a cancelled call always ends in an OperationCanceledException
-/// 6. Implement all 19 SQL templates in the Templates/ directory
+/// 6. Implement the 30 SQL templates in the Templates/ directory, one per TemplateType except Undefined
 /// 7. Build and copy the output to DataAccessLayers/{YourDatabaseType}/
 /// </summary>
 [DatabaseType("Example")]

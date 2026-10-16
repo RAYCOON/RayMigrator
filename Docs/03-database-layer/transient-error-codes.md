@@ -51,7 +51,7 @@ The shipped files equal the built-in lists; `P1_DalShippedTransientErrorCodesTes
 | MySQL (`MySqlException.Number`) | the same values as MariaDB, kept as a separate file so the two dialects can diverge |
 | SQLite (`SqliteException.SqliteErrorCode`) | `5` (SQLITE_BUSY), `6` (SQLITE_LOCKED) |
 
-`TimeoutException` is transient for every engine regardless of the list, and inner exceptions are inspected recursively (`DalBase.IsTransient`).
+`TimeoutException` is transient for every engine regardless of the list, and inner exceptions are inspected recursively (`DalBase.IsTransient`). A cancellation is never transient, whatever its inner exception reports: once the caller's token is cancelled, `DalBase` turns the failure into an `OperationCanceledException` and `RetryHelper` starts no further attempt (see [DAL Architecture: Cancellation](dal-architecture.md#cancellation)). A timeout is transient, but two callers do not retry it: the initialization of the database log retries a transient failure of `DatabaseLogging_CheckCreate` but asks `DalBase.IsTimeout` first, because a retry would build the indexes of the log table from the start again, and the retention of `IRepositoryMaintenanceService` runs without any retry (see [Resilience: Calls That Do Not Retry](../02-core-concepts/resilience.md#calls-that-do-not-retry)).
 
 ## Not configurable: the SQL Server pool-clearing list
 
@@ -63,7 +63,7 @@ A malformed or unreadable file aborts the start. For the repository and target D
 
 ## For DAL authors
 
-A plugin overrides `DefaultTransientErrorCodes` with its built-in list and classifies the provider's error code through `IsTransientCode` in its `IsTransient` override; `DalFactory` then loads an optional `TransientErrorCodes.txt` from the plugin folder automatically. See [External DAL Development](../09-extending/external-dal-development.md#overriding-istransient).
+A plugin overrides `DefaultTransientErrorCodes` with its built-in list and classifies the provider's error code through `IsTransientCode` in its `IsTransient` override; `DalFactory` then loads an optional `TransientErrorCodes.txt` from the plugin folder automatically. It overrides `IsTimeout` as well when its provider reports a command timeout other than through a `TimeoutException` in the chain of inner exceptions. See [External DAL Development](../09-extending/external-dal-development.md#overriding-istransient) and [Overriding IsTimeout](../09-extending/external-dal-development.md#overriding-istimeout).
 
 ## Related Documentation
 

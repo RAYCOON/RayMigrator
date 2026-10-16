@@ -137,6 +137,8 @@ Hash comparison during `migrate-up` is performed by `FilterAlreadyMigratedFiles`
 - **Status `Migrated` (100), `Disabled` scope**: File is always **skipped** regardless of content. `Disabled` only affects this pending decision: the block-level resume and the recovery of interrupted files still require an unchanged `FileUpBlocksHash`, `update-hash` compares all three hashes, and `validate-hash --scope disabled` still reports missing files (#20).
 - **Status `Failed` (30) or `NotMigrated` (50)**: File is always included in the execution list (hash is not checked for filtering purposes).
 
+`info` (`GetStatusAsync`) makes the same decision before the run: it lists a Migrated record whose hash no longer matches as pending with the reason `HashMismatch` (see [Migration Service: MigrationStatusInfo](../04-service-layer/migration-service.md#migrationstatusinfo)).
+
 > **Important**: `validate-hash` and `update-hash` commands use the same hash comparison but do not re-execute SQL. For `migrate-up`, a mismatch on an already-migrated file causes re-execution, not an abort. If you want to reject mismatches rather than re-execute, use `validate-hash` before running `migrate-up`.
 
 ## Repository Storage

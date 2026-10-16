@@ -363,9 +363,9 @@ RayMigrator uses Serilog for structured logging. The `Serilog` section configure
 
 ---
 
-## Database Logging (Optional)
+## Database Logging
 
-In addition to console logging, RayMigrator can write structured log entries to a database table. This is useful for auditing and centralized log collection.
+In addition to console logging, RayMigrator writes structured log entries to a database table. This is useful for auditing and centralized log collection. It is on by default and writes into the repository database; a `DatabaseLogging` section points it elsewhere, changes the level or switches it off with `"Enabled": false`.
 
 ```json
 {
@@ -382,7 +382,7 @@ In addition to console logging, RayMigrator can write structured log entries to 
 
 For the full property table, see [Logging Options](../06-configuration-reference/logging-options.md).
 
-> **Note:** The database logging target can be the same database as the repository or a completely separate instance. RayMigrator creates the necessary log table automatically.
+> **Note:** The database logging target can be the same database as the repository or a completely separate instance. RayMigrator creates the necessary log tables and their indexes automatically; see [Log Indexes After an Update](11-operations-guide.md#log-indexes-after-an-update) for the first start after an update.
 
 ---
 

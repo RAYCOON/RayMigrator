@@ -67,7 +67,7 @@ public class RayMigratorConsoleOptions
     public bool? AllowOutOfOrder { get; init; }
 
     /// <summary>
-    /// Fix command: Only fix runs older than N minutes (default 60, 0 = immediate)
+    /// Fix command: Only fix runs whose last heartbeat (or start) is older than N minutes (default 2, 0 = immediate)
     /// </summary>
     public int? FixOlderThanMinutes { get; init; }
 

@@ -24,7 +24,7 @@ Behaviour = """
 
 [ConfigPlaceholders]
 SchemaName    = "Not used - SQLite has no schemas"
-TableBaseName = "Table name prefix from Repository configuration (e.g., '' or 'RM_')"
+TableBaseName = "Table name prefix from Repository configuration (e.g., '' or 'rm_')"
 
 [Parameters]
 RayMigratorVersion = "TEXT | REQUIRED | The RayMigrator version applying the step (e.g., '0.17.0')"

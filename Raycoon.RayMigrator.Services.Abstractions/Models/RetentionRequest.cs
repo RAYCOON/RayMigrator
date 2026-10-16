@@ -25,7 +25,7 @@ public sealed record RetentionRequest(
     /// <summary>
     /// The batch size of a request that names none. SQL Server escalates a statement to a table lock once it holds 5,000
     /// locks on one index, and a delete takes a key lock per row and a page lock per page it touches in every index: with
-    /// 2,000 rows a batch stays below 4,000 locks per index even when every row lies on a page of its own. Measured with
+    /// 2,000 rows a batch takes at most 4,000 locks per index even when every row lies on a page of its own. Measured with
     /// the indexes of schema version 3, history batches of 4,800 rows escalated (about ten rows per page), log batches of
     /// 5,000 rows.
     /// </summary>

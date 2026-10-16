@@ -349,7 +349,7 @@ Document in migration that rollback is not possible. Note that this only works w
 
 ## Partial Rollback Resume
 
-If a rollback is interrupted (e.g., `RollbackErrorAction=Terminate` aborted the chain), the repository records how many rollback blocks were already executed (`FileDownBlocksMigrated`). On a subsequent migrate-down, RayMigrator resumes from the next unexecuted block rather than re-executing already-completed blocks.
+If a rollback is interrupted (e.g., `RollbackErrorAction=Terminate` aborted the chain), the repository records how many rollback blocks were already executed (`FileDownBlocksMigrated`). On a subsequent migrate-down, RayMigrator resumes from the next unexecuted block rather than re-executing already-completed blocks. Until then, migrate-up refuses to run the file, because it would run it from its first block on a target that kept part of it (see [Error Handling: A Rollback That Stopped in the Middle](../02-core-concepts/error-handling.md#a-rollback-that-stopped-in-the-middle)).
 
 ## Best Practices
 

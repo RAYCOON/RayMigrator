@@ -33,7 +33,7 @@ Reference files are cited so that a rule can be checked against real code.
 | Constants (`const`) | PascalCase | `AbortMessage`, `EnvironmentVariablePrefix`. Exception: the rule catalog `Validation/RuleIds.cs` keeps `RULE_3_8` because the IDs are data. |
 | Local variables, parameters, local consts | camelCase | `productAlias` |
 | Protected fields in test base classes | PascalCase | `protected readonly SqlServerFixture Fixture;` |
-| Task / ValueTask returning methods | suffix `Async`, also private ones | `ExecuteMigrationFileAsync`. Existing members without it (`IDal.IsConnectionValid`, `*AsyncInternal`) stay as they are; renaming `IDal` is a breaking NuGet change. |
+| Task / ValueTask returning methods | suffix `Async`, also private ones | `ExecuteMigrationFileAsync`. Existing members without it (the `*AsyncInternal` helpers, several internal methods of `MigrationService` such as `ExecuteTargetGroupFileByFile`) stay as they are; `IDal.IsConnectionValid` became `IsConnectionValidAsync` in the breaking release 0.20.0. |
 | Enums | PascalCase members, explicit values in steps of 10, first member `Undefined = 0` | `Core/Configuration/Enums/MigrationErrorAction.cs` |
 | Template types | `Area_Entity_Action`, identical to the SQL file name | `Repository_MigrationRun_Insert` (`Core/Templates/TemplateType.cs`) |
 | Test classes | `<Subject>Tests`; engine tests `<Db><Feature>Tests` | `RetryHelperTests`, `SqlServerBaselineTests`, `PostgreSqlBaselineTests` |
@@ -99,9 +99,9 @@ Reference files are cited so that a rule can be checked against real code.
 ## 7. Async
 
 - Every Task-returning method ends in `Async`, is declared `async` unless it only forwards a task, and returns `Task`/`Task<T>` (`ValueTask` only on hot paths that measurably benefit).
-- New public async methods in `Services`, `Pipeline` and `Database.*` take `CancellationToken cancellationToken = default` as the last parameter and pass it on. Existing interfaces (`IDal`, `IMigrationService`) keep their signatures until a deliberate breaking release.
+- New public async methods in `Services`, `Pipeline` and `Database.*` take `CancellationToken cancellationToken = default` as the last parameter and pass it on. Since 0.20.0 the asynchronous members of `IDal`, every method of `IMigrationService`, the public methods of `TemplateExecutor` and `IRepositorySchemaService.EnsureAsync` do so as well.
 - No `ConfigureAwait(false)`: there is no synchronisation context in a console, host or WASM app that would justify it.
-- No new `.GetAwaiter().GetResult()`, `.Result` or `.Wait()`. The existing `TemplateExecutor` bridging is legacy; do not extend it. Do not wrap synchronous code in `Task.Run` just to make it awaitable.
+- No `.GetAwaiter().GetResult()`, `.Result` or `.Wait()`. `TemplateExecutor` awaits the DAL since 0.20.0; the synchronous `IDal.ExecuteNonQuery` remains for the background thread of the database log writer, and the helpers of the `Testing` package still block on the DAL. Do not wrap synchronous code in `Task.Run` just to make it awaitable.
 - No fire-and-forget (`_ = SomethingAsync()`) outside UI code, and there only with a comment that says why.
 
 ## 8. Strings, culture, time
@@ -146,7 +146,7 @@ Reference files are cited so that a rule can be checked against real code.
 
 - Custom exceptions live in `Shared/Exceptions/CustomExceptions.cs`, derive from `Exception`, expose a public `const string AbortMessage` prefix and provide `(message)` and `(message, innerException)` constructors plus overloads for context (`ResultCode`, `ExitCode`, `MigrationRunId`). Follow that pattern for a new one.
 - Inside services and the pipeline, failures are exceptions. Wrap lower-level exceptions in the domain exception with the original as `InnerException`; use exception filters to avoid double wrapping: `catch (Exception ex) when (ex is not ApplicationStartupException)`.
-- At the service boundary (`IMigrationService`), return `OperationResult` / `MigrationOperationResult` with `Success`, `ErrorCode`, `ErrorMessage` and `Messages`. The pipeline maps results to exit codes (`0` success, `1` failure, `4` and `100` for the specific cases in `DirectModePipeline`).
+- At the service boundary (`IMigrationService`), return `OperationResult` / `MigrationOperationResult` with `Success`, `ErrorCode`, `ErrorMessage` and `Messages`. The pipeline maps results to exit codes (`0` success, `1` failure, `130` for a command that Ctrl+C or SIGTERM cancelled, `RayMigratorService.CancelledExitCode`, and `2` to `5` and `100` for the specific cases of `EnvironmentResolver`, `DirectModePipeline` and `Program`; see [Exit Codes](../08-cli-reference/global-options.md#exit-codes)).
 - Validation reports, it does not throw: `ValidationReport.AddError/AddWarning` in `Validation`, `ValidationResult` in the `Ray*Attribute`s.
 - SQL template result codes are catalogued in `Shared/Constants/TemplateResultCode.cs`: negative values come from templates (bands of ten per area), positive values 1001+ from C#. Register new codes there and in `IsKnown()`.
 - A bare `catch { }` is acceptable only for best-effort clean-up and carries a comment (`// ignored: localStorage unavailable`). Use `throw;` to rethrow, never `throw ex;`.

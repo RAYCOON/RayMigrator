@@ -27,7 +27,7 @@ Behaviour = """
 
 [ConfigPlaceholders]
 SchemaName    = "Not used for SQLite (no schema support)"
-TableBaseName = "Table name prefix from Logging configuration (e.g., '' or 'Log_')"
+TableBaseName = "Table name prefix from Logging configuration (e.g., '' or 'log_')"
 
 [Parameters]
 # No SQL parameters required for this template

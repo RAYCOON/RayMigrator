@@ -151,6 +151,10 @@ private Command CreateMigrateUpCommand()
         Arity = ArgumentArity.ZeroOrOne
     };
 
+    // --cancelled-action (-ca), default "terminate"; migrate-down and baseline get the same option with their own description
+    var cancelledActionOption = CreateCancelledActionOption(
+        "What the run does after Ctrl+C or SIGTERM stopped it at the next block boundary: terminate, rollback-file, rollback-run or rollback-release");
+
     command.Options.Add(productOption);
     command.Options.Add(environmentOption);
     command.Options.Add(runModeOption);
@@ -159,6 +163,7 @@ private Command CreateMigrateUpCommand()
     command.Options.Add(targetGroupOption);
     command.Options.Add(targetGroupMigrationOrderOption);
     command.Options.Add(stopRollbackOnMissingRollbackFileOption);
+    command.Options.Add(cancelledActionOption);
 
     return command;
 }
@@ -178,6 +183,9 @@ private void SetupMigrateUpHandler(Command command, Option<bool> showInfoOption,
         var stopRollbackOnMissingRollbackFile = parseResult.GetValue(
             command.Options.OfType<Option<bool?>>().First(o => o.Name == "--stop-rollback-on-missing-rollback-file"));
 
+        var cancelledAction = ParseCancelledAction(
+            parseResult.GetValue(command.Options.OfType<Option<string>>().First(o => o.Name == "--cancelled-action")) ?? "terminate");
+
         ParsedOptions = new RayMigratorConsoleOptions
         {
             Command = MigrationCommand.MigrateUp,
@@ -190,6 +198,7 @@ private void SetupMigrateUpHandler(Command command, Option<bool> showInfoOption,
             HashValidationScope = null,
             AllowOutOfOrder = allowOutOfOrder,
             StopRollbackOnMissingRollbackFile = stopRollbackOnMissingRollbackFile,
+            CancelledAction = cancelledAction,
             TargetGroupAliases = parseResult.GetValue(command.Options.OfType<Option<string[]>>().First(o => o.Name == "--target-group"))
                 ?.Select(a => ResolveEnvironmentVariable(a)).Where(a => !string.IsNullOrWhiteSpace(a)).ToArray(),
             TargetGroupMigrationOrder = tgeoArray,
@@ -234,8 +243,9 @@ These options are defined on specific commands (not global).
 | `--allow-out-of-order` | `-ooo` | bool | false | migrate-up | Allow out-of-order migration execution |
 | `--target-group-migration-order` | `-tgmo` | string | (config order) | migrate-up, baseline | Explicit TargetGroup migration order (comma-separated aliases, e.g. `"Frontend,Backend"`) |
 | `--stop-rollback-on-missing-rollback-file` | `-sromrf` | bool? | (config default: true) | migrate-up | CLI override: stop error-recovery rollback chain when a rollback file is missing |
+| `--cancelled-action` | `-ca` | string | terminate | migrate-up, migrate-down, baseline | What the run does after Ctrl+C or SIGTERM stopped it at the next block boundary: `terminate`, `rollback-file`, `rollback-run` or `rollback-release` (maps to `CancelledAction`); migrate-down and baseline accept it and ignore it |
 | `--scope` | `-s` | string | (varies) | validate-hash, fix | Validation or fix scope (validate-hash: `file`/`sqlblocks`/`disabled`; fix: `orphanedruns`/`all`) |
-| `--older-than` | `-ot` | int | 60 | Fix | Only fix runs older than N minutes (0 = immediate) |
+| `--older-than` | `-ot` | int | 2 | Fix | Only fix runs whose last heartbeat (or start) is older than N minutes (0 = immediate) |
 | `--last-migration-status` | `-lms` | string | not-migrated | Fix | Status for orphaned migrations (`migrated` or `not-migrated`) |
 
 ### Command-Specific Options
@@ -247,11 +257,13 @@ These options are defined on specific commands (not global).
 - `--target-group` (`-tg`): string[], repeatable — Filter to specific target groups
 - `--target-group-migration-order` (`-tgmo`): string, optional — Comma-separated list of TargetGroup aliases that overrides the default migration order (e.g. `"Frontend,Backend"`)
 - `--stop-rollback-on-missing-rollback-file` (`-sromrf`): bool?, optional — CLI override for `StopRollbackOnMissingRollbackFile` configuration; when `true`, the error-recovery rollback chain stops if a rollback file is missing
+- `--cancelled-action` (`-ca`): string, default `"terminate"` — The `MigrationCancelledAction` of a run that Ctrl+C or SIGTERM cancels: `terminate`, `rollback-file`, `rollback-run` or `rollback-release` (case-insensitive, `{ENV:...}` resolved, any other value a parse error)
 
 **migrate-down**:
 - `--to-release` (`-tr`): string, **required** — Must specify rollback target
 - `--run-mode` (`-rm`): string, default `"Migrate"` — Migrate, Simulate, or Validate
 - `--target-group` (`-tg`): string[], repeatable — Filter to specific target groups
+- `--cancelled-action` (`-ca`): string, default `"terminate"` — Accepted for uniform scripts and ignored: a cancelled migrate-down stops at the next rollback block (logged when the value is not `terminate`)
 
 **validate-hash**:
 - `--scope` (`-s`): string, optional (no default) — Maps to `HashValidationScope` enum (values: `File`, `SqlBlocks`, `Disabled`). If omitted, uses per-TargetGroup config.
@@ -264,13 +276,14 @@ These options are defined on specific commands (not global).
 - `--to-release` (`-tr`): string, optional — Omit to baseline all releases; specify to baseline up to a specific release
 - `--target-group` (`-tg`): string[], repeatable — Filter to specific target groups
 - `--target-group-migration-order` (`-tgmo`): string, optional — Comma-separated list of TargetGroup aliases that overrides the default migration order (e.g. `"Frontend,Backend"`)
+- `--cancelled-action` (`-ca`): string, default `"terminate"` — Accepted for uniform scripts and ignored: a cancelled baseline stops before the next file and keeps the records it wrote
 
 **Info**:
 - No command-specific options (only `--product` and `--environment`)
 
 **Fix**:
 - `--scope` (`-s`): string, default `"OrphanedRuns"` — Maps to `FixScope` enum (values: `OrphanedRuns`, `All`)
-- `--older-than` (`-ot`): int, default `60` — Only fix runs older than N minutes (0 = immediate)
+- `--older-than` (`-ot`): int, default `2` — Only fix runs whose last heartbeat (or start) is older than N minutes (0 = immediate)
 - `--run-mode`: string, default `migrate`. `simulate` lists what would be repaired without applying changes (#22)
 - `--last-migration-status` (`-lms`): string, default `"not-migrated"` — Status for orphaned migrations (`migrated` or `not-migrated`)
 
@@ -354,11 +367,12 @@ sequenceDiagram
 
     Prog->>Prog: Resolve environment
 
+    Prog->>Prog: Create the RunCancellation of the process
     Prog->>Src: JsonOptionsSource.LoadAsync
     Src->>Src: Load appsettings.json hierarchy (up to 4 files)
     Src-->>Prog: OptionsSourceResult
 
-    Prog->>Pipeline: DirectModePipeline.ExecuteAsync
+    Prog->>Pipeline: DirectModePipeline.ExecuteAsync(..., cancellation)
     Pipeline->>Pipeline: Validate Serilog config, create Serilog logger (with DB sink)
     Pipeline->>Pipeline: Log environment variable replacements
     Pipeline->>Pipeline: Build host (DI, configuration)
@@ -366,15 +380,17 @@ sequenceDiagram
     Pipeline->>Pipeline: Register sensitive data for masking
     Pipeline->>Pipeline: Validate product alias
     Pipeline->>Pipeline: Resolve MigrationContext, set MigrationLoggingContext.Current
-    Pipeline->>Pipeline: Initialize DatabaseLogWriter (wire DB sink to writer)
+    Pipeline->>Pipeline: Initialize DatabaseLogWriter (InitDatabaseLoggerAsync, wire DB sink to writer)
     Pipeline->>Pipeline: Populate DalSpecificPropertiesDictionary, validate schema names
     Pipeline->>Pipeline: Validate target connection strings
 
-    Pipeline->>Svc: DoWorkAsync(host)
+    Pipeline->>Pipeline: ConsoleCancellation.Listen (Ctrl+C, SIGTERM)
+    Pipeline->>Svc: DoWorkAsync(host, cancellation)
     Svc->>Svc: Switch on Command enum
-    Svc->>Mig: MigrateUpAsync(request)
+    Svc->>Mig: MigrateUpAsync(request, cancellation.Token)
     Mig-->>Svc: MigrationOperationResult
-    Svc-->>Pipeline: Exit code
+    Svc-->>Pipeline: Exit code (0, 1, or 130 when the cancel ended the command)
+    Pipeline->>Pipeline: Stop listening, signals keep their default again
 
     Pipeline->>Pipeline: Flush DB log writer, stop host
     Pipeline-->>Prog: Exit code

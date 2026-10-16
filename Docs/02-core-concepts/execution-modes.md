@@ -266,7 +266,9 @@ The behavior of each mode is determined by extension methods on `MigrationRunMod
 | `info` | Migrate | no | no | no |
 | `validate-hash` | Migrate | no | no | no |
 
-A command that does not connect to the targets starts even when a target database is unreachable. A command that does not write the repository looks the product and environment up read-only (`Repository_Product_Select` / `Repository_Environment_Select`) instead of registering them, so a read-only command on a fresh repository leaves no rows behind. `RepositoryCheckCreate` still runs for `baseline`, `update-hash`, `fix` (in both run modes), `info` and `validate-hash` because their read paths need the tables, so those commands create the repository on first contact (logged at Information level); `migrate-up` and `migrate-down` run it in `Migrate` mode only and never create the repository in `Simulate` or `Validate`. The DatabaseLogging schema and tables (`DatabaseLogging_CheckCreate`) are created in every run mode unless `DatabaseLogging.Enabled` is `false`, in the repository by default; only the writing of log rows is gated. The `MigrationRunModeId` stamped into `MigrationRun` / `MigrationRecord` / `MigrationLog` rows is still the context run mode, i.e. `100` for everything that writes records.
+A command that does not connect to the targets starts even when a target database is unreachable. A command that does not write the repository looks the product and environment up read-only (`Repository_Product_Select` / `Repository_Environment_Select`) instead of registering them, so a read-only command on a fresh repository leaves no rows behind. `RepositoryCheckCreateAsync` still runs for `baseline`, `update-hash`, `fix` (in both run modes), `info` and `validate-hash` because their read paths need the tables, so those commands create the repository on first contact (logged at Information level); `migrate-up` and `migrate-down` run it in `Migrate` mode only and never create the repository in `Simulate` or `Validate`. The DatabaseLogging schema and tables (`DatabaseLogging_CheckCreate`) are created in every run mode unless `DatabaseLogging.Enabled` is `false`, in the repository by default; only the writing of log rows is gated. The same template adds the two indexes of `MigrationLog` (on `MigrationRunId` and on `CreatedAt`) to a log table that lacks them, so the first start after an update to 0.20.0 runs index DDL on the log database once, in every run mode, `Validate` and `info` included; that start needs the right to create indexes on the log table (see [Logging Schema](../03-database-layer/logging-schema.md)). The `MigrationRunModeId` stamped into `MigrationRun` / `MigrationRecord` / `MigrationLog` rows is still the context run mode, i.e. `100` for everything that writes records.
+
+A cancel stops every run mode at the next block boundary (see [Error Handling: Cancellation](error-handling.md#cancellation)); Simulate and Validate persist nothing and roll nothing back.
 
 ### Migrate (Default)
 
@@ -304,7 +306,7 @@ raymigrator migrate-up --product MyProduct --environment Production --run-mode s
 
 ### Validate
 
-Validate configuration, migration files, and rollback files without any database operations.
+Validate configuration, migration files, and rollback files without touching the targets or the repository records.
 
 ```bash
 raymigrator migrate-up --product MyProduct --environment Production --run-mode validate
@@ -317,18 +319,18 @@ raymigrator migrate-down --product MyProduct --environment Production --to-relea
 - Calculates file hashes
 - For migrate-down: validates rollback file existence and parseability
 - Does NOT connect to target databases
-- Does NOT connect to repository database
-- Does NOT execute SQL
+- Does NOT read or write the repository for the migration; with database logging on (the default, into the repository) the start runs `DatabaseLogging_CheckCreate` on the log database, which creates the log tables and, once after an update to 0.20.0, the two `MigrationLog` indexes
+- Does NOT execute migration SQL
 - Does NOT create repository records
 - Processes ALL files regardless of prior migration status
 
 **Use Cases**:
-- CI/CD pre-deployment checks (no database access needed)
+- CI/CD pre-deployment checks (no database access at all with `"DatabaseLogging": { "Enabled": false }`)
 - Validating migration file syntax on developer machines
 - Checking rollback file completeness
 - Environments where database access is not available
 
-> **Note**: The `validate-hash` command is a separate command that validates file hashes against repository records (exit code `1` for `Modified` or `Missing` files, `0` otherwise; unmigrated files are listed as `New` and do not affect the exit code). The `--run-mode validate` option for `migrate-up`/`migrate-down` is a different feature that validates file structure without any database access. Internally `validate-hash` runs in `Migrate` mode like every other non-migrate command (#6); its side effects (repository read-only, no target connections, no audit log) come from its command profile, and the repository record query always reads `Migrate`-mode records because records are only ever written in `Migrate` mode (#5).
+> **Note**: The `validate-hash` command is a separate command that validates file hashes against repository records (exit code `1` for `Modified` or `Missing` files, `0` otherwise; unmigrated files are listed as `New` and do not affect the exit code). The `--run-mode validate` option for `migrate-up`/`migrate-down` is a different feature that validates file structure without touching the targets or the repository records (the start still initializes the database log unless it is disabled, see above). Internally `validate-hash` runs in `Migrate` mode like every other non-migrate command (#6); its side effects (repository read-only, no target connections, no audit log) come from its command profile, and the repository record query always reads `Migrate`-mode records because records are only ever written in `Migrate` mode (#5).
 
 ## Execution Flow Comparison
 

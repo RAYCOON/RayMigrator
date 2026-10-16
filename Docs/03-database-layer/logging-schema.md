@@ -69,9 +69,17 @@ Main logging table. Types shown are SQL Server canonical types. PostgreSQL store
 | `Message` | NVARCHAR(MAX) | Log message |
 | `CreatedAt` | DATETIME2(3) | Timestamp (default: SYSUTCDATETIME()) |
 
+### Indexes
+
+`MigrationLog` has two indexes, for the readers of the log and for the cleanup by age: `ix_{TableBaseName}MigrationLog_MigrationRunId` (`MigrationRunId`) and `ix_{TableBaseName}MigrationLog_CreatedAt` (`CreatedAt`), `ix_{TableBaseName}migration_log_migration_run_id` and `ix_{TableBaseName}migration_log_created_at` on PostgreSQL, MySQL and MariaDB. `DatabaseLogging_CheckCreate` creates each index when it is missing, whether or not it creates the tables, so the next initialization of the database log also adds them to a log table that an older engine created and still reports that the log existed (result `0`). This holds as well for a log database of its own, with its own connection, schema and prefix: the log tables are not part of the repository schema version, whose steps would not reach such a database.
+
+- **Rights.** The start that adds the indexes needs the right to create indexes on the log table (`ALTER` on the table on SQL Server, ownership of the table on PostgreSQL, the `INDEX` privilege on MySQL and MariaDB). A later start finds them and needs that right no more: SQL Server, PostgreSQL, MySQL and MariaDB look each index up before they create it, so a start that finds both runs no index DDL; SQLite runs its `CREATE INDEX IF NOT EXISTS` on every start, a no-op once the index is there.
+- **Duration.** That first start builds the indexes on the rows already there within the command timeout of `DatabaseLogging` (`DbCommandTimeoutInSeconds`, 20 seconds by default). A timeout of `DatabaseLogging_CheckCreate` is not retried; other transient failures are, up to three times, as for every log write. The attempt was rolled back whole, and a retry would build the indexes from the start again and hold back the log writes of other hosts once more. The start then fails with a message that names the index build and `DatabaseLogging.DbCommandTimeoutInSeconds`: when updating, raise that timeout for the first start on a large log. `DalBase.IsTimeout` tells a timeout from other failures (a `TimeoutException` in the chain of inner exceptions, SqlClient error -2, the `CommandTimeoutExpired` of MySqlConnector). While the build runs, SQL Server, PostgreSQL and SQLite block the writes to the log table: the log writers of other hosts wait, and an entry whose insert fails is lost and reported on the standard error output only.
+- **Parallel starts.** A parallel start of another host does not fail on the indexes. SQL Server, PostgreSQL and MySQL serialise the initialization with a lock apart from the repository schema lock (`sp_getapplock` in one transaction, an advisory lock, `GET_LOCK()`), which also serialises the creation of the tables. The wait for that lock ends with the command timeout of `DatabaseLogging` (20 seconds by default) and, like a timeout of the index build, is not retried: SQL Server and MySQL give up after 60 seconds and report `-1` only when that timeout is longer (or `0`, no timeout), and PostgreSQL waits for its advisory lock until the timeout. A start that waits while another host builds the indexes on a large log therefore needs the longer timeout as well. On MySQL a start that fails, times out or is cancelled inside the template keeps no lock: the DAL releases the locks of the session (`DO RELEASE_ALL_LOCKS()`) before the connection goes back to the pool. MariaDB and SQLite rely on `CREATE INDEX IF NOT EXISTS`, which the metadata lock of the table and the write lock of the database serialise; two first starts at once can still collide there on the event catalogue, as before.
+
 ## MigrationEvent Lookup Table
 
-The `MigrationEvent` table is the catalogue of the `EventId`s RayMigrator logs with. It is seeded by the `DatabaseLogging_CheckCreate` template and mirrors the static class `Raycoon.RayMigrator.Core.Logging.MigrationEvent` one to one: the C# constant, the event name and the row `Name` are identical. The DatabaseLogging sink stores the `Id` of the `EventId` passed to the logger call in `MigrationLog.MigrationEventId`; a call without an EventId is stored as 0. The catalogue is written only when the log tables are created; an existing log database is not upgraded in place, so a log database created before 0.13.0 keeps the old names `CreateAndStartRayMigratorService` (100) and `CreateCompositeLogger` (32) until it is dropped and recreated. There is no FK from `MigrationLog.MigrationEventId` to `MigrationEvent.Id`.
+The `MigrationEvent` table is the catalogue of the `EventId`s RayMigrator logs with. It is seeded by the `DatabaseLogging_CheckCreate` template and mirrors the static class `Raycoon.RayMigrator.Core.Logging.MigrationEvent` one to one: the C# constant, the event name and the row `Name` are identical. The DatabaseLogging sink stores the `Id` of the `EventId` passed to the logger call in `MigrationLog.MigrationEventId`; a call without an EventId is stored as 0. The catalogue is written only when the log tables are created; apart from the two indexes above an existing log database is not upgraded in place, so a log database created before 0.13.0 keeps the old names `CreateAndStartRayMigratorService` (100) and `CreateCompositeLogger` (32) until it is dropped and recreated. There is no FK from `MigrationLog.MigrationEventId` to `MigrationEvent.Id`.
 
 | Id | Name | Description |
 |----|------|-------------|
@@ -152,14 +160,29 @@ Database logging is on by default and goes into the repository: without a `Datab
 
 Two SQL templates implement database logging, available for each supported database engine (SqlServer, PostgreSQL, MariaDb, MySql, Sqlite):
 
-- **`DatabaseLogging_CheckCreate.sql`** -- Creates the logging schema, tables, and lookup data if they do not exist
+- **`DatabaseLogging_CheckCreate.sql`** -- Creates the logging schema, tables, and lookup data if they do not exist, and the two indexes when they are missing
 - **`DatabaseLogging_Insert.sql`** -- Inserts a single log entry into the MigrationLog table
+
+Two more, `DatabaseLogging_Delete.sql` and `DatabaseLogging_Count.sql`, belong to the retention of the repository: `IRepositoryMaintenanceService` runs them against the repository database with the schema and prefix of the `Repository` section, so they reach only a log that lives there, and with the command timeout of the repository but without its retries (see [Retention](repository-schema.md#retention)). With `@ExistsOnly` = 1, `DatabaseLogging_Count` reports only whether the log table is there, which the cleanup asks before it deletes, without counting a large log; the dry run counts.
 
 ### DatabaseLogging_CheckCreate.sql
 
 The `DatabaseLogging_CheckCreate.sql` template creates the logging infrastructure. SQL Server names the keys `pk_{CFG:TableBaseName}MigrationEvent` and `pk_{CFG:TableBaseName}MigrationLog`, PostgreSQL `pk_{CFG:TableBaseName}migration_event` and `pk_{CFG:TableBaseName}migration_log`; MariaDB, MySQL and SQLite leave them unnamed. The prefix keeps the log tables of two configurations with different prefixes in one schema apart; a log database created before 0.18.0 keeps its unprefixed key names (`pk_MigrationEvent` and `pk_Log` on SQL Server).
 
 ```sql
+BEGIN TRANSACTION;
+
+-- A parallel start of another host waits here; the lock is not the repository schema lock
+EXEC @LockResult = sp_getapplock @Resource = 'RayMigrator_Log_{CFG:SchemaName}_{CFG:TableBaseName}', @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 60000;
+IF (@LockResult < 0)
+BEGIN
+    ROLLBACK TRANSACTION;
+    SELECT '-1,Could not acquire the database logging lock';
+    RETURN;
+END;
+
+DECLARE @Created BIT = 0;
+
 -- Check if tables exist
 IF (OBJECT_ID('{CFG:SchemaName}.{CFG:TableBaseName}MigrationLog', 'U') IS NULL)
 BEGIN
@@ -205,13 +228,25 @@ BEGIN
         -- ... more events ...
         (1000, 'RayMigratorServiceShutdown', N'');
 
-    SELECT '1,Database logging infrastructure successfully created';
-END
-ELSE
-BEGIN
-    SELECT '0,Database logging infrastructure already exists';
+    SET @Created = 1;
 END;
+
+-- Outside the creation branch, so that a log table an older engine created gets the indexes at its next start
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'ix_{CFG:TableBaseName}MigrationLog_MigrationRunId' AND object_id = OBJECT_ID(N'{CFG:SchemaName}.{CFG:TableBaseName}MigrationLog', N'U'))
+    CREATE INDEX ix_{CFG:TableBaseName}MigrationLog_MigrationRunId ON [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationLog] ( MigrationRunId );
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'ix_{CFG:TableBaseName}MigrationLog_CreatedAt' AND object_id = OBJECT_ID(N'{CFG:SchemaName}.{CFG:TableBaseName}MigrationLog', N'U'))
+    CREATE INDEX ix_{CFG:TableBaseName}MigrationLog_CreatedAt ON [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationLog] ( CreatedAt );
+
+COMMIT TRANSACTION;
+
+IF (@Created = 1)
+    SELECT '1,Database logging infrastructure successfully created';
+ELSE
+    SELECT '0,Database logging infrastructure already exists';
 ```
+
+The real template wraps this in `BEGIN TRY ... END TRY BEGIN CATCH ... END CATCH` and rolls the transaction back on an error. PostgreSQL runs the same in one `DO` block under an advisory lock. MySQL and MariaDB run statement by statement (their DDL commits implicitly) and look each index up in `information_schema` before a prepared `CREATE INDEX` runs: MySQL under `GET_LOCK()`, because it has no `CREATE INDEX IF NOT EXISTS`, MariaDB with `IF NOT EXISTS` and without a lock.
 
 ### DatabaseLogging_Insert.sql
 
@@ -345,9 +380,9 @@ RayMigrator uses Serilog for logging. Console and file sinks are configured alon
 
 ## Best Practices
 
-1. **Separate database** for logs when their growth or retention must not touch the repository (the repository is the default home, where Studio reads them)
-2. **Set appropriate retention** - logs can grow quickly
-3. **Index by MigrationRunId** for efficient queries
+1. **Separate database** for logs only when their growth must not touch the repository (the repository is the default home, where Studio reads them): the cleanup of the engine reaches only a log in the repository database and reports any other as `LogSkipped`, so a separate log database needs a retention of its own
+2. **Set a retention** - logs grow with every run; a host deletes old rows through `IRepositoryMaintenanceService` (see [Retention](repository-schema.md#retention)), the CLI has no command for it
+3. **Grant the index right once** - the first start after the update to 0.20.0 creates the indexes on `MigrationRunId` and `CreatedAt` (see [Indexes](#indexes)) and needs the right to create them, and on a large log a longer `DbCommandTimeoutInSeconds` for that start, since a timeout there is not retried
 4. **Monitor disk space** - NVARCHAR(MAX) columns can be large
 5. **Consider log level** - Debug is verbose, Information is balanced
 

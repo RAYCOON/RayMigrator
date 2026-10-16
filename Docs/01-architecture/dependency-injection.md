@@ -87,6 +87,7 @@ Services that maintain state throughout the application lifetime:
 | `IMigrationContextAccessor` | Singleton (`SingletonMigrationContextAccessor`; `AsyncLocalMigrationContextAccessor` in API mode) | CLI: wraps single context; API: one context per async flow |
 | `IMigrationContextFactory` | Singleton | Stateless factory, creates `MigrationContext` instances |
 | `IRepositorySchemaService` | Singleton (`RepositorySchemaService`) | Creates or upgrades a repository without a run; depends on the host's `TemplateCache` |
+| `IRepositoryMaintenanceService` | Singleton (`RepositoryMaintenanceService`) | Deletes old history and log rows of a repository without a run (retention, ADR-027); depends on the host's `TemplateCache` |
 | `MigrationContext` | Singleton | Created once and set on accessor |
 | `RayMigratorConsoleOptions` | Singleton | CLI parameters, single instance |
 | `TemplateCache` | Singleton | Cache loaded templates for performance |
@@ -163,6 +164,7 @@ Services expose interfaces from abstraction assemblies:
 Raycoon.RayMigrator.Services.Abstractions
 ├── IMigrationService.cs
 ├── IRepositorySchemaService.cs
+├── IRepositoryMaintenanceService.cs
 └── Models/
     ├── Requests.cs    (MigrateUpRequest, MigrateDownRequest, ValidateHashRequest,
     │                    UpdateHashRequest, BaselineRequest, FixIssuesRequest)
@@ -170,12 +172,18 @@ Raycoon.RayMigrator.Services.Abstractions
     │                    ValidationResult, HashValidationIssue, HashUpdateResult,
     │                    BaselineResult, MigrationStatusInfo, TargetGroupStatus,
     │                    MigrationHistory, MigrationRunInfo, FixIssuesResult, OrphanedRunInfo)
-    └── RepositorySchemaResult.cs
+    ├── RunCancellation.cs          (the handle a host cancels one run with)
+    ├── PendingMigrationInfo.cs     (one entry of MigrationStatusInfo.PendingFiles)
+    ├── PendingMigrationReason.cs
+    ├── RepositorySchemaResult.cs
+    ├── RetentionRequest.cs
+    └── RetentionResult.cs
 
 Raycoon.RayMigrator.Services
 ├── CliToolExecutor.cs  (ICliToolExecutor, CliToolExecutor, CliToolExecutionRequest,
 │                         CliToolExecutionResult)
 ├── RepositorySchemaService.cs
+├── RepositoryMaintenanceService.cs
 └── ServiceCollectionExtensions.cs
 ```
 
@@ -210,15 +218,18 @@ public static class ServiceCollectionExtensions
         // Register the context factory, the entry point of every host for one run
         services.AddSingleton<IMigrationContextFactory, MigrationContextFactory>();
 
-        // Register the schema service for hosts that create or upgrade a repository without a run
+        // Register the schema service for hosts that create or upgrade a repository without a run (needs the host's TemplateCache)
         services.AddSingleton<IRepositorySchemaService, RepositorySchemaService>();
+
+        // Register the maintenance service for hosts that delete old history and log rows of a repository (ADR-027)
+        services.AddSingleton<IRepositoryMaintenanceService, RepositoryMaintenanceService>();
 
         return services;
     }
 }
 ```
 
-> **Note**: Infrastructure services (`TemplateCache`, `TemplateExecutor`) are registered directly in `DirectModePipeline` (CLI), not in this extension method. `TemplateCache` is always Singleton. `TemplateExecutor` is Singleton in CLI mode. `RepositorySchemaService` takes the `TemplateCache` in its constructor, so a host registers the cache before it resolves `IRepositorySchemaService`. Database layer uses the static `DalFactory` -- no DI registration needed.
+> **Note**: Infrastructure services (`TemplateCache`, `TemplateExecutor`) are registered directly in `DirectModePipeline` (CLI), not in this extension method. `TemplateCache` is always Singleton. `TemplateExecutor` is Singleton in CLI mode. `RepositorySchemaService` and `RepositoryMaintenanceService` take the `TemplateCache` in their constructors, so a host registers the cache before it resolves `IRepositorySchemaService` or `IRepositoryMaintenanceService`. Database layer uses the static `DalFactory` -- no DI registration needed.
 
 ## Constructor Injection Examples
 

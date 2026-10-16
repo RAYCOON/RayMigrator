@@ -8,17 +8,17 @@ The engine test project (`Raycoon.RayMigrator.Tests.Engine`) tests the core migr
 
 | Metric | Value |
 |--------|-------|
-| Total test methods | ~1283 (across 225 test class files, including the engine-agnostic `CliToolPresetConsistencyTests` with 16 inline cases; 10 are skipped on purpose) |
-| PostgreSQL tests | ~247 (44 test classes; most use unprefixed filenames as the "base" engine) |
-| SqlServer tests | ~258 (48 test classes, includes 6 block-level tests, 3 resume tests, 12 CLI tool tests, 2 atomic shared connection tests and 1 killed pooled session test) |
-| MariaDb tests | ~250 (45 test classes; one is `MariaDbSessionTimezoneTests` defined alongside `MySqlSessionTimezoneTests` in `P2_MySqlMariaDbSessionTimezoneTests.cs`) |
-| MySql tests | ~250 (45 test classes; one is `MySqlSessionTimezoneTests` defined in the same shared P2 file) |
-| Sqlite tests | ~262 (43 test classes; includes the SQLite-only `SqliteDatetimeCheckConstraintTests`, `SqliteCommandProfileTests` and `SqliteFileEncodingTests`) |
+| Total tests | ~1559, every theory row counted (1532 test methods across 247 test class files, including the engine-agnostic `CliToolPresetConsistencyTests` with 16 inline cases; 10 are skipped on purpose) |
+| PostgreSQL tests | ~302 (48 test classes; most use unprefixed filenames as the "base" engine) |
+| SqlServer tests | ~313 (52 test classes, includes 6 block-level tests, 3 resume tests, 12 CLI tool tests, 2 atomic shared connection tests and 1 killed pooled session test) |
+| MariaDb tests | ~306 (50 test classes; one is `MariaDbSessionTimezoneTests` defined alongside `MySqlSessionTimezoneTests` in `P2_MySqlMariaDbSessionTimezoneTests.cs`) |
+| MySql tests | ~306 (50 test classes; one is `MySqlSessionTimezoneTests` defined in the same shared P2 file) |
+| Sqlite tests | ~316 (47 test classes; includes the SQLite-only `SqliteDatetimeCheckConstraintTests`, `SqliteCommandProfileTests`, `SqliteFileEncodingTests` and `SqliteCliSignalTests`) |
 | Backend migration file sets | 5 engines x 24 files = 120 files |
 | Frontend migration file sets | 5 engines x 16 files = 80 files |
 | Database engines | PostgreSQL, SQL Server, MariaDB, MySQL, SQLite |
 
-> **Note**: PostgreSQL is treated as the "base" engine — most of its test classes have unprefixed filenames (`HappyPathTests.cs`, `RollbackTests.cs`, etc.) and live in the same `Tests.Engine` namespace; the CLI tool classes and the three feature classes that run a shared contract (`PostgreSqlRepositorySchemaServiceTests`, `PostgreSqlRepositoryPrefixTests`, `PostgreSqlProductIsolationTests`) carry the engine prefix like the other engines. Each unprefixed class is replicated by engine-specific wrapper classes (e.g. `SqlServerHappyPathTests`, `MariaDbHappyPathTests`, `MySqlHappyPathTests`, `SqliteHappyPathTests`). The lone exception is `P2_MySqlMariaDbSessionTimezoneTests.cs`, which contains two engine-specific classes (one for MySQL, one for MariaDB) and runs against neither PostgreSQL nor SqlServer.
+> **Note**: PostgreSQL is treated as the "base" engine — most of its test classes have unprefixed filenames (`HappyPathTests.cs`, `RollbackTests.cs`, etc.) and live in the same `Tests.Engine` namespace; the CLI tool classes and the seven feature classes that run a shared contract (`PostgreSqlRepositorySchemaServiceTests`, `PostgreSqlRepositoryPrefixTests`, `PostgreSqlProductIsolationTests`, `PostgreSqlCancellationTests`, `PostgreSqlRepositoryMaintenanceTests`, `PostgreSqlDalCancellationTests`, `PostgreSqlDalTimeoutTests`) carry the engine prefix like the other engines; `InfoTests`, `DatabaseLogTests` and `ReadModelContractTests` run a shared contract too but keep the unprefixed name. Each unprefixed class is replicated by engine-specific wrapper classes (e.g. `SqlServerHappyPathTests`, `MariaDbHappyPathTests`, `MySqlHappyPathTests`, `SqliteHappyPathTests`). The lone exception is `P2_MySqlMariaDbSessionTimezoneTests.cs`, which contains two engine-specific classes (one for MySQL, one for MariaDB) and runs against neither PostgreSQL nor SqlServer.
 
 ## Prerequisites
 
@@ -104,25 +104,35 @@ Tests automatically skip when Docker containers are unavailable. No test failure
 ```
 Raycoon.RayMigrator.Tests.Engine/
 ├── Infrastructure/
+│   ├── CancellationContract.cs     — Shared assertions of CancellationTests: a cancelled run stops at the next block boundary and takes the MigrationCancelledAction of the test; migrate-down, baseline and a running error recovery stop and ignore it; the run is recorded as Cancelled (70), the lookup row of schema step 3, a migrate-up whose error recovery the cancel stopped as Error with its failure; a migrate-up refuses a file whose rollback stopped in the middle; update-hash and fix return what they did so far; the warnings of a cancel carry no stack trace
+│   ├── CancellingProgressObserver.cs — Records the progress events like RecordingProgressObserver and cancels the run once, at the first event that matches its trigger (after a block, after a file, when a file starts), so the cancellation tests need no timing
 │   ├── CliToolConfigHelper.cs      — Pre-built CLI tool configs for CliTool tests (File and Stdin modes)
+│   ├── DalSharedConnectionCancellationContract.cs — Shared assertions of DalCancellationTests: the shared-connection calls of a DAL hand the caller's token to the command on an open connection and transaction, so the provider reports a token cancelled before the call
+│   ├── DalTimeoutContract.cs       — Shared assertions of DalTimeoutTests: a command that runs into its command timeout is a timeout for DalBase.IsTimeout, however the provider reports it
+│   ├── DalUserLockContract.cs      — Shared assertions of DalUserLockTests (MySQL, MariaDB): a call that fails after its GET_LOCK leaves no lock on the pooled session
+│   ├── DatabaseLogIndexContract.cs — Shared assertions of the log index tests in DatabaseLogTests: DatabaseLogging_CheckCreate gives MigrationLog an index on MigrationRunId and one on CreatedAt, also on a log table of an older engine
 │   ├── DockerExecHelper.cs         — Static Process wrapper for docker exec -i stdin piping
 │   ├── EngineConfig.cs             — Engine configuration record
-│   ├── EngineTestHost.cs           — DI container (mirrors Program.cs setup); loads the scenario's appsettings.json through JsonOptionsSource, so the host runs in the product scope of a run (ADR-026), stops on a placeholder whose variable is not set, names a failed element by alias and hands the rule catalog the section as written, like DirectModePipeline
+│   ├── EngineTestHost.cs           — DI container (mirrors Program.cs setup), built asynchronously because it initializes the database log writer (InitDatabaseLoggerAsync); loads the scenario's appsettings.json through JsonOptionsSource, so the host runs in the product scope of a run (ADR-026), stops on a placeholder whose variable is not set, names a failed element by alias and hands the rule catalog the section as written, like DirectModePipeline; hands every log event to the LogObserver of the test, on the logging thread before the call returns
 │   ├── MariaDbTestBase.cs          — MariaDB base class
 │   ├── MigrationRecordExpectation.cs  — Partial-match DTO for MigrationRecord table
 │   ├── MigrationRunExpectation.cs     — Partial-match DTO for MigrationRun table
 │   ├── MySqlTestBase.cs            — MySQL base class
 │   ├── ParameterRoundTripValues.cs — Values the parameter round-trip tests send through a template parameter
+│   ├── PendingMigrationsContract.cs — Shared assertions of the pending list in InfoTests: MigrationStatusInfo.PendingFiles in the order and with the reason of the next migrate-up, which every scenario then runs and compares with the list
 │   ├── PostgreSqlTestBase.cs       — PostgreSQL base class
+│   ├── PrefixTableCleanup.cs       — The tables of a scenario's table prefix, which ScenarioContext.DisposeAsync drops: the repository and log tables of the prefix in the repository database and in a log database of its own
+│   ├── PrefixTableCleanupContract.cs — Shared assertions of RepositoryPrefixTests: a disposed scenario with a prefix leaves no table of its prefix in the catalog
 │   ├── ProductIsolationContract.cs — Shared assertions of ProductIsolationTests: a run of the main product beside a broken second product, and the broken product failing on its own findings
 │   ├── ReadModelContract.cs        — Shared assertions of ReadModelContractTests: every repository table reads through the read model package
 │   ├── RecordingProgressObserver.cs — Records the progress events of a run in order (ProgressEventsTests)
+│   ├── RepositoryMaintenanceContract.cs — Shared assertions of RepositoryMaintenanceTests: the retention of IRepositoryMaintenanceService on the history and the log (ADR-027), the oldest rows first, a cancel and a failure after a deleted batch
 │   ├── RepositoryPrefixContract.cs — Shared assertions of RepositoryPrefixTests: a second repository with another table prefix beside a migrated one
 │   ├── RepositorySchemaServiceContract.cs — Shared assertions of RepositorySchemaServiceTests: create a repository from its options, then find it current
 │   ├── RunInitiatorValues.cs       — Initiator values a scenario passes to the engine (source, user, subject, host)
 │   ├── ScenarioBuilder.cs          — Fluent API for test scenario configuration
 │   ├── ScenarioContext.cs          — Execution + assertions
-│   ├── SqlDialect.cs               — Engine-specific error SQL helpers (`GetErrorSql`, `GetBrokenRollbackSql`, `GetCreateSimpleTableSql`, `GetDropSimpleTableSql`)
+│   ├── SqlDialect.cs               — Engine-specific SQL helpers (`GetErrorSql`, `GetBrokenRollbackSql`, `GetCreateSimpleTableSql`, `GetDropSimpleTableSql`, `GetTomlHeader`, `GetSleepSql`, and `JoinBlocks`, `GetInsertIntoTableASql`, `GetDeleteFromTableCSql` for the multi-block files of the cancellation tests)
 │   ├── SqliteTestBase.cs           — SQLite base class
 │   └── SqlServerTestBase.cs        — SqlServer base class
 ├── Fixtures/                       — Engine-specific xUnit fixtures (PostgreSQL, SqlServer, MariaDb, MySql, Sqlite)
@@ -142,7 +152,7 @@ Raycoon.RayMigrator.Tests.Engine/
     ├── MigrateUp/                  — 52 test class files (10 PostgreSQL base + 12 SqlServer + 10 MariaDb + 10 MySql + 10 Sqlite)
     ├── MigrateDown/                — 15 test class files (3 per engine)
     ├── Compound/                   — 10 test class files (2 per engine)
-    ├── Features/                   — 126 test class files (24 PostgreSQL + 26 SqlServer + 24 MariaDb + 24 MySql + 27 Sqlite + 1 shared P2 file `P2_MySqlMariaDbSessionTimezoneTests.cs` containing one MySQL and one MariaDB class)
+    ├── Features/                   — 153 test class files (29 PostgreSQL + 31 SqlServer + 30 MariaDb + 30 MySql + 32 Sqlite + 1 shared P2 file `P2_MySqlMariaDbSessionTimezoneTests.cs` containing one MySQL and one MariaDB class)
     └── CliTool/                    — 17 test class files (4 engines × 4 classes [File, Stdin, Docker raw, ExitCodeRange] + 1 PresetConsistency; no Sqlite)
 ```
 
@@ -192,9 +202,11 @@ public async Task ErrorInR3_OnlyR3RolledBack()
 - `WithTargetGroupMigrationOrder(commaSeparated)` — sets `TargetGroupMigrationOrder` at the product level in appsettings (comma-separated string, e.g. `"Frontend,Backend"`)
 - `SetMigSettings(relativeFilePath, entries)` — creates or updates a migsettings.txt file in the work directory
 - `WithDatabaseLogging(minimumLevel?)` — enables database log sink for the test run (default level: Debug)
+- `WithDatabaseLoggingInto(connectionString, minimumLevel?)` — enables the database log like `WithDatabaseLogging`, but into the database of `connectionString` with the schema and prefix of the repository: a log of its own beside the repository, which the maintenance service skips (`RepositoryMaintenanceTests`); the builder drops the log tables of that database before the scenario starts, and a scenario with a table prefix drops them again when it ends
 - `WithTargetMaxRetries(maxRetries, retryDelayMs?)` — sets `DbCommandMaxRetries` and `DbCommandWaitTimeInMsBeforeRetry` on the primary target (used for retry/atomic shared-connection tests)
 - `WithTargetCommandTimeout(seconds)` — sets `DbCommandTimeoutInSeconds` on the primary target
-- `WithTableBaseName(tableBaseName)` — sets the table prefix (`Repository.TableBaseName`, and `DatabaseLogging.TableBaseName` when the logging section is written); the cleanup before the run and the query helper of the scenario use the same prefix
+- `WithTargetConnectionString(connectionString)` — replaces the connection string of the main target while the repository keeps the fixture's, so that the file runs block by block instead of on the atomic shared connection (the cancellation and pending tests use the second database of the fixture); `BuildAsync` cleans such a target before the scenario starts, without the table prefix, and swallows the errors of that cleanup, so an unreachable connection string proves that a command never connects to its targets (#6)
+- `WithTableBaseName(tableBaseName)` — sets the table prefix (`Repository.TableBaseName`, and `DatabaseLogging.TableBaseName` when the logging section is written); the cleanup before the run and the query helper of the scenario use the same prefix, and the scenario drops the repository and log tables of its prefix again when it ends or when its host fails to build (`PrefixTableCleanup`, in the repository database and in a log database of its own)
 - `WithMigrationFilesEncoding(encodingName)` — writes `ProductDefaults.MigrationFilesEncoding`; without the call the key is left out and the engine's default UTF-8 applies, so every scenario exercises the default
 - `WithSecondProduct(alias, broken?)` — adds a second product to the configuration file, sound (the main target, database type and migration files of the scenario) or broken (a target without a connection string, a target group of the database type `NoSuchDb`, and a migration files directory written as the `{ENV:...}` placeholder of the builder's `UnsetVariableName`, which no test sets unless it wants a directory that does not exist); the host still runs for `EngineTest` and must not notice a broken second product (ADR-026)
 - `ForProduct(alias)` — builds the host for another product of the configuration than `ScenarioBuilder.MainProductAlias` (`EngineTest`), for example the broken one; a host that fails to build is disposed
@@ -202,16 +214,20 @@ public async Task ErrorInR3_OnlyR3RolledBack()
 ### ScenarioContext — Execution + Assertions
 
 **Execution:**
-- `MigrateUpAsync(toRelease?, allowOutOfOrder?, targetGroupAliases?, runMode?, targetGroupMigrationOrder?)` — executes MigrateUp
-- `MigrateDownAsync(toRelease, targetGroupAliases?, runMode?, revealSensitiveData?)` — executes MigrateDown
-- `BaselineAsync(toRelease?, targetGroupAliases?, targetGroupMigrationOrder?, revealSensitiveData?)` — executes Baseline
+- `MigrateUpAsync(toRelease?, allowOutOfOrder?, targetGroupAliases?, runMode?, targetGroupMigrationOrder?, cancellation?)` — executes MigrateUp; `cancellation` is the `RunCancellation` a test cancels the run with, the call itself gets the test's token
+- `MigrateUpWithTokenAsync(cancellationToken, toRelease?)` — executes MigrateUp with `cancellationToken` as the token of the call and no `RunCancellation`, so that a cancel of the token alone stops the run with `Terminate`
+- `MigrateDownAsync(toRelease, targetGroupAliases?, runMode?, revealSensitiveData?, cancellation?)` — executes MigrateDown
+- `BaselineAsync(toRelease?, targetGroupAliases?, targetGroupMigrationOrder?, revealSensitiveData?, cancellation?)` — executes Baseline
 - `ValidateHashAsync(scope?, targetGroupAliases?)` — executes ValidateHash
-- `UpdateHashAsync(targetGroupAliases?)` — executes UpdateHash
+- `UpdateHashAsync(targetGroupAliases?, cancellationToken?)` — executes UpdateHash with `cancellationToken`, or the test's token without one
 - `InfoAsync()` — executes the `info` command (returns `MigrationStatusInfo`)
 - `GetHistoryAsync(limit?)` — fetches the run history (returns `MigrationHistory`)
-- `FixIssuesAsync(scope?, olderThanMinutes?, assumedMigrationStatus?)` — executes the `fix` command in the host's run mode (rebuild with `MigrationRunMode.Simulate` for a preview)
+- `FixIssuesAsync(scope?, olderThanMinutes?, assumedMigrationStatus?, cancellationToken?)` — executes the `fix` command in the host's run mode (rebuild with `MigrationRunMode.Simulate` for a preview), with `cancellationToken`, or the test's token without one
 - `InsertOrphanedMigrationRun(minutesOld?)` — inserts a fake `MigrationRun` record with Running status and a `StartedAt` in the past (helper for Fix tests)
 - `RebuildForAsync(command, mode, toRelease?)` — rebuilds DI container for next phase (no DB cleanup)
+- `UseProgressObserver(observer)` — sets the progress observer of the host's context and of every context a later rebuild creates; the cancellation tests cancel from a `CancellingProgressObserver` at an exact progress event
+- `UseLogObserver(observer)` — sets an observer of the host's log events and of every host a later rebuild creates; it runs on the thread that logs, before the logging call returns, so that a test cancels update-hash or fix, which report no progress events, at an exact log line
+- `InitDatabaseLoggerAsync()` — initializes the database log once more, as the next start of a host does (`DatabaseLogging_CheckCreate`); true when it created the log tables, false when they existed
 
 **Assertions:**
 - `AssertSuccess(bool)` — checks operation result
@@ -234,6 +250,11 @@ public async Task ErrorInR3_OnlyR3RolledBack()
 - `GetMigrationRunSettingsJson()` — returns the latest MigrationRun's settings JSON
 - `GetMigrationConfigJson(filename)` — returns the stored config JSON for a specific migration file
 - `CountMigrationHistory()` — counts rows in the MigrationRecordHistory archive table
+- `GetMigrationHistory(filename)` — returns the history rows of a file in order: the status each recorded and the operation that caused it
+- `GetRepositoryIndexColumns(indexName)` — returns the columns of a repository index in key order, empty when the index does not exist
+- `GetRepositoryLookupName(tableName, id)` — returns the name of a lookup row, for example `Cancelled` for id 70 of `MigrationRunResult`
+- `GetMigrationRecord(filename)` — returns the `MigrationRecord` row of a file, null when the file has none
+- `GetLogMessages(logLevelId)` — returns the messages of the log entries at one level in the order they were written, each with the exception text the database sink appends (call `FlushDatabaseLog` first); the cancellation tests check with it that the warnings of a cancel carry no stack trace
 - `CountLogEntries()` — counts database log entries (requires `WithDatabaseLogging`)
 - `CountLogEntriesAtLevel(logLevelId)` — counts log entries at a specific Serilog level
 - `CountMigrationsForTargetGroup(tgAlias)` — counts MigrationRecord rows for a target group
@@ -245,6 +266,8 @@ public async Task ErrorInR3_OnlyR3RolledBack()
 - `GetLatestRunResultId()` — returns the MigrationRunResultId of the most recent run
 - `InsertRunningMigrationRun()` — inserts a Running MigrationRun record (for concurrent-guard tests)
 - `WorkDirectory` — path to the temporary work directory containing mutation-applied migration files
+
+**Disposal:** `DisposeAsync` disposes the host first, which flushes the database log into the tables the cleanup drops. A scenario with a table prefix then drops the repository and log tables of its prefix (`PrefixTableCleanup`); the cleanup never throws, because an exception there would replace the one of a failing test, and a table that stays is dropped by the next scenario with the prefix before it starts. Last, the work directory is deleted. A scenario without a prefix keeps its tables for inspection until the next scenario cleans them before it starts.
 
 ### Migration File Design
 
@@ -340,40 +363,46 @@ The catalog lists the unique test scenarios defined for the base PostgreSQL test
 | #60 | FL-1 | MixedFlatAndTraditionalLayout_AllReleasesMigrateSuccessfully | FlatLayoutTests |
 | #61 | FL-2 | MixedLayout_MigrateDownToRelease2_RollsBackFlatAndTraditionalReleases | FlatLayoutTests |
 
-**Features tests** (all 5 engines have 24 base feature test classes each; SqlServer adds the atomic-shared-connection and killed-pooled-session classes, Sqlite adds the datetime-CHECK-constraint, command-profile and file-encoding classes, plus a P2 file shared between MySql and MariaDb):
+**Features tests** (all 5 engines have 28 base feature test classes each; SqlServer, PostgreSQL, MariaDb and MySql add the DAL timeout class, SqlServer the atomic-shared-connection and killed-pooled-session classes, MariaDb and MySql the DAL user lock class, Sqlite the datetime-CHECK-constraint, command-profile, file-encoding and CLI signal classes, plus a P2 file shared between MySql and MariaDb):
 
 | Class | Tests | Description |
 |-------|-------|-------------|
 | `MigrationHistoryTrackingTests` | 5 | MigrationRecordHistory records written inline on terminal status transitions (simulate, first run, failed retry, down-then-up, baseline). Source file: `ArchiveRetentionTests.cs`. |
 | `BaselineTests` | 10 | Baseline marking, incremental baseline, baseline then MigrateUp |
-| `DatabaseLogTests` | 4 | Log entries written after MigrateUp, multiple log levels, logs during error |
+| `DatabaseLogTests` | 8 | Log entries written after MigrateUp, multiple log levels, logs during error, log tables created, `MigrationEventId` stored; the indexes of `DatabaseLogging_CheckCreate` (`Infrastructure/DatabaseLogIndexContract.cs`): `MigrationRunId` and `CreatedAt` on a fresh log table, added to the log table of an older engine by the next initialization, which still reports that the log existed, and named with the longest table prefix in full |
 | `DatabaseLogDefaultTests` | 3 | Database logging into the repository by default at Information, a section with only MinimumLevel, `Enabled: false` creates no log tables |
 | `ReadModelContractTests` | 1 | After a migrate-up every repository table reads through `RepositoryNaming.SelectStatement` via the engine DAL and maps with `RepositoryRowMapper`: schema version, run, records, lookups, log rows, UTC timestamps (`Infrastructure/ReadModelContract.cs`) |
-| `FixTests` | 8 | Fix command: no orphans, fix orphan, simulate, older-than filter, fix-then-migrate, multiple orphans, details, assumed-status=Migrated |
-| `InfoTests` | 8 | Info command: fresh repo, full/partial migration, baseline, target groups, error state, multiple-run history, run details |
-| `MigrationRunMetaTests` | 7 | MigrationRunSettingsJson content (console options, product, masked credentials, MigrateDown masking, Baseline masking) |
+| `FixTests` | 9 | Fix command: no orphans, fix orphan, simulate, older-than filter, fix-then-migrate, multiple orphans, details, assumed-status=Migrated, scope all |
+| `InfoTests` | 23 | Info command: fresh repo, full/partial migration, baseline, target groups, error state, a modified file counted as pending, multiple-run history, run details, the history of a migrate-down and of a rolled back migrate-up, the runs of the requested environment only; the pending list (`Infrastructure/PendingMigrationsContract.cs`): every file `NotMigrated` on a fresh repository, the remaining files after a partial run, `Failed`, `Resumable` after a cancel in a file, `RunAlways` after every run, `HashMismatch`, a modified file of an older release listed although migrate-up refuses it out of order, the pending pairs after a failed second target in both `TargetMigrationOrder`s, the target groups in their `TargetGroupMigrationOrder`, and per target group the pending count and `LastMigrationDate`; each scenario then runs the next migrate-up and compares the files it starts with the list |
+| `MigrationRunMetaTests` | 8 | MigrationRunSettingsJson content (console options, product, masked credentials, MigrateDown masking, Baseline masking), `FromReleaseVersion` as the highest migrated release when the run started |
 | `MigSettingsInheritanceTests` | 13 | migsettings.txt inheritance (root, release, target group, TOML override) |
 | `OutOfOrderBlockingTests` | 3 | Out-of-order migration blocking (false=blocked, true=allowed, data integrity after blocking) |
 | `RepositoryIntegrityTests` | 4 | Repository tables, Product record, Migration records after successful run |
-| `HeartbeatTests` | 4 | The run heartbeat: a long block refreshes `LastHeartbeatAt`, an open run with a fresh heartbeat blocks a new start however old its start, a stale heartbeat is auto-fixed, `fix` reports and filters by heartbeat age |
+| `HeartbeatTests` | 6 | The run heartbeat: a long block refreshes `LastHeartbeatAt`, an open run with a fresh heartbeat blocks a new start however old its start, a stale heartbeat is auto-fixed, `fix` reports and filters by heartbeat age, the orphan fix leaves an alive run open, a heartbeat younger than the threshold stays alive across a minute boundary |
 | `MigrationRunDetailsTests` | 6 | Run details of schema version 2: operation, source, initiator and host from the console options, NULL source and the machine name without them, the error message of a failed run, migrate-down and baseline operations, the history DTO, and the upgrade of a version 1 repository by the next command |
-| `RepositorySchemaTests` | 5 | Versioned repository schema (ADR-024): fresh repository gets every step and the engine version, second run changes nothing, a newer repository and one without a schema version are refused before anything is written, parallel start on an empty repository creates it once |
-| `RepositorySchemaServiceTests` | 1 | `IRepositorySchemaService.Ensure` from the repository options alone, without product, environment or run: a fresh repository gets one `RepositorySchemaVersion` row per step, one `MigratorMeta` row and the `MigrationRecordHistory` table; a second call finds the current version and changes nothing (`Infrastructure/RepositorySchemaServiceContract.cs`). The class name carries the engine prefix on every engine (`PostgreSqlRepositorySchemaServiceTests`, `SqlServerRepositorySchemaServiceTests`, ...) |
-| `RepositoryPrefixTests` | 1 | A migrate-up against a repository with table prefix `a_` (`WithTableBaseName`), then a second repository with prefix `b_` created through the schema service in the same database or schema; the second repository is complete and empty and the first keeps its run, because every index and constraint name carries the prefix (`Infrastructure/RepositoryPrefixContract.cs`). Engine-prefixed class names as above |
+| `RepositorySchemaTests` | 5 | Versioned repository schema (ADR-024): fresh repository gets every step and the engine version, second run changes nothing, a newer repository and one without a schema version are refused before a schema step runs or a row is written, parallel start on an empty repository creates it once |
+| `RepositorySchemaServiceTests` | 1 | `IRepositorySchemaService.EnsureAsync` from the repository options alone, without product, environment or run: a fresh repository gets one `RepositorySchemaVersion` row per step, one `MigratorMeta` row and the `MigrationRecordHistory` table; a second call finds the current version and changes nothing (`Infrastructure/RepositorySchemaServiceContract.cs`). The class name carries the engine prefix on every engine (`PostgreSqlRepositorySchemaServiceTests`, `SqlServerRepositorySchemaServiceTests`, ...) |
+| `RepositoryPrefixTests` | 3 | A migrate-up against a repository with table prefix `a_` (`WithTableBaseName`), then a second repository with prefix `b_` created through the schema service in the same database or schema; the second repository is complete and empty and the first keeps its run, because every index and constraint name carries the prefix (`Infrastructure/RepositoryPrefixContract.cs`). A disposed scenario with a prefix leaves no table of its prefix, with the log in the repository and in a database of its own (`Infrastructure/PrefixTableCleanupContract.cs`); the test reads the catalog by the prefix, not the table list of `DatabaseCleanupHelper`, so it also fails for a table of the prefix that the cleanup does not know. Engine-prefixed class names as above |
+| `CancellationTests` | 23 (SQLite 21) | The cancellation of a run (ADR-028, `Infrastructure/CancellationContract.cs`); the cancel comes from a `CancellingProgressObserver` at an exact event, or for update-hash and fix from a log line (`UseLogObserver`): `Terminate` leaves the interrupted file `Failed` with its committed blocks for the next migrate-up to resume (FileByFile and TargetByTarget); `RollbackFile` rolls back the interrupted file only, `RollbackRun` every file of the run and `RollbackRelease` the interrupted file and the files of its release, newest first, while the release before stays; `RollbackFile` without a rollback file ends `Error` with `CancelledRollbackIncomplete` (1005); a cancel through the token alone terminates; on the atomic shared connection nothing of the file commits and the next run executes it whole; a cancel between files starts no further file; in FileByFile order a cancel between the two targets of a file counts the file as finished in the result and in `RunCompletedEvent`, and `RollbackFile` has nothing to roll back; a handle cancelled before the call ends `Cancelled` with `MigrationRunId` 0 and nothing to roll back, and a migrate-down cancelled the same way stops before its first rollback; Simulate and Validate stop the same way and persist nothing; a cancel while a CLI tool runs kills the tool (not on Windows); migrate-down stops before the next rollback block and the next migrate-down continues; after a migrate-down cancelled in the middle of a rollback, info lists the file `RollbackIncomplete` with its rollback blocks, the next migrate-up refuses before its first file, the next migrate-down continues the rollback and the migrate-up after it runs the release again; a cancel during the error recovery stops it and ignores the action, and the run stays `Error` with the code of the failure and a message that names the failure first (result, run row and `RunCompletedEvent`); a cancelled baseline keeps the records it wrote; update-hash cancelled between the two records of a file counts that file, and fix cancelled between two orphaned runs keeps the run it closed; schema version 2 is upgraded to 3 by the next command (lookup row `Cancelled`, four indexes), and every record, run and history row of a migrated repository reads the same afterwards; a cancel inside a sleeping block ends the sleep within seconds (not on SQLite, which checks only before a block): SQL Server and PostgreSQL abort it, the `KILL QUERY` of MySQL and MariaDB ends it early without an error; on the atomic path nothing of the file commits, on a target of its own the record keeps the first block, and on MySQL and MariaDB the ended sleep as well; the warnings of a cancel carry no stack trace. Engine-prefixed class names as above |
+| `DalCancellationTests` | 2 | The shared-connection calls of the DAL (`ExecuteNonQueryAsync`, `ExecuteScalarAsync` on the caller's open connection and transaction, as the atomic path uses them) hand the caller's token to the command: a token cancelled before the call is reported by the provider, without a failure of the statement (`Infrastructure/DalSharedConnectionCancellationContract.cs`). The unit tests cannot show this for Npgsql and MySqlConnector, which check the connection before the token. Engine-prefixed class names as above |
+| `DalTimeoutTests` | 1 (not SQLite) | A command that runs into its command timeout of one second is a timeout for `DalBase.IsTimeout` (SqlClient error -2, a `TimeoutException` from Npgsql, `CommandTimeoutExpired` of MySqlConnector), and another failure is not; MySQL and MariaDB run a long query instead of `SLEEP()`, which `KILL QUERY` ends without an error (`Infrastructure/DalTimeoutContract.cs`). SQLite has no command timeout for a running statement. Engine-prefixed class names |
+| `DalUserLockTests` | 1 (MySQL and MariaDB only) | A call that fails after its `GET_LOCK` leaves no lock behind: a session of its own outside the pool of the DAL finds the lock free (`IS_FREE_LOCK`), because the DAL runs `DO RELEASE_ALL_LOCKS()` before the connection goes back to the pool (`Infrastructure/DalUserLockContract.cs`). Engine-prefixed class names |
+| `RepositoryMaintenanceTests` | 14 (SQLite 15) | The retention of `IRepositoryMaintenanceService.CleanUpAsync` (ADR-027, `Infrastructure/RepositoryMaintenanceContract.cs`): a cutoff in the future deletes the history and the log and keeps the runs and records, so status and the next migrate-up do not change; an open run keeps its rows until it is closed; log rows without a run fall by their age; a cutoff between two runs deletes the rows of the older run only; a dry run counts the rows and deletes nothing; a batch size of one takes one batch per row; a time budget of zero stops after one batch and the next call finishes; a cleanup that stops early has deleted the oldest rows (the rows are aged in the order they were written, the order of the clustered key in which SQL Server deletes); a repository without log tables and a log in a database of its own (`WithDatabaseLoggingInto`) are skipped and left alone; the longest table prefix; a cancel between two batches returns the rows deleted so far, a cancel at the check of the log table returns the deleted history without throwing, a cancel in a dry run throws `OperationCanceledException`; on SQLite, a batch that fails after a deleted batch (another connection holds the write lock beyond the command timeout of one second) is not retried, and the call returns what it deleted with `Completed = false` and the error in the message. The scenarios age rows with UPDATEs instead of waiting. Engine-prefixed class names as above |
 | `ProductIsolationTests` | 2 | The product scope of a run (ADR-026): the configuration carries a second product `Broken` whose target has no connection string, whose target group names the database type `NoSuchDb` and whose directory is a placeholder of a variable that is not set (`WithSecondProduct(alias, broken: true)`); migrate-up and info of `EngineTest` succeed beside it, and a host built for `Broken` (`ForProduct`) fails on the broken product alone: on the unset variable first (`ApplicationStartupException`), and once the test sets the variable to a directory that does not exist, on the data annotations, which name `Products[Broken]`, the connection string and the directory (`Infrastructure/ProductIsolationContract.cs`). Engine-prefixed class names as above |
 | `ProgressEventsTests` | 8 | Typed progress events through `MigrationContext.ProgressObserver`: run, file and block events of migrate-up, simulated outcomes and the start release without a run row, rollbacks and skipped records of migrate-down, baselined files without blocks, the failed file and run, and an observer that throws does not abort the run |
 | `ParameterRoundTripTests` | 2 (PostgreSQL 3) | A parameter value with quotes, backslashes, `$$`, other placeholders, comment and statement markers and non-ASCII text comes back unchanged through the DAL; PostgreSQL also inside a `DO` block |
 | `RunningGuardTests` | 6 | Concurrent run prevention (MigrateUp, MigrateDown, Baseline blocked; ValidateHash/UpdateHash allowed) |
-| `SimulateModeTests` | 11 | Simulate mode (no user tables written), Validate mode, MigrateDown simulate, MigrateDown Validate (non-destructive + missing rollback detection), Simulate reads the same records as Migrate: preview of pending files only, nothing pending after a full migrate, rollback candidates, empty repository (#7) |
+| `SimulateModeTests` | 14 | Simulate mode (no user tables written), Validate mode, MigrateDown simulate, MigrateDown Validate (non-destructive + missing rollback detection), Simulate reads the same records as Migrate: preview of pending files only, nothing pending after a full migrate, rollback candidates, empty repository, an environment that is not registered yet, for which nothing is inserted (#7) |
 | `TargetGroupMigrationOrderTests` | 10 | TargetGroupMigrationOrder overrides (CLI, appsettings, migsettings), wrong-case error, Baseline, single-TG rejection |
 | `TargetGroupFilterTests` | 12 | Filtering by target group alias (Backend-only, Frontend-only, both) |
-| `UpdateHashTests` | 5 | update-hash: no updates after fresh migration, update after file modification, validate passes after update, idempotent second run, empty-repo no-op |
-| `ValidateHashTests` | 8 | Hash validation in File and SqlBlocks scopes, detecting modifications, Disabled scope (ignores modification, passes after full migration) |
+| `UpdateHashTests` | 9 | update-hash: no updates after fresh migration, update after file modification, validate passes after update, idempotent second run, empty-repo no-op, files without TOML header, two targets (the record of every target updated, a deleted file counted once) |
+| `ValidateHashTests` | 12 | Hash validation in File and SqlBlocks scopes, detecting modifications, Disabled scope (ignores modification, passes after full migration), the host in RunMode Validate as the CLI builds it (unchanged, modified, deleted and unmigrated files, #5) |
 | `SqlServerAtomicSharedConnectionTests` | 2 | SqlServer-only: atomic shared-connection path — transient error triggers file-level retry with full transaction rollback (ASC1), permanent error rolls back all blocks including prior DDL (ASC2) |
 | `SqlServerKilledPooledSessionTests` | 1 | SqlServer-only: a migration file that alters the login RayMigrator uses invalidates the pooled sessions (errors 4021 and 596); the DAL retries, clears the pool and the repository update succeeds on a fresh connection |
 | `SqliteDatetimeCheckConstraintTests` | 3 | SQLite-only: DAL-021 strict ISO-8601 CHECK constraints on repository datetime columns (rejects bad input, accepts `datetime('now')`, allows NULLs on nullable columns) |
 | `SqliteCommandProfileTests` | 18 | SQLite-only, database independent (#6): read-only commands start against an unreachable target and write no log, product or environment rows; state changing commands log; baseline runs appear as `MigrationOperation.Baseline` in the history |
 | `SqliteFileEncodingTests` | 7 | SQLite-only (#4): migration files are decoded strictly with `MigrationFilesEncoding`; an invalid byte aborts discovery and names file and encoding, a byte-order mark decides the encoding, `migsettings.txt` is always UTF-8; a scenario without the setting reads UTF-8 and naming `UTF-8` afterwards keeps every hash valid (0.19.0 default) |
+| `SqliteCliSignalTests` | 1 | SQLite-only, Linux and macOS (the test sends a POSIX signal): the real `raymigrator` process runs a migrate-up and gets SIGINT when its console reports the second file, while the seed file runs a block of several seconds; the process exits with `130`, the run row is `Cancelled`, which only the handler of the CLI records (a process that the signal killed would leave the run open), the seed file is not `Migrated`, and the console shows the warning of the cancel |
 | `MySqlSessionTimezoneTests` / `MariaDbSessionTimezoneTests` | 2 + 2 | DAL-014 session time-zone enforcement: every DAL execute method issues `SET time_zone = '+00:00';` after opening a connection; `DateTime.UtcNow` round-trips through `TIMESTAMP` columns with millisecond fidelity. Defined together in `P2_MySqlMariaDbSessionTimezoneTests.cs`. |
 
 **CliTool tests** (PostgreSQL, SqlServer, MariaDb, MySql — 4 engines × 2 classes [File + Stdin] = 8 test classes; not available for SQLite):
@@ -472,7 +501,7 @@ Tests validate that for each of the 4 Docker presets (sqlcmd-docker, psql-docker
 Tests verify the following database columns via `MigrationRecordExpectation` and `MigrationRunExpectation` (partial-match DTOs — only non-null fields are asserted):
 
 **MigrationRun table** (`MigrationRunExpectation`):
-- `MigrationRunResultId` (Ok=100, Error=90, Recovered=80, PartialSuccess=50)
+- `MigrationRunResultId` (Ok=100, Error=90, Recovered=80, Cancelled=70, PartialSuccess=50)
 - `EnvironmentId` (FK to Environment lookup — typically resolves to "Docker")
 - `FromReleaseVersion`, `ToReleaseVersion`
 
@@ -487,8 +516,10 @@ Tests verify the following database columns via `MigrationRecordExpectation` and
 
 ### Block Count Semantics
 
-- **Non-Ignore mode, error file**: `FileUpBlocksMigrated` = 1-based index of the block that failed (ranges from 1 to `FileUpBlocksTotal`; equals 1 when the first block fails, equals `FileUpBlocksTotal` when the last block fails)
+- **Non-Ignore mode, error file**: `FileUpBlocksMigrated` = the blocks that committed before the failing one (0 when the first block fails, and on the atomic shared connection, whose transaction rolls the whole file back) (#11)
 - **Ignore mode, error file**: `FileUpBlocksMigrated` = `FileUpBlocksTotal` (all blocks attempted; DB record updated after every block attempt)
+- **Cancelled file**: status `Failed` and `FileUpBlocksMigrated` = the blocks that committed before the cancel, so the next migrate-up resumes with the first block that did not commit (on the atomic shared connection only those of an earlier attempt, normally 0; `FileUpBlocksTotal` in Ignore mode, as after an error there, so the next run executes the whole file)
+- **Rollback cancelled in the middle**: status `Failed` with `0 < FileDownBlocksMigrated < FileDownBlocksTotal`; the next migrate-up refuses to start, the next migrate-down continues with rollback block `FileDownBlocksMigrated + 1`
 - **Successful file**: `FileUpBlocksMigrated` = `FileUpBlocksTotal`
 - **After successful rollback**: `FileDownBlocksMigrated` = `FileDownBlocksTotal`
 - **Missing rollback file**: `FileDownBlocksMigrated` and `FileDownBlocksTotal` remain `NULL`
@@ -518,7 +549,7 @@ How the engine handles each combination of rollback file existence, SQL outcome,
 | **Problem file (row 5, RequireRB=false)** | Unchanged (Migrated) | Unchanged (Migrated) |
 | After problem (older releases) | Processed normally → NotMigrated | **NOT processed → stay Migrated** |
 
-**MigrateUp vs MigrateDown**: This matrix applies to the ROLLBACK portion of both operations. For MigrateUp with automatic rollback (triggered by `MigrationErrorAction=Rollback`), the migration itself failed, so the run never ends `Ok`: it is `Recovered` when the rollback chain completed without a failure or warning, and `Error` otherwise (#18). For MigrateDown, the rollback IS the operation, so the matrix directly determines the result.
+**MigrateUp vs MigrateDown**: This matrix applies to the ROLLBACK portion of both operations. For MigrateUp with automatic rollback (triggered by `MigrationErrorAction=Rollback`), the migration itself failed, so the run never ends `Ok`: it is `Recovered` when the rollback chain completed without a failure or warning, and `Error` otherwise (#18). A migrate-up cancelled with `RollbackFile`, `RollbackRun` or `RollbackRelease` runs the same chain and ends `Cancelled` when it completed without a failure or warning, `Error` with `CancelledRollbackIncomplete` (1005) otherwise ([ADR-028](../arc42/09-Architecture-Decisions.md#adr-028-a-run-cancels-at-the-next-block-boundary-with-a-migrationcancelledaction-and-records-cancelled)). For MigrateDown, the rollback IS the operation, so the matrix directly determines the result.
 
 ## Extending the Tests
 

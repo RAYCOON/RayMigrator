@@ -18,10 +18,12 @@ stateDiagram-v2
     Pending --> Executing: SQL block execution begins
     Executing --> Migrated: All blocks executed successfully
     Executing --> Failed: Block execution error
+    Executing --> Failed: Cancel on request (committed blocks kept)
 
     Migrated --> Executing: MigrateDown rollback begins
     Executing --> NotMigrated: All rollback blocks executed successfully
     Migrated --> Failed: MigrateDown error
+    Failed --> Executing: MigrateDown continues a rollback that stopped in the middle
 
     Migrated --> NotMigrated: Rollback success (error recovery)
 
@@ -56,7 +58,9 @@ A migration file is in `Executing` status when:
 - Rollback blocks are actively being executed against the target database (MigrateDown / error recovery)
 - Progress is tracked per block (`FileUpBlocksMigrated` for up-migrations, `FileDownBlocksMigrated` for rollbacks)
 
-**Valid Operations**: Completes to `Migrated` on up-migration success, `NotMigrated` on rollback success, transitions to `Failed` on error
+**Valid Operations**: Completes to `Migrated` on up-migration success, `NotMigrated` on rollback success, transitions to `Failed` on error or on a cancel
+
+A record also stays `Executing` (or `Pending`) when the process ended in the middle of the file: a crash, a kill, or a second Ctrl+C or SIGTERM in the CLI. It keeps that status until the run is closed as orphaned (see [After a Hard Abort](#after-a-hard-abort)).
 
 ### NotMigrated (50)
 
@@ -87,8 +91,11 @@ A migration file is in `Failed` status when:
 - Error occurred during error recovery rollback (rollback block failed)
 - Partial block execution with `MigrationErrorAction=Ignore` (some blocks succeeded, some failed)
 - Rollback file missing during rollback chain when `RequireRollbackFile=true` (status updated to `Failed` explicitly)
+- A cancel interrupted the file (the record keeps the blocks that committed) or stopped a migrate-down or an error recovery between two rollback blocks (the record keeps the rollback blocks that ran); see [After a Cancel](#after-a-cancel)
 
 **Valid Operations**: Manual investigation required
+
+A `Failed` record with some but not all of its rollback blocks (`0 < FileDownBlocksMigrated < FileDownBlocksTotal`) is a rollback that stopped in the middle. Migrate-down continues it with its next rollback block, and migrate-up refuses to run while a file it would run has such a record, because it would run the file from block 1 on a target that kept part of it; `info` lists it as `RollbackIncomplete`. See [Error Handling: A Rollback That Stopped in the Middle](error-handling.md#a-rollback-that-stopped-in-the-middle).
 
 ## MigrationRunResult (Per-Run)
 
@@ -99,8 +106,9 @@ The `MigrationRunResult` enum tracks the overall outcome of a migration run in t
 | `Undefined` | 0 | Invalid value -- ResultId has not been set properly |
 | `Running` | 10 | Migration process is currently running |
 | `PartialSuccess` | 50 | Finished, but at least one file was skipped or left Failed |
+| `Cancelled` | 70 | Stopped on request at the next block or file boundary, and the `MigrationCancelledAction` completed (engine code `1004`); since schema version 3 |
 | `Recovered` | 80 | Failed, but the error-recovery rollback (`Rollback`, `RollbackRelease`, `RollbackErrorOnly`) completed without a failure or warning (#18) |
-| `Error` | 90 | Migration(s) stopped due to error(s), or the error recovery did not complete cleanly |
+| `Error` | 90 | Migration(s) stopped due to error(s), or the error recovery did not complete cleanly; also a failed migrate-up whose error recovery a cancel stopped (with the code of the failure), a cancelled migrate-up whose rollback did not complete cleanly (engine code `1005`) and a run closed as orphaned |
 | `Ok` | 100 | Migration(s) successfully executed and finished |
 
 ### Run Result Transitions
@@ -110,9 +118,13 @@ stateDiagram-v2
     [*] --> Running: MigrationRun record created
     Running --> Ok: All migrations completed successfully
     Running --> PartialSuccess: Run continued past failed or skipped files
+    Running --> Cancelled: Cancel on request, the cancel action completed
     Running --> Recovered: Migration failed, error-recovery rollback was clean
     Running --> Error: One or more migrations failed
+    Running --> Error: Migration failed, a cancel stopped the error recovery
+    Running --> Error: Cancel whose rollback did not complete cleanly
     Running --> Error: Unhandled exception during run
+    Running --> Error: Closed as orphaned (auto-fix or fix)
 ```
 
 The `MigrationRunResult` is stored in the `MigrationRun` table and linked via the `fk_MigrationRun_MigrationRunResult` foreign key to the `MigrationRunResult` lookup table.
@@ -163,6 +175,35 @@ flowchart TD
     D -->|Error| G
     E --> G
 ```
+
+## After a Cancel
+
+A host or the CLI cancels a run (`RunCancellation`, Ctrl+C or SIGTERM); see [Error Handling: Cancellation](error-handling.md#cancellation). The run stops at the next block boundary and leaves:
+
+| What | migrate-up | migrate-down, error recovery | baseline |
+|------|------------|------------------------------|----------|
+| Record in progress | `Failed` with the blocks that committed (`FileUpBlocksMigrated`; on the atomic path only those of an earlier attempt, normally 0); the next migrate-up resumes it | `Failed` with the rollback blocks that ran (`FileDownBlocksMigrated`); the next migrate-down continues it, and migrate-up refuses to run the file until then | none: a baseline stops before the next file |
+| Records the run completed | `Migrated`, unless the `MigrationCancelledAction` rolls them back (`NotMigrated`) | `NotMigrated` | `Migrated` |
+| Records not reached | unchanged | unchanged | unchanged |
+| Run | `Cancelled` (70) with `1004`; `Error` (90) with `1005` when the rollback of the action reported a failure or a warning | migrate-down: `Cancelled` with `1004`; error recovery: `Error` (90) with the code of the failure it started from, because the run failed before the cancel | `Cancelled` with `1004` |
+
+```mermaid
+flowchart TD
+    A[Cancel requested] --> B[Next checkpoint: before a file, a target or a block]
+    B --> C[Block in progress rolls back where the provider interrupts it]
+    C --> D[Record: Failed with the committed blocks]
+    D --> E{MigrationCancelledAction?}
+    E -->|Terminate| F[Run: Cancelled]
+    E -->|RollbackFile / RollbackRun / RollbackRelease| G[Rollback chain without the token]
+    G -->|clean| F
+    G -->|failure or warning| H[Run: Error, code 1005]
+```
+
+The first block of a rollback file, an atomic rollback and a rollback through a CLI tool always complete, so a cancel never leaves a record `Failed` without rollback progress.
+
+## After a Hard Abort
+
+A process that ends in the middle of a run writes nothing more: a crash, a kill, a `SIGKILL` after the grace period of a container stop, or a second Ctrl+C or SIGTERM in the CLI. The run row stays `Running` and the record of the file in progress `Executing` with the blocks that committed, or `Pending` when no block had committed yet, and always on the atomic path, whose transaction the abort rolls back. The heartbeat of the run stops. The next migrate-up, migrate-down or baseline for the same product and environment closes the run as `Error` once its last heartbeat is older than `Repository.OrphanedRunThresholdInMinutes` (default 2) and marks its open records `NotMigrated`; `fix --scope orphanedruns` does the same with `--older-than` and sets the records to `--last-migration-status` (default `NotMigrated`). `info` lists such a record as `NotMigrated` while the run is open, because that repair comes first. See [Concurrency Control](concurrency-control.md#scenario-3-process-crash).
 
 ## Block-Level State
 
@@ -250,6 +291,7 @@ INSERT INTO MigrationStatus (Id, Name, Description) VALUES
 INSERT INTO MigrationRunResult (Id, Name, Description) VALUES
     (10, 'Running', 'Migration process is currently running'),
     (50, 'PartialSuccess', 'Migration(s) finished but at least one file was skipped or left Failed'),
+    (70, 'Cancelled', 'Migration(s) stopped on request before completion'),  -- schema step 3
     (80, 'Recovered', 'Migration(s) failed and the configured error recovery rolled back cleanly'),
     (90, 'Error', 'Migration(s) stopped due to error(s)'),
     (100, 'Ok', 'Migration(s) successfully executed');

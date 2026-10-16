@@ -69,6 +69,10 @@ SET @v_lock_acquired = GET_LOCK(@v_lock_name, 0);
 DO RELEASE_LOCK(@v_lock_name);
 ```
 
+`GET_LOCK()` belongs to the session, not to a transaction. When a template fails, times out or is cancelled between its `GET_LOCK()` and its `RELEASE_LOCK()`, the MySQL and MariaDB DALs release the locks of the session (`DO RELEASE_ALL_LOCKS()`) before the connection goes back to the pool, so the lock does not hold back another process until the pool reuses or prunes the connection (up to 180 seconds). The same holds for the `GET_LOCK()` of the repository schema steps and, on MySQL, of the log initialization.
+
+**Lock names.** The schema steps of the repository (`Repository_CheckCreate`, `Repository_Upgrade_1` to `_3`) take the lock `CONCAT('raymigrator_schema_', DATABASE())`, and `Repository_MigratorMeta_CheckInsert` takes `CONCAT('raymigrator_meta_', DATABASE())`: both names carry the whole name of the repository database. MySQL refuses a lock name of more than 64 characters with error 4163 (`User-level lock name '...' should not exceed 64 characters.`, measured on MySQL 8.4), so on MySQL every command fails at its start when the repository database has a name of 46 characters or more (the version lock alone would allow 47). MariaDB accepts lock names of up to 192 bytes and refuses longer ones with error 1059 (`Identifier name '...' is too long`, measured on MariaDB 11.6); an ASCII database name, at most 64 characters, never reaches that, only a name of more than 173 bytes in UTF-8. Give a MySQL repository a database name of at most 45 characters. The lock of the log initialization on MySQL (`DatabaseLogging_CheckCreate`) cuts the database name to 48 characters (`raymigrator_log_` plus at most 48) and stays within the limit, and the run lock `RayMigrator_Run_{ProductId}_{EnvironmentId}` is short. See [Troubleshooting](../appendix/troubleshooting.md#mysql-database-name-too-long-for-the-schema-lock).
+
 ### ResultCode Convention
 
 | ResultCode | Meaning |
@@ -102,8 +106,8 @@ Note: Filtered indexes are a SQL Server feature. PostgreSQL supports partial ind
 Process A starts migration for ProductA
 Process B attempts migration for ProductA
 → Process B receives MigrationAlreadyRunningException (ResultCode -2)
-→ Auto-fix checks for orphaned runs older than 10 minutes
-→ If none found: Process B must wait or use Fix command to clean up
+→ Auto-fix checks for an open run whose last heartbeat is older than Repository.OrphanedRunThresholdInMinutes (default 2)
+→ If none found (Process A is alive and writes its heartbeat): Process B must wait or use Fix command to clean up
 ```
 
 ### Scenario 2: Parallel Migrations (Different Products)
@@ -119,14 +123,14 @@ Process B migrates ProductB (simultaneously)
 
 ```
 Process A starts migration for ProductA
-Process A crashes (MigrationRun remains "Running")
-Process B attempts migration for ProductA (after > 10 minutes)
+Process A crashes (MigrationRun remains "Running", its heartbeat stops)
+Process B attempts migration for ProductA (last heartbeat of A older than 2 minutes)
 → Process B receives MigrationAlreadyRunningException (ResultCode -2)
-→ Auto-fix detects orphaned run older than 10 minutes, fixes it automatically
+→ Auto-fix detects the orphaned run, closes it as Error and marks its open records NotMigrated
 → Process B retries insert and succeeds
 ```
 
-If the orphaned run is newer than 10 minutes, Process B receives the exception and the CLI logs a recommendation to use the Fix command.
+If the last heartbeat of the orphaned run is younger than `Repository.OrphanedRunThresholdInMinutes`, Process B receives the exception and the CLI logs a recommendation to use the Fix command. A running migrate-up, migrate-down or baseline refreshes `MigrationRun.LastHeartbeatAt` every `Repository.HeartbeatIntervalInSeconds` (default 30), so a live run is not taken for an orphan, however long it runs, as long as the heartbeat is on and its interval stays well below the threshold (with `HeartbeatIntervalInSeconds` 0, or an interval at or above the threshold, a parallel start closes a live run once it is older than the threshold); a run that never wrote a heartbeat is measured from its start. A CLI process that a second Ctrl+C or SIGTERM ended at once leaves such an orphan, while the first signal stops the run cleanly as `Cancelled` and releases the lock (see [Error Handling: Cancellation](error-handling.md#cancellation)).
 
 ### Scenario 4: Same Product, Different Environments
 
@@ -143,10 +147,10 @@ The concurrency check includes the `Environment` parameter, so the same product 
 
 ### Guard Error Flow
 
-When a concurrent migration is detected, the SQL template returns ResultCode `-2`. The `TemplateExecutor.ExecuteScalarWithNegativeResultCodeException` method throws a `TemplateResultException` for any negative ResultCode. The `RepositoryMigrationRunInsert` method catches the `TemplateResultException` when `ResultCode == -2` and wraps it in a `MigrationAlreadyRunningException`:
+When a concurrent migration is detected, the SQL template returns ResultCode `-2`. The `TemplateExecutor.ExecuteScalarWithNegativeResultCodeExceptionAsync` method throws a `TemplateResultException` for any negative ResultCode. The `RepositoryMigrationRunInsertAsync` method catches the `TemplateResultException` when `ResultCode == -2` and wraps it in a `MigrationAlreadyRunningException`:
 
 ```csharp
-// In TemplateExecutor.RepositoryMigrationRunInsert():
+// In TemplateExecutor.RepositoryMigrationRunInsertAsync():
 catch (TemplateResultException ex) when (ex.ResultCode == -2)
 {
     throw new MigrationAlreadyRunningException(
@@ -164,16 +168,16 @@ MigrationRun for Product [MyProduct] with Id [42] is currently in progress.
 Parallel migrations for the same product and environment are not allowed!
 ```
 
-This exception is initially handled by `RepositoryMigrationRunInsertWithAutoFix` in `MigrationService`, which attempts automatic cleanup of orphaned runs older than 10 minutes. If auto-fix succeeds, the insert is retried and the migration proceeds. If auto-fix does not apply (no orphaned runs or runs are too recent), the exception propagates to `RayMigratorService` which logs a recommendation to use the Fix command.
+This exception is initially handled by `RepositoryMigrationRunInsertWithAutoFix` in `MigrationService`, which attempts automatic cleanup of open runs whose last heartbeat is older than `Repository.OrphanedRunThresholdInMinutes`. If auto-fix succeeds, the insert is retried and the migration proceeds. If auto-fix does not apply (no orphaned runs, or every candidate wrote a heartbeat meanwhile), the exception propagates to `RayMigratorService` which logs a recommendation to use the Fix command.
 
 ### Resolving Blocked Migrations
 
 Options when encountering this error:
 
-1. **Automatic**: `RepositoryMigrationRunInsertWithAutoFix` automatically cleans up orphaned runs older than 10 minutes and retries the insert. This happens transparently during `MigrateUpAsync`, `MigrateDownAsync`, and `BaselineAsync`.
+1. **Automatic**: `RepositoryMigrationRunInsertWithAutoFix` automatically cleans up orphaned runs whose last heartbeat is older than `Repository.OrphanedRunThresholdInMinutes` (default 2) and retries the insert. This happens transparently during `MigrateUpAsync`, `MigrateDownAsync`, and `BaselineAsync`.
 2. **Wait**: Allow the other process to complete
 3. **Investigate**: Check if the other process is actually running
-4. **Fix Command**: Use the Fix command to clean up orphaned runs manually (especially those newer than 10 minutes):
+4. **Fix Command**: Use the Fix command to clean up orphaned runs manually (`--older-than` compares the age of the last heartbeat, default 2 minutes, `0` closes every open run):
    ```
    raymigrator fix --product <alias> --environment <env> --scope orphanedruns
    ```
@@ -184,16 +188,18 @@ Options when encountering this error:
 
 ```
 1. RepositoryMigrationRunInsertWithAutoFix()
-   └── Calls RepositoryMigrationRunInsert()
+   └── Calls RepositoryMigrationRunInsertAsync()
        └── Creates MigrationRun with MigrationRunResultId = Running (10)
            └── Fails if another Running run exists
-   └── On failure: auto-fixes orphaned runs > 10 min, retries once
+   └── On failure: auto-fixes runs whose last heartbeat is older than
+       Repository.OrphanedRunThresholdInMinutes, retries once
+   └── Starts the heartbeat (every Repository.HeartbeatIntervalInSeconds)
 
 2. Execute migrations...
    └── Each block updates progress
 
-3. RepositoryMigrationRunUpdate()
-   └── Updates MigrationRunResultId to Ok (100), PartialSuccess (50), Recovered (80) or Error (90)
+3. RepositoryMigrationRunUpdateAsync()
+   └── Updates MigrationRunResultId to Ok (100), PartialSuccess (50), Cancelled (70), Recovered (80) or Error (90)
    └── Sets FinishedAt timestamp
    └── "Releases" the exclusive lock
 ```
@@ -206,11 +212,14 @@ Options when encountering this error:
     ▼ (Create with Running status)
 [Running]
     │
-    ├─── Success ────► [Ok] ────► (FinishedAt set, lock released)
+    ├─── Success ────► [Ok] / [PartialSuccess] ──► (FinishedAt set, lock released)
     │
-    ├─── Error ──────► [Error] ─► (FinishedAt set, lock released)
+    ├─── Cancel ─────► [Cancelled] ─────────────► (FinishedAt set, lock released)
     │
-    └─── Crash ──────► [Running] (Orphaned - requires manual cleanup)
+    ├─── Error ──────► [Recovered] / [Error] ───► (FinishedAt set, lock released)
+    │
+    └─── Crash ──────► [Running] (Orphaned: closed as Error by a later start once its
+                                  heartbeat is older than the threshold, or by fix)
 ```
 
 ## Cleanup Procedures
@@ -225,7 +234,11 @@ SELECT
     [EnvironmentId],
     [StartedAt],
     [MigrationRunModeId],
-    DATEDIFF(MINUTE, [StartedAt], SYSUTCDATETIME()) AS MinutesRunning
+    DATEDIFF_BIG(SECOND, [StartedAt], SYSUTCDATETIME()) / 60 AS MinutesRunning,
+    [LastHeartbeatAt],
+    DATEDIFF_BIG(SECOND, COALESCE([LastHeartbeatAt], [StartedAt]), SYSUTCDATETIME()) / 60 AS MinutesSinceHeartbeat,
+    [InitiatedBy],
+    [Host]
 FROM [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRun]
 WHERE [ProductId] = @ProductId
     AND [EnvironmentId] = @EnvironmentId
@@ -234,9 +247,9 @@ WHERE [ProductId] = @ProductId
 ORDER BY [StartedAt];
 ```
 
-Note: The template filters by `ProductId` and `EnvironmentId` and does not apply a timeout threshold -- all orphaned runs are returned regardless of how long they have been running.
+Note: The template filters by `ProductId` and `EnvironmentId` and applies no age threshold -- every open run is returned. The service compares `MinutesSinceHeartbeat` with the threshold: the auto-fix with `Repository.OrphanedRunThresholdInMinutes`, the `fix` command with `--older-than`.
 
-For ad-hoc queries to list all running migrations across all products:
+For ad-hoc queries to list all running migrations across all products, with the age of their heartbeat that decides whether a run is orphaned:
 
 ```sql
 SELECT
@@ -244,7 +257,9 @@ SELECT
     mr.ProductId,
     mr.EnvironmentId,
     mr.StartedAt,
-    DATEDIFF(MINUTE, mr.StartedAt, SYSUTCDATETIME()) AS MinutesRunning
+    DATEDIFF_BIG(SECOND, mr.StartedAt, SYSUTCDATETIME()) / 60 AS MinutesRunning,
+    mr.LastHeartbeatAt,
+    DATEDIFF_BIG(SECOND, COALESCE(mr.LastHeartbeatAt, mr.StartedAt), SYSUTCDATETIME()) / 60 AS MinutesSinceHeartbeat
 FROM MigrationRun mr
 WHERE mr.MigrationRunResultId = 10  -- Running
   AND mr.FinishedAt IS NULL
@@ -253,24 +268,29 @@ ORDER BY mr.StartedAt;
 
 ### Manual Cleanup
 
-To manually terminate an orphaned run:
+To manually terminate an orphaned run, provided it is still open and its heartbeat is older than the threshold (2 minutes by default), as `Repository_MigrationRun_FixOrphaned` checks it:
 
 ```sql
 UPDATE MigrationRun
 SET
     MigrationRunResultId = 90,  -- Error
     FinishedAt = SYSUTCDATETIME(),
-    DurationInMs = DATEDIFF(MILLISECOND, StartedAt, SYSUTCDATETIME())
-WHERE Id = @OrphanedMigrationRunId;
+    DurationInMs = DATEDIFF_BIG(MILLISECOND, StartedAt, SYSUTCDATETIME())
+WHERE Id = @OrphanedMigrationRunId
+  AND MigrationRunResultId = 10  -- Running
+  AND FinishedAt IS NULL
+  AND DATEDIFF_BIG(SECOND, COALESCE(LastHeartbeatAt, StartedAt), SYSUTCDATETIME()) / 60 >= 2;
 ```
+
+The records of the run stay `Pending` or `Executing`; `fix` closes them as well (`--last-migration-status`), so prefer it.
 
 ### Automatic Cleanup on Migration Start
 
-`MigrationService.RepositoryMigrationRunInsertWithAutoFix` automatically detects and cleans up orphaned runs older than 10 minutes when a new migration run is started. This covers the common case where a previous process crashed and left an orphaned run. The auto-fix uses the same `RepositoryMigrationRunFixOrphaned` template as the manual Fix command.
+`MigrationService.RepositoryMigrationRunInsertWithAutoFix` automatically detects and cleans up orphaned runs whose last heartbeat is older than `Repository.OrphanedRunThresholdInMinutes` (default 2) when a new migration run is started. This covers the common case where a previous process crashed, or a second Ctrl+C or SIGTERM ended it, and left an orphaned run. The auto-fix uses the same `Repository_MigrationRun_FixOrphaned` template as the manual Fix command, which refuses a run that wrote a heartbeat since the select (result `-31`), and marks the open records of a closed run `NotMigrated`.
 
 ### Manual Cleanup via Fix Command
 
-The `fix` command identifies orphaned runs using `RepositoryMigrationRunSelectOrphaned` and fixes them using `RepositoryMigrationRunFixOrphaned` (sets `MigrationRunResultId` to Error and `FinishedAt` to current UTC time). It also fixes orphaned MigrationRecord entries via `RepositoryMigrationRecordFixOrphaned`. The default age threshold is 60 minutes (`--older-than` option), which is more conservative than the 10-minute auto-fix threshold.
+The `fix` command identifies orphaned runs using `RepositoryMigrationRunSelectOrphanedAsync` and fixes them using `RepositoryMigrationRunFixOrphanedAsync` (sets `MigrationRunResultId` to Error and `FinishedAt` to current UTC time). It also fixes orphaned MigrationRecord entries via `RepositoryMigrationRecordFixOrphanedAsync`. The default age threshold is 2 minutes since the last heartbeat (`--older-than` option), the default of the auto-fix threshold; `--older-than 0` closes every open run.
 
 ## Best Practices
 
@@ -303,17 +323,21 @@ In production, use process managers that handle graceful shutdown:
 - Kubernetes with `terminationGracePeriodSeconds`
 - Docker with `stop_grace_period`
 
+On Linux and macOS the CLI handles the SIGTERM of a stop like Ctrl+C: the run stops at the next block boundary, records `Cancelled` and exits with `130`. Give the grace period room for the block in progress (MySQL and SQLite may run it to its end, and MariaDB a block that waits in `SLEEP()`) and for the rollback of `--cancelled-action`; a `SIGKILL` after the grace period ends the process like a crash and leaves an orphaned run.
+
 ### 3. Monitor for Orphans
 
 Set up monitoring for orphaned runs:
 
 ```sql
--- Alert if any run has been "Running" for > 1 hour (SQL Server example)
+-- Alert if an open run wrote no heartbeat for Repository.OrphanedRunThresholdInMinutes (2 by default),
+-- measured from its start while it has none (SQL Server example). A live run refreshes its heartbeat
+-- every Repository.HeartbeatIntervalInSeconds, however long it runs.
 SELECT COUNT(*) AS OrphanedCount
 FROM MigrationRun
-WHERE MigrationRunResultId = 10
+WHERE MigrationRunResultId = 10  -- Running
   AND FinishedAt IS NULL
-  AND DATEDIFF(MINUTE, StartedAt, SYSUTCDATETIME()) > 60;
+  AND DATEDIFF_BIG(SECOND, COALESCE(LastHeartbeatAt, StartedAt), SYSUTCDATETIME()) / 60 >= 2;
 ```
 
 ### 4. Handle Exceptions Gracefully

@@ -214,9 +214,115 @@ Both `TargetMigrationOrder` modes handle errors identically:
 - **FileByFile** (file -> target loop): If a file fails on one target, remaining targets for that file are skipped. With `Ignore`, the file is marked as `Failed` and execution continues to the next file. With any other error action, the `TargetGroup` is aborted immediately.
 - **TargetByTarget** (target -> file loop): If a file fails on a target, with `Ignore`, the file is marked as `Failed` and execution continues to the next file for that target. With any other error action, the `TargetGroup` is aborted immediately.
 
-In both modes, when a non-Ignore error aborts a `TargetGroup`, the caller (`MigrateUpAsync` Phase 3) invokes `HandleMigrationError` to execute the configured error action (Terminate, Rollback, RollbackErrorOnly, or RollbackRelease), then finalizes the `MigrationRun` and returns. The run is persisted as `MigrationRunResult.Recovered` (80) when a rollback action completed without a failure or warning (repository and database are consistent again), and as `MigrationRunResult.Error` (90) for `Terminate`, for a failed rollback block, a missing rollback file or a stopped chain. The CLI exit code is 1 in both cases (#18).
+In both modes, when a non-Ignore error aborts a `TargetGroup`, the caller (`MigrateUpAsync` Phase 3) invokes `HandleMigrationError` to execute the configured error action (Terminate, Rollback, RollbackErrorOnly, or RollbackRelease), then finalizes the `MigrationRun` and returns. The run is persisted as `MigrationRunResult.Recovered` (80) when a rollback action completed without a failure or warning (repository and database are consistent again), and as `MigrationRunResult.Error` (90) for `Terminate`, for a failed rollback block, a missing rollback file or a stopped chain. The CLI exit code is 1 in both cases (#18). `MigrationRun.ErrorCode` and the `ErrorCode` of the result carry the engine error code of the failure (`ExtractErrorCode`). A cancel while the error recovery runs stops it at the next rollback block; the run stays `Error` with the code of the failure, and its message names the failure first (see [Cancellation](#cancellation)).
 
 See also: [Product Options](../06-configuration-reference/product-options.md) for `MigrationErrorAction` configuration.
+
+---
+
+## Cancellation
+
+A host or the CLI can stop a run while it executes. A cancel is not an error: the `MigrationErrorAction` does not apply. The run stops at the next block boundary, keeps what committed, records why it stopped and then takes the `MigrationCancelledAction` the cancel chose. The decision and the alternatives that were rejected are recorded in [ADR-028](../arc42/09-Architecture-Decisions.md#adr-028-a-run-cancels-at-the-next-block-boundary-with-a-migrationcancelledaction-and-records-cancelled).
+
+### Requesting a Cancel
+
+Every method of `IMigrationService` takes `CancellationToken cancellationToken = default` as its last parameter. A host that lets the user choose what the run does after it stopped passes a `RunCancellation` (`Raycoon.RayMigrator.Services.Abstractions`) in the `Cancellation` property of `MigrateUpRequest`, `MigrateDownRequest` or `BaselineRequest` and calls `Cancel(action, reason)`:
+
+```csharp
+// The context of the run was created through IMigrationContextFactory
+using var cancellation = new RunCancellation();
+var request = new MigrateUpRequest { ProductAlias = "MyProduct", Environment = "Production", Cancellation = cancellation };
+Task<MigrationOperationResult> run = migrationService.MigrateUpAsync(request);
+
+// Later, from another thread: the user stops the run
+cancellation.Cancel(MigrationCancelledAction.RollbackFile, "stopped by the operator");
+
+MigrationOperationResult result = await run;   // Success = false, Result = Cancelled (or Error, see Results)
+```
+
+The first `Cancel` decides the action and returns `true`; a later call changes nothing and returns `false`, and so does a call after `Dispose`. `Undefined` or a value that is not a member throws `ArgumentOutOfRangeException`. `Token`, `Action`, `Reason`, `RequestedAtUtc` and `IsCancellationRequested` describe the request. The call that cancels runs the callbacks registered on the token synchronously on the calling thread, among them those of the database providers (MySqlConnector opens a connection of its own for `KILL QUERY`), so it may take as long as they do; it swallows their exceptions, because the action and the token are set before the callbacks run, and the run stops at its next checkpoint all the same, even when the statement in progress could not be interrupted. The engine links the token of the call with the token of the handle; a run cancelled through the token of the call alone takes `Terminate`. A handle belongs to one run, and the host disposes it after the run returned.
+
+The CLI cancels the same way for the process: the first Ctrl+C or SIGTERM while a command runs cancels it with the action of `--cancelled-action` (see [CLI](#cli) below).
+
+### Where a Run Stops
+
+The run checks the token before every file, every target and every block: the forward blocks on both execution paths, the blocks a Simulate run walks, and every rollback block after the first. It checks it as well between the records of a rollback chain, before every file of a baseline, and in the steps before the first file (repository checks, discovery, reading the records). Within a block, the token reaches the statement in progress through the target DAL, the transaction of the atomic path and a CLI tool, which is killed together with the processes it started. A CLI tool that has exited when the cancel takes effect is judged by its exit code, so a tool that succeeded keeps its result if it got the whole file; a tool that fails, or that did not get the whole file in `Stdin` mode, after the cancel counts as the cancel and not as a failure for the `MigrationErrorAction`, because on Linux and macOS Ctrl+C reaches the whole process group and the tool gets the signal as well, and the cancel may cut off the write of the file. When a database error meets the cancel, the `OperationCanceledException` of the DAL names the provider's message, and the provider's exception stays its inner exception. What the providers do with the statement in progress:
+
+| Database | Statement in progress |
+|----------|-----------------------|
+| SQL Server | Interrupted |
+| PostgreSQL | Interrupted; the transaction is unusable afterwards and is rolled back |
+| MariaDB | Interrupted, except a `SLEEP()`: `KILL QUERY` ends it early without an error, the further statements of the block run, and the next block boundary stops the run |
+| MySQL | `KILL QUERY` ends the statement in progress only (a `SLEEP()` early and without an error); the further statements of the block run, and the next block boundary stops the run |
+| SQLite | Not interrupted (Microsoft.Data.Sqlite cannot); the token is checked before a block starts |
+
+Commit and rollback of a transaction never take the token: a commit that has started completes. Repository writes on a connection of their own never take the token, so a cancel never separates a record from its history row; on the atomic path the record updates are part of the file's transaction, which the token may interrupt and which then rolls back as a whole. The repository reads take the token, except the two around the insert of the run row (the release the run starts from and the orphan check). Every write after the stop (the record of the interrupted file, the rollback of the action, the run row) runs to its end.
+
+### What the Interrupted File Keeps
+
+The block in progress does not commit where the provider interrupts its statement. On SQLite, on MySQL, whose `KILL QUERY` ends only the statement in progress, and on MariaDB in a `SLEEP()`, which its `KILL QUERY` ends without an error, the block may run to its end; it then commits and counts as committed, and the run stops at the next block boundary. The record of the interrupted file on its target is `Failed` with the blocks that committed before the run stopped; on the atomic path, whose transaction rolls back with the file, these are only the blocks an earlier attempt committed, normally none. The next migrate-up resumes the file with the first block that did not commit, like a failed file (`FindResumableBlock`); `info` lists it as `Resumable after block n`, or as `Failed` when no block committed. `FileCompletedEvent` reports `FileOutcome.Cancelled` (100) for it. The files the run completed before stay `Migrated`. A run cancelled between two files, before its first file, or in FileByFile order between two targets of a file has no interrupted file. A file stopped between two of its targets counts as a finished file in the result (`SuccessfulMigrations`, a `MigrationFileResult` with `Success = true`) and in `RunCompletedEvent`, because it migrated on the targets it ran on.
+
+### MigrationCancelledAction
+
+What a cancelled migrate-up does after it stopped. The value belongs to the run, not to the configuration, and never replaces the `MigrationErrorAction` of a failure; the rollback actions carry the numbers of the error actions whose rollback chain they run.
+
+| Name | Value | After the stop | Rollback chain of |
+|------|-------|----------------|-------------------|
+| `Undefined` | 0 | Invalid; `Cancel` refuses it | — |
+| `Terminate` | 10 | Nothing else (the default): the interrupted file keeps its committed blocks for the next migrate-up | — |
+| `RollbackRun` | 20 | Rolls back the interrupted file and every file the run migrated, newest first | `Rollback` |
+| `RollbackFile` | 21 | Rolls back the interrupted file only; nothing when the run stopped between two files or, in FileByFile order, between two targets of a file | `RollbackErrorOnly` |
+| `RollbackRelease` | 22 | Rolls back the interrupted file and the files of its release the run migrated; without an interrupted file the release of the file the run migrated last | `RollbackRelease` |
+
+Source: `Raycoon.RayMigrator.Core/Configuration/Enums/MigrationCancelledAction.cs` (namespace `Raycoon.RayMigrator.Core.Configuration.Enums`)
+
+The rollback of a cancel action follows the rules of the error recovery for missing rollback files and `RollbackErrorAction` (see [Rollback Error Handling](#rollback-error-handling)), and it runs without the token: a second cancel cannot leave it halfway. Migrate-down and an error recovery that is already running are rollbacks themselves, and a baseline executes no SQL, so they stop and ignore the action; the log says so when the action is not `Terminate`.
+
+### Rollback Units That Always Complete
+
+Three units of a rollback run to their end even when the token is cancelled, because a stop inside them would leave the record `Failed` without rollback progress, a state that migrate-down does not continue and from which migrate-up runs the file again from its first block:
+
+- the first block of a rollback file on the block-by-block path;
+- an atomic rollback, whose rollback blocks and status update share one transaction (see [Rollback Atomicity](#rollback-atomicity));
+- a rollback through a CLI tool.
+
+The cancel takes effect before the next rollback block or the next record, which keeps its state.
+
+### A Rollback That Stopped in the Middle
+
+A record `Failed` with some but not all of its rollback blocks (`0 < FileDownBlocksMigrated < FileDownBlocksTotal`) is a rollback that stopped in the middle: a cancelled migrate-down or error recovery leaves it, and so does a failed rollback block after the first. Its target kept the part of the file that the remaining rollback blocks would take back. Migrate-down continues such a record with rollback block k+1. Migrate-up must not run the file again, because the record insert would reset the rollback columns and run the file from its first block on that target. Before its first file, migrate-up therefore checks the records of the (file, target) pairs it would run, after `--to-release` and `--target-group`, and refuses to run while one of them has this state, also in Simulate: no file runs, the run is `Error` like a refused out-of-order run, and the message names every such record:
+
+```
+Incomplete rollback: 1 file(s) stopped in the middle of their rollback, and migrate-up runs no file again before its rollback has completed: [Release 2.0/02_SeedData.sql on target Main: 1 of 3 rollback blocks, migrate-down continues at block 2]. Complete the rollback with migrate-down to a release before theirs, then run migrate-up.
+```
+
+`info` lists such a pair as `RollbackIncomplete` (60) with the rollback blocks that ran and the blocks of the rollback file (`PendingMigrationInfo.RollbackBlocksMigrated`, `RollbackBlocksTotal`), before every other reason. A `Failed` record without rollback progress, whose first rollback block failed, is not refused: nothing continues it, and migrate-up runs the file again from its first block (see [Known Gaps](#known-gaps)).
+
+### Results
+
+| Operation | After a cancel | Run row (`MigrationRunResult`, `ErrorCode`) | Returns |
+|-----------|----------------|---------------------------------------------|---------|
+| migrate-up | Stops at the next block boundary, then takes the action | `Cancelled` (70), `1004` (`TemplateResultCode.Cancelled`); `Error` (90), `1005` (`TemplateResultCode.CancelledRollbackIncomplete`) when the rollback of the action reported a failure or a warning | `Success = false`, `Result` as recorded |
+| migrate-up while its error recovery runs | The recovery stops at the next rollback block or record; the action is ignored. The run had failed before the cancel, so the failure decides its result | `Error` (90) with the code of the failure (none for a database error, which has no engine code); the message names the failure first, then how many rollbacks the recovery completed | `Success = false`, `Result = Error` |
+| migrate-down | Stops at the next rollback block or record; the action is ignored. The record in progress is `Failed` with the rollback blocks that ran, and the next migrate-down continues it; until then migrate-up refuses to run the file ([A Rollback That Stopped in the Middle](#a-rollback-that-stopped-in-the-middle)) | `Cancelled`, `1004` | `Success = false`, `Result = Cancelled` |
+| baseline | Stops before the next file; the action is ignored. The records written so far stay `Migrated` | `Cancelled`, `1004` | `Success = false`, `BaselineResult.Result = Cancelled` |
+| update-hash, fix | Stop before the next record or run | no run row | `Success = false`, `ErrorCode = 1004`, what they did so far; update-hash counts a file in `UpdatedFiles` and `UpdatedFileNames` once its first record is updated |
+| validate-hash, status, history | Stop | no run row | throw `OperationCanceledException` |
+| repository cleanup (`IRepositoryMaintenanceService.CleanUpAsync`) | Stops before the next batch; SQL Server, PostgreSQL, MySQL and MariaDB abort the batch in progress, which rolls back whole | no run row | `Completed = false` with the rows deleted so far and no error code; a cancel during the checks of the options and the schema version, or in a dry run, throws `OperationCanceledException` |
+
+The same rule that decides `Recovered` against `Error` after a failure decides `Cancelled` against `Error` here: a rollback with a failure or a warning leaves the state unclear. The error message of a cancelled run is `Cancelled on request (<action>): <outcome>`, followed by `. Reason: <reason>` when the cancel gave one; an operation that ignored an action other than `Terminate` names it as `(<action> ignored: <why>)`. A migrate-up whose error recovery the cancel stopped is no cancelled run but a failed one: the run failed at the file before the cancel, and the cancel only stopped the handling of that failure, so the failure stays the result that error rates, the exit code and the operator see. Its message is the failure, then `. The error recovery was cancelled on request` with where the cancel stopped the recovery and what that leaves: `in the rollback of <file> on target <target> after <j> of <J> rollback block(s); migrate-down continues that rollback, and migrate-up refuses <file> until it has completed`, `before its first rollback: nothing was rolled back, <failed file> stays Failed with the blocks it committed, and the files this run migrated stay Migrated` or `after <i> of <m> rollback(s): the files it did not reach keep their state`; then `. Reason: <reason>` when the cancel gave one. The ignored action is logged as a warning when it is not `Terminate`. A cancelled run returns its result instead of throwing, and `RunCompletedEvent` reports it. A run cancelled before its run row exists returns `MigrationRunId` 0 and writes no run row, and a rollback action then reports that there is nothing to roll back. Simulate and Validate persist nothing and roll nothing back. The engine logs a cancel as a warning without the exception: the warning names the message of the exception, which also names a provider error that met the cancel, and the exception with its stack trace goes to the `Debug` level.
+
+### CLI
+
+`RayMigratorService.DoWorkAsync(host, cancellation)` runs every command with the `RunCancellation` of the process: migrate-up, migrate-down and baseline carry it in their request, and every service call observes its token. While the command runs, the first Ctrl+C or SIGTERM (SIGTERM on Linux and macOS only) cancels it with the action of `--cancelled-action` (`terminate`, `rollback-file`, `rollback-run`, `rollback-release`) and the signal name as reason, and keeps the process alive; a warning on the console and in the database log of the run says where the command stops and what a second signal does. A command that the cancel ended logs a warning instead of an error and exits with `130`: a run with the result `Cancelled`, and, while the token of the process is cancelled, update-hash and fix with `ErrorCode = 1004` and validate-hash and info with an `OperationCanceledException`. The engine maps every `OperationCanceledException` of a failure to `1004`, so a `1004` or an `OperationCanceledException` without the signal is an error and exits with `1`, as do a cancelled migrate-up whose rollback did not complete cleanly (`1005`) and a migrate-up that failed at a file before the cancel stopped its error recovery (`Error` with the code of the failure).
+
+A second Ctrl+C or SIGTERM keeps the default and ends the process at once. The run row then stays `Running` and the record of the file in progress `Executing` (or `Pending`, see [After a Hard Abort](migration-state-machine.md#after-a-hard-abort)), until a later start for the same product and environment closes the run as orphaned or `fix --scope orphanedruns` does (see [Fix Orphaned Runs](#4-fix-orphaned-runs)). Before the command (loading the configuration, the logger, the connection check) and after it (flushing the log), both signals keep their default. See [Global Options: Cancelling a Run](../08-cli-reference/global-options.md#cancelling-a-run) for the command table and the platform notes.
+
+### Known Gaps
+
+- MySQL ends only the statement in progress: a block with several statements runs its remaining statements after `KILL QUERY`, and the run stops at the next block boundary. On MySQL and MariaDB `KILL QUERY` ends a `SLEEP()` early without an error, so a block that waits in `SLEEP()` runs to its end as well.
+- A cancel with `MigrationErrorAction = Ignore` stores the block count of the file on its `Failed` record, as an ignored failure does, because the committed blocks are no contiguous prefix there: the next migrate-up runs the whole file again from block 1, including the blocks that committed before the cancel.
+- A first rollback block that fails, rather than being cancelled, still leaves the record `Failed` with no rollback block, which migrate-down does not continue and migrate-up runs again from its first block; this predates the cancellation.
 
 ---
 
@@ -359,10 +465,13 @@ Defined in `Raycoon.RayMigrator.Database.Common/RetryHelper.cs` (namespace `Rayc
 
 ### Exception Handling in DoWorkAsync
 
-`RayMigratorService.DoWorkAsync` in the Pipeline layer (`Raycoon.RayMigrator.Pipeline`) handles exceptions with two catch blocks:
+`RayMigratorService.DoWorkAsync(host, cancellation)` in the Pipeline layer (`Raycoon.RayMigrator.Pipeline`) handles exceptions with three catch blocks:
 
-1. **`MigrationAlreadyRunningException`**: Logged as error with a guidance message suggesting the Fix command to clean up orphaned runs. Returns exit code `1`.
-2. **Generic `Exception`**: All other exceptions (including `NotYetImplementedException`, `ConfigurationValidationException`, etc.) are caught, logged as error, and return exit code `1`.
+1. **`OperationCanceledException` while the token of the process is cancelled**: the read commands (validate-hash, info) throw when Ctrl+C or SIGTERM cancelled them. Logged as a warning with the reason. Returns exit code `130`.
+2. **`MigrationAlreadyRunningException`**: Logged as error with a guidance message suggesting the Fix command to clean up orphaned runs. Returns exit code `1`.
+3. **Generic `Exception`**: All other exceptions (including `NotYetImplementedException`, `ConfigurationValidationException`, and an `OperationCanceledException` that did not come from the cancel of the process) are caught, logged as error, and return exit code `1`.
+
+The commands that return a result instead of throwing are mapped the same way: migrate-up, migrate-down and baseline with the result `Cancelled`, and update-hash and fix with `ErrorCode = 1004` (`TemplateResultCode.Cancelled`) while the token of the process is cancelled, log a warning and return `130`; a `1004` without the signal is logged as an error and returns `1`, and so is a migrate-up with the result `Error` after the signal, such as one that failed at a file before the cancel stopped its error recovery. See [Cancellation](#cancellation).
 
 ### Configuration Errors
 
@@ -399,6 +508,7 @@ Occur during SQL execution:
 - Constraint violations
 - Deadlocks
 - Timeout
+- A CLI tool that fails: an exit code outside `SuccessExitCodes`, its timeout, or in `Stdin` mode a success code before it read the whole file
 
 **Handling**: Based on `MigrationErrorAction`
 
@@ -410,6 +520,12 @@ Occur during pre-execution validation:
 - Invalid TOML metadata (`MigrationFileParsingException`)
 
 **Handling**: Reject migration, don't execute
+
+### Cancelled Runs
+
+Not an error category: a host or the CLI stopped the run on request.
+
+**Handling**: The run stops at the next block boundary and takes its `MigrationCancelledAction`; the result is `Cancelled` with the engine code `1004`, or `Error` with `1005` when the rollback of the action did not complete cleanly. A migrate-up that failed at a file before the cancel stopped its error recovery stays `Error` with the code of the failure. See [Cancellation](#cancellation).
 
 ## Transaction Support
 
@@ -479,7 +595,7 @@ When the Repository and a migration Target share the **same ConnectionString** (
 
 Without this feature, each SQL block executes on its own connection, and each repository status write uses a separate connection. If a crash occurs after a target SQL block commits but before the corresponding repository status write completes, the system is left in an inconsistent state: the database has the DDL/DML changes, but the repository does not reflect this.
 
-Existing recovery mechanisms (`TryFinalizeCompletedMigration`, `FindResumableBlock`, `fix` command) mitigate this gap but cannot eliminate it entirely.
+Existing recovery mechanisms (`TryFinalizeCompletedMigrationAsync`, `FindResumableBlock`, `fix` command) mitigate this gap but cannot eliminate it entirely.
 
 ### How It Works
 
@@ -599,6 +715,10 @@ External DAL developers override `DefaultTransientErrorCodes` with their built-i
 
 When all retries are exhausted, a `RetryExhaustedException` is thrown containing `AttemptsMade` (int) and `LastErrorCode` (string?), with the original exception as `InnerException`.
 
+### Retry and Cancellation
+
+A cancelled call is never retried. `DalBase.IsTransient` never counts a cancellation as transient, and `RetryHelper.ExecuteWithRetryAsync` takes the token of the call, waits for a retry with it and neither classifies nor retries a failure after the token was cancelled. A DAL call that fails after the cancellation throws an `OperationCanceledException` that carries the token, whatever the provider reported (SqlClient reports a cancelled command as a `SqlException`). The file-level retry of the atomic path waits with the token as well. See [Cancellation](#cancellation).
+
 ---
 
 ## Rollback File Requirements
@@ -680,15 +800,17 @@ Options:
 
 If a previous migration was interrupted (e.g., process crash), the migration run may remain in `Running` state, blocking new runs with `MigrationAlreadyRunningException`.
 
-**Automatic**: Orphaned runs older than 10 minutes are automatically cleaned up when starting a new migration (`RepositoryMigrationRunInsertWithAutoFix`). No manual intervention is needed in this case.
+A running migrate-up, migrate-down or baseline refreshes `MigrationRun.LastHeartbeatAt` every `Repository.HeartbeatIntervalInSeconds` (default 30). A run counts as orphaned once its last heartbeat, or its start when it never wrote one, is older than `Repository.OrphanedRunThresholdInMinutes` (default 2). A run that a second Ctrl+C or SIGTERM ended at once is such a run as well (see [Cancellation: CLI](#cli)).
 
-**Manual**: For orphaned runs newer than 10 minutes or when the auto-fix does not apply, use the Fix command:
+**Automatic**: The next migrate-up, migrate-down or baseline for the same product and environment closes an orphaned run as `Error`, marks its open records `NotMigrated` and starts (`RepositoryMigrationRunInsertWithAutoFix`). No manual intervention is needed in this case.
+
+**Manual**: When no new run is started, use the Fix command. With the default `--older-than` (2 minutes, the default threshold as well) it repairs only runs whose last heartbeat is older; for a run whose heartbeat is younger, first make sure that no process still runs it, then pass `--older-than 0`:
 
 ```bash
 # Dry run — see what would be fixed
 raymigrator fix --product MyProduct --environment Production --scope orphanedruns --run-mode simulate
 
-# Fix orphaned runs older than 60 minutes (default)
+# Fix orphaned runs whose last heartbeat is older than 2 minutes (default --older-than)
 raymigrator fix --product MyProduct --environment Production --scope orphanedruns
 ```
 

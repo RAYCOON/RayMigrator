@@ -8,7 +8,8 @@ RayMigrator uses SQL templates with placeholder substitution for database-agnost
 |----------|---------|
 | `Repository_CheckCreate` | Report the repository schema version; create the schema and the `RepositorySchemaVersion` table when missing (ADR-024) |
 | `Repository_Upgrade_1` | Schema step 1: create the 11 repository tables with indexes, foreign keys and lookup master data and write version row 1 |
-| `Repository_Upgrade_2` | Schema step 2: add the run details to `MigrationRun` and the `MigrationRunSource` lookup, write version row 2; later versions add `Repository_Upgrade_{n}` |
+| `Repository_Upgrade_2` | Schema step 2: add the run details to `MigrationRun` and the `MigrationRunSource` lookup, write version row 2 |
+| `Repository_Upgrade_3` | Schema step 3: add the run result `Cancelled` (70) to `MigrationRunResult` and four indexes for the readers of the repository, write version row 3; later versions add `Repository_Upgrade_{n}` |
 | `Repository_MigratorMeta_CheckInsert` | Register the engine version in `MigratorMeta`, return the `MigratorMetaId` |
 | `Repository_Product_CheckInsert` | Ensure product exists |
 | `Repository_Environment_CheckInsert` | Ensure environment exists |
@@ -28,17 +29,24 @@ RayMigrator uses SQL templates with placeholder substitution for database-agnost
 | `Repository_MigrationRecord_GetInterrupted` | Check for interrupted migrations |
 | `Repository_MigrationRun_Select` | Query MigrationRun records for history |
 | `Repository_MigrationRecordHistory_Select` | Select the terminal state transitions (MigrationRecordHistory rows) of a product/environment; the `info` run history is built from it (#13) |
+| `Repository_MigrationRecordHistory_Delete` | Delete one batch of the history rows historized before `@CutoffUtc`, at most `@BatchSize`, sparing the rows of open runs (retention, ADR-027) |
+| `Repository_MigrationRecordHistory_Count` | Count the history rows `Repository_MigrationRecordHistory_Delete` would take |
 | `Repository_Drop` | Drop repository (cleanup) |
-| `DatabaseLogging_CheckCreate` | Create logging tables |
+| `DatabaseLogging_CheckCreate` | Create logging tables, and the two `MigrationLog` indexes when they are missing |
 | `DatabaseLogging_Insert` | Insert log entry |
+| `DatabaseLogging_Delete` | Delete one batch of the log rows created before `@CutoffUtc` in the repository database, sparing the rows of open runs (retention) |
+| `DatabaseLogging_Count` | Count the log rows `DatabaseLogging_Delete` would take and report whether the log table is in the repository database |
 
 | Template | SQL Server | PostgreSQL | MariaDB | MySQL | SQLite |
 |----------|:----------:|:----------:|:-------:|:-----:|:------:|
 | `DatabaseLogging_CheckCreate` | Active | Active | Active | Active | Active |
 | `DatabaseLogging_Insert` | Active | Active | Active | Active | Active |
+| `DatabaseLogging_Delete` | Active | Active | Active | Active | Active |
+| `DatabaseLogging_Count` | Active | Active | Active | Active | Active |
 | `Repository_CheckCreate` | Active | Active | Active | Active | Active |
 | `Repository_Upgrade_1` | Active | Active | Active | Active | Active |
 | `Repository_Upgrade_2` | Active | Active | Active | Active | Active |
+| `Repository_Upgrade_3` | Active | Active | Active | Active | Active |
 | `Repository_MigratorMeta_CheckInsert` | Active | Active | Active | Active | Active |
 | `Repository_Drop` | Active | Active | Active | Active | Active |
 | `Repository_Product_CheckInsert` | Active | Active | Active | Active | Active |
@@ -59,8 +67,10 @@ RayMigrator uses SQL templates with placeholder substitution for database-agnost
 | `Repository_MigrationRecord_UpdateHash` | Active | Active | Active | Active | Active |
 | `Repository_MigrationRecord_GetInterrupted` | Active | Active | Active | Active | Active |
 | `Repository_MigrationRecordHistory_Select` | Active | Active | Active | Active | Active |
+| `Repository_MigrationRecordHistory_Delete` | Active | Active | Active | Active | Active |
+| `Repository_MigrationRecordHistory_Count` | Active | Active | Active | Active | Active |
 
-> **Note:** The 25 templates listed above are shared by all DAL plugins, including the SQLite DAL.
+> **Note:** The 30 templates listed above are shared by all DAL plugins, including the SQLite DAL, one per `TemplateType` member except `Undefined`. The four retention templates (`*_Delete`, `*_Count`) never run in a command: `IRepositoryMaintenanceService` runs them through `RepositoryMaintenanceExecutor` (see [Repository Schema: Retention](repository-schema.md#retention)).
 
 ## Template Location
 
@@ -279,7 +289,7 @@ public class Template
 
 **Location**: `Raycoon.RayMigrator.Infrastructure/TemplateExecutor.cs` (namespace: `Raycoon.RayMigrator.Core`)
 
-All methods are **synchronous** (they internally call async DAL methods with `.GetAwaiter().GetResult()`). The class uses `IMigrationContextAccessor` for per-request context isolation (supporting both CLI and API modes).
+Every public method is **asynchronous** (`…Async`, returns a `Task`) and takes `CancellationToken cancellationToken = default` as its last parameter, which it hands to the DAL; it awaits the DAL instead of blocking on it. A call that fails after the token was cancelled ends with the DAL's `OperationCanceledException` instead of a `TemplateExecutionException`. `MigrationService` awaits the executor directly; the repository writes of a run pass no token, so a cancel never separates a record from its history row (on the atomic path the record updates are part of the file's transaction, which the token may interrupt and which then rolls back as a whole). The class uses `IMigrationContextAccessor` for per-request context isolation (supporting both CLI and API modes).
 
 ### Constructor
 
@@ -294,76 +304,82 @@ The constructor stores references but does **not** resolve the repository DAL im
 ```csharp
 public class TemplateExecutor
 {
+    // Every method below ends with CancellationToken cancellationToken = default (written as "ct" here)
+
     // Repository Setup
-    public void RepositoryCheckCreate();   // schema steps through RepositorySchemaExecutor (values of the current context)
-    public void RepositoryProductCheckInsert();
-    public void RepositoryEnvironmentCheckInsert();
-    public bool RepositoryProductSelect();       // read-only lookup (Simulate and read-only commands)
-    public bool RepositoryEnvironmentSelect();
+    public Task RepositoryCheckCreateAsync(ct);   // schema steps through RepositorySchemaExecutor (values of the current context)
+    public Task RepositoryProductCheckInsertAsync(ct);
+    public Task RepositoryEnvironmentCheckInsertAsync(ct);
+    public Task<bool> RepositoryProductSelectAsync(ct);       // read-only lookup (Simulate and read-only commands)
+    public Task<bool> RepositoryEnvironmentSelectAsync(ct);
 
     // Migration Run Operations
-    public void RepositoryMigrationRunInsert(string migrationRunSettingsJson);
-    public void RepositoryMigrationRunUpdate(MigrationRunResult runResult, string? errorCode = null, string? errorMessage = null);
-    public bool RepositoryMigrationRunHeartbeat();
-    public List<Dictionary<string, object?>> RepositoryMigrationRunSelectOrphaned(int productId, int environmentId);
-    public bool RepositoryMigrationRunFixOrphaned(int migrationRunId, int thresholdMinutes);
-    public List<Dictionary<string, object?>> RepositoryMigrationRunSelect(int limit);
+    public Task RepositoryMigrationRunInsertAsync(string migrationRunSettingsJson, ct);
+    public Task RepositoryMigrationRunUpdateAsync(MigrationRunResult runResult, string? errorCode = null, string? errorMessage = null, ct);
+    public Task<bool> RepositoryMigrationRunHeartbeatAsync(ct);
+    public Task<List<Dictionary<string, object?>>> RepositoryMigrationRunSelectOrphanedAsync(int productId, int environmentId, ct);
+    public Task<bool> RepositoryMigrationRunFixOrphanedAsync(int migrationRunId, int thresholdMinutes, ct);
+    public Task<List<Dictionary<string, object?>>> RepositoryMigrationRunSelectAsync(int limit, ct);
 
     // Fix Operations
-    public int RepositoryMigrationRecordFixOrphaned(int migrationRunId, MigrationStatus status);
+    public Task<int> RepositoryMigrationRecordFixOrphanedAsync(int migrationRunId, MigrationStatus status, ct);
 
     // Migration Record Operations
-    public int RepositoryMigrationInsert(
+    public Task<int> RepositoryMigrationInsertAsync(
         int existingMigrationRecordId,
         string filename, string releaseVersion,
         string targetGroupAlias, string targetAlias, int fileOrderId,
         string fileUpHash, string? fileUpConfigHash, string fileUpBlocksHash,
-        int fileUpBlocksTotal, string? fileUpConfigJson, bool migrateDownFileExists);
+        int fileUpBlocksTotal, string? fileUpConfigJson, bool migrateDownFileExists, ct);
 
     // Standard overload: manages its own connection
-    public void RepositoryMigrationUpdate(int migrationRecordId,
-        MigrationStatus migrationStatus, int fileUpBlocksMigrated);
+    public Task RepositoryMigrationUpdateAsync(int migrationRecordId,
+        MigrationStatus migrationStatus, int fileUpBlocksMigrated, ct);
     // Shared-connection overload: caller provides connection + transaction for atomic execution
-    public void RepositoryMigrationUpdate(int migrationRecordId,
+    public Task RepositoryMigrationUpdateAsync(int migrationRecordId,
         MigrationStatus migrationStatus, int fileUpBlocksMigrated,
-        DbConnection connection, DbTransaction transaction, int repoCommandTimeoutInSeconds);
+        DbConnection connection, DbTransaction transaction, int repoCommandTimeoutInSeconds, ct);
 
     // Standard overload: manages its own connection
-    public void RepositoryMigrationUpdateRollback(int migrationRecordId,
+    public Task RepositoryMigrationUpdateRollbackAsync(int migrationRecordId,
         MigrationStatus migrationStatus, string fileDownHash, string? fileDownConfigHash,
         string fileDownBlocksHash, int fileDownBlocksMigrated, int fileDownBlocksTotal,
-        string? fileDownConfigJson);
+        string? fileDownConfigJson, ct);
     // Shared-connection overload: caller provides connection + transaction for atomic execution
-    public void RepositoryMigrationUpdateRollback(int migrationRecordId,
+    public Task RepositoryMigrationUpdateRollbackAsync(int migrationRecordId,
         MigrationStatus migrationStatus, string fileDownHash, string? fileDownConfigHash,
         string fileDownBlocksHash, int fileDownBlocksMigrated, int fileDownBlocksTotal,
         string? fileDownConfigJson,
-        DbConnection connection, DbTransaction transaction, int repoCommandTimeoutInSeconds);
+        DbConnection connection, DbTransaction transaction, int repoCommandTimeoutInSeconds, ct);
 
-    public void RepositoryMigrationUpdateHash(int migrationRecordId, string fileUpHash,
-        string? fileUpConfigHash, string fileUpBlocksHash);
+    public Task RepositoryMigrationUpdateHashAsync(int migrationRecordId, string fileUpHash,
+        string? fileUpConfigHash, string fileUpBlocksHash, ct);
     // Always queries MigrationRunModeId = Migrate: records are only written in Migrate mode,
     // so Simulate and validate-hash (Validate) read the same records as Migrate (#5)
-    public List<MigrationRecord> RepositoryMigrationSelect();
-    public List<MigrationRecord> RepositoryMigrationRecordHistorySelect();
-    public InterruptedMigrationInfo? RepositoryMigrationGetInterrupted();
+    public Task<List<MigrationRecord>> RepositoryMigrationSelectAsync(ct);
+    public Task<List<MigrationRecord>> RepositoryMigrationRecordHistorySelectAsync(ct);
+    public Task<InterruptedMigrationInfo?> RepositoryMigrationGetInterruptedAsync(ct);
 
     // Core Execution — standard (DAL manages connection)
-    public TemplateResponse ExecuteScalarWithNegativeResultCodeException(
+    public Task<TemplateResponse> ExecuteScalarWithNegativeResultCodeExceptionAsync(
         Template template, IDal dal, DalSettings dalSettings,
-        DalParameterList? dalParameterList, ILogger? logger = null, EventId? eventId = null);
+        DalParameterList? dalParameterList, ILogger? logger = null, EventId? eventId = null, ct);
 
-    // The execution and result validation behind it, without context and logging; the schema steps share it
-    internal static TemplateResponse ExecuteScalar(
-        Template template, IDal dal, DalSettings dalSettings, DalParameterList? dalParameterList);
+    // The execution and result validation behind it, without context and logging; the schema steps
+    // (RepositorySchemaExecutor) and the delete templates of RepositoryMaintenanceExecutor share it, whose
+    // counts go through ExecuteScalarValueAsync and are read as a long
+    internal static Task<TemplateResponse> ExecuteScalarAsync(
+        Template template, IDal dal, DalSettings dalSettings, DalParameterList? dalParameterList, ct);
 
     // Core Execution — shared-connection overload (caller controls connection/transaction)
-    public TemplateResponse ExecuteScalarWithNegativeResultCodeException(
+    public Task<TemplateResponse> ExecuteScalarWithNegativeResultCodeExceptionAsync(
         Template template, IDal dal, DbConnection connection, DbTransaction transaction,
         int commandTimeoutInSeconds, DalParameterList? dalParameterList,
-        ILogger? logger = null, EventId? eventId = null);
+        ILogger? logger = null, EventId? eventId = null, ct);
 }
 ```
+
+`Repository_MigrationRecord_Select` and `Repository_MigrationRecordHistory_Select` return the same columns, because `MapMigrationRecord` maps both; the mapping takes `StartedAt` and `FinishedAt` only when the row has them, so a DAL whose selects lack the two columns keeps working with null dates.
 
 ### TemplateResponse
 
@@ -378,7 +394,7 @@ public class TemplateResponse
 }
 ```
 
-Templates return a comma-separated string `"ResultCode[,Code...],ResultMessage"`; `ResultCodes` holds every leading integer code and `ResultCode` equals its first entry. A negative `ResultCode` causes `ExecuteScalarWithNegativeResultCodeException` to throw a `TemplateResultException`. Known negative codes (defined in `TemplateResultCode` in `Raycoon.RayMigrator.Shared.Constants`) throw `TemplateResultException`, while unknown negative codes throw `UndefinedTemplateResultException`.
+Templates return a comma-separated string `"ResultCode[,Code...],ResultMessage"`; `ResultCodes` holds every leading integer code and `ResultCode` equals its first entry. A negative `ResultCode` causes `ExecuteScalarWithNegativeResultCodeExceptionAsync` to throw a `TemplateResultException`. Known negative codes (defined in `TemplateResultCode` in `Raycoon.RayMigrator.Shared.Constants`) throw `TemplateResultException`, while unknown negative codes throw `UndefinedTemplateResultException`.
 
 ## TemplateCache
 
@@ -445,7 +461,7 @@ Each template file maps to a `TemplateType` enum value (unrecognized filenames a
 
 ## Example: Repository_CheckCreate and the schema steps
 
-The `Version` header of a template is the revision of that file and is maintained per file and per engine; it is not written to the database. The schema version of a repository lives in its `RepositorySchemaVersion` table (ADR-024): `Repository_CheckCreate` creates that table when it is missing and reports the highest applied version, the steps `Repository_Upgrade_{n}` create the schema on top of each other (step 1 the 11 repository tables with their master data) and write their version row, and `Repository_MigratorMeta_CheckInsert` registers the RayMigrator version in `MigratorMeta` (`@RayMigratorVersion`, bound by `RepositorySchemaExecutor`). A schema change ships as a new step template in every DAL and a bump of `RepositorySchema.CurrentVersion`; the next command of the newer RayMigrator (or a host through `IRepositorySchemaService.Ensure`) applies the missing steps and the data stays. Only a repository without a schema version (created before 0.17.0) must be recreated once.
+The `Version` header of a template is the revision of that file and is maintained per file and per engine; it is not written to the database. The schema version of a repository lives in its `RepositorySchemaVersion` table (ADR-024): `Repository_CheckCreate` creates that table when it is missing and reports the highest applied version, the steps `Repository_Upgrade_{n}` create the schema on top of each other (step 1 the 11 repository tables with their master data) and write their version row, and `Repository_MigratorMeta_CheckInsert` registers the RayMigrator version in `MigratorMeta` (`@RayMigratorVersion`, bound by `RepositorySchemaExecutor`). A schema change ships as a new step template in every DAL and a bump of `RepositorySchema.CurrentVersion`; the next command of the newer RayMigrator (or a host through `IRepositorySchemaService.EnsureAsync`) applies the missing steps and the data stays. Only a repository without a schema version (created before 0.17.0) must be recreated once.
 
 ### SQL Server Version
 

@@ -10,15 +10,17 @@ The `--run-mode` (alias `-rm`) option on `migrate-up` and `migrate-down` control
 
 | Mode | DB Connections | SQL Executed | Repository Records Written | Use Case |
 |------|:-------------:|:-----------:|:--------------------------:|----------|
-| Validate | No | No | No | CI checks, pre-deployment verification |
+| Validate | Database log only | No | No | CI checks, pre-deployment verification |
 | Simulate | Yes (validation only) | No | No | Staging dry runs, pipeline testing |
 | Migrate | Yes | Yes | Yes | Production deployment |
+
+> **Note:** With database logging on, which is the default and writes into the repository, every run mode opens the log database at startup. It creates the log tables `MigrationEvent` and `MigrationLog` when they are missing and their two indexes when those are missing, so the first start after an update can run DDL on an existing log, even in Validate. Set `DatabaseLogging.Enabled` to `false` to keep Validate away from every database.
 
 ---
 
 ## Validate Mode
 
-Validate scans your migration files locally and reports what **would** be executed. It makes no changes whatsoever -- no SQL runs on target databases, no records are written to the repository, and no database connections are established at all.
+Validate scans your migration files locally and reports what **would** be executed. No SQL runs on target databases, no records are written to the repository, and no connection to a target is opened; the only database it touches is the database log (see the note above).
 
 ```bash
 raymigrator migrate-up -p BookStore -env Production -rm validate
@@ -27,7 +29,7 @@ raymigrator migrate-up -p BookStore -env Production -rm validate
 ### What Validate Checks
 
 - **File discovery and filtering** -- Finds all migration files matching the product, environment, and target configuration.
-- **Hash computation** -- Computes file hashes, config hashes, and SQL block hashes for all discovered files. Note: comparing hashes against the repository requires the separate `validate-hash` command or running in Simulate/Migrate mode, since Validate does not connect to the repository.
+- **Hash computation** -- Computes file hashes, config hashes, and SQL block hashes for all discovered files. Note: comparing hashes against the repository requires the separate `validate-hash` command or running in Simulate/Migrate mode, since Validate does not read the repository.
 - **Missing rollback files** -- If `RequireRollbackFile` is enabled, validates that every migration has a corresponding rollback file.
 - **TOML metadata parsing** -- Verifies that all migration file headers contain valid TOML metadata.
 
@@ -72,7 +74,7 @@ raymigrator migrate-up -p BookStore -env Staging -rm simulate
 - To test the end-to-end flow without risk
 - When onboarding a new target group and want to verify configuration
 
-> **Note:** Simulate reads existing repository records to determine what is already migrated, but does not write any new records. Subsequent migrate-up calls will still see all pending migrations as pending, making `migrate-up` and `migrate-down` in Simulate mode free of side effects on the repository: it is neither created nor written. Note that `info`, `validate-hash`, `update-hash`, `baseline` and `fix` (also `fix --run-mode simulate`) create the repository schema and tables on first contact because their read paths need the tables; that creation is logged at Information level.
+> **Note:** Simulate reads existing repository records to determine what is already migrated, but does not write any new records. Subsequent migrate-up calls will still see all pending migrations as pending, making `migrate-up` and `migrate-down` in Simulate mode free of side effects on the repository: it is neither created nor written. Note that `info`, `validate-hash`, `update-hash`, `baseline` and `fix` (also `fix --run-mode simulate`) create the repository schema and tables on first contact because their read paths need the tables; that creation is logged at Information level. The database log is set up in every run mode (see the note under [The Three Run Modes](#the-three-run-modes)).
 
 ---
 

@@ -538,8 +538,10 @@ public class ScenarioBuilder
 
     /// <summary>
     /// Replaces the connection string of the main target (MainDB) while the repository keeps using the
-    /// fixture's connection string. The target is neither cleaned nor touched by the builder, so an
-    /// unreachable connection string can be used to prove that a command never connects to its targets (#6).
+    /// fixture's connection string. A target that differs from the repository is cleaned by
+    /// <see cref="BuildAsync"/> before the scenario starts, without the table prefix of the scenario, and the
+    /// cleanup swallows its database errors, so an unreachable connection string can be used to prove that a
+    /// command never connects to its targets (#6).
     /// </summary>
     public ScenarioBuilder WithTargetConnectionString(string connectionString)
     {

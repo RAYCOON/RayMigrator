@@ -81,19 +81,21 @@ The repository contains these tables:
 
 | Table | Purpose |
 |-------|---------|
-| `MigratorMeta` | Tracks repository schema version, database type, and the RayMigrator application version that created it. |
+| `RepositorySchemaVersion` | One row per applied schema version. A newer RayMigrator upgrades an older repository in numbered steps; this version expects schema version 3. |
+| `MigratorMeta` | Lists the RayMigrator versions that used the repository, with the database type; the first row is the version that created it. |
 | `Product` | One record per product alias. Links migrations to the product they belong to. |
 | `Environment` | One record per environment value (e.g., Development, Production). Referenced by `MigrationRun`, `MigrationRecord`, and `MigrationRecordHistory`. |
-| `MigrationRun` | One record per execution of `migrate-up` or `migrate-down`. Records start time, end time, and overall result. |
+| `MigrationRun` | One record per execution of `migrate-up`, `migrate-down` or `baseline`. Records start time, end time, and overall result. |
 | `MigrationRunMeta` | One-to-one with `MigrationRun`. Stores the serialized settings JSON and an optional description. |
 | `MigrationRecord` | One record per migration file per target. Records file path, hash, status, execution timestamps. |
 | `MigrationRecordHistory` | Audit log for MigrationRecord entries. Each time a migration reaches a terminal state (Migrated, Failed, or NotMigrated), the current state of that `MigrationRecord` row is copied here. The original `MigrationRecord` is retained and may be reused (reset) on future runs. See [Repository Schema](../03-database-layer/repository-schema.md). |
 | `MigrationRunMode` | Lookup table for run modes: Validate (10), Simulate (20), Migrate (100). |
 | `MigrationOperation` | Lookup table for operation types: Rollback (5), MigrateDown (50), MigrateUp (100), Baseline (110). |
-| `MigrationRunResult` | Lookup table for run outcomes: Running (10), PartialSuccess (50), Recovered (80), Error (90), Ok (100). |
+| `MigrationRunResult` | Lookup table for run outcomes: Running (10), PartialSuccess (50), Cancelled (70), Recovered (80), Error (90), Ok (100). `Cancelled` is a run that Ctrl+C or SIGTERM stopped (see [Chapter 8](08-error-handling.md#stopping-a-run-with-ctrlc)). |
+| `MigrationRunSource` | Lookup table for where a run was started: Cli, Ci, Studio. |
 | `MigrationStatus` | Lookup table for per-file statuses (see next section). |
 
-The repository is created automatically on the first migration run. RayMigrator checks for the configured schema and creates it along with all required tables if they do not exist.
+The repository is created automatically on the first migration run. RayMigrator checks for the configured schema and creates it along with all required tables if they do not exist. A repository that RayMigrator 0.17.0 or later created is upgraded in place by the first command of a newer version that checks it (every command except a migrate-up or migrate-down in Simulate or Validate mode); the data stays. A repository from before 0.17.0 has no schema version and is refused (see [Troubleshooting](../appendix/troubleshooting.md#repository-created-by-an-older-raymigrator-version)).
 
 > **Tip:** The repository provides the audit trail. To see the history of all migration runs, query the `MigrationRun` table in your configured repository schema. To see which files have been applied to which targets, query the `MigrationRecord` table.
 

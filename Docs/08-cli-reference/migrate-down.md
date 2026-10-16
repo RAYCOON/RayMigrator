@@ -35,7 +35,7 @@ The `migrate-down` command reverses previously applied migrations by executing t
 
 | Mode | Description |
 |------|-------------|
-| `validate` | Validates rollback file existence and parseability without any database connections |
+| `validate` | Validates rollback file existence and parseability without connecting to the targets or reading the repository; with database logging on (the default) the start initializes the log database, which once after the update to 0.20.0 creates the two indexes of `MigrationLog` |
 | `simulate` | Validates and processes everything, reads repository records, but does not write repository records or execute rollback SQL on targets |
 | `migrate` | Validates, then performs actual rollback against target databases |
 
@@ -43,7 +43,7 @@ See [Execution Modes — Run Mode](../02-core-concepts/execution-modes.md#run-mo
 
 ### Cancelling
 
-The first Ctrl+C or SIGTERM stops a migrate-down at the next rollback block (the first block of a rollback file always completes), leaves the record in progress `Failed` with its rollback blocks, records the run as `Cancelled` and ends the process with exit code `130`; the next migrate-down continues the record. `--cancelled-action` has no effect here, because migrate-down is a rollback already. A second Ctrl+C or SIGTERM ends the process at once and leaves the run open for `fix`. See [Global Options — Cancelling a Run](global-options.md#cancelling-a-run).
+The first Ctrl+C or SIGTERM stops a migrate-down at the next rollback block (the first block of a rollback file, an atomic rollback and a rollback through a CLI tool always complete), leaves the record in progress `Failed` with its rollback blocks, records the run as `Cancelled` and ends the process with exit code `130`; the next migrate-down continues the record, and until then migrate-up refuses to run that file. `--cancelled-action` has no effect here, because migrate-down is a rollback already. A second Ctrl+C or SIGTERM ends the process at once and leaves the run open for `fix`. See [Global Options — Cancelling a Run](global-options.md#cancelling-a-run).
 
 ## Examples
 

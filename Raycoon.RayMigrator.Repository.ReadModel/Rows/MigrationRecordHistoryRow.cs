@@ -2,7 +2,10 @@ using Raycoon.RayMigrator.Core.Configuration.Enums;
 
 namespace Raycoon.RayMigrator.Repository.ReadModel;
 
-/// <summary>A former state of a migration record, copied before the record changed.</summary>
+/// <summary>
+/// A terminal state of a migration record (Migrated, NotMigrated or Failed), copied when the record reached it, with the
+/// run that caused the transition.
+/// </summary>
 public sealed record MigrationRecordHistoryRow(
     int Id,
     int MigrationRecordId,

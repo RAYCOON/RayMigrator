@@ -156,7 +156,7 @@ public class MigrationStatusInfo
     /// TargetGroupMigrationOrder (the migsettings of the release, else the product), otherwise in configuration order;
     /// within a target group file by file or target by target as its TargetMigrationOrder says, the targets in
     /// configuration order. This is the order of a migrate-up without <c>--target-group-migration-order</c>; a run with
-    /// <c>--to-release</c> or <c>--target-groups</c> runs a part of the list. Files of a release older than what a
+    /// <c>--to-release</c> or <c>--target-group</c> runs a part of the list. Files of a release older than what a
     /// target has migrated are listed as well, although migrate-up refuses them without <c>--allow-out-of-order</c>.
     /// </remarks>
     public List<PendingMigrationInfo> PendingFiles { get; set; } = [];
@@ -271,7 +271,7 @@ public class OrphanedRunInfo
     public int MigrationRunModeId { get; set; }
     public bool WasFixed { get; set; }
 
-    /// <summary>When the run last reported that it was alive; null for a run that never wrote a heartbeat.</summary>
+    /// <summary>When the run last reported that it was alive: its start until the first heartbeat; null only for a run row written without it.</summary>
     public DateTime? LastHeartbeatAt { get; set; }
 
     /// <summary>Minutes since the last heartbeat, or since the start for a run without one; the age <c>--older-than</c> compares.</summary>

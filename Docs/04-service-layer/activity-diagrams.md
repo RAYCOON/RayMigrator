@@ -1,6 +1,6 @@
 # Command Activity Diagrams
 
-Activity diagrams for the main migration commands. All flows are implemented in `MigrationService.cs` within the Services project.
+Activity diagrams for the main migration commands. All flows are implemented in `MigrationService.cs` within the Services project. Every flow checks the token of the run at its checkpoints (before every file, target and block); the cancel paths are drawn in the diagrams, the semantics are described in [Error Handling: Cancellation](../02-core-concepts/error-handling.md#cancellation).
 
 ## migrate-up
 
@@ -11,15 +11,15 @@ flowchart TD
     Start([MigrateUpAsync]) --> P1["<b>Phase 1: Initialization</b><br/>MigrationRunResult = Running<br/>MigrationOperation = MigrateUp"]
     P1 --> ShouldWrite{RunMode = Migrate?}
 
-    ShouldWrite -->|Yes| RepoInit["RepositoryCheckCreate()<br/>RepositoryProductCheckInsert()<br/>RepositoryEnvironmentCheckInsert()<br/>RepositoryMigrationGetInterrupted()<br/>BuildMigrationRunSettingsJson()<br/>RepositoryMigrationRunInsertWithAutoFix()"]
+    ShouldWrite -->|Yes| RepoInit["RepositoryCheckCreateAsync()<br/>RepositoryProductCheckInsertAsync()<br/>RepositoryEnvironmentCheckInsertAsync()<br/>RepositoryMigrationGetInterruptedAsync()<br/>BuildMigrationRunSettingsJson()<br/>RepositoryMigrationRunInsertWithAutoFix()"]
     ShouldWrite -->|No| P2
     RepoInit --> P2
 
     P2["<b>Phase 2: File Discovery</b><br/>DiscoverAndPrepareMigrationFiles()"] --> FilesExist{Files found?}
-    FilesExist -->|No| EarlyOk1["RepositoryMigrationRunUpdate(Ok)<br/>Return Success"]
+    FilesExist -->|No| EarlyOk1["RepositoryMigrationRunUpdateAsync(Ok)<br/>Return Success"]
 
     FilesExist -->|Yes| ShouldRead{RunMode ≥ Simulate?}
-    ShouldRead -->|Yes| QueryRepo["RepositoryMigrationSelect()<br/>FilterAlreadyMigratedFiles()"]
+    ShouldRead -->|Yes| QueryRepo["RepositoryMigrationSelectAsync()<br/>FilterAlreadyMigratedFiles()"]
     ShouldRead -->|No/Validate| UseAll["Use all discovered files"]
     QueryRepo --> ApplyFilters
     UseAll --> ApplyFilters
@@ -28,11 +28,14 @@ flowchart TD
     DetectOOO --> HasOOO{Out-of-order?}
     HasOOO -->|Yes, no flag| ThrowOOO(["Throw: use --allow-out-of-order"])
     HasOOO -->|Yes, flag set| WarnOOO["Log warning, continue"]
-    HasOOO -->|No| FilesRemain
-    WarnOOO --> FilesRemain
+    HasOOO -->|No| CheckRollback
+    WarnOOO --> CheckRollback
+    CheckRollback{"FindIncompleteRollbacks():<br/>a record Failed in the middle of its rollback?"}
+    CheckRollback -->|Yes| ThrowRollback(["Throw: complete the rollback with migrate-down"])
+    CheckRollback -->|No| FilesRemain
 
     FilesRemain{Files remaining?}
-    FilesRemain -->|No| EarlyOk2["RepositoryMigrationRunUpdate(Ok)<br/>Return Success"]
+    FilesRemain -->|No| EarlyOk2["RepositoryMigrationRunUpdateAsync(Ok)<br/>Return Success"]
     FilesRemain -->|Yes| SafetyWarn["LogMigrationSafetyWarnings()"]
 
     SafetyWarn --> P3["<b>Phase 3: Execute Migrations</b>"]
@@ -47,21 +50,26 @@ flowchart TD
     OrderCheck -->|FileByFile| ExecSimul["ExecuteTargetGroupFileByFile()<br/>Loop: File → Target"]
     OrderCheck -->|TargetByTarget| ExecSucc["ExecuteTargetGroupTargetByTarget()<br/>Loop: Target → File"]
 
-    ExecSimul --> TGResult{result.Success?}
-    ExecSucc --> TGResult
+    ExecSimul --> TGCancelled{result.Cancelled?}
+    ExecSucc --> TGCancelled
+    TGCancelled -->|Yes| CompleteCancel["CompleteCancelledMigrateUpAsync()<br/>HandleCancelActionAsync() without the token<br/>RepositoryMigrationRunUpdateAsync(Cancelled, 1004)<br/>or (Error, 1005)"]
+    CompleteCancel --> ReturnCancel["Return Result = Cancelled or Error"]
+    TGCancelled -->|No| TGResult{result.Success?}
 
     TGResult -->|Yes| AccumOk["Accumulate counts"]
     AccumOk --> TGLoop
 
-    TGResult -->|No| HandleErr["HandleMigrationError()<br/>RepositoryMigrationRunUpdate(Error)"]
-    HandleErr --> ReturnErr["Return Result = Error"]
+    TGResult -->|No| HandleErr["HandleMigrationError() with the token<br/>RepositoryMigrationRunUpdateAsync(Recovered, or Error<br/>with the code of the failure, also when a cancel stopped the recovery)"]
+    HandleErr --> ReturnErr["Return Result = Recovered or Error"]
 
     TGLoop -->|exhausted| ReleaseLoop
     ReleaseLoop -->|exhausted| P5
 
     P5["<b>Phase 5: Finalization</b>"] --> FinalCheck{failedMigrations > 0?}
-    FinalCheck -->|Yes| FinalErr["RepositoryMigrationRunUpdate(Error)"]
-    FinalCheck -->|No| FinalOk["RepositoryMigrationRunUpdate(Ok)"]
+    FinalCheck -->|Yes| FinalErr["RepositoryMigrationRunUpdateAsync(PartialSuccess)<br/>(MigrationErrorAction=Ignore)"]
+    FinalCheck -->|No| FinalOk["RepositoryMigrationRunUpdateAsync(Ok)"]
+
+    P1 -.->|"cancel before a file:<br/>OperationCanceledException"| CompleteCancel
 
     style Start fill:#e1f5fe
     style EarlyOk1 fill:#c8e6c9
@@ -70,6 +78,7 @@ flowchart TD
     style ThrowOOO fill:#ffcdd2
     style ReturnErr fill:#ffcdd2
     style FinalErr fill:#ffcdd2
+    style ReturnCancel fill:#fff3e0
 ```
 
 ### TargetGroup Execution (FileByFile Mode)
@@ -83,11 +92,12 @@ flowchart TD
     FileLoop --> ResolveErr["Resolve MigrationErrorAction:<br/>file TOML override ?? product level"]
     ResolveErr --> TargetLoop{"foreach Target"}
 
-    TargetLoop --> TryFinalize["TryFinalizeCompletedMigration()"]
+    TargetLoop --> Checkpoint["Checkpoint:<br/>token cancelled → OperationCanceledException"]
+    Checkpoint --> TryFinalize["TryFinalizeCompletedMigrationAsync()"]
     TryFinalize --> WasFinalized{Already<br/>complete?}
     WasFinalized -->|Yes| AddRecovered["Add to successfullyMigratedRecords"]
     AddRecovered --> TargetLoop
-    WasFinalized -->|No| InsertMig["RepositoryMigrationInsert()"]
+    WasFinalized -->|No| InsertMig["RepositoryMigrationInsertAsync()"]
 
     InsertMig --> CliCheck{UseCliToolAlias?}
     CliCheck -->|Yes| ExecCli["ExecuteWithCliTool()"]
@@ -114,13 +124,19 @@ flowchart TD
         IsIgnore -->|No| AbortTG["result.Success = false<br/>Return immediately"]
     end
 
+    subgraph Cancel Path
+        CatchCancel["OperationCanceledException<br/>while the token is cancelled"] --> CompleteFile["CompleteCancelledFileAsync():<br/>record → Failed with the committed blocks<br/>(the block count under Ignore)<br/>FileOutcome.Cancelled"]
+        CompleteFile --> ReturnCancelled["result.Cancelled = true<br/>Return immediately"]
+    end
+
     style ReturnOk fill:#c8e6c9
     style AbortTG fill:#ffcdd2
+    style ReturnCancelled fill:#fff3e0
 ```
 
 ### Error Handling (HandleMigrationError)
 
-When a TargetGroup execution fails (non-Ignore), this method determines the rollback scope based on the resolved `MigrationErrorAction`.
+When a TargetGroup execution fails (non-Ignore), this method determines the rollback scope based on the resolved `MigrationErrorAction`. The rollback actions go through `HandleStopAsync`, which also runs the rollback of a cancel action (`HandleCancelActionAsync` maps `RollbackRun`, `RollbackFile` and `RollbackRelease` to `Rollback`, `RollbackErrorOnly` and `RollbackRelease` and passes `CancellationToken.None`).
 
 ```mermaid
 flowchart TD
@@ -130,16 +146,16 @@ flowchart TD
 
     Switch -->|Ignore| LogIgnore["Log debug<br/>No rollback<br/>Continue execution"]
 
-    Switch -->|RollbackErrorOnly| BuildOne["Rollback list:<br/>failed file only"]
+    Switch -->|RollbackErrorOnly| BuildOne["HandleStopAsync() rollback list:<br/>failed file only"]
     BuildOne --> ExecRB
 
-    Switch -->|RollbackRelease| BuildRelease["Rollback list:<br/>failed file +<br/>all files from same Release<br/>(reverse order)"]
+    Switch -->|RollbackRelease| BuildRelease["HandleStopAsync() rollback list:<br/>failed file +<br/>this run's files of the same Release<br/>(reverse order)"]
     BuildRelease --> ExecRB
 
-    Switch -->|Rollback| BuildAll["Rollback list:<br/>failed file +<br/>ALL successfully migrated files<br/>(reverse order)"]
+    Switch -->|Rollback| BuildAll["HandleStopAsync() rollback list:<br/>failed file +<br/>ALL successfully migrated files<br/>(reverse order)"]
     BuildAll --> ExecRB
 
-    ExecRB["ExecuteRollbackForMigrations()"]
+    ExecRB["ExecuteRollbackForMigrations()<br/>(with the run's token)"]
 
     style LogTerminate fill:#fff3e0
     style LogIgnore fill:#fff3e0
@@ -148,13 +164,15 @@ flowchart TD
 
 ### Rollback Execution (ExecuteRollbackForMigrations)
 
-Shared by both migrate-up (error recovery) and migrate-down (explicit rollback). Processes records in the provided order and is fail-fast by default.
+Shared by both migrate-up (error recovery and the rollback of a cancel action) and migrate-down (explicit rollback). Processes records in the provided order and is fail-fast by default.
 
 ```mermaid
 flowchart TD
     Start([ExecuteRollbackForMigrations]) --> RecordLoop{"foreach Record"}
 
-    RecordLoop --> FindFile["Locate rollback file"]
+    RecordLoop --> RecordCancel{Token cancelled?}
+    RecordCancel -->|Yes| StopCancelled(["result.Cancelled = true<br/>record and the rest keep their state"])
+    RecordCancel -->|No| FindFile["Locate rollback file"]
     FindFile --> FileExists{Rollback file<br/>exists?}
 
     FileExists -->|No| ReqCheck{RequireRollbackFile?}
@@ -167,7 +185,7 @@ flowchart TD
     WarnSkip --> RecordLoop
 
     FileExists -->|Yes| ParseFile["ParseMigrationFile()"]
-    ParseFile --> UpdateMeta["RepositoryMigrationUpdateRollback()<br/>status = Executing"]
+    ParseFile --> UpdateMeta["RepositoryMigrationUpdateRollbackAsync()<br/>status = Executing"]
     UpdateMeta --> ShouldExec{RunMode = Migrate?}
 
     ShouldExec -->|No| SkipExec["Skip SQL execution"]
@@ -180,7 +198,9 @@ flowchart TD
     CliOk -->|No| BlockError["fileHadBlockError = true"]
     BlockError --> SkipExec
 
-    BlockLoop --> ExecBlock["ExecuteNonQueryAsync()"]
+    BlockLoop --> BlockCancel{"Token cancelled<br/>(not before block 1)?"}
+    BlockCancel -->|Yes| StopBlock(["StopCancelledRollbackAsync():<br/>record → Failed with the rollback blocks that ran<br/>result.Cancelled = true"])
+    BlockCancel -->|No| ExecBlock["ExecuteNonQueryAsync()"]
     ExecBlock --> BlockOk["Update rollback progress"]
     BlockOk --> BlockLoop
 
@@ -202,7 +222,11 @@ flowchart TD
     style StopChain fill:#fff3e0
     style AbortBlock fill:#ffcdd2
     style ReturnResult fill:#c8e6c9
+    style StopCancelled fill:#fff3e0
+    style StopBlock fill:#fff3e0
 ```
+
+The atomic rollback and a rollback through a CLI tool run without the token and always complete; the cancel takes effect before the next record.
 
 ---
 
@@ -223,25 +247,29 @@ flowchart TD
     ValParse --> ValLoop
     ValLoop -->|done| ValReturn(["Return validation result"])
 
-    ValidateMode -->|No| P1["<b>Phase 1: Initialization</b><br/>RepositoryCheckCreate()<br/>RepositoryProductCheckInsert()<br/>RepositoryEnvironmentCheckInsert()<br/>MigrationRunResult = Running<br/>MigrationOperation = MigrateDown<br/>RepositoryMigrationRunInsertWithAutoFix()"]
+    ValidateMode -->|No| P1["<b>Phase 1: Initialization</b><br/>RepositoryCheckCreateAsync()<br/>RepositoryProductCheckInsertAsync()<br/>RepositoryEnvironmentCheckInsertAsync()<br/>MigrationRunResult = Running<br/>MigrationOperation = MigrateDown<br/>RepositoryMigrationRunInsertWithAutoFix()"]
 
-    P1 --> P2["<b>Phase 2: Query Repository</b><br/>RepositoryMigrationSelect()"]
+    P1 --> P2["<b>Phase 2: Query Repository</b><br/>RepositoryMigrationSelectAsync()"]
     P2 --> FilterRollback["Filter records:<br/>Status = Migrated or partial<br/>Release > target release<br/>Match --target-group filter<br/>Order by FileOrderId DESC"]
 
     FilterRollback --> HasRecords{Records to<br/>rollback?}
-    HasRecords -->|No| EarlyOk["RepositoryMigrationRunUpdate(Ok)<br/>Already at target release"]
+    HasRecords -->|No| EarlyOk["RepositoryMigrationRunUpdateAsync(Ok)<br/>Already at target release"]
 
-    HasRecords -->|Yes| P3["<b>Phase 3: Execute Rollbacks</b><br/>ExecuteRollbackForMigrations()"]
+    HasRecords -->|Yes| P3["<b>Phase 3: Execute Rollbacks</b><br/>ExecuteRollbackForMigrations() with the token"]
 
-    P3 --> FinalCheck{All successful?}
-    FinalCheck -->|Yes| FinalOk["RepositoryMigrationRunUpdate(Ok)"]
-    FinalCheck -->|No| FinalErr["RepositoryMigrationRunUpdate(Error)"]
+    P3 --> Cancelled{rollbackResult.Cancelled?}
+    Cancelled -->|Yes| FinalCancel["RepositoryMigrationRunUpdateAsync(Cancelled, 1004)<br/>the action is ignored"]
+    Cancelled -->|No| FinalCheck{rollbackResult.RunResult}
+    FinalCheck -->|Ok| FinalOk["RepositoryMigrationRunUpdateAsync(Ok)"]
+    FinalCheck -->|PartialSuccess| FinalPartial["RepositoryMigrationRunUpdateAsync(PartialSuccess)<br/>skipped or ignored rollbacks"]
+    FinalCheck -->|Error| FinalErr["RepositoryMigrationRunUpdateAsync(Error)"]
 
     style Start fill:#e1f5fe
     style ValReturn fill:#c8e6c9
     style EarlyOk fill:#c8e6c9
     style FinalOk fill:#c8e6c9
     style FinalErr fill:#ffcdd2
+    style FinalCancel fill:#fff3e0
 ```
 
 **Key difference from migrate-up**: migrate-down operates on a flat list of repository records (ordered by FileOrderId descending), not the nested Release → TargetGroup → Target loop structure.
@@ -254,19 +282,19 @@ Baseline marks migration files as applied in the repository **without executing 
 
 ```mermaid
 flowchart TD
-    Start([BaselineAsync]) --> P1["<b>Phase 1: Initialization</b><br/>RepositoryCheckCreate()<br/>RepositoryProductCheckInsert()<br/>RepositoryEnvironmentCheckInsert()<br/>MigrationRunResult = Running<br/>MigrationOperation = Baseline<br/>RepositoryMigrationRunInsertWithAutoFix()"]
+    Start([BaselineAsync]) --> P1["<b>Phase 1: Initialization</b><br/>RepositoryCheckCreateAsync()<br/>RepositoryProductCheckInsertAsync()<br/>RepositoryEnvironmentCheckInsertAsync()<br/>MigrationRunResult = Running<br/>MigrationOperation = Baseline<br/>RepositoryMigrationRunInsertWithAutoFix()"]
 
     P1 --> P2["<b>Phase 2: File Discovery</b><br/>DiscoverAndPrepareMigrationFiles()"]
     P2 --> FilesExist{Files found?}
-    FilesExist -->|No| EarlyOk1["RepositoryMigrationRunUpdate(Ok)"]
+    FilesExist -->|No| EarlyOk1["RepositoryMigrationRunUpdateAsync(Ok)"]
 
     FilesExist -->|Yes| P3["<b>Phase 3: Filter</b><br/>FilterByTargetRelease()<br/>ValidateTargetGroupAliases()<br/>FilterByTargetGroups()"]
     P3 --> FilteredExist{Files after<br/>filter?}
-    FilteredExist -->|No| EarlyOk2["RepositoryMigrationRunUpdate(Ok)"]
+    FilteredExist -->|No| EarlyOk2["RepositoryMigrationRunUpdateAsync(Ok)"]
 
-    FilteredExist -->|Yes| QueryRepo["RepositoryMigrationSelect()<br/>FilterAlreadyMigratedFiles()"]
+    FilteredExist -->|Yes| QueryRepo["RepositoryMigrationSelectAsync()<br/>FilterAlreadyMigratedFiles()"]
     QueryRepo --> StillRemain{Files after<br/>dedup?}
-    StillRemain -->|No| EarlyOk3["RepositoryMigrationRunUpdate(Ok)"]
+    StillRemain -->|No| EarlyOk3["RepositoryMigrationRunUpdateAsync(Ok)"]
 
     StillRemain -->|Yes| P4["<b>Phase 4: Record as Migrated</b>"]
 
@@ -283,7 +311,7 @@ flowchart TD
     SimulOrder --> BaselineFile
     SuccOrder --> BaselineFile
 
-    BaselineFile["<b>BaselineFile()</b><br/>1. RepositoryMigrationInsert()<br/>2. RepositoryMigrationUpdate(<br/>   status = Migrated,<br/>   blocks = allBlocks)<br/><i>No SQL execution</i>"]
+    BaselineFile["<b>BaselineFile()</b><br/>0. Checkpoint (cancel → run Cancelled, records so far stay Migrated)<br/>1. RepositoryMigrationInsertAsync()<br/>2. RepositoryMigrationUpdateAsync(<br/>   status = Migrated,<br/>   blocks = allBlocks)<br/><i>No SQL execution</i>"]
 
     BaselineFile --> MorePairs{More pairs?}
     MorePairs -->|Yes| BaselineFile
@@ -292,7 +320,7 @@ flowchart TD
     TGLoop -->|exhausted| ReleaseLoop
     ReleaseLoop -->|exhausted| P5
 
-    P5["<b>Phase 5: Finalization</b><br/>RepositoryMigrationRunUpdate(Ok)"] --> ReturnOk(["Return BaselineResult"])
+    P5["<b>Phase 5: Finalization</b><br/>RepositoryMigrationRunUpdateAsync(Ok)"] --> ReturnOk(["Return BaselineResult (Result = Ok)"])
 
     style Start fill:#e1f5fe
     style EarlyOk1 fill:#c8e6c9

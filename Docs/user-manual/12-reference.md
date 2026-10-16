@@ -34,12 +34,13 @@ All CLI-relevant enums are documented in the [Enum Reference](../08-cli-referenc
 - **MigrationCommand** — CLI commands (`None` = 0, `MigrateUp` = 1, `MigrateDown` = 2, `ValidateHash` = 3, `UpdateHash` = 4, `info` = 5, `baseline` = 6, `FixIssues` = 7)
 - **MigrationRunMode** — Execution modes (`Undefined` = 0, `Validate` = 10, `Simulate` = 20, `Migrate` = 100)
 - **MigrationErrorAction** — Error handling (`Undefined` = 0, `Terminate` = 10, `Rollback` = 20, `RollbackErrorOnly` = 21, `RollbackRelease` = 22, `Ignore` = 30)
+- **MigrationCancelledAction** — What a cancelled migrate-up does after it stopped, set with `--cancelled-action` (`Undefined` = 0, `Terminate` = 10, `RollbackRun` = 20, `RollbackFile` = 21, `RollbackRelease` = 22). See [Cancelling a Run](../08-cli-reference/global-options.md#cancelling-a-run)
 - **RollbackErrorAction** — Rollback error handling (`Undefined` = 0, `Terminate` = 10, `Ignore` = 30). See [Error Handling](../02-core-concepts/error-handling.md#rollback-error-handling)
 - **TargetMigrationOrder** — Target iteration order (`Undefined` = 0, `FileByFile` = 1, `TargetByTarget` = 2)
 - **HashValidationScope** — Hash granularity (`Undefined` = 0, `File` = 1, `SqlBlocks` = 2, `Disabled` = 3)
 - **FixScope** — Fix scope (`Undefined` = 0, `All` = 1, `OrphanedRuns` = 2)
 - **MigrationStatus** — Per-migration record status (`Undefined` = 0, `Pending` = 10, `Executing` = 20, `Failed` = 30, `NotMigrated` = 50, `Migrated` = 100)
-- **MigrationRunResult** — Per-run result status (`Undefined` = 0, `Running` = 10, `PartialSuccess` = 50, `Recovered` = 80, `Error` = 90, `Ok` = 100)
+- **MigrationRunResult** — Per-run result status (`Undefined` = 0, `Running` = 10, `PartialSuccess` = 50, `Cancelled` = 70, `Recovered` = 80, `Error` = 90, `Ok` = 100)
 - **MigrationOperation** — Repository operation types (`Undefined` = 0, `Rollback` = 5, `MigrateDown` = 50, `MigrateUp` = 100, `Baseline` = 110). Used in the `MigrationOperation` lookup table in the repository.
 - **CliToolInputMode** — How SQL files are passed to external CLI tools (`Undefined` = 0, `File` = 1, `Stdin` = 2). Required, no default. See [CLI Tools Options](../06-configuration-reference/cli-tools-options.md)
 
@@ -47,7 +48,7 @@ All CLI-relevant enums are documented in the [Enum Reference](../08-cli-referenc
 
 ## Exit Codes
 
-Exit codes are documented in [Global Options — Exit Codes](../08-cli-reference/global-options.md#exit-codes).
+Exit codes are documented in [Global Options — Exit Codes](../08-cli-reference/global-options.md#exit-codes); `130` is a command that Ctrl+C or SIGTERM cancelled ([Cancelling a Run](../08-cli-reference/global-options.md#cancelling-a-run)).
 
 ---
 

@@ -115,10 +115,11 @@ sequenceDiagram
     alt RunMode != Migrate (Validate/Simulate)
         Svc->>Svc: Log simulation info
         loop For each block (startFromBlock..N-1)
+            Svc->>Svc: Checkpoint: cancellationToken.ThrowIfCancellationRequested()
             Svc->>Svc: ReplaceEnvironmentVariablesInSqlBlock()
             Svc->>Ctx: Update MigrationState.FileBlockId
             opt RunMode.ShouldWriteRepository()
-                Svc->>Tmpl: RepositoryMigrationUpdate(migrationRecordId, Executing, blockIndex+1)
+                Svc->>Tmpl: RepositoryMigrationUpdateAsync(migrationRecordId, Executing, blockIndex+1)
                 Tmpl->>Repo: Update block progress
             end
         end
@@ -134,19 +135,23 @@ sequenceDiagram
         Svc-->>Svc: Return (succeededBlocks, 0, true)
     else Standard path
         loop For each block (startFromBlock..N-1)
+            Svc->>Svc: Checkpoint: cancellationToken.ThrowIfCancellationRequested()
             Svc->>Svc: ReplaceEnvironmentVariablesInSqlBlock()
             Svc->>Ctx: Update MigrationState.FileBlockId
-            Svc->>DAL: ExecuteNonQueryAsync(sqlBlock, dalSettings)
+            Svc->>DAL: ExecuteNonQueryAsync(sqlBlock, dalSettings, cancellationToken)
             DAL->>DAL: Handle transaction internally (based on DalSettings.UseTransaction)
-            alt ignoreBlockErrors=true and block fails
+            alt ignoreBlockErrors=true and block fails (not cancelled)
                 Svc->>Svc: Log warning, increment failedBlocks
             end
-            Svc->>Tmpl: RepositoryMigrationUpdate(migrationRecordId, Executing, blockIndex+1)
-            Tmpl->>Repo: Update block progress (called even on ignored block failure)
+            Svc->>Ctx: MigrationState.FileBlocksCommitted = blockIndex+1 (block succeeded)
+            Svc->>Tmpl: RepositoryMigrationUpdateAsync(migrationRecordId, Executing, blockIndex+1)
+            Tmpl->>Repo: Update block progress (called even on ignored block failure; no token)
         end
         Svc-->>Svc: Return (succeededBlocks, failedBlocks, false)
     end
 ```
+
+A cancel ends `ExecuteSqlBlocks` with an `OperationCanceledException`, before the next block or from the block in progress; see [Cancellation at Block Boundaries](#cancellation-at-block-boundaries).
 
 Transaction handling is delegated to the DAL layer via `DalSettings.UseTransaction` in the standard path. When the target and repository share the same connection string, `ExecuteSqlBlocksAtomic` is used instead — all blocks and repository updates execute in a single database transaction. Block iteration starts from `startFromBlock` (default 0), which is computed by `FindResumableBlock()` to support resuming partially-executed migrations. See [Atomic Shared Connection](migration-service.md#atomic-shared-connection-execution) for details.
 
@@ -189,7 +194,8 @@ internal async Task<(int succeededBlocks, int failedBlocks, bool atomicCommitCom
     int migrationRecordId,
     MigrationRunMode runMode,
     bool ignoreBlockErrors = false,
-    int startFromBlock = 0)
+    int startFromBlock = 0,
+    CancellationToken cancellationToken = default)
 {
     int succeededBlocks = 0;
     int failedBlocks = 0;
@@ -206,14 +212,17 @@ internal async Task<(int succeededBlocks, int failedBlocks, bool atomicCommitCom
         // Validate/Simulate mode: log blocks without executing SQL; repository block-progress updates only in Migrate mode
         for (int i = startFromBlock; i < file.SqlBlocks.Count; i++)
         {
+            // Checkpoint: a cancelled run stops before the next block
+            cancellationToken.ThrowIfCancellationRequested();
+
             string sqlBlock = ReplaceEnvironmentVariablesInSqlBlock(
                 file.SqlBlocks[i], file.Filename, i + 1, file.FileUpBlocksTotal);
             _ctxAccessor.Current.MigrationState.FileBlockId = i + 1;
 
             if (runMode.ShouldWriteRepository())
             {
-                await Task.Run(() => _templateExecutor.RepositoryMigrationUpdate(
-                    migrationRecordId, MigrationStatus.Executing, i + 1));
+                await _templateExecutor.RepositoryMigrationUpdateAsync(
+                    migrationRecordId, MigrationStatus.Executing, i + 1);
             }
             succeededBlocks++;
         }
@@ -243,10 +252,16 @@ internal async Task<(int succeededBlocks, int failedBlocks, bool atomicCommitCom
         targetGroupOptions.DatabaseType!, ignoreBlockErrors);
 
     if (useSharedConnection)
-        return await ExecuteSqlBlocksAtomic(file, targetDal!, dalSettings, migrationRecordId, runMode, startFromBlock);
+        return await ExecuteSqlBlocksAtomic(file, targetDal!, dalSettings, migrationRecordId, runMode, startFromBlock, cancellationToken);
+
+    // Blocks before startFromBlock were committed by a previous run; every block below commits on its own
+    _ctxAccessor.Current.MigrationState.FileBlocksCommitted = startFromBlock;
 
     for (int blockIndex = startFromBlock; blockIndex < file.SqlBlocks.Count; blockIndex++)
     {
+        // Checkpoint: a cancelled run stops before the next block; the blocks before it are committed
+        cancellationToken.ThrowIfCancellationRequested();
+
         string sqlBlock = ReplaceEnvironmentVariablesInSqlBlock(
             file.SqlBlocks[blockIndex], file.Filename, blockIndex + 1, file.FileUpBlocksTotal);
         _ctxAccessor.Current.MigrationState.FileBlockId = blockIndex + 1;
@@ -255,10 +270,11 @@ internal async Task<(int succeededBlocks, int failedBlocks, bool atomicCommitCom
         {
             try
             {
-                await targetDal!.ExecuteNonQueryAsync(sqlBlock, dalSettings);
+                await targetDal!.ExecuteNonQueryAsync(sqlBlock, dalSettings, cancellationToken: cancellationToken);
                 succeededBlocks++;
+                _ctxAccessor.Current.MigrationState.FileBlocksCommitted = blockIndex + 1;
             }
-            catch (Exception blockEx)
+            catch (Exception blockEx) when (!cancellationToken.IsCancellationRequested)
             {
                 failedBlocks++;
                 _logger.LogWarning(blockEx,
@@ -268,20 +284,21 @@ internal async Task<(int succeededBlocks, int failedBlocks, bool atomicCommitCom
         }
         else
         {
-            await targetDal!.ExecuteNonQueryAsync(sqlBlock, dalSettings);
+            await targetDal!.ExecuteNonQueryAsync(sqlBlock, dalSettings, cancellationToken: cancellationToken);
             succeededBlocks++;
+            _ctxAccessor.Current.MigrationState.FileBlocksCommitted = blockIndex + 1;
         }
 
-        // Update block progress in repository
-        await Task.Run(() => _templateExecutor.RepositoryMigrationUpdate(
-            migrationRecordId, MigrationStatus.Executing, blockIndex + 1));
+        // Update block progress in repository (a repository write: no token)
+        await _templateExecutor.RepositoryMigrationUpdateAsync(
+            migrationRecordId, MigrationStatus.Executing, blockIndex + 1);
     }
 
     return (succeededBlocks, failedBlocks, false);
 }
 ```
 
-The method returns a `(int succeededBlocks, int failedBlocks, bool atomicCommitCompleted)` tuple. The `atomicCommitCompleted` flag is `true` only when the atomic shared connection path ran (see [Atomic Shared Connection](migration-service.md#atomic-shared-connection-execution)); callers use this flag to skip a redundant final `RepositoryMigrationUpdate(Migrated)` call. When `ignoreBlockErrors` is `true` (used with `MigrationErrorAction.Ignore`), failed blocks are logged and skipped instead of throwing. In non-Migrate run modes (e.g., Simulate), blocks are iterated and logged but not executed against the database. The DAL implementation handles transaction creation/commit/rollback internally based on `DalSettings.UseTransaction`. The service layer does not manage connections or transactions directly in the non-atomic path.
+The method returns a `(int succeededBlocks, int failedBlocks, bool atomicCommitCompleted)` tuple, or throws `OperationCanceledException` when the run was cancelled; `MigrationState.FileBlocksCommitted` then holds the committed blocks. The `atomicCommitCompleted` flag is `true` only when the atomic shared connection path ran (see [Atomic Shared Connection](migration-service.md#atomic-shared-connection-execution)); callers use this flag to skip a redundant final `RepositoryMigrationUpdateAsync(Migrated)` call. When `ignoreBlockErrors` is `true` (used with `MigrationErrorAction.Ignore`), failed blocks are logged and skipped instead of throwing. In non-Migrate run modes (e.g., Simulate), blocks are iterated and logged but not executed against the database. The DAL implementation handles transaction creation/commit/rollback internally based on `DalSettings.UseTransaction`. The service layer does not manage connections or transactions directly in the non-atomic path.
 
 ## Block Hash Generation
 
@@ -354,7 +371,7 @@ The returned value is passed as `startFromBlock` to `ExecuteSqlBlocks()`, which 
 
 ### Interrupted Migration Detection
 
-At the start of each `MigrateUpAsync` call (when `RunMode.ShouldWriteRepository()` is true, i.e., Migrate mode only), `TemplateExecutor.RepositoryMigrationGetInterrupted()` checks for migrations with status **Pending (10)** or **Executing (20)** that have incomplete blocks (`FileUpBlocksMigrated < FileUpBlocksTotal`). These indicate a migration where execution was interrupted before all blocks were completed (e.g., a process crash or unexpected termination). If found, a warning is logged with the migration ID, filename, and block progress.
+At the start of each `MigrateUpAsync` call (when `RunMode.ShouldWriteRepository()` is true, i.e., Migrate mode only), `TemplateExecutor.RepositoryMigrationGetInterruptedAsync()` checks for migrations with status **Pending (10)** or **Executing (20)** that have incomplete blocks (`FileUpBlocksMigrated < FileUpBlocksTotal`). These indicate a migration where execution was interrupted before all blocks were completed (e.g., a process crash or unexpected termination). If found, a warning is logged with the migration ID, filename, and block progress.
 
 ### Repository Tracking
 
@@ -363,6 +380,22 @@ When a migration has partially executed blocks, the repository stores the progre
 1. `FileUpBlocksMigrated` records how many blocks completed successfully
 2. `MigrationStatus = Failed` or `Executing` marks the migration as partially applied
 3. On the next run, `FindResumableBlock()` determines the resume point
+
+A cancelled file is resumed the same way: its record is `Failed` with the blocks that committed before the cancel.
+
+## Cancellation at Block Boundaries
+
+A cancelled run (`RunCancellation` or the token of the call, Ctrl+C or SIGTERM in the CLI) stops at the next block boundary; see [Error Handling: Cancellation](../02-core-concepts/error-handling.md#cancellation) for the actions and results. Per execution path:
+
+| Path | Checkpoint | Block in progress | Record of the file |
+|------|------------|-------------------|--------------------|
+| Block by block (`ExecuteSqlBlocks`) | Before every block | The token reaches the DAL call; the block's own transaction rolls back where the provider interrupts the statement; on SQLite, on MySQL after `KILL QUERY`, and on MariaDB in a `SLEEP()` that `KILL QUERY` ends without an error, the block may run to its end and commit | `Failed` with `FileUpBlocksMigrated` = the blocks that committed; resumed with the next block |
+| Atomic (`ExecuteSqlBlocksAtomic`) | Before every block | The token reaches the DAL call and the repository updates inside the file's transaction; the whole file rolls back | `Failed` with the blocks before the resume offset (normally 0), written on the repository's own connection; the next run starts the file there |
+| Simulate / Validate | Before every walked block | Nothing runs | Nothing is persisted |
+| CLI tool (`ExecuteWithCliTool`) | Before the file; a tool is not started once the token is cancelled | The tool is killed together with the processes it started. A tool that has exited when the cancel takes effect is judged by its exit code; one that fails after the cancel counts as the cancel, not as a failure for `MigrationErrorAction` | `Failed` with 0 blocks, the next run runs the file again; `Migrated` when the tool had exited with success |
+| Rollback blocks (`ExecuteRollbackForMigrations`) | Before every rollback block after the first, and before every record | The token reaches the DAL call | `Failed` with `FileDownBlocksMigrated` = the rollback blocks that ran; the next migrate-down continues it |
+
+The first block of a rollback file, an atomic rollback and a rollback through a CLI tool always run to their end. The repository update after each block takes no token: a repository write that has started always completes. SQL Server, PostgreSQL and MariaDB interrupt the statement in progress (PostgreSQL leaves the transaction unusable, and it is rolled back); MySQL ends only the statement in progress through `KILL QUERY` and runs the further statements of a block, so a block with several statements stops at its end; on MySQL and MariaDB `KILL QUERY` ends a `SLEEP()` early without an error, and the block runs on; SQLite checks only before a block. Under `MigrationErrorAction = Ignore` a cancel ends the loop as well (a cancelled block is not counted as a failed one), and the record stores the block count of the file as after an ignored failure, so the next run executes the whole file again.
 
 ## Best Practices
 

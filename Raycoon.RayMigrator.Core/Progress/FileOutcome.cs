@@ -35,8 +35,9 @@ public enum FileOutcome
     Skipped = 90,
 
     /// <summary>
-    /// The run was cancelled while the file ran: the block in progress did not commit, and the record is Failed with
-    /// the blocks that committed before the cancel (none on the atomic path, whose transaction is rolled back). A
+    /// The run was cancelled while the file ran: the record is Failed with the blocks that committed before the run
+    /// stopped (on the atomic path, whose transaction is rolled back, only those of an earlier attempt). A block the
+    /// provider interrupts does not commit; SQLite, and MySQL after KILL QUERY, may run the block in progress to its end. A
     /// rollback that follows reports its own start and completion.
     /// </summary>
     Cancelled = 100,

@@ -2,7 +2,7 @@
 
 This document provides a comprehensive overview of unit and engine test coverage for every CLI command and option combination in RayMigrator.
 
-**Last updated**: 2026-04-10 (after P1-P4 implementation)  
+**Last updated**: 2026-10-16 (`--cancelled-action`, Ctrl+C and SIGTERM with exit code 130 and the process test of SIGINT, the pending list of `info` with `RollbackIncomplete`); the statistics in section 5 are those of 2026-04-10 (after P1-P4 implementation)  
 **Source of truth**: `Core/Configuration/Options/CommandLineConfiguration.cs`
 
 ---
@@ -21,6 +21,7 @@ This document provides a comprehensive overview of unit and engine test coverage
 | `--allow-out-of-order` `-ooo` | O | — | — | — | — | — | — |
 | `--stop-rollback-on-missing-rollback-file` `-sromrf` | O | — | — | — | — | — | — |
 | `--target-group-migration-order` `-tgmo` | O | — | — | — | — | O | — |
+| `--cancelled-action` `-ca` | O | O | — | — | — | O | — |
 | `--scope` `-s` | — | — | O | — | — | — | O |
 | `--older-than` `-ot` | — | — | — | — | — | — | O |
 | `--last-migration-status` `-lms` | — | — | — | — | — | — | O |
@@ -42,8 +43,9 @@ This document provides a comprehensive overview of unit and engine test coverage
 | `--allow-out-of-order` | bool | false | Allow files from older releases to execute |
 | `--stop-rollback-on-missing-rollback-file` | bool? | null (from config) | Stop rollback chain when rollback file missing |
 | `--target-group-migration-order` | string? | null | Comma-separated group aliases for execution order |
+| `--cancelled-action` | string | `"terminate"` | What the run does when Ctrl+C or SIGTERM cancels it: `terminate`, `rollback-file`, `rollback-run` or `rollback-release` (case-insensitive); migrate-down and baseline accept the option and ignore it |
 | `--scope` | string | varies | validate-hash: `file`/`sqlblocks`/`disabled`; fix: `orphanedruns`/`all` |
-| `--older-than` | int | 60 | Minutes threshold for orphaned run detection |
+| `--older-than` | int | 2 | Minutes since the last heartbeat (or the start of a run without one) after which an open run counts as orphaned; 0 repairs every open run |
 | `--run-mode` | string | migrate | `simulate` previews the fix without applying changes |
 | `--last-migration-status` | string | `"not-migrated"` | Status to assign after fix: `migrated` or `not-migrated` |
 | `--startup-info` | bool | true | Show startup banner and configuration info |
@@ -76,6 +78,7 @@ This document provides a comprehensive overview of unit and engine test coverage
 | `--target-group` | COVERED | COVERED | `TargetGroupFilterTests` x5 DBs |
 | `--target-group-migration-order` | COVERED | COVERED | `TargetGroupMigrationOrderTests` x5 DBs, 20+ unit tests |
 | `--stop-rollback-on-missing-rollback-file` | COVERED | COVERED | Config inheritance + `RollbackTests` x5 DBs |
+| `--cancelled-action` | COVERED | PARTIAL | `P0_CancelledActionOptionTests` (parsing), `P1_ConsoleCancellationTests` (Ctrl+C and SIGTERM), `P2_CancelledExitCodeTests` (exit code 130); all four actions run in `CancellationTests` x5 DBs through a `RunCancellation`, which the engine tests pass instead of the CLI option; `SqliteCliSignalTests` sends SIGINT to the real CLI process (default `terminate`) and checks exit code 130 and the run `Cancelled` |
 | `--startup-info` | **MISSING** | **MISSING** | Hardcoded `false` in EngineTestHost. Cosmetic feature, not testable without console output capture. |
 | `--reveal-sensitive-data` | COVERED | COVERED | Unit masking tests + `MigrationRunMetaTests` M4 x5 DBs (masking in settings JSON) |
 | `--config-dir` | COVERED | N/A | 17 unit tests. Not testable at engine level (EngineTestHost bypasses config-dir pipeline). |
@@ -91,6 +94,7 @@ This document provides a comprehensive overview of unit and engine test coverage
 | `--run-mode validate` | COVERED | COVERED | `SimulateModeTests` S6 (non-destructive) + S7 (missing rollback detection) x5 DBs |
 | `--to-release` (required) | COVERED | COVERED | All tests use this, multiple release targets |
 | `--target-group` | COVERED | COVERED | `TargetGroupFilterTests.T4` (`MigrateDown_BackendOnly_PreservesFrontend`) x5 DBs |
+| `--cancelled-action` | COVERED | PARTIAL | Accepted (`P0_CancelledActionOptionTests`) and ignored (`CancellationTests`); a cancelled migrate-down stops before the next rollback block and the next one continues, and migrate-up refuses the file until the rollback has completed (`CancellationTests` x5 DBs) |
 | `--startup-info` | **MISSING** | **MISSING** | Cosmetic feature, not testable without console output capture. |
 | `--reveal-sensitive-data` | COVERED | COVERED | Unit masking + `MigrationRunMetaTests.M6` (MigrateDown settings JSON masked) x5 DBs |
 | `--config-dir` | COVERED | N/A | 17 unit tests. Not testable at engine level. |
@@ -124,12 +128,12 @@ This document provides a comprehensive overview of unit and engine test coverage
 
 | Option | Unit Tests | Engine Tests | Notes |
 |--------|:----------:|:------------:|-------|
-| `--product` | PARTIAL | COVERED | `InfoTests` x5 DBs (I1-I8) |
+| `--product` | PARTIAL | COVERED | `InfoTests` x5 DBs (status, history and the pending list) |
 | `--environment` | PARTIAL | COVERED | Implicit in all Info scenarios |
 | `--startup-info` | **MISSING** | **MISSING** | Cosmetic feature, not testable without console output capture. |
 | `--reveal-sensitive-data` | PARTIAL | **MISSING** | Unit model tests. Info is read-only (no MigrationRunMeta written). |
 | `--config-dir` | COVERED | N/A | 17 unit tests. Not testable at engine level. |
-| **Overall** | PARTIAL | COVERED | 8 tests x 5 DBs = 40 tests. ScenarioContext `InfoAsync()` + `GetHistoryAsync()`. |
+| **Overall** | PARTIAL | COVERED | 23 tests x 5 DBs = 115 tests. ScenarioContext `InfoAsync()` + `GetHistoryAsync()`; the printed pending list in `P2_InfoPendingOutputTests`. |
 
 ### Baseline
 
@@ -140,6 +144,7 @@ This document provides a comprehensive overview of unit and engine test coverage
 | `--to-release` | COVERED | COVERED | `BaselineTests` partial + full x5 DBs |
 | `--target-group` | COVERED | COVERED | `TargetGroupFilterTests.T5` (`Baseline_BackendOnly_ShouldOnlyBaselineBackend`) x5 DBs |
 | `--target-group-migration-order` | COVERED | COVERED | `TargetGroupMigrationOrderTests` includes Baseline |
+| `--cancelled-action` | COVERED | PARTIAL | Accepted (`P0_CancelledActionOptionTests`) and ignored (`CancellationTests`); a cancelled baseline keeps the records it wrote (`CancellationTests` x5 DBs) |
 | `--startup-info` | **MISSING** | **MISSING** | Cosmetic feature, not testable without console output capture. |
 | `--reveal-sensitive-data` | PARTIAL | COVERED | `MigrationRunMetaTests.M7` (Baseline settings JSON masked) x5 DBs |
 | `--config-dir` | COVERED | N/A | 17 unit tests. Not testable at engine level. |
@@ -194,6 +199,10 @@ This document provides a comprehensive overview of unit and engine test coverage
 - `P1_RollbackErrorActionTests.cs` — Rollback error handling
 - `P1_MigrationErrorActionIgnoreTests.cs` — Ignore strategy
 - `P1_MigrationErrorActionInheritanceTests.cs` — Error action cascading
+- `P0_CancelledActionOptionTests.cs` — `--cancelled-action` parsing on the three run commands
+- `P1_ConsoleCancellationTests.cs` — the first Ctrl+C or SIGTERM cancels with the action of the option, a second one ends the process
+- `P2_CancelledExitCodeTests.cs` — exit code 130 for a cancelled command, 1 for a cancelled migrate-up whose rollback did not complete, for a migrate-up that ended as `Error` after the signal (a failure whose error recovery the cancel stopped) and for a `Cancelled` code without the signal
+- `P1_IncompleteRollbackTests.cs` — migrate-up refuses a file whose rollback stopped in the middle; the message names release, file, target, the rollback blocks and the block with which migrate-down continues
 
 ### 3.2 migrate-down
 
@@ -230,19 +239,23 @@ This document provides a comprehensive overview of unit and engine test coverage
 Also tested as part of:
 - `TargetGroupFilterTests.T8` (UpdateHash with target-group filter)
 - `RunningGuardTests.G5` (UpdateHash with running migration run)
+- `CancellationTests` (an update-hash cancelled between the two records of a file counts that file, x5 DBs)
 
 **Unit test files**: Covered by shared filtering tests.
 
 ### 3.5 Info
 
-**Engine test files** (5 files, 40 tests):
+**Engine test files** (5 files, 115 tests):
 
 | Category | Base File | DB Variants | Key Scenarios |
 |----------|-----------|-------------|---------------|
-| Info | `InfoTests.cs` | SqlServer, MariaDb, MySql, Sqlite | I1: fresh repo zero counts; I2: full migration; I3: partial migration; I4: baseline; I5: target group status; I6: failed migration error state; I7: multiple runs history; I8: run details |
+| Info | `InfoTests.cs` | SqlServer, MariaDb, MySql, Sqlite | I1: fresh repo zero counts; I2: full migration; I3: partial migration; I4: baseline; I5: target group status; I6: failed migration error state; I7: multiple runs history; I8: run details; the pending list (`PendingFiles`) with every `PendingMigrationReason` in the order of the next migrate-up, the pending count and `LastMigrationDate` of every target group; `RollbackIncomplete` with its rollback blocks after a migrate-down cancelled in the middle (`CancellationTests` x5 DBs) |
 
 **Unit test files**:
-- `P3_BaselineAndInfoModelTests.cs` — `MigrationStatusModelTests`, `MigrationHistoryModelTests` (model/property tests)
+- `P3_BaselineAndInfoModelTests.cs` — `MigrationStatusModelTests`, `MigrationHistoryModelTests`, `PendingMigrationModelTests` (model/property tests)
+- `P1_PendingMigrationClassificationTests.cs` — the reason of a pending file and target, as the next migrate-up treats its record
+- `P1_MigrationRecordMappingTests.cs` — `StartedAt` and `FinishedAt` of the record and history selects, read as UTC
+- `P2_InfoPendingOutputTests.cs` — the pending list under its count, cut after 50 entries, a `RollbackIncomplete` entry with its rollback blocks and `migrate-down`, and `Pending=` and `LastMigration=` on every target group line
 - `P0_ConfigDirTests.cs` — CLI parsing for Info command (2 tests)
 - `MigrationCommandExhaustivenessTests.cs` — Exhaustiveness check includes `MigrationCommand.Info`
 
@@ -266,6 +279,8 @@ Also tested as part of:
 |----------|-----------|-------------|---------------|
 | Fix | `FixTests.cs` | SqlServer, MariaDb, MySql, Sqlite | F1: no orphans; F2: fix orphan; F3: dry run; F4: older-than filter; F5: fix then migrate; F6: multiple orphans; F7: orphan details; F8: assumed status migrated |
 
+Also tested as part of `CancellationTests` (a fix cancelled between two orphaned runs keeps the run it closed and leaves the other open, x5 DBs).
+
 **Unit test files**:
 - `P2_FixCommandTests.cs`:
   - `FixIssuesRequestModelTests` — Default values, property setting
@@ -285,7 +300,9 @@ Also tested as part of:
 | TargetGroupMigrationOrder | 5 (x5 DBs) | Custom order, default order, Baseline + MigrateUp |
 | RunningGuard | 5 (x5 DBs) | Concurrent execution detection for MigrateUp, MigrateDown, UpdateHash |
 | MigrationHistoryTracking | 5 (x5 DBs) | MigrationRecordHistory entries on terminal status transitions (source file: `ArchiveRetentionTests.cs`) |
-| DatabaseLog | 5 (x5 DBs) | Migration logging to database |
+| DatabaseLog | 5 (x5 DBs) | Migration logging to database; the log indexes on `MigrationRunId` and `CreatedAt`, also added to the log table of an older engine by the next initialization |
+| Cancellation | 5 (x5 DBs) | migrate-up with all four actions at a block, file or target boundary, the atomic path, a cancel inside a sleeping block on the atomic path and on a target of its own (not SQLite), before the run starts, in Simulate and Validate, while a CLI tool runs; migrate-down, baseline and a running error recovery, whose run stays `Error` with the code of the failure; the refusal of a migrate-up after a rollback cancelled in the middle; update-hash and fix; schema version 2 with data upgraded to 3 (see 3.10) |
+| CliSignal | 1 (SQLite) | The real CLI process gets SIGINT during a migrate-up: exit code 130 and the run `Cancelled` (Linux and macOS, see 3.10) |
 | MigrationRunMeta | 5 (x5 DBs) | Execution metadata, settings JSON, RevealSensitiveData masking (MigrateUp M4, MigrateDown M6, Baseline M7) |
 | OutOfOrderBlocking | 5 (x5 DBs) | O1: blocking when false; O2: allowing when true; O3: data integrity after blocking |
 | UpdateHash | 5 (x5 DBs) | U1-U5: fresh migration, file modification, validate after update, idempotent, empty repo |
@@ -306,6 +323,15 @@ Also tested as part of:
 | `P1_BuildMigrationRunSettingsJsonTests.cs` | ShowStartupInfo, RevealSensitiveData, AllowOutOfOrder in settings JSON | Multiple |
 | `P1_RayMigratorOptionsValidatorTests.cs` | Global options validation | Multiple |
 | `P1_RayAttributeTests.cs` | Custom validation attributes (RayEnum, RayRangeInt, RayConnectionString, etc.) | 30+ |
+
+### 3.10 Cancellation and Exit Code 130
+
+| Test File | Behaviour Tested |
+|-----------|------------------|
+| `P0_CancelledActionOptionTests.cs` | `--cancelled-action` (`-ca`) only on migrate-up, migrate-down and baseline; every value, case-insensitive and through `{ENV:VAR}`; `terminate` by default; an unknown value is a parse error |
+| `P1_ConsoleCancellationTests.cs` | `ConsoleCancellation`: the first Ctrl+C or SIGTERM keeps the process alive and cancels with the action of the option, a second one keeps the default and ends the process; the cancel runs on the thread pool, so a slow cancel callback of a provider holds back neither the handler nor a second signal |
+| `P2_CancelledExitCodeTests.cs` | `RayMigratorService.DoWorkAsync` exits with 130 and logs a warning for a cancelled run and, while the token of the process is cancelled, for update-hash and fix with `Cancelled` (1004) and for validate-hash and info with an `OperationCanceledException`; it exits with 1 for a cancelled migrate-up whose rollback did not complete, for a migrate-up with the result `Error` while the token of the process is cancelled (a failure whose error recovery the cancel stopped, or 1005), and for a 1004 or an `OperationCanceledException` that the cancel of the process did not cause |
+| `SqliteCliSignalTests.cs` (engine) | The signal registration of the real `raymigrator` process: SIGINT when the console reports the second file of a SQLite migrate-up, exit code 130, the run row `Cancelled` (only the handler of the CLI records it; a process that the signal killed would leave the run open), the console warning of the cancel; skipped on Windows |
 
 ---
 
@@ -389,15 +415,18 @@ The engine test harness (`ScenarioContext.cs`) exposes these methods:
 
 | Method | Supported | Parameters |
 |--------|-----------|------------|
-| `MigrateUpAsync()` | Yes | toRelease, allowOutOfOrder, targetGroupAliases, runMode, targetGroupMigrationOrder |
-| `MigrateDownAsync()` | Yes | toRelease, targetGroupAliases, runMode, revealSensitiveData |
-| `BaselineAsync()` | Yes | toRelease, targetGroupAliases, targetGroupMigrationOrder, revealSensitiveData |
+| `MigrateUpAsync()` | Yes | toRelease, allowOutOfOrder, targetGroupAliases, runMode, targetGroupMigrationOrder, cancellation (`RunCancellation`) |
+| `MigrateUpWithTokenAsync()` | Yes | cancellationToken, toRelease (a cancel of the token alone means `Terminate`) |
+| `MigrateDownAsync()` | Yes | toRelease, targetGroupAliases, runMode, revealSensitiveData, cancellation |
+| `BaselineAsync()` | Yes | toRelease, targetGroupAliases, targetGroupMigrationOrder, revealSensitiveData, cancellation |
 | `ValidateHashAsync()` | Yes | scope, targetGroupAliases |
-| `UpdateHashAsync()` | Yes | targetGroupAliases |
+| `UpdateHashAsync()` | Yes | targetGroupAliases, cancellationToken |
 | `InfoAsync()` | Yes | — (returns MigrationStatusInfo) |
 | `GetHistoryAsync()` | Yes | limit |
-| `FixIssuesAsync()` | Yes | scope, olderThanMinutes, assumedMigrationStatus (run mode from the host) |
+| `FixIssuesAsync()` | Yes | scope, olderThanMinutes, assumedMigrationStatus, cancellationToken (run mode from the host) |
 | `InsertOrphanedMigrationRun()` | Yes | minutesOld (helper for Fix tests) |
+| `UseProgressObserver()` | Yes | observer (the cancellation tests cancel from a `CancellingProgressObserver`) |
+| `UseLogObserver()` | Yes | observer (the cancellation tests of update-hash and fix cancel at a log line) |
 
 ### ScenarioBuilder Capabilities
 
@@ -429,6 +458,10 @@ The engine test harness (`ScenarioContext.cs`) exposes these methods:
 .WithCliTool(alias, execPath, argTemplate, inputMode, timeoutInSeconds?, successExitCodes?)
 .WithUseCliToolAlias(alias)
 .WithCliToolParameters(Dictionary)
+
+// Repository and log
+.WithTableBaseName(prefix)                            // the scenario drops the tables of the prefix when it ends
+.WithDatabaseLoggingInto(connectionString, minLevel)  // a log database of its own
 
 // Logging & retries
 .WithDatabaseLogging(minLevel)

@@ -18,7 +18,7 @@ Understanding these five rules is essential for interpreting the scenario matrix
 
 ### 1. Failed Files Are Auto-Retried
 
-When `migrate-up` runs again after a failure, files with status `Failed` (30) or `NotMigrated` (50) are automatically re-executed. **No manual status change is needed.** Simply fix the root cause (SQL error, missing dependency, etc.) and re-run `migrate-up`.
+When `migrate-up` runs again after a failure, files with status `Failed` (30) or `NotMigrated` (50) are automatically re-executed. **No manual status change is needed.** Simply fix the root cause (SQL error, missing dependency, etc.) and re-run `migrate-up`. The same holds for a file a cancel interrupted: its record is `Failed` with the blocks that committed (see [Error Handling: Cancellation](error-handling.md#cancellation)). `info` lists the files the next `migrate-up` runs (the first 50; a host reads all of them from `MigrationStatusInfo.PendingFiles`), with the reason.
 
 ### 2. Resume Mechanism (FindResumableBlock)
 
@@ -927,7 +927,10 @@ These scenarios test what happens when `RequireRollbackFile = false` and specifi
 | Repository (rollback failed, status ≠ DB state) | Partial | May need manual SQL to align DB with desired state, then re-run |
 | Logical (Ignore left Failed + Migrated mix) | Yes | Fix the failed file, re-run `migrate-up` |
 | Missing rollback files | No | Create the rollback files, manually fix DB if needed, then re-run |
-| Orphaned run (stuck `Running`) | Yes | Wait 10 min (auto-fix) or run `fix` command |
+| Orphaned run (stuck `Running`) | Yes | Start the next run once the last heartbeat is older than `Repository.OrphanedRunThresholdInMinutes` (default 2 minutes; auto-fix) or run `fix` command |
+| Cancelled run (`Cancelled`, CLI exit code 130) | Yes | Re-run `migrate-up`: the interrupted file resumes with its first uncommitted block (`Terminate`), or runs again after the rollback of the cancel action. Re-run a cancelled `migrate-down`: it continues the record in progress |
+| Failed run whose error recovery a cancel stopped (`Error` with the code of the failure, CLI exit code 1) | Partial | Run `migrate-down` to a release before the files of the run: it continues a record whose rollback stopped in the middle and rolls back the files the recovery did not reach. Then fix the failed file and re-run `migrate-up` |
+| Rollback stopped in the middle (`Failed` with k of n rollback blocks, after a cancelled `migrate-down` or error recovery or a failed rollback block after the first) | Partial | `migrate-up` refuses to run while such a record exists. Run `migrate-down` to a release before the file: it continues the rollback at block k+1. Then re-run `migrate-up` ([A Rollback That Stopped in the Middle](error-handling.md#a-rollback-that-stopped-in-the-middle)) |
 
 ---
 
@@ -1009,7 +1012,7 @@ When a migration run fails, follow these steps in order:
 | `migrate-up` | After fixing a failed migration — retries all Failed/NotMigrated files |
 | `migrate-down` | Intentional rollback of Migrated files to a specific release |
 | `fix` | Clean up orphaned runs (stuck in Running status) |
-| `info` | Check current migration status per file |
+| `info` | Check the current status, the pending migrations with their reason and the recent runs |
 | `validate-hash` | Verify file integrity after manual changes |
 | `update-hash` | Update repository hashes after intentional file modifications |
 

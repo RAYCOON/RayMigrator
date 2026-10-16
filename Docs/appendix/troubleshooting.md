@@ -141,6 +141,7 @@ docker exec rm_db_mysql mysql -u rayuser -praypass123 raydb -e "SELECT 1"
    WHERE MigrationRunResultId = 10 -- Running
    ORDER BY StartedAt DESC;
    ```
+   A row whose `LastHeartbeatAt` is older than `Repository.OrphanedRunThresholdInMinutes` (default 2 minutes) belongs to a process that no longer runs; the next start closes it automatically (see [Auto-Fix of Orphaned Runs](#auto-fix-of-orphaned-runs)).
 
 3. **Fix stuck run** (use the `fix` command, or manual SQL below)
 
@@ -370,12 +371,26 @@ docker exec rm_db_mysql mysql -u rayuser -praypass123 raydb -e "SELECT 1"
 ### Repository Created by an Older RayMigrator Version
 
 **Symptoms:**
-- Foreign-key errors on `MigrationRun` or `MigrationRecord` (a lookup row such as `MigrationRunResult` 80 is missing)
-- `-10, RayMigrator repository incomplete or corrupt` after a release that changed the table set
+- `RepositorySchemaException`: "The repository (...) has repository tables but no schema version: a RayMigrator before 0.17.0 created it, and repositories are not upgraded across that boundary."
+- `RepositorySchemaException`: "The repository (...) has schema version [n], but RayMigrator [x] supports version [m] at most."
 
-**Cause:** RayMigrator never upgrades a repository in place. The first `MigratorMeta` row shows the version that created the repository and therefore its schema.
+**Cause:** Since 0.17.0 the repository records its schema version in `RepositorySchemaVersion`, and a newer RayMigrator upgrades it in place: the first command that checks the repository applies the missing schema steps (every command except a migrate-up or migrate-down in Simulate or Validate mode; this version expects schema version 3), and the data stays. A repository created before 0.17.0 has no version row and is refused. An older RayMigrator refuses a repository that a newer one has upgraded.
 
-**Solution:** drop and recreate the repository (`Repository_Drop` followed by the next run), then re-baseline or re-run the migrations. The same applies to a DatabaseLogging database whose `MigrationEvent` catalogue predates the running version.
+**Solution:**
+- No schema version: drop the repository tables and let the next run create them again, then re-baseline or re-run the migrations; the run history of the old repository is lost.
+- Newer schema version: use the RayMigrator version that upgraded the repository, or a later one. Upgrades are one-way.
+
+The database log is not versioned. The next start adds the indexes of this version to an existing `MigrationLog` (see [Database Logging Not Working](#database-logging-not-working)). A `MigrationEvent` catalogue from before 0.17.0 lacks the event ids added since; `MigrationLog` has no foreign key to it, so only reports that join the catalogue miss their names. Recreate the log tables if those reports need them.
+
+### MySQL: Database Name Too Long for the Schema Lock
+
+**Symptoms:**
+- Every command against a MySQL repository fails at its start, before a run row is written, with `Error executing template [TemplateType: Repository_CheckCreate, DatabaseType: MySql, ...]` and the inner MySQL error 4163: `User-level lock name 'raymigrator_schema_<database>' should not exceed 64 characters.`
+- The name of the repository database has 46 characters or more
+
+**Cause:** The MySQL and MariaDB templates of the repository schema steps (`Repository_CheckCreate`, `Repository_Upgrade_1` to `_3`) serialise parallel starts with the session lock `GET_LOCK(CONCAT('raymigrator_schema_', DATABASE()), 60)`, whose name carries the whole database name after 19 characters of prefix. MySQL refuses a lock name of more than 64 characters (measured on MySQL 8.4), so a database name of 46 characters or more breaks the lock; the version lock `raymigrator_meta_<database>` of `Repository_MigratorMeta_CheckInsert` would follow at 48 characters. MariaDB accepts lock names of up to 192 bytes and refuses longer ones with error 1059 (`Identifier name '...' is too long`, measured on MariaDB 11.6): an ASCII database name, at most 64 characters, never reaches it, only a name of more than 173 bytes in UTF-8. The lock of the log initialization on MySQL cuts the database name to 48 characters and is not affected.
+
+**Solution:** Give the repository database a name of at most 45 characters (on MariaDB, keep it within 173 bytes in UTF-8). The engine does not shorten the name of the schema lock, and no option changes it.
 
 ### Product or Environment Name Empty (`TemplateResultException`)
 
@@ -512,6 +527,8 @@ The `Repository_Product_CheckInsert` template rejects a `NULL`/empty `Name` para
 
 **Symptoms:**
 - No entries in MigrationLog table
+- The first start after an update fails with `DatabaseLogWriter could not be initialized for logging into a database of type [...]` (exit code `1`) and a permission error on `CREATE INDEX`, or with an inner error that the template `DatabaseLogging_CheckCreate` ran into the command timeout of the database log
+- `-1,... could not acquire the database logging lock` (SQL Server and MySQL, when `DatabaseLogging.DbCommandTimeoutInSeconds` is above 60 or 0), or a timeout while another host initializes the same log
 
 **Solutions:**
 
@@ -533,6 +550,12 @@ The `Repository_Product_CheckInsert` template rejects a `NULL`/empty `Name` para
    ```sql
    SELECT * FROM ray.RayMigrationLog;
    ```
+
+3. **Let the first start create the log indexes**
+   RayMigrator adds two indexes to `MigrationLog` (`MigrationRunId`, `CreatedAt`) when they are missing, also to a log table that an older version created. That start needs the right to create indexes on the log table once and builds them within `DatabaseLogging.DbCommandTimeoutInSeconds` (default 20 seconds). A timeout there is not retried, because every attempt would build the indexes from the start again and hold back the log writes of other hosts once more: the start ends with `DatabaseLogWriter could not be initialized for logging into a database of type [...]`, and the inner error says that the template ran into the command timeout of the database log, that since 0.20.0 it builds the indexes on `MigrationRunId` and `CreatedAt` over the rows already there, and to raise `DatabaseLogging.DbCommandTimeoutInSeconds` for the first start after the update. Grant the right, or have a DBA create the two indexes beforehand, and raise the timeout for that start when the log is large; later starts find the indexes and need neither. See [Log Indexes After an Update](../user-manual/11-operations-guide.md#log-indexes-after-an-update).
+
+4. **Lock not acquired**
+   Another host initialized the same log at the same moment and held the log lock, for example while it built the indexes on a large log. The template waits up to 60 seconds for the lock, the call only as long as `DatabaseLogging.DbCommandTimeoutInSeconds` (20 seconds by default), so with the default timeout the wait ends with that timeout, not with `-1`, and it is not retried; `-1` comes only with a timeout above 60 seconds or `0`. PostgreSQL waits for its advisory lock until the timeout. On MySQL a start that failed inside the template leaves no lock on its pooled session, because the DAL releases the locks of the session (`DO RELEASE_ALL_LOCKS()`). Start again, or raise the timeout for that start.
 
 ## Performance Issues
 
@@ -561,6 +584,55 @@ The `Repository_Product_CheckInsert` template rejects a `NULL`/empty `Name` para
    - Check for blocking
 
 ## Recovery Issues
+
+### Run Cancelled (Exit Code 130)
+
+**Symptoms:**
+- The command exits with code `130` after `Ctrl+C received: cancelling at the next block boundary (action: terminate)` (or `SIGTERM received: ...`)
+- `Migrate-Up cancelled for product <Product>: Cancelled on request (Terminate): stopped at <file> on target <target> after n of m block(s). Reason: Ctrl+C`
+- `info` shows the run with the result `Cancelled` and lists the interrupted file as `Resumable after block n`, or as `Failed` when no block had committed (always on the atomic shared connection, whose transaction rolls back)
+
+**Explanation:** The first Ctrl+C or SIGTERM is a request to stop, not a crash. The run stopped at the next block boundary, the interrupted file is `Failed` with the blocks that committed, and the run row is closed as `Cancelled` (70). With `--cancelled-action` `rollback-file`, `rollback-run` or `rollback-release` the rollback ran before the run was closed; when it did not complete cleanly, the run is `Error` with the engine code `1005` and the exit code is `1`.
+
+**Solution:** Run the command again. A `migrate-up` resumes the interrupted file with the first block that did not commit, and a `migrate-down` continues the record in progress; until it has completed that rollback, a `migrate-up` refuses to run the file (see [Migrate-Up Refused: Incomplete Rollback](#migrate-up-refused-incomplete-rollback)). With `MigrationErrorAction` = `Ignore`, the interrupted file runs again from its first block (see [Work That Completes After a Cancel](#work-that-completes-after-a-cancel)). See also [Cancelling a Run](../08-cli-reference/global-options.md#cancelling-a-run).
+
+### Exit Code 1 After Ctrl+C: The Error Recovery Was Cancelled
+
+**Symptoms:**
+- A `migrate-up` exits with code `1`, not `130`, although Ctrl+C or SIGTERM stopped it
+- `Migrate-Up failed for product <Product>: <error of the file>. The error recovery was cancelled on request in the rollback of <file> on target <target> after j of J rollback block(s); migrate-down continues that rollback, and migrate-up refuses <file> until it has completed. Reason: Ctrl+C`, or, where the cancel stopped the recovery between two rollbacks, `… cancelled on request before its first rollback: nothing was rolled back, …` or `… cancelled on request after i of m rollback(s): the files it did not reach keep their state …`
+- `info` shows the run with the result `Error`
+
+**Explanation:** A file had failed, and the rollback of its `MigrationErrorAction` (`Rollback`, `RollbackErrorOnly` or `RollbackRelease`) was running when the signal arrived. The signal stopped that error recovery at the next rollback block and `--cancelled-action` was ignored, because a rollback was already running. The run failed before the cancel, so the failure decides its result: `Error` with the error code of the failed file, and exit code `1`, so that a pipeline sees the failure.
+
+**Solution:** Complete the rollback that the recovery started with `migrate-down` to the release before the files of the run: it continues a file whose rollback stopped in the middle (`info` lists it as `RollbackIncomplete`, and `migrate-up` refuses to run it until then) and rolls back the files the recovery did not reach. Then fix the failed file and run `migrate-up` again.
+
+### Migrate-Up Refused: Incomplete Rollback
+
+**Symptoms:**
+- `migrate-up` exits with code `1` before any file runs, after `Incomplete rollback: 1 file(s) of this migrate-up stopped in the middle of their rollback. Aborting; migrate-down continues the rollback.`
+- `Migrate-Up failed for product <Product>: Incomplete rollback: 1 file(s) stopped in the middle of their rollback, and migrate-up runs no file again before its rollback has completed: [<Release>/<File> on target <Target>: k of n rollback blocks, migrate-down continues at block k+1]. Complete the rollback with migrate-down to a release before theirs, then run migrate-up.`
+- `info` lists the file as `RollbackIncomplete after k of n rollback blocks, run migrate-down`; the run is recorded as `Error`
+
+**Explanation:** The rollback of the file stopped after k of its n rollback blocks: Ctrl+C or a host stopped a `migrate-down` or the error recovery of a `migrate-up`, or a rollback block after the first failed. The record is `Failed`, and the target still holds the part of the file that the remaining rollback blocks take back. A `migrate-up` would run the file again from its first block on that target, so it refuses to run at all while a file it would run has such a record, also with `--run-mode simulate`.
+
+**Solution:** Complete the rollback first. Run `migrate-down` with a `--to-release` before the release of the file (preview it with `--run-mode simulate`; `--target-group` limits it to the target group of the file): it continues the record at rollback block k+1 and, like every `migrate-down`, also rolls back the `Migrated` files of the later releases. When a rollback block failed, fix the rollback file first. Then run `migrate-up`. See [Error Handling: A Rollback That Stopped in the Middle](../02-core-concepts/error-handling.md#a-rollback-that-stopped-in-the-middle).
+
+### Run Left Running After a Second Ctrl+C or a Kill
+
+**Symptoms:**
+- The process ended at once on a second Ctrl+C or SIGTERM, or was killed, for example after the grace period of a container stop
+- The run row stays `Running` and the record of the file in progress `Executing` (or `Pending`, when no block had committed or the file ran on the atomic path)
+- Until two minutes have passed since the last heartbeat of that run, the next start fails with "RayMigrator aborted because another migration is already running"
+
+**Explanation:** Only the first signal cancels cleanly; a second one ends the process like a crash. The run writes no more heartbeats, and once its last heartbeat is older than `Repository.OrphanedRunThresholdInMinutes` (default 2 minutes) the next start for the same product and environment closes it as orphaned (see [Auto-Fix of Orphaned Runs](#auto-fix-of-orphaned-runs)).
+
+**Solution:** Start again after the threshold, or close the run with `fix`:
+```bash
+raymigrator fix -p MyProduct -env Production --scope orphanedruns --run-mode simulate
+raymigrator fix -p MyProduct -env Production --scope orphanedruns
+```
+The orphan repair of the next start and `fix` without `--run-mode simulate` set the open record to `NotMigrated` by default, so the next `migrate-up` runs the file again from its first block, including blocks that had committed. Check how far the file got before you choose `--last-migration-status`.
 
 ### Interrupted Migration Detected
 
@@ -596,7 +668,7 @@ The `Repository_Product_CheckInsert` template rejects a `NULL`/empty `Name` para
    # Fix orphaned runs (default: only runs whose last heartbeat is older than 2 minutes)
    raymigrator fix -p MyProduct -env Production --scope orphanedruns
 
-   # Fix runs older than 10 minutes
+   # Fix only runs whose last heartbeat is older than 10 minutes
    raymigrator fix -p MyProduct -env Production --scope orphanedruns --older-than 10
 
    # Fix and mark orphaned migrations as "migrated" (skip next time) instead of "not-migrated" (re-execute next time)
@@ -607,20 +679,21 @@ The `Repository_Product_CheckInsert` template rejects a `NULL`/empty `Name` para
 ### Orphaned Migration Run
 
 **Symptoms:**
-- Error: "Migration run is orphaned (running for X hours)"
+- `fix --run-mode simulate` lists `Orphaned MigrationRun Id=..., started at ... UTC, running for ... minutes, last heartbeat ... minutes ago`
 - Previous process crashed without cleanup
 
 **Solutions:**
 
 1. **Investigate before cleanup**
    ```sql
-   -- Find orphaned runs
+   -- Find orphaned runs: open runs whose last heartbeat (or start, without one) is older than
+   -- Repository.OrphanedRunThresholdInMinutes (default 2)
    SELECT mr.*, p.Name AS ProductName
    FROM MigrationRun mr
    JOIN Product p ON mr.ProductId = p.Id
    WHERE mr.MigrationRunResultId = 10  -- Running
      AND mr.FinishedAt IS NULL
-     AND DATEDIFF(HOUR, mr.StartedAt, GETUTCDATE()) > 1;
+     AND DATEDIFF(MINUTE, COALESCE(mr.LastHeartbeatAt, mr.StartedAt), GETUTCDATE()) > 2;
    ```
 
 2. **Manual cleanup**
@@ -650,7 +723,7 @@ The `Repository_Product_CheckInsert` template rejects a `NULL`/empty `Name` para
 ### Auto-Fix of Orphaned Runs
 
 **Symptoms:**
-- Log message: "Parallel migration detected but N orphaned run(s) found older than 10 minutes. Auto-fixing."
+- Log message: "Parallel migration detected but N orphaned run(s) found whose last heartbeat is older than 2 minutes. Auto-fixing."
 - Migration proceeds after a brief delay
 
 **Explanation:**
@@ -758,9 +831,10 @@ ADO.NET pools physical connections. Every pooled session was authenticated befor
 
 1. **Verify repository schema version**
    ```sql
-   SELECT * FROM MigratorMeta
-   ORDER BY CreatedAt DESC;
+   SELECT * FROM RepositorySchemaVersion
+   ORDER BY Version DESC;
    ```
+   The highest `Version` is the schema of the repository (3 for this RayMigrator version); `MigratorMeta` only lists the RayMigrator versions that used it.
 
 2. **Check MigrationRecord table has tracking columns**
    ```sql
@@ -771,7 +845,7 @@ ADO.NET pools physical connections. Every pooled session was authenticated befor
 
 3. **Ensure templates are updated**
    - Verify `Repository_MigrationRecord_Update.sql` exists
-   - Check template version matches schema version
+   - Use the templates shipped with this RayMigrator version; the `Version` header of a template is the revision of that file, not the schema version
 
 ## CLI Tool Execution Issues
 
@@ -829,6 +903,7 @@ ADO.NET pools physical connections. Every pooled session was authenticated befor
 
 **Symptoms:**
 - `CliToolExecutionException`: "CLI tool 'sqlcmd' exited with exit code 1 (not in SuccessExitCodes [0]) while executing 'V001__create_users.sql'."
+- `CliToolExecutionException`: "CLI tool 'mysql' exited with code 0 before it read all of 'V001__create_users.sql' from its standard input." A tool in `Stdin` mode ended with a success code before it read the whole migration file, so it cannot have run it; check that its `ArgumentTemplate` makes it read the SQL from its standard input.
 
 **Solutions:**
 
@@ -886,11 +961,15 @@ ADO.NET pools physical connections. Every pooled session was authenticated befor
 
 **Symptoms:**
 - "Cannot create specific DataAccessLayer. Unknown DataAccessLayer for DatabaseType [X]."
+- The message may go on with `The types of n assembly(ies) did not load, so a DataAccessLayer in them is unknown: [<path of the assembly>]: <loader exceptions> A DataAccessLayer built against an earlier version of RayMigrator must be rebuilt against this version.`
 - `ConfigurationValidationException` at startup
 
 **Solutions:**
 
-1. **Verify built-in DALs are discovered and `DataAccessLayers/` exists for external plugins**
+1. **Rebuild an external DAL against this version**
+   When the message names assemblies whose types did not load, an external DAL among them was built against an earlier version of RayMigrator: it overrides members that `DalBase` no longer has and lacks those it has now, so its types do not load. A DAL built against 0.19.0 or earlier does not load in 0.20.0. Rebuild it against the RayMigrator packages of the version that loads it and ship the templates of that version as well (see [External DAL Development](../09-extending/external-dal-development.md#discovery-mechanism)).
+
+2. **Verify built-in DALs are discovered and `DataAccessLayers/` exists for external plugins**
    The `DalFactory` uses `DependencyContext.Default` (reads from `deps.json`) to discover built-in DAL assemblies, and scans `DataAccessLayers/` subdirectories relative to the application base directory for external DAL plugin DLLs. For external plugins, each database type requires its own subdirectory:
    ```
    <output-dir>/
@@ -907,16 +986,16 @@ ADO.NET pools physical connections. Every pooled session was authenticated befor
            └── Raycoon.RayMigrator.Database.Sqlite.dll
    ```
 
-2. **Rebuild the project**
+3. **Rebuild the project**
    The Console project has a post-build target (`CopyDalAssembliesToDataAccessLayers`) that copies DAL DLLs and their SQL template files into the correct subdirectories. If the directory is missing, a clean rebuild usually resolves the issue:
    ```bash
    dotnet build -c Debug
    ```
 
-3. **Check for missing `deps.json` (single-file publish)**
+4. **Check for missing `deps.json` (single-file publish)**
    Built-in DALs are discovered via `DependencyContext.Default`, which reads from the `deps.json` file. If this file is missing or incomplete (e.g., after a custom publish step), built-in DALs will not be found. Ensure the publish configuration generates the `deps.json` file.
 
-4. **Check the subdirectory name matches the `DatabaseType` attribute**
+5. **Check the subdirectory name matches the `DatabaseType` attribute**
    DAL discovery scans every DLL for classes implementing `IDal` with a `[DatabaseType("X")]` attribute, but the SQL templates and the optional `TransientErrorCodes.txt` are looked up in `DataAccessLayers/{DatabaseType}/`, so name the subdirectory exactly like the `DatabaseType` value. Each DAL subdirectory must contain the required SQL template files (flat layout, directly in `DataAccessLayers/{Type}/`, not in a `Templates/` subfolder).
 
 ### TemplateCache Initialization Error
@@ -932,6 +1011,9 @@ ADO.NET pools physical connections. Every pooled session was authenticated befor
 
 2. **Verify each DAL subdirectory contains SQL template files**
    Each database type subdirectory (e.g., `DataAccessLayers/SqlServer/`) must contain the required `.sql` template files directly (flat layout, no `Templates/` subfolder).
+
+3. **Update external DALs together with RayMigrator**
+   Every DAL folder needs one template per `TemplateType`, 30 in this version. An external DAL built for an older version lacks the templates added since (in this version `Repository_Upgrade_3`, `Repository_MigrationRecordHistory_Delete`, `Repository_MigrationRecordHistory_Count`, `DatabaseLogging_Delete` and `DatabaseLogging_Count`), and its folder stops every command, whatever database the command uses. Update the DAL, or remove its folder from `DataAccessLayers/` when no configuration uses it. See [External DAL Development](../09-extending/external-dal-development.md).
 
 ## Multi-Target Framework Issues
 
@@ -1055,6 +1137,17 @@ See [Atomic Shared Connection](../02-core-concepts/error-handling.md#atomic-shar
 ### SplitSqlIntoBlocks Fallback Behavior
 
 When all blocks are empty after splitting SQL content by the block delimiter, the method falls back to returning the original content as a single block. This prevents migrations from being silently skipped when the delimiter produces only whitespace blocks.
+
+### Work That Completes After a Cancel
+
+A cancel takes effect at the next block boundary, and some work always runs to its end, so that the repository never records a step half done:
+
+- On MySQL a cancel interrupts only the statement in progress (`KILL QUERY`) and the further statements of the block still run; SQLite cannot interrupt a statement at all. On both, the block in progress may complete, and the run stops before the next block. SQL Server, PostgreSQL and MariaDB abort the block in progress; on MariaDB, as on MySQL, `KILL QUERY` ends a `SLEEP()` early without an error, so a block that waits in `SLEEP()` runs to its end as well.
+- During a rollback (a migrate-down, or the error recovery of a migrate-up), the first block of a rollback file, an atomic rollback and a rollback through a CLI tool run to their end.
+- The rollback that a `--cancelled-action` other than `terminate` starts cannot be cancelled again.
+- With `MigrationErrorAction` = `Ignore`, the interrupted record keeps the block count of the file, as after an ignored error, so the next migrate-up runs the whole file again from its first block.
+
+See [ADR-028](../arc42/09-Architecture-Decisions.md#adr-028-a-run-cancels-at-the-next-block-boundary-with-a-migrationcancelledaction-and-records-cancelled) and [Error Handling — Cancellation](../02-core-concepts/error-handling.md#cancellation).
 
 ## Getting Help
 
