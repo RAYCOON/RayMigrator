@@ -397,7 +397,7 @@ Missing rollback files during an error-recovery rollback chain are controlled by
 
 | RequireRollbackFile | StopRollbackOnMissingRollbackFile | File Missing | Behavior |
 |---------------------|-----------------------------------|-------------|----------|
-| `true` | *(any)* | yes | **Abort** — structural error, chain stops immediately, migration marked `Failed` |
+| `true` | *(any)* | yes | **Abort** — structural error, chain stops immediately, migration status **unchanged** |
 | `false` | `true` (default) | yes | **Stop** — chain stops, warning logged, migration status **unchanged** |
 | `false` | `false` | yes | **Continue** — warning logged, migration status **unchanged**, chain proceeds |
 | - | - | no (block error) | see `RollbackErrorAction` |
@@ -757,11 +757,11 @@ Missing rollback files are checked at two points:
 
 2. **During rollback execution**: If a rollback file is missing when the rollback chain reaches it (this can happen when `RequireRollbackFile = false` since the discovery-time check was skipped):
 
-- **`RequireRollbackFile = true`**: The rollback chain is **aborted immediately** as a structural error, regardless of `RollbackErrorAction` or `StopRollbackOnMissingRollbackFile`. The migration is marked as `Failed`.
+- **`RequireRollbackFile = true`**: The rollback chain is **aborted immediately** as a structural error, regardless of `RollbackErrorAction` or `StopRollbackOnMissingRollbackFile`. The migration status is left **unchanged** (e.g., `Migrated`), because nothing of its rollback ran: once the rollback file is there, the next migrate-down rolls the file back. The run ends as `Error`; the error message of a migrate-down and of the rollback of a cancel action names the missing rollback file, while the error recovery of a migrate-up logs it and its run keeps the message of the failure that started the recovery.
 - **`RequireRollbackFile = false`, `StopRollbackOnMissingRollbackFile = true` (default)**: The rollback chain is **stopped**. A warning is logged and the migration status is left **unchanged** (the file retains its previous status, e.g., `Migrated`). This is the default behavior when `RequireRollbackFile = false`.
 - **`RequireRollbackFile = false`, `StopRollbackOnMissingRollbackFile = false`**: A warning is logged and the rollback chain **continues** to the next file. The migration status is left **unchanged**.
 
-When `RequireRollbackFile = false`, the migration record status is never changed by the missing-file logic — it retains its original status. Only `RequireRollbackFile = true` causes the record to be explicitly set to `Failed`.
+The missing-file logic never changes the migration record status — it retains its original status, with `RequireRollbackFile = true` as well. Before 0.20.0 a required but missing rollback file set the record to `Failed` with every block counted: the next migrate-up then ran the file again from its first block, and migrate-down never picked the record again.
 
 ## Error Recovery Steps
 

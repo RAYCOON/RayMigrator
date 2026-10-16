@@ -2580,17 +2580,15 @@ public class MigrationService : IMigrationService
                             "Rollback file missing (RequireRollbackFile=true) | Product: {Product} | Env: {Environment} | Release: {Release} | TargetGroup: {TargetGroup} | Target: {Target} | File: {Filename} | MigrationRecordId: {MigrationRecordId} | Expected: {RollbackPath}",
                             productOptions.Alias, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, record.ReleaseVersion, record.TargetGroupAlias, record.TargetAlias, record.Filename, record.Id, rollbackRelativePath);
 
-                        // RequireRollbackFile=true + file missing = structural error → abort chain regardless of RollbackErrorAction
-                        if (runMode.ShouldWriteRepository())
-                        {
-                            await _templateExecutor.RepositoryMigrationUpdateAsync(
-                                record.Id, MigrationStatus.Failed, record.FileUpBlocksMigrated);
-                        }
-
+                        // RequireRollbackFile=true + file missing = structural error → abort chain regardless of RollbackErrorAction.
+                        // The record keeps its status, as a missing rollback file that is not required leaves it: nothing of
+                        // the rollback ran, so a Migrated record stays one that migrate-down rolls back once the file is
+                        // there, instead of a Failed record that migrate-up runs again in full and migrate-down never picks.
                         ReportRollbackFileCompleted(FileOutcome.RollbackFailed, $"Required rollback file not found: {rollbackFilename}");
 
                         result.AddFailure(record.Filename, $"Required rollback file not found: {rollbackFilename}", record.TargetAlias, record.Id);
-                        result.ErrorMessage = $"Rollback chain aborted: required rollback file missing for {record.Filename}";
+                        result.ErrorMessage = $"Rollback chain aborted: required rollback file not found: {rollbackRelativePath}; " +
+                                              $"{record.Filename} keeps its status, and migrate-down rolls it back once the file is there";
                         return result;
                     }
                     else

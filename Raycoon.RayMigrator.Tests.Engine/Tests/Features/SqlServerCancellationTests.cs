@@ -206,4 +206,12 @@ public class SqlServerCancellationTests : SqlServerTestBase
 
         await CancellationContract.VerifyFixCancelledBetweenTwoRunsAsync(CreateScenario(), Fixture.EngineConfig);
     }
+
+    [Fact]
+    public async Task MigrateUp_CancelledWithARollbackActionAndAMissingRequiredRollbackFile_KeepsTheStatusOfTheFile()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+
+        await CancellationContract.VerifyRollbackActionWithAMissingRequiredRollbackFileAsync(CreateScenario(), Fixture.EngineConfig);
+    }
 }

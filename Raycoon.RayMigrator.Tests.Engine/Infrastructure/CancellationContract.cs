@@ -23,6 +23,7 @@ internal static class CancellationContract
     private const string CreateTableB = "02_CreateTableB.sql";
     private const string Seed = "03_SeedDataA.sql";
     private const string CreateTableC = "01_CreateTableC.sql";
+    private const string CreateTableCRollback = "01_CreateTableC.rollback.sql";
     private const string CreateTableD = "02_CreateTableD.sql";
     private const string SeedB = "03_SeedDataB.sql";
     private const string Reason = "stopped by the test";
@@ -972,6 +973,59 @@ internal static class CancellationContract
         ctx.GetMigrationRun(2)!.MigrationRunResultId.Should().NotBe(ctx.GetMigrationRun(3)!.MigrationRunResultId,
             because: "one orphaned run was closed and the other stays open for the next fix");
         AssertCancelWarningsCarryNoException(ctx);
+    }
+
+    /// <summary>
+    /// (u) RollbackRelease whose chain finds a required rollback file missing: the file disappeared during the run, after the
+    /// discovery checked it. The chain rolls back the interrupted file and stops at the missing file, whose record keeps
+    /// its status Migrated, because nothing of its rollback ran; the run is Error with 1005 and the message names the file.
+    /// Once the file is there again, migrate-down rolls the record back.
+    /// </summary>
+    public static async Task VerifyRollbackActionWithAMissingRequiredRollbackFileAsync(ScenarioBuilder builder, EngineConfig config)
+    {
+        // Arrange: the cancel comes when the second file of release 2.0 starts, and the rollback file of the first goes away
+        await using var ctx = await builder
+            .WithTargetConnectionString(config.ConnectionString2!)
+            .WithRequireRollbackFile(true)
+            .BuildAsync();
+        string rollbackPath = Path.Combine(ctx.WorkDirectory, Release2, "Backend", CreateTableCRollback);
+        string rollbackContent = File.ReadAllText(rollbackPath);
+        using var cancellation = new RunCancellation();
+        var observer = new CancellingProgressObserver(
+            CancellingProgressObserver.WhenFileStarts(CreateTableD, MigrationOperation.MigrateUp),
+            () =>
+            {
+                File.Delete(rollbackPath);
+                CancelWith(cancellation, MigrationCancelledAction.RollbackRelease);
+            });
+        ctx.UseProgressObserver(observer);
+
+        // Act
+        var result = await ctx.MigrateUpAsync(Release2, cancellation: cancellation);
+
+        // Assert
+        result.Result.Should().Be(MigrationRunResult.Error, because: "the rollback of the action stopped at the missing rollback file");
+        result.ErrorCode.Should().Be(TemplateResultCode.CancelledRollbackIncomplete);
+        ctx.AssertFileStatuses(
+            (CreateTableA, MigrationStatus.Migrated),
+            (CreateTableB, MigrationStatus.Migrated),
+            (Seed, MigrationStatus.Migrated),
+            (CreateTableD, MigrationStatus.NotMigrated),
+            (CreateTableC, MigrationStatus.Migrated));
+        ctx.GetMigrationRecord(CreateTableC)!.FileDownBlocksMigrated.Should().BeNull(because: "nothing of the rollback ran");
+        result.ErrorMessage.Should().StartWith("Cancelled on request (RollbackRelease): the rollback did not complete:")
+            .And.Contain(CreateTableCRollback, because: "the message names the missing rollback file");
+        ctx.AssertTableExistsOnConnection(config.ConnectionString2!, "tablec", true);
+
+        // Act: the rollback file is there again, and migrate-down rolls the record back
+        File.WriteAllText(rollbackPath, rollbackContent);
+        await ctx.RebuildForAsync(MigrationCommand.MigrateDown, MigrationRunMode.Migrate, Release1);
+        var down = await ctx.MigrateDownAsync(Release1);
+
+        // Assert
+        down.Success.Should().BeTrue(because: $"migrate-down picks the record that kept its status: {down.ErrorMessage}");
+        ctx.AssertFileStatus(CreateTableC, MigrationStatus.NotMigrated);
+        ctx.AssertTableExistsOnConnection(config.ConnectionString2!, "tablec", false);
     }
 
     /// <summary>The indexes of schema step 3 and their columns, as the templates of the database name them (no prefix).</summary>

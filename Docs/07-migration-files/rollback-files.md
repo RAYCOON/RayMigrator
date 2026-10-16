@@ -154,7 +154,7 @@ After a rollback, each migration record's `MigrationStatusId` reflects the outco
 |----------|-----------------|-------|
 | Rollback file exists and all blocks succeed | `NotMigrated` | 50 |
 | Rollback file missing (`RequireRollbackFile=false`) | unchanged | — |
-| Rollback file missing (`RequireRollbackFile=true`) | `Failed` | 30 (chain aborted) |
+| Rollback file missing (`RequireRollbackFile=true`) | unchanged | — (chain aborted) |
 | Rollback file missing, `StopRollbackOnMissingRollbackFile=true` (error recovery) | unchanged | — (chain stopped) |
 | Rollback block fails (`RollbackErrorAction=Ignore`) | `Failed` | 30 |
 | Rollback block fails (`RollbackErrorAction=Terminate`) | `Failed` | 30 (chain aborted) |
@@ -272,7 +272,7 @@ The behavior when a rollback file is missing depends on the `RequireRollbackFile
 
 **During rollback execution**, only the product-level `RequireRollbackFile` setting (`Products[].RequireRollbackFile` or `ProductDefaults.RequireRollbackFile`) is evaluated. Per-file TOML and migsettings overrides are not considered at this stage:
 
-- **`RequireRollbackFile = true`** (default): The rollback chain is aborted immediately. The migration is marked as `Failed` (30). This applies regardless of `RollbackErrorAction`.
+- **`RequireRollbackFile = true`** (default): The rollback chain is aborted immediately. The migration status is **not changed**: nothing of its rollback ran, and once the rollback file is there, migrate-down rolls the file back. The run ends as `Error`, and the error message names the missing rollback file. This applies regardless of `RollbackErrorAction`.
 - **`RequireRollbackFile = false`**: A warning is logged, the migration status is **not changed** (it retains its previous value, e.g., `Migrated`), and the rollback chain continues with the next file. For error-recovery rollback, whether the chain stops or continues also depends on `StopRollbackOnMissingRollbackFile`.
 
 ### RequireRollbackFile Option

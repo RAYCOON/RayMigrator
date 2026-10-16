@@ -261,7 +261,7 @@ flowchart TD
     L2 --> X
     L3 --> X[ExecuteRollbackForMigrations isErrorRecovery = true<br/>MigrationOperation = Rollback]
     X --> M{rollback file found by GetRollbackFilename?}
-    M -->|no, RequireRollbackFile = true| A1[record Failed, chain aborted]
+    M -->|no, RequireRollbackFile = true| A1[record keeps its status, chain aborted]
     M -->|no, StopRollbackOnMissingRollbackFile = true| A2[warning, chain stopped]
     M -->|no, StopRollbackOnMissingRollbackFile = false| A3[warning, next record]
     M -->|yes| Y[RepositoryMigrationUpdateRollbackAsync Executing,<br/>rollback blocks through IDal or CliToolExecutor]

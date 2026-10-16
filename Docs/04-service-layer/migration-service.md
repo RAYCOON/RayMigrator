@@ -1334,7 +1334,7 @@ Shared between MigrateUp (error recovery and the rollback of a cancel action, bo
 
 For each migration record to rollback:
 1. Locates the rollback file on disk
-2. If missing and `RequireRollbackFile=true`: aborts the entire rollback chain (marks record as Failed)
+2. If missing and `RequireRollbackFile=true`: aborts the entire rollback chain; the record keeps its status (nothing of its rollback ran, so migrate-down rolls a `Migrated` record back once the file is there), and the error message names the missing rollback file
 3. If missing and `RequireRollbackFile=false` during **error-recovery rollback** (`MigrationErrorAction=Rollback/RollbackRelease/RollbackErrorOnly`): checks `StopRollbackOnMissingRollbackFile` (CLI > TargetGroup > Product, default `true`). If `true`, stops the chain (adds warning, returns without marking Failed). If `false`, logs a warning and continues to the next record without updating the migration status.
 4. If missing and `RequireRollbackFile=false` during **explicit migrate-down**: always logs a warning and continues the chain (skips the record, does not update status)
 5. Parses rollback file and resolves `RollbackErrorAction` (file-level override -> product-level -> default `Terminate`)

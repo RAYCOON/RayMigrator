@@ -94,7 +94,7 @@ flowchart TD
     K --> L{Rollback File Exists?}
     L -->|Yes| L2[Resume from Last Completed Block if Partial]
     L2 --> M[Execute Rollback SQL Blocks]
-    L -->|No, RequireRollbackFile=true| N1[Mark as Failed — Abort Chain]
+    L -->|No, RequireRollbackFile=true| N1[Status Unchanged — Abort Chain]
     L -->|No, RequireRollbackFile=false| N2[Status Unchanged — Continue Chain]
     M --> M1{All Blocks Succeeded?}
     M1 -->|Yes| O[Update State to NotMigrated]
@@ -167,8 +167,8 @@ Behavior depends on the `RequireRollbackFile` product setting:
 | Behavior | Description |
 |----------|-------------|
 | Error Logged | The missing file is treated as a structural error |
-| State Updated | Migration status becomes "Failed" |
-| Chain Aborted | The entire rollback chain is aborted immediately |
+| State Unchanged | Migration status is not updated (`Migrated` stays `Migrated`), because nothing of the rollback ran; once the rollback file is there, the next migrate-down rolls the file back |
+| Chain Aborted | The entire rollback chain is aborted immediately; the run ends as `Error`, and the error message names the missing rollback file |
 
 ### RequireRollbackFile = false
 
@@ -227,13 +227,19 @@ After successful rollback (all SQL blocks pass), migration states change:
 |--------|-------|
 | Migrated | NotMigrated |
 
-If rollback SQL fails with `RollbackErrorAction=Terminate`, or rollback file is missing with `RequireRollbackFile=true`:
+If rollback SQL fails with `RollbackErrorAction=Terminate`:
 
 | Before | After | Chain |
 |--------|-------|-------|
 | Migrated | Failed | Aborted |
 
 A record whose rollback SQL failed keeps the rollback blocks that ran before the failed block; an atomic rollback and a rollback through a CLI tool keep those of the attempt they continued (0 without one). A record with some but not all of its rollback blocks is a rollback that stopped in the middle: the next migrate-down continues it at the failed block, and migrate-up refuses to run its file until then.
+
+If the rollback file is missing with `RequireRollbackFile=true`:
+
+| Before | After | Chain |
+|--------|-------|-------|
+| Migrated | Unchanged (Migrated) | Aborted |
 
 If rollback SQL fails with `RollbackErrorAction=Ignore`:
 

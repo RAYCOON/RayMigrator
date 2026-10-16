@@ -84,7 +84,7 @@ A migration file is in `Migrated` status when:
 - Successfully executed via `MigrateUp`
 - Forward migration completed without errors
 - Baselined (marked as migrated without executing SQL)
-- Rollback file was missing with `RequireRollbackFile=false` (status is not updated — remains `Migrated`)
+- Rollback file was missing during a rollback chain (status is not updated — remains `Migrated`; with `RequireRollbackFile=true` the chain aborts there, and migrate-down rolls the file back once its rollback file is there)
 
 **Valid Operations**: `MigrateDown`
 
@@ -95,7 +95,6 @@ A migration file is in `Failed` status when:
 - Error occurred during `MigrateDown` rollback execution
 - Error occurred during error recovery rollback (rollback block failed)
 - Partial block execution with `MigrationErrorAction=Ignore` (some blocks succeeded, some failed)
-- Rollback file missing during rollback chain when `RequireRollbackFile=true` (status updated to `Failed` explicitly)
 - A cancel interrupted the file (the record keeps the blocks that committed) or stopped a migrate-down or an error recovery between two rollback blocks (the record keeps the leading rollback blocks that ran); see [After a Cancel](#after-a-cancel)
 
 **Valid Operations**: Manual investigation required

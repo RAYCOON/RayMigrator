@@ -53,7 +53,7 @@ When a rollback file is not found, the behavior depends on two settings: `Requir
 
 | `RequireRollbackFile` | `StopRollbackOnMissingRollbackFile` | Flow | Behavior | Record Status |
 |-----------------------|-------------------------------------|------|----------|---------------|
-| `true` | N/A | Any | Rollback chain **aborted immediately** | `Failed` (30) |
+| `true` | N/A | Any | Rollback chain **aborted immediately** | Unchanged |
 | `false` | `true` (default) | Error-recovery Rollback | Chain **stopped** with Warning | Unchanged |
 | `false` | `false` | Error-recovery Rollback | Chain **continues** with Warning | Unchanged |
 | `false` | N/A | migrate-down | Chain **continues** with Warning | Unchanged |
@@ -209,7 +209,7 @@ Control whether rollback files are mandatory. This setting supports the full cro
 
 | Value | Behavior on migrate-up | Behavior on migrate-down / Error-recovery Rollback |
 |-------|------------------------|----------------------------------------------------|
-| `true` (default) | migrate-up fails during file discovery if any migration is missing its `.rollback.sql` file | Rollback chain is aborted if a rollback file is missing; record is set to `Failed` (30) |
+| `true` (default) | migrate-up fails during file discovery if any migration is missing its `.rollback.sql` file | Rollback chain is aborted if a rollback file is missing; record status is unchanged, and migrate-down rolls the file back once its rollback file is there |
 | `false` | Rollback files are optional; migrations without rollback files can be executed | Missing rollback files are skipped with a warning; record status is unchanged. For error-recovery rollback, whether the chain stops or continues depends on `StopRollbackOnMissingRollbackFile` |
 
 ## StopRollbackOnMissingRollbackFile Setting
@@ -275,7 +275,7 @@ This ensures that foreign key constraints are dropped before the tables they ref
 | Target group filter | Use `--target-group` / `-tg` to limit rollback to specific target groups |
 | Block-level tracking | Progress is tracked per SQL block; interrupted rollbacks can resume from the last successful block |
 | RollbackErrorAction | Controls behavior when a rollback SQL block fails: `Terminate` (abort chain) or `Ignore` (skip and continue) |
-| Missing rollback file | `RequireRollbackFile=true` aborts chain with `Failed` (30); `RequireRollbackFile=false` + `StopRollbackOnMissingRollbackFile=true` (default) stops error-recovery chain with Warning; `false`+`false` continues with Warning; status is unchanged for the skipped record |
+| Missing rollback file | `RequireRollbackFile=true` aborts the chain, and the record keeps its status, so that `migrate-down` rolls it back once the file is there; `RequireRollbackFile=false` + `StopRollbackOnMissingRollbackFile=true` (default) stops error-recovery chain with Warning; `false`+`false` continues with Warning; status is unchanged for the skipped record |
 | IF EXISTS | Always use defensive checks in rollback files |
 | Non-reversible ops | Backup data before destructive migrations |
 | RequireRollbackFile | Enforce rollback files globally or override per migration via TOML |

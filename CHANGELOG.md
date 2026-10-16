@@ -593,6 +593,19 @@ RayMigrator follows Semantic Versioning where applicable.
   run they insert as well, with an empty JSON object as its settings,
   because every run of the engine has one; a test that counts
   `MigrationRunMeta` rows counts it.
+- A rollback file that `RequireRollbackFile=true` requires and that is
+  missing when a rollback chain reaches it (migrate-down, the error
+  recovery of a migrate-up, the rollback of a `MigrationCancelledAction`)
+  leaves the record of its file in its status. The chain still aborts
+  there, and the run ends as `Error`. The error message of a migrate-down
+  and of the rollback of a cancel action names the missing rollback file and
+  that the record keeps its status; the error recovery of a migrate-up logs
+  it, and its run keeps the message of the failure that started the
+  recovery. The record became `Failed` with every block counted and
+  no rollback progress before: the next migrate-up ran the whole file
+  again over what it had applied, and migrate-down never picked the record
+  again. Once the rollback file is there, the next migrate-down rolls the
+  file back.
 
 ### Fixed
 
