@@ -249,38 +249,55 @@ public class MySqlMariaDbIdentifierCasingTests
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// Repository_MigrationRecord_Select.sql (MySQL) must expose exactly 21 PascalCase output aliases
+    /// Repository_MigrationRecord_Select.sql (MySQL) must expose exactly 23 PascalCase output aliases
     /// (one per column consumed by TemplateExecutor.RepositoryMigrationSelect and the
-    /// cross-engine row["PascalCaseKey"] reader contract). Aliases use backtick quoting
-    /// (AS `PascalCase`) which is the MySQL/MariaDB equivalent of PG's AS "PascalCase".
+    /// cross-engine row["PascalCaseKey"] reader contract: 21 plus StartedAt and FinishedAt of 0.20.0). Aliases use
+    /// backtick quoting (AS `PascalCase`) which is the MySQL/MariaDB equivalent of PG's AS "PascalCase".
     /// </summary>
     [Fact]
-    public void MigrationSelect_Has21Aliases_MySql()
+    public void MigrationSelect_Has23Aliases_MySql()
     {
         var content = ReadTemplate("MySql", "Repository_MigrationRecord_Select.sql");
 
         var aliasPattern = new Regex(@"\bAS\s+`[A-Z][a-zA-Z]+`", RegexOptions.IgnoreCase);
         var count = aliasPattern.Matches(content).Count;
 
-        count.Should().Be(21,
-            "Repository_MigrationRecord_Select.sql (MySql) must have exactly 21 AS `PascalCase` aliases to " +
+        count.Should().Be(23,
+            "Repository_MigrationRecord_Select.sql (MySql) must have exactly 23 AS `PascalCase` aliases to " +
             "satisfy the cross-engine row[\"PascalCase\"] reader contract (DAL-018 Strategy B)");
     }
 
     /// <summary>
-    /// Repository_MigrationRecord_Select.sql (MariaDB) must expose exactly 21 PascalCase output aliases.
+    /// Repository_MigrationRecord_Select.sql (MariaDB) must expose exactly 23 PascalCase output aliases.
     /// </summary>
     [Fact]
-    public void MigrationSelect_Has21Aliases_MariaDb()
+    public void MigrationSelect_Has23Aliases_MariaDb()
     {
         var content = ReadTemplate("MariaDb", "Repository_MigrationRecord_Select.sql");
 
         var aliasPattern = new Regex(@"\bAS\s+`[A-Z][a-zA-Z]+`", RegexOptions.IgnoreCase);
         var count = aliasPattern.Matches(content).Count;
 
-        count.Should().Be(21,
-            "Repository_MigrationRecord_Select.sql (MariaDb) must have exactly 21 AS `PascalCase` aliases to " +
+        count.Should().Be(23,
+            "Repository_MigrationRecord_Select.sql (MariaDb) must have exactly 23 AS `PascalCase` aliases to " +
             "satisfy the cross-engine row[\"PascalCase\"] reader contract (DAL-018 Strategy B)");
+    }
+
+    /// <summary>
+    /// Repository_MigrationRecordHistory_Select.sql returns the columns of Repository_MigrationRecord_Select under the
+    /// same names and in the same order: TemplateExecutor.MapMigrationRecord maps the rows of both.
+    /// </summary>
+    [Theory]
+    [InlineData("MySql")]
+    [InlineData("MariaDb")]
+    public void MigrationRecordHistorySelect_HasTheAliasesOfTheRecordSelect(string engine)
+    {
+        var aliasPattern = new Regex(@"\bAS\s+`([A-Z][a-zA-Z]+)`");
+
+        var record = aliasPattern.Matches(ReadTemplate(engine, "Repository_MigrationRecord_Select.sql")).Select(m => m.Groups[1].Value);
+        var history = aliasPattern.Matches(ReadTemplate(engine, "Repository_MigrationRecordHistory_Select.sql")).Select(m => m.Groups[1].Value);
+
+        history.Should().Equal(record, $"both {engine} selects feed the same reader contract");
     }
 
     /// <summary>

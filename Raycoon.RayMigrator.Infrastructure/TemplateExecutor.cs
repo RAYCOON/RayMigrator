@@ -810,7 +810,8 @@ public class TemplateExecutor
 
     /// <summary>
     /// Maps one row of Repository_MigrationRecord_Select or Repository_MigrationRecordHistory_Select (same column
-    /// contract) to a <see cref="MigrationRecord"/>.
+    /// contract) to a <see cref="MigrationRecord"/>. <c>StartedAt</c> and <c>FinishedAt</c> may be absent: the selects of
+    /// an external DAL written for an engine before 0.20.0 do not return them, and their rows map with null dates.
     /// </summary>
     internal static MigrationRecord MapMigrationRecord(Dictionary<string, object?> row) => new()
     {
@@ -835,7 +836,31 @@ public class TemplateExecutor
         FileDownBlocksHash = row["FileDownBlocksHash"]?.ToString(),
         FileDownBlocksMigrated = row["FileDownBlocksMigrated"] != null ? Convert.ToInt32(row["FileDownBlocksMigrated"]) : null,
         FileDownBlocksTotal = row["FileDownBlocksTotal"] != null ? Convert.ToInt32(row["FileDownBlocksTotal"]) : null,
+        StartedAt = ReadOptionalDateTime(row, "StartedAt"),
+        FinishedAt = ReadOptionalDateTime(row, "FinishedAt"),
     };
+
+    /// <summary>
+    /// A date column of a repository row as a <see cref="DateTimeKind.Utc"/> value, or null when the column is NULL or
+    /// absent. The repository stores UTC on every engine, and the rules are those of <c>RepositoryRowMapper</c> of the
+    /// read model: a value without a kind (SQL Server, MySQL and MariaDB) is UTC, a local one is converted, SQLite text is
+    /// parsed as UTC.
+    /// </summary>
+    private static DateTime? ReadOptionalDateTime(Dictionary<string, object?> row, string column)
+    {
+        if (!row.TryGetValue(column, out var value) || value == null || value == DBNull.Value)
+            return null;
+
+        return value switch
+        {
+            DateTime { Kind: DateTimeKind.Utc } utc => utc,
+            DateTime { Kind: DateTimeKind.Local } local => local.ToUniversalTime(),
+            DateTime unspecified => DateTime.SpecifyKind(unspecified, DateTimeKind.Utc),
+            DateTimeOffset offset => offset.UtcDateTime,
+            string text => DateTime.Parse(text, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal),
+            _ => DateTime.SpecifyKind(Convert.ToDateTime(value, CultureInfo.InvariantCulture), DateTimeKind.Utc)
+        };
+    }
 
     /// <summary>
     /// Updates the hash fields of an existing MigrationRecord entry.

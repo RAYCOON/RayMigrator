@@ -130,6 +130,7 @@ public class MigrationStatusModelTests
         status.LastMigrationDate.Should().BeNull();
         status.TotalMigrationsExecuted.Should().Be(0);
         status.PendingMigrations.Should().Be(0);
+        status.PendingFiles.Should().BeEmpty();
         status.LastRunResult.Should().BeNull();
         status.TargetGroups.Should().BeEmpty();
     }
@@ -143,8 +144,63 @@ public class MigrationStatusModelTests
         tg.DatabaseType.Should().BeEmpty();
         tg.CurrentRelease.Should().BeEmpty();
         tg.ExecutedMigrations.Should().Be(0);
+        tg.PendingMigrations.Should().Be(0);
         tg.LastMigrationDate.Should().BeNull();
         tg.Targets.Should().BeEmpty();
+    }
+}
+
+/// <summary>
+/// P3-7: PendingMigrationInfo and PendingMigrationReason model tests (used by the Info command). The reason follows the
+/// enum convention of the engine: Undefined = 0 and fixed values in steps of 10 that hosts may store.
+/// </summary>
+public class PendingMigrationModelTests
+{
+    [Fact]
+    public void PendingMigrationReason_Values_FollowTheEnumConvention()
+    {
+        Enum.GetValues<PendingMigrationReason>().Should().Equal(
+            PendingMigrationReason.Undefined, PendingMigrationReason.NotMigrated, PendingMigrationReason.Failed,
+            PendingMigrationReason.Resumable, PendingMigrationReason.RunAlways, PendingMigrationReason.HashMismatch,
+            PendingMigrationReason.RollbackIncomplete);
+        Enum.GetValues<PendingMigrationReason>().Select(r => (int)r).Should().Equal([0, 10, 20, 30, 40, 50, 60],
+            because: "the values are part of the contract and never move");
+        default(PendingMigrationReason).Should().Be(PendingMigrationReason.Undefined);
+    }
+
+    [Fact]
+    public void PendingMigrationInfo_AllProperties_AreSet()
+    {
+        var pending = new PendingMigrationInfo("Release 1.0", "Backend", "MainDB", "10_Create.sql", 4, PendingMigrationReason.Resumable, 2);
+
+        pending.ReleaseVersion.Should().Be("Release 1.0");
+        pending.TargetGroupAlias.Should().Be("Backend");
+        pending.TargetAlias.Should().Be("MainDB");
+        pending.Filename.Should().Be("10_Create.sql");
+        pending.FileOrderId.Should().Be(4);
+        pending.Reason.Should().Be(PendingMigrationReason.Resumable);
+        pending.ResumeFromBlock.Should().Be(2);
+        pending.RollbackBlocksMigrated.Should().BeNull(because: "only an incomplete rollback has rollback blocks");
+        pending.RollbackBlocksTotal.Should().BeNull();
+    }
+
+    [Fact]
+    public void PendingMigrationInfo_RollbackIncomplete_CarriesTheRollbackBlocks()
+    {
+        var pending = new PendingMigrationInfo("Release 1.0", "Backend", "MainDB", "10_Create.sql", 4, PendingMigrationReason.RollbackIncomplete, null, 1, 3);
+
+        pending.RollbackBlocksMigrated.Should().Be(1);
+        pending.RollbackBlocksTotal.Should().Be(3);
+        pending.ResumeFromBlock.Should().BeNull();
+    }
+
+    [Fact]
+    public void PendingMigrationInfo_IsComparedByValue()
+    {
+        var pending = new PendingMigrationInfo("Release 1.0", "Backend", null, "10_Create.sql", 4, PendingMigrationReason.NotMigrated, null);
+
+        pending.Should().Be(new PendingMigrationInfo("Release 1.0", "Backend", null, "10_Create.sql", 4, PendingMigrationReason.NotMigrated, null));
+        pending.Should().NotBe(pending with { TargetAlias = "MainDB" });
     }
 }
 

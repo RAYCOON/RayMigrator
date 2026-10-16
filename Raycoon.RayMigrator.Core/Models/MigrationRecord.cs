@@ -113,4 +113,18 @@ public class MigrationRecord
     /// Total number of blocks in the rollback file.
     /// </summary>
     public int? FileDownBlocksTotal { get; set; }
+
+    /// <summary>
+    /// When the record was created or last reset for a new attempt, in UTC (<see cref="DateTimeKind.Utc"/> on every
+    /// engine). Null when the select of the DAL does not return the column (an external DAL with a select of an engine
+    /// before 0.20.0).
+    /// </summary>
+    public DateTime? StartedAt { get; set; }
+
+    /// <summary>
+    /// When the record last reached a terminal status (Migrated, NotMigrated or Failed), in UTC
+    /// (<see cref="DateTimeKind.Utc"/> on every engine). Null while the record is pending or executing, after a repair
+    /// that set the status without an end (<c>fix</c>), and when the select of the DAL does not return the column.
+    /// </summary>
+    public DateTime? FinishedAt { get; set; }
 }

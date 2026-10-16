@@ -141,7 +141,25 @@ public class MigrationStatusInfo
     public string CurrentRelease { get; set; } = string.Empty;
     public DateTime? LastMigrationDate { get; set; }
     public int TotalMigrationsExecuted { get; set; }
+
+    /// <summary>The number of files the next migrate-up runs, counted per file and target: always <c>PendingFiles.Count</c>.</summary>
     public int PendingMigrations { get; set; }
+
+    /// <summary>
+    /// The files the next migrate-up runs, one entry per file and target, with the reason and, for a resumed file, the
+    /// committed blocks it skips. A file is pending on every target its <c>Targets</c> filter selects: a RunAlways file
+    /// always, any other file unless the target has a Migrated record whose hash matches under the HashValidationScope
+    /// of the target group.
+    /// </summary>
+    /// <remarks>
+    /// The entries are in the order migrate-up runs them: releases in order; the target groups of a release in their
+    /// TargetGroupMigrationOrder (the migsettings of the release, else the product), otherwise in configuration order;
+    /// within a target group file by file or target by target as its TargetMigrationOrder says, the targets in
+    /// configuration order. This is the order of a migrate-up without <c>--target-group-migration-order</c>; a run with
+    /// <c>--to-release</c> or <c>--target-groups</c> runs a part of the list. Files of a release older than what a
+    /// target has migrated are listed as well, although migrate-up refuses them without <c>--allow-out-of-order</c>.
+    /// </remarks>
+    public List<PendingMigrationInfo> PendingFiles { get; set; } = [];
     public MigrationRunResult? LastRunResult { get; set; }
     public Dictionary<string, TargetGroupStatus> TargetGroups { get; set; } = new Dictionary<string, TargetGroupStatus>();
 }
@@ -155,6 +173,15 @@ public class TargetGroupStatus
     public string DatabaseType { get; set; } = string.Empty;
     public string CurrentRelease { get; set; } = string.Empty;
     public int ExecutedMigrations { get; set; }
+
+    /// <summary>The entries of <see cref="MigrationStatusInfo.PendingFiles"/> that belong to this target group.</summary>
+    public int PendingMigrations { get; set; }
+
+    /// <summary>
+    /// When the Migrated record of this target group that finished last finished (<c>MigrationRecord.FinishedAt</c>), in
+    /// UTC (<see cref="DateTimeKind.Utc"/> on every engine); null when no Migrated record has an end, for example with an
+    /// external DAL whose record select lacks the column.
+    /// </summary>
     public DateTime? LastMigrationDate { get; set; }
     public List<string> Targets { get; set; } = new List<string>();
 }

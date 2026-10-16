@@ -659,6 +659,16 @@ internal static class CancellationContract
         ctx.AssertMigrationRecord(SeedB, halfRolledBack);
         ctx.AssertRowCountOnConnection(config.ConnectionString2!, "tablec", 2);
 
+        // Act: info names the half rolled back file
+        await ctx.RebuildForAsync(MigrationCommand.Info, MigrationRunMode.Migrate);
+        var status = await ctx.InfoAsync();
+
+        // Assert
+        status.PendingFiles.Should().ContainSingle(p => p.Filename == SeedB).Which.Should().Be(
+            new PendingMigrationInfo(Release2, "Backend", "MainDB", SeedB, 6, PendingMigrationReason.RollbackIncomplete, null, 1, 3),
+            because: "the next migrate-up refuses the file until migrate-down completes its rollback");
+        status.PendingMigrations.Should().Be(status.PendingFiles.Count);
+
         // Act
         await ctx.RebuildForAsync(MigrationCommand.MigrateUp, MigrationRunMode.Migrate, Release2);
         var refusedRun = new RecordingProgressObserver();

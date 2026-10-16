@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -21,6 +22,14 @@ public class RayMigratorService
     /// cancel stopped its error recovery.
     /// </summary>
     internal const int CancelledExitCode = 130;
+
+    /// <summary>
+    /// The number of pending migrations info lists one by one before it cuts the list with "… and n more". The next
+    /// migrate-up of a release with a few dozen files on two targets fits in full, and a fresh repository with hundreds
+    /// of files and targets does not push the target groups and the run history off the screen. The count above the list
+    /// is always complete, and a host reads the whole list from <see cref="MigrationStatusInfo.PendingFiles"/>.
+    /// </summary>
+    internal const int PendingListLimit = 50;
 
     private readonly ILogger<RayMigratorService> _logger;
     private readonly RayMigratorConsoleOptions _consoleOptions;
@@ -310,11 +319,15 @@ public class RayMigratorService
         var status = await _migrationService.GetStatusAsync(_consoleOptions.Product!, cancellation.Token);
         var history = await _migrationService.GetHistoryAsync(_consoleOptions.Product!, 10, cancellation.Token);
 
-        // Display status summary
+        // Display status summary; the pending migrations come last, so that their list follows their count
         _logger.LogInformation("--- Migration Status for product {Product}, environment {Environment} ---", status.ProductAlias, _consoleOptions.Environment);
         _logger.LogInformation("  Current Release:     {Release}", status.CurrentRelease);
-        _logger.LogInformation("  Pending Migrations:  {Pending}", status.PendingMigrations);
         _logger.LogInformation("  Total Executed:      {Total}", status.TotalMigrationsExecuted);
+        _logger.LogInformation("  Pending Migrations:  {Pending}", status.PendingMigrations);
+        if (status.PendingFiles.Count > 0)
+        {
+            _logger.LogInformation("\n{PendingMigrationList}", FormatPendingMigrations(status.PendingFiles, PendingListLimit));
+        }
 
         // Display target groups
         if (status.TargetGroups.Count > 0)
@@ -322,8 +335,9 @@ public class RayMigratorService
             _logger.LogInformation("--- Target Groups ---");
             foreach (var (alias, tg) in status.TargetGroups)
             {
-                _logger.LogInformation("  [{Alias}] Type={DbType}, Release={Release}, Executed={Count}, Targets=[{Targets}]",
-                    tg.Alias, tg.DatabaseType, tg.CurrentRelease, tg.ExecutedMigrations,
+                _logger.LogInformation("  [{Alias}] Type={DbType}, Release={Release}, Executed={Count}, Pending={Pending}, LastMigration={LastMigration}, Targets=[{Targets}]",
+                    tg.Alias, tg.DatabaseType, tg.CurrentRelease, tg.ExecutedMigrations, tg.PendingMigrations,
+                    tg.LastMigrationDate?.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) ?? "—",
                     string.Join(", ", tg.Targets));
             }
         }
@@ -352,6 +366,50 @@ public class RayMigratorService
 
         return 0;
     }
+
+    /// <summary>
+    /// The pending migrations of info as a table in the order migrate-up runs them: release, target group, target, file
+    /// and reason, a resumed file with the committed blocks it skips. Lists the first <paramref name="limit"/> entries and
+    /// closes with "… and n more" when there are more.
+    /// </summary>
+    internal static string FormatPendingMigrations(IReadOnlyList<PendingMigrationInfo> pending, int limit)
+    {
+        var shown = pending.Take(limit).ToList();
+        string[] headers = ["Release", "Target group", "Target", "File", "Reason"];
+        var rows = shown
+            .Select(p => new[] { p.ReleaseVersion, p.TargetGroupAlias, p.TargetAlias ?? "—", p.Filename, DescribeReason(p) })
+            .ToList();
+        int[] widths = headers.Select((header, column) => rows.Select(row => row[column].Length).Append(header.Length).Max()).ToArray();
+
+        var sb = new StringBuilder();
+        AppendRow(headers);
+        AppendRow(widths.Select(width => new string('─', width)).ToArray());
+        foreach (var row in rows)
+        {
+            AppendRow(row);
+        }
+        if (pending.Count > shown.Count)
+        {
+            sb.AppendLine($"    … and {pending.Count - shown.Count} more");
+        }
+        return sb.ToString().TrimEnd();
+
+        void AppendRow(string[] cells)
+            => sb.AppendLine(("    " + string.Join("  ", cells.Select((cell, column) => cell.PadRight(widths[column])))).TrimEnd());
+    }
+
+    /// <summary>
+    /// The reason of a pending migration as info shows it; a resumed file names the last block that committed, after which
+    /// migrate-up continues, and a file whose rollback stopped in the middle names the rollback blocks that ran and the
+    /// command that continues the rollback.
+    /// </summary>
+    internal static string DescribeReason(PendingMigrationInfo pending) => pending.Reason switch
+    {
+        PendingMigrationReason.Resumable => $"Resumable after block {pending.ResumeFromBlock ?? 0}",
+        PendingMigrationReason.RollbackIncomplete =>
+            $"RollbackIncomplete after {pending.RollbackBlocksMigrated ?? 0} of {pending.RollbackBlocksTotal ?? 0} rollback blocks, run migrate-down",
+        _ => pending.Reason.ToString()
+    };
 
     private async Task<int> ExecuteFixIssuesAsync(RunCancellation cancellation)
     {

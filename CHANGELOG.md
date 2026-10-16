@@ -176,6 +176,56 @@ RayMigrator follows Semantic Versioning where applicable.
   exits with `1` like any failed run, and so do a 1004 and an
   `OperationCanceledException` that did not come from the cancel of the
   process.
+- `MigrationStatusInfo.PendingFiles` lists what the next migrate-up runs: one
+  `PendingMigrationInfo` (new in `Raycoon.RayMigrator.Services.Abstractions`)
+  per file and target with `ReleaseVersion`, `TargetGroupAlias`,
+  `TargetAlias` (null only when neither the configuration, the `Targets`
+  filter of the file nor a record names a target), `Filename`, `FileOrderId`,
+  `Reason`, `ResumeFromBlock`, `RollbackBlocksMigrated` and
+  `RollbackBlocksTotal`. The list comes from the evaluation that
+  counted `PendingMigrations` before, which is now always its length, and
+  uses the checks of migrate-up: a RunAlways file is pending on every target
+  its `Targets` filter selects, any other file on every selected target
+  without a Migrated record whose hash matches under the HashValidationScope
+  of its target group. The new `PendingMigrationReason` (`Undefined` 0,
+  `NotMigrated` 10, `Failed` 20, `Resumable` 30, `RunAlways` 40,
+  `HashMismatch` 50, `RollbackIncomplete` 60) says why: first
+  `RollbackIncomplete` for a record `Failed` with some but not all of its
+  rollback blocks, also of a RunAlways file, which migrate-up refuses to
+  run until migrate-down has completed the rollback; then `Resumable` when
+  migrate-up skips committed blocks (a failed or cancelled file whose
+  blocks did not change, or an Executing record with every block that
+  migrate-up only finalizes), also for a RunAlways file, which migrate-up
+  resumes like any other; then
+  `RunAlways`; `HashMismatch` for a Migrated record whose hash no longer
+  matches; `Failed` for a failed attempt without a resume point; otherwise
+  `NotMigrated` (no record, a rolled back one, or a Pending or Executing
+  record of a run that is still open, which the next migrate-up closes as
+  orphaned and runs from the first block). `ResumeFromBlock` is set for
+  `Resumable` only and counts like `FileStartedEvent.ResumeFromBlock`: the
+  committed leading blocks the next migrate-up skips, the block count of the
+  file when it only finalizes the record. `RollbackBlocksMigrated` and
+  `RollbackBlocksTotal` are set for `RollbackIncomplete` only: the rollback
+  blocks that ran, after which migrate-down continues, and the blocks of the
+  rollback file. The entries are in the order of a
+  migrate-up without `--target-group-migration-order`: releases, the target
+  groups of a release in their TargetGroupMigrationOrder (migsettings of the
+  release, else the product) or in configuration order, then file by file
+  or target by target as the TargetMigrationOrder of the group says, the
+  targets in configuration order. A run with `--to-release` or
+  `--target-group` runs a part of the list, and files of a release older
+  than what a target has migrated are listed although migrate-up refuses them
+  without `--allow-out-of-order`.
+- `TargetGroupStatus.PendingMigrations` counts the entries of
+  `PendingFiles` that belong to the target group.
+- `info` lists the pending migrations under their count, which now follows
+  `Total Executed`: release, target group, target, file and reason, a
+  resumed file as `Resumable after block n`, a file whose rollback stopped
+  in the middle as `RollbackIncomplete after k of n rollback blocks, run
+  migrate-down`, in the order of the next
+  migrate-up; the list shows the first 50 entries and ends with
+  `… and n more` when there are more. Every target group line names
+  `Pending=` and `LastMigration=`.
 
 ### Changed
 
@@ -260,6 +310,17 @@ RayMigrator follows Semantic Versioning where applicable.
   `Task.Run`, also in the atomic path, where the repository updates of a
   file share the target's connection and transaction, and the run
   heartbeat writes asynchronously.
+- `Repository_MigrationRecord_Select` and
+  `Repository_MigrationRecordHistory_Select` (every DAL) return `StartedAt`
+  and `FinishedAt`, and `MigrationRecord` carries them as `DateTime?` of
+  `DateTimeKind.Utc` on every engine, read as the read model reads the
+  dates of the repository (a value without a kind is UTC, SQLite text is
+  parsed as UTC). The two selects keep the same
+  columns, since `TemplateExecutor.MapMigrationRecord` maps both. The mapping
+  takes the dates only when the row has them, so an external DAL whose
+  selects lack the columns keeps working: its records map with null dates and
+  info reports no `LastMigrationDate` for its target groups. An external DAL
+  adds `StartedAt` and `FinishedAt` to both selects.
 
 ### Fixed
 
@@ -282,6 +343,9 @@ RayMigrator follows Semantic Versioning where applicable.
   token, and its output is read without the token, so a cancel that arrives
   after the tool got the whole file and
   exited keeps its result.
+- `TargetGroupStatus.LastMigrationDate` is set: the `FinishedAt` (UTC) of the
+  Migrated record of the target group that finished last, null when none has
+  an end. It was never set before.
 
 ## [0.19.0] — 2026-10-15
 

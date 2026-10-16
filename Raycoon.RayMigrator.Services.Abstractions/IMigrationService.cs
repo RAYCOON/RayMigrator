@@ -57,7 +57,9 @@ public interface IMigrationService
     Task<BaselineResult> BaselineAsync(BaselineRequest request, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Gets the current migration status for a product
+    /// Gets the current migration status for a product: the current release, the files the next migrate-up runs
+    /// (<see cref="MigrationStatusInfo.PendingFiles"/>, in its order and with the reason) and the status of every
+    /// target group, read from the repository and the migration files.
     /// </summary>
     /// <param name="productAlias">Product identifier</param>
     /// <param name="cancellationToken">Stops the query; the call throws <see cref="OperationCanceledException"/>.</param>

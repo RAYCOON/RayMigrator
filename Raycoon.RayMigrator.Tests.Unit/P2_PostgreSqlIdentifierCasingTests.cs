@@ -166,21 +166,36 @@ public class PostgreSqlIdentifierCasingTests
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// Repository_MigrationRecord_Select.sql must expose exactly 21 PascalCase output aliases
+    /// Repository_MigrationRecord_Select.sql must expose exactly 23 PascalCase output aliases
     /// (one per column consumed by TemplateExecutor.RepositoryMigrationSelect and the
-    /// cross-engine row["PascalCaseKey"] reader contract).
+    /// cross-engine row["PascalCaseKey"] reader contract: 21 plus StartedAt and FinishedAt of 0.20.0).
     /// </summary>
     [Fact]
-    public void MigrationSelect_Has21PascalCaseAliases()
+    public void MigrationSelect_Has23PascalCaseAliases()
     {
         var content = ReadTemplate("PostgreSQL", "Repository_MigrationRecord_Select.sql");
 
         var aliasPattern = new Regex(@"\bAS\s+""[A-Z][a-zA-Z]+""");
         var count = aliasPattern.Matches(content).Count;
 
-        count.Should().Be(21,
-            "Repository_MigrationRecord_Select.sql must have exactly 21 AS \"PascalCase\" aliases to satisfy " +
+        count.Should().Be(23,
+            "Repository_MigrationRecord_Select.sql must have exactly 23 AS \"PascalCase\" aliases to satisfy " +
             "the cross-engine row[\"PascalCase\"] reader contract (DAL-017 Strategy B)");
+    }
+
+    /// <summary>
+    /// Repository_MigrationRecordHistory_Select.sql returns the columns of Repository_MigrationRecord_Select under the
+    /// same names and in the same order: TemplateExecutor.MapMigrationRecord maps the rows of both.
+    /// </summary>
+    [Fact]
+    public void MigrationRecordHistorySelect_HasTheAliasesOfTheRecordSelect()
+    {
+        var aliasPattern = new Regex(@"\bAS\s+""([A-Z][a-zA-Z]+)""");
+
+        var record = aliasPattern.Matches(ReadTemplate("PostgreSQL", "Repository_MigrationRecord_Select.sql")).Select(m => m.Groups[1].Value);
+        var history = aliasPattern.Matches(ReadTemplate("PostgreSQL", "Repository_MigrationRecordHistory_Select.sql")).Select(m => m.Groups[1].Value);
+
+        history.Should().Equal(record, "both selects feed the same reader contract");
     }
 
     /// <summary>

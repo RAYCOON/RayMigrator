@@ -4884,19 +4884,7 @@ public class MigrationService : IMigrationService
         List<MigrationRecord> existingRecords,
         CancellationToken cancellationToken = default)
     {
-        var completedRecord = existingRecords
-            .Where(r => r.Filename == file.Filename
-                && r.ReleaseVersion == file.ReleaseVersion
-                && r.TargetGroupAlias == file.TargetGroupAlias
-                && r.TargetAlias == targetAlias
-                && r.MigrationStatusId == MigrationStatus.Executing
-                && r.FileUpBlocksMigrated > 0
-                && r.FileUpBlocksMigrated >= r.FileUpBlocksTotal
-                && r.FileUpBlocksHash == file.FileUpBlocksHash
-                && r.FileDownHash == null)
-            .OrderByDescending(r => r.Id)
-            .FirstOrDefault();
-
+        var completedRecord = FindFinalizableRecord(file, targetAlias, existingRecords);
         if (completedRecord == null)
             return -1;
 
@@ -4916,6 +4904,25 @@ public class MigrationService : IMigrationService
     }
 
     /// <summary>
+    /// The record <see cref="TryFinalizeCompletedMigrationAsync"/> finalizes for a file+target combination: the most
+    /// recent Executing record that committed every block of the unchanged file and saw no rollback, or null.
+    /// </summary>
+    internal static MigrationRecord? FindFinalizableRecord(
+        MigrationFileInfo file, string targetAlias, List<MigrationRecord> existingRecords)
+        => existingRecords
+            .Where(r => r.Filename == file.Filename
+                && r.ReleaseVersion == file.ReleaseVersion
+                && r.TargetGroupAlias == file.TargetGroupAlias
+                && r.TargetAlias == targetAlias
+                && r.MigrationStatusId == MigrationStatus.Executing
+                && r.FileUpBlocksMigrated > 0
+                && r.FileUpBlocksMigrated >= r.FileUpBlocksTotal
+                && r.FileUpBlocksHash == file.FileUpBlocksHash
+                && r.FileDownHash == null)
+            .OrderByDescending(r => r.Id)
+            .FirstOrDefault();
+
+    /// <summary>
     /// Checks if a file+target combination can be resumed from a previous partial execution.
     /// Returns the 0-based block index to start from, or 0 if no resume is possible.
     /// Resume is possible when:
@@ -4929,24 +4936,12 @@ public class MigrationService : IMigrationService
         string targetAlias,
         List<MigrationRecord> existingRecords)
     {
-        // Find the most recent Failed/Executing record for this file+target
-        var partialRecord = existingRecords
-            .Where(r => r.Filename == file.Filename
-                && r.ReleaseVersion == file.ReleaseVersion
-                && r.TargetGroupAlias == file.TargetGroupAlias
-                && r.TargetAlias == targetAlias
-                && r.MigrationStatusId is MigrationStatus.Failed or MigrationStatus.Executing
-                && r.FileUpBlocksMigrated > 0
-                && r.FileUpBlocksMigrated < r.FileUpBlocksTotal
-                && r.FileDownHash == null)  // No rollback attempted
-            .OrderByDescending(r => r.Id)   // Most recent record
-            .FirstOrDefault();
-
+        int startFromBlock = ResumableBlockOf(file, targetAlias, existingRecords, out var partialRecord);
         if (partialRecord == null)
             return 0;
 
         // Hash comparison: file must not have changed since partial execution
-        if (partialRecord.FileUpBlocksHash != file.FileUpBlocksHash)
+        if (startFromBlock == 0)
         {
             _logger.LogWarning(
                 "File {Filename} has changed since last partial execution (hash mismatch). Re-executing from block 1.",
@@ -4959,7 +4954,38 @@ public class MigrationService : IMigrationService
             file.Filename, targetAlias, partialRecord.FileUpBlocksMigrated + 1,
             partialRecord.FileUpBlocksTotal, partialRecord.FileUpBlocksMigrated);
 
-        return partialRecord.FileUpBlocksMigrated; // 0-based: skip first N blocks
+        return startFromBlock; // 0-based: skip first N blocks
+    }
+
+    /// <summary>
+    /// The block <see cref="FindResumableBlock"/> resumes a file+target combination from, without its log lines: the
+    /// committed blocks of <paramref name="partialRecord"/>, the most recent Failed or Executing record that committed
+    /// some but not all blocks and saw no rollback, or 0 when there is no such record or the SQL blocks of the file
+    /// changed since. The status reports the same value as <see cref="PendingMigrationInfo.ResumeFromBlock"/>.
+    /// </summary>
+    internal static int ResumableBlockOf(
+        MigrationFileInfo file,
+        string targetAlias,
+        List<MigrationRecord> existingRecords,
+        out MigrationRecord? partialRecord)
+    {
+        // Find the most recent Failed/Executing record for this file+target
+        partialRecord = existingRecords
+            .Where(r => r.Filename == file.Filename
+                && r.ReleaseVersion == file.ReleaseVersion
+                && r.TargetGroupAlias == file.TargetGroupAlias
+                && r.TargetAlias == targetAlias
+                && r.MigrationStatusId is MigrationStatus.Failed or MigrationStatus.Executing
+                && r.FileUpBlocksMigrated > 0
+                && r.FileUpBlocksMigrated < r.FileUpBlocksTotal
+                && r.FileDownHash == null)  // No rollback attempted
+            .OrderByDescending(r => r.Id)   // Most recent record
+            .FirstOrDefault();
+
+        // Hash comparison: file must not have changed since partial execution
+        return partialRecord != null && partialRecord.FileUpBlocksHash == file.FileUpBlocksHash
+            ? partialRecord.FileUpBlocksMigrated
+            : 0;
     }
 
     /// <summary>
@@ -6089,29 +6115,12 @@ public class MigrationService : IMigrationService
             // Determine current release (highest release version among migrated records)
             string currentRelease = GetHighestMigratedRelease(existingRecords) ?? "None";
 
-            // Count pending migrations: (file, target) pairs that are not yet successfully migrated.
-            // Evaluated per target like migrate-up does, so a target that failed while another
-            // succeeded still counts as pending (#8); targets outside a file's Targets filter are
-            // not counted (#10). With a single target this is the file count.
-            int pendingMigrations = 0;
-            foreach (var file in migrationFiles)
-            {
-                var targetAliases = ResolveTargetAliases(file, existingRecords, productOptions);
-                if (file.RunAlways || targetAliases.Count == 0)
-                {
-                    pendingMigrations += Math.Max(1, targetAliases.Count);
-                    continue;
-                }
-
-                var scope = ResolveHashValidationScope(file.TargetGroupAlias, productOptions);
-                pendingMigrations += targetAliases.Count(t => !IsAppliedOnTarget(file, t, existingRecords, scope, out _));
-            }
-
             // Last run: the persisted result and timestamps of the newest MigrationRun row of the product.
             // Deriving them from the migration records is wrong: migrate-down does not own the records it rolls
             // back, and the status of an arbitrary record says nothing about how the run ended (#14).
             DateTime? lastMigrationDate = null;
             MigrationRunResult? lastRunResult = null;
+            int? openRunId = null;
             var lastRun = repositoryHasProduct
                 ? (await _templateExecutor.RepositoryMigrationRunSelectAsync(1, cancellationToken)).FirstOrDefault()
                 : null;
@@ -6122,7 +6131,17 @@ public class MigrationService : IMigrationService
                 lastMigrationDate = finishedAt != null && finishedAt != DBNull.Value
                     ? Convert.ToDateTime(finishedAt)
                     : Convert.ToDateTime(lastRun["StartedAt"]);
+
+                // The run lock admits one open run per product and environment, so an open run is the newest one
+                if (lastRunResult == MigrationRunResult.Running)
+                    openRunId = Convert.ToInt32(lastRun["Id"]);
             }
+
+            // Pending migrations: the (file, target) pairs the next migrate-up runs, in the order it runs them, each
+            // with its reason. Evaluated per target like migrate-up does, so a target that failed while another
+            // succeeded is pending (#8); targets outside a file's Targets filter are not listed (#10).
+            var pendingFiles = ListPendingMigrations(
+                migrationFiles, existingRecords, productOptions, _ctxAccessor.Current.RayMigratorConsoleOptions.Environment, openRunId);
 
             // Build target group status
             var targetGroups = new Dictionary<string, TargetGroupStatus>();
@@ -6148,13 +6167,17 @@ public class MigrationService : IMigrationService
                         DatabaseType = tg.DatabaseType ?? string.Empty,
                         CurrentRelease = tgCurrentRelease,
                         ExecutedMigrations = tgRecords.Count,
+                        PendingMigrations = pendingFiles.Count(p => p.TargetGroupAlias == tg.Alias),
+                        // The end of the record finished last; records without an end (an external DAL whose select
+                        // lacks the column, a status set by fix) do not count
+                        LastMigrationDate = tgRecords.Max(r => r.FinishedAt),
                         Targets = targets
                     };
                 }
             }
 
             _logger.LogDebug("Status query completed for product {Product}: {Executed} executed, {Pending} pending",
-                productAlias, migratedRecords.Count, pendingMigrations);
+                productAlias, migratedRecords.Count, pendingFiles.Count);
 
             return new MigrationStatusInfo
             {
@@ -6163,7 +6186,8 @@ public class MigrationService : IMigrationService
                 CurrentRelease = currentRelease,
                 LastMigrationDate = lastMigrationDate,
                 TotalMigrationsExecuted = migratedRecords.Count,
-                PendingMigrations = pendingMigrations,
+                PendingMigrations = pendingFiles.Count,
+                PendingFiles = pendingFiles,
                 LastRunResult = lastRunResult,
                 TargetGroups = targetGroups
             };
@@ -6176,6 +6200,182 @@ public class MigrationService : IMigrationService
         {
             _logger.LogError(ex, "Error getting status for product {Product}", productAlias);
             throw;
+        }
+    }
+
+    /// <summary>
+    /// The (file, target) pairs the next migrate-up runs, each with its reason and the blocks it skips, in the order
+    /// migrate-up runs them (<see cref="MigrationStatusInfo.PendingFiles"/>). A pair is pending under the rules of
+    /// <see cref="FilterAlreadyMigratedFiles"/>: a RunAlways file on every target its Targets filter selects, any other
+    /// file on every selected target without a Migrated record whose hash matches under the HashValidationScope of the
+    /// target group (#8, #10). A file that no configured target, Targets filter or record assigns to a target is listed
+    /// once without a target, as the count always had it. The checks of migrate-up run here without their log lines.
+    /// </summary>
+    /// <param name="openRunId">
+    /// The open run of the product and environment, whose open records the next migrate-up closes as orphaned; null when
+    /// no run is open.
+    /// </param>
+    private List<PendingMigrationInfo> ListPendingMigrations(
+        List<MigrationFileInfo> migrationFiles,
+        List<MigrationRecord> existingRecords,
+        ProductOptions productOptions,
+        string environment,
+        int? openRunId)
+    {
+        var pending = new List<PendingMigrationInfo>();
+        foreach (var file in migrationFiles)
+        {
+            var targetAliases = ResolveTargetAliases(file, existingRecords, productOptions);
+            if (targetAliases.Count == 0)
+            {
+                // Nothing names a target (options built in memory), so no record exists for the file either
+                pending.Add(new PendingMigrationInfo(file.ReleaseVersion, file.TargetGroupAlias, null, file.Filename, file.FileOrderId,
+                    file.RunAlways ? PendingMigrationReason.RunAlways : PendingMigrationReason.NotMigrated, null));
+                continue;
+            }
+
+            var scope = ResolveHashValidationScope(file.TargetGroupAlias, productOptions);
+            foreach (var targetAlias in targetAliases)
+            {
+                MigrationRecord? migratedRecord = null;
+                if (!file.RunAlways && IsAppliedOnTarget(file, targetAlias, existingRecords, scope, out migratedRecord))
+                    continue;
+
+                var (reason, resumeFromBlock) = ClassifyPendingMigration(file, targetAlias, existingRecords, migratedRecord, openRunId);
+                var incompleteRollback = reason == PendingMigrationReason.RollbackIncomplete
+                    ? FindIncompleteRollback(file, targetAlias, existingRecords)
+                    : null;
+                pending.Add(new PendingMigrationInfo(
+                    file.ReleaseVersion, file.TargetGroupAlias, targetAlias, file.Filename, file.FileOrderId, reason, resumeFromBlock,
+                    incompleteRollback?.FileDownBlocksMigrated, incompleteRollback?.FileDownBlocksTotal));
+            }
+        }
+
+        return OrderAsMigrateUpRuns(pending, migrationFiles, productOptions, environment);
+    }
+
+    /// <summary>
+    /// Why the next migrate-up runs a pending (file, target) pair, and how many committed leading blocks it skips, in the
+    /// order in which migrate-up treats the record of the pair. A record whose rollback stopped in the middle
+    /// (<see cref="FindIncompleteRollback"/>) is RollbackIncomplete first, because migrate-up refuses to run while there is
+    /// one, whatever the file is. A Pending or Executing record of the open run
+    /// <paramref name="openRunId"/> is NotMigrated: the next migrate-up does not start while that run is alive, and the
+    /// orphan repair before its first file marks such records NotMigrated. Otherwise a record that
+    /// <see cref="TryFinalizeCompletedMigrationAsync"/> finalizes is Resumable after every block and one that
+    /// <see cref="FindResumableBlock"/> resumes is Resumable after its committed blocks, also for a RunAlways file, which
+    /// migrate-up resumes like any other. Then a RunAlways file is RunAlways, a Migrated record
+    /// (<paramref name="migratedRecord"/>, whose hash no longer matches) HashMismatch, a Failed record or an Executing
+    /// record of a run that has ended Failed, and anything else NotMigrated.
+    /// </summary>
+    internal static (PendingMigrationReason Reason, int? ResumeFromBlock) ClassifyPendingMigration(
+        MigrationFileInfo file,
+        string targetAlias,
+        List<MigrationRecord> existingRecords,
+        MigrationRecord? migratedRecord,
+        int? openRunId)
+    {
+        var record = existingRecords
+            .Where(r => r.Filename == file.Filename &&
+                        r.ReleaseVersion == file.ReleaseVersion &&
+                        r.TargetGroupAlias == file.TargetGroupAlias &&
+                        string.Equals(r.TargetAlias, targetAlias, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(r => r.Id)
+            .FirstOrDefault();
+
+        if (FindIncompleteRollback(file, targetAlias, existingRecords) != null)
+            return (PendingMigrationReason.RollbackIncomplete, null);
+
+        bool orphanedByNextRun = openRunId != null
+            && record is { MigrationStatusId: MigrationStatus.Pending or MigrationStatus.Executing }
+            && record.MigrationRunId == openRunId;
+
+        if (!orphanedByNextRun)
+        {
+            if (FindFinalizableRecord(file, targetAlias, existingRecords) != null)
+                return (PendingMigrationReason.Resumable, file.FileUpBlocksTotal);
+
+            int resumeFromBlock = ResumableBlockOf(file, targetAlias, existingRecords, out _);
+            if (resumeFromBlock > 0)
+                return (PendingMigrationReason.Resumable, resumeFromBlock);
+        }
+
+        if (file.RunAlways)
+            return (PendingMigrationReason.RunAlways, null);
+        if (migratedRecord != null)
+            return (PendingMigrationReason.HashMismatch, null);
+        if (!orphanedByNextRun && record is { MigrationStatusId: MigrationStatus.Failed or MigrationStatus.Executing })
+            return (PendingMigrationReason.Failed, null);
+
+        return (PendingMigrationReason.NotMigrated, null);
+    }
+
+    /// <summary>
+    /// Sorts pending pairs into the order in which the release loop of migrate-up runs them without
+    /// <c>--target-group-migration-order</c>: releases in the order of the files; the target groups of a release in the
+    /// TargetGroupMigrationOrder <see cref="ResolveTargetGroupMigrationOrder"/> finds for it (the migsettings of the
+    /// release, else the product), otherwise in configuration order; within a target group file by file or target by
+    /// target as its TargetMigrationOrder says, the targets in configuration order. An order that migrate-up refuses
+    /// leaves the target groups in configuration order, so that the status still answers; migrate-up reports the error.
+    /// </summary>
+    private List<PendingMigrationInfo> OrderAsMigrateUpRuns(
+        List<PendingMigrationInfo> pending,
+        List<MigrationFileInfo> migrationFiles,
+        ProductOptions productOptions,
+        string environment)
+    {
+        if (pending.Count < 2)
+            return pending;
+
+        var targetGroups = productOptions.TargetGroups ?? [];
+        var migSettings = LoadMigSettingsDefaults(
+            productOptions.MigrationFilesRootDirectory!, environment, productOptions.MigrationFilesExtension ?? "sql");
+
+        var releasePosition = new Dictionary<string, int>(StringComparer.Ordinal);
+        var groupPosition = new Dictionary<(string Release, string TargetGroup), int>();
+        bool refusedOrderLogged = false;
+        foreach (var release in migrationFiles.Select(f => f.ReleaseVersion).Distinct())
+        {
+            releasePosition[release] = releasePosition.Count;
+
+            var orderedGroups = targetGroups;
+            var order = ResolveTargetGroupMigrationOrder(
+                Path.Combine(productOptions.MigrationFilesRootDirectory!, release), productOptions, migSettings, null);
+            if (order != null)
+            {
+                try
+                {
+                    orderedGroups = ValidateAndReorderTargetGroups(order, targetGroups, "info");
+                }
+                catch (ConfigurationValidationException ex)
+                {
+                    // Logged once: an order of the product fails the same way in every release
+                    if (!refusedOrderLogged)
+                    {
+                        _logger.LogWarning("TargetGroupMigrationOrder of release {Release} cannot be applied, migrate-up will refuse it; the pending migrations are listed with the target groups in configuration order: {Reason}",
+                            release, ex.Message);
+                        refusedOrderLogged = true;
+                    }
+                }
+            }
+
+            for (int i = 0; i < orderedGroups.Count; i++)
+                groupPosition[(release, orderedGroups[i].Alias!)] = i;
+        }
+
+        // A stable sort: pairs with the same key (targets that no configured target matches) keep the order of the files
+        return pending.OrderBy(ExecutionKey).ToList();
+
+        (int Release, int TargetGroup, int Outer, int Inner) ExecutionKey(PendingMigrationInfo pair)
+        {
+            var targetGroup = targetGroups.FirstOrDefault(tg => tg.Alias == pair.TargetGroupAlias);
+            int index = targetGroup?.Targets?.FindIndex(t => string.Equals(t.Alias, pair.TargetAlias, StringComparison.OrdinalIgnoreCase)) ?? -1;
+            int target = index < 0 ? int.MaxValue : index;
+            bool fileByFile = targetGroup?.TargetMigrationOrderEnum == TargetMigrationOrder.FileByFile;
+            return (
+                releasePosition[pair.ReleaseVersion],
+                groupPosition.GetValueOrDefault((pair.ReleaseVersion, pair.TargetGroupAlias), int.MaxValue),
+                fileByFile ? pair.FileOrderId : target,
+                fileByFile ? target : pair.FileOrderId);
         }
     }
 

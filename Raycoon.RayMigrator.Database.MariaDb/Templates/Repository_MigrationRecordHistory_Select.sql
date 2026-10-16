@@ -6,7 +6,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_MigrationRecordHistory_Select"
 DatabaseType   = "MariaDb"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-09-08.1"
+Version        = "2026-10-16.1"
 
 [Description]
 Function = """
@@ -40,12 +40,13 @@ MigrationRunModeId = "TINYINT | REQUIRED | Run mode (typically 100=Migrate)"
 #   ReleaseVersion, TargetGroupAlias, TargetAlias, Filename, FileOrderId,
 #   FileUpHash, FileUpConfigHash, FileUpBlocksHash, FileUpBlocksMigrated, FileUpBlocksTotal,
 #   MigrateDownFileExists, FileDownHash, FileDownConfigHash, FileDownBlocksHash,
-#   FileDownBlocksMigrated, FileDownBlocksTotal
+#   FileDownBlocksMigrated, FileDownBlocksTotal, StartedAt, FinishedAt
 
 [ModificationNotes]
 Note1 = "This template returns a result set - NOT the standard 'code,message' format"
 Note2 = "Column names are the reader contract - keep them identical to Repository_MigrationRecord_Select"
 Note3 = "ORDER BY the history row id: the last row of a record within a run is its final state in that run"
+Note4 = "StartedAt and FinishedAt are the times of the record when the transition was historized (UTC)"
 ================================================================================
 */
 
@@ -71,6 +72,8 @@ SELECT
     ,file_down_blocks_hash     AS `FileDownBlocksHash`
     ,file_down_blocks_migrated AS `FileDownBlocksMigrated`
     ,file_down_blocks_total    AS `FileDownBlocksTotal`
+    ,started_at                AS `StartedAt`
+    ,finished_at               AS `FinishedAt`
 FROM
     {CFG:TableBaseName}migration_record_history
 WHERE
