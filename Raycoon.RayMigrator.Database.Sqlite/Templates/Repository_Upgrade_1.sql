@@ -6,7 +6,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_Upgrade_1"
 DatabaseType   = "Sqlite"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-10-14.1"
+Version        = "2026-10-17.1"
 
 [Description]
 Function = """
@@ -45,11 +45,17 @@ Note6 = "The last statement must be the SELECT: the DAL returns the first column
 
 /*
  * Transaction requirement (DAL-024):
- * This template contains multiple statements that must execute atomically.
- * The DalSqlite driver wraps execution in a transaction when UseTransaction
- * is enabled (the default), so in-framework use is safe. Manual execution
- * via the sqlite3 CLI (e.g., "sqlite3 db.sqlite < file.sql") must be
- * wrapped in "BEGIN TRANSACTION; ... COMMIT;" to guarantee atomicity.
+ * The engine runs this template without a transaction of the driver (the
+ * repository, the database log writer and the retention set UseTransaction
+ * to false), so each statement commits on its own unless the template
+ * opens a transaction itself. Statements that share an invariant must open
+ * BEGIN IMMEDIATE ... COMMIT or leave the decision to one statement. The
+ * sqlite3 CLI needs the same: run the file as it is, without a transaction
+ * around it ("sqlite3 db.sqlite < file.sql").
+ *
+ * This step opens BEGIN IMMEDIATE ... COMMIT itself, so it applies as a
+ * whole or not at all and a parallel start waits for it in the busy
+ * timeout; the DAL rolls it back when a statement before the COMMIT fails.
  */
 
 -- The repository DAL settings run templates without a transaction, so the step opens its own: a parallel start then

@@ -173,7 +173,7 @@ example unquoted `snake_case` identifiers on PostgreSQL, MariaDB and MySQL (DAL-
 | DAL-021 | SQLite | Enforce ISO-8601 datetime format via `CHECK` | done |
 | DAL-022 | SQLite | Evaluate `STRICT` tables (SQLite 3.37+) | done |
 | DAL-023 | SQL Server | Check for remaining legacy `DATETIME` declarations | done |
-| DAL-024 | SQLite | Clarify transaction boundaries in templates | done |
+| DAL-024 | SQLite | Clarify transaction boundaries in templates; corrected in 0.20.0: the engine runs them without a transaction of the driver, so every statement commits on its own, and statements that share an invariant open `BEGIN IMMEDIATE … COMMIT` themselves or leave the decision to one statement (the note said before that the driver wraps them in a transaction) | done |
 | DAL-025 | all (documentation) | Naming conventions per engine in `sql-dialects.md` | done |
 
 ### Documentation

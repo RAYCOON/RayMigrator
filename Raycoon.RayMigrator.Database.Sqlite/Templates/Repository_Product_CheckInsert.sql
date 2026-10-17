@@ -6,7 +6,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_Product_CheckInsert"
 DatabaseType   = "Sqlite"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-04-17.1"
+Version        = "2026-10-17.1"
 
 [Description]
 Function = """
@@ -46,11 +46,13 @@ Note5 = "Uses temp table _rc_state to store intermediate state since SQLite has 
 
 /*
  * Transaction requirement (DAL-024):
- * This template contains multiple statements that must execute atomically.
- * The DalSqlite driver wraps execution in a transaction when UseTransaction
- * is enabled (the default), so in-framework use is safe. Manual execution
- * via the sqlite3 CLI (e.g., "sqlite3 db.sqlite < file.sql") must be
- * wrapped in "BEGIN TRANSACTION; ... COMMIT;" to guarantee atomicity.
+ * The engine runs this template without a transaction of the driver (the
+ * repository, the database log writer and the retention set UseTransaction
+ * to false), so each statement commits on its own unless the template
+ * opens a transaction itself. Statements that share an invariant must open
+ * BEGIN IMMEDIATE ... COMMIT or leave the decision to one statement. The
+ * sqlite3 CLI needs the same: run the file as it is, without a transaction
+ * around it ("sqlite3 db.sqlite < file.sql").
  */
 
 -- Store intermediate state in temp table

@@ -6,7 +6,7 @@ RayMigrator SQL Template
 TemplateType   = "DatabaseLogging_Count"
 DatabaseType   = "Sqlite"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-10-16.2"
+Version        = "2026-10-17.1"
 
 [Description]
 Function = """
@@ -57,16 +57,17 @@ Note6 = "The SELECT comes before the ROLLBACK and the cleanup: the DAL returns t
 
 /*
  * Transaction requirement (DAL-024):
- * This template contains multiple statements that must execute atomically.
- * The DalSqlite driver wraps execution in a transaction when UseTransaction
- * is enabled (the default), so in-framework use is safe. Manual execution
- * via the sqlite3 CLI (e.g., "sqlite3 db.sqlite < file.sql") must be
- * wrapped in "BEGIN TRANSACTION; ... COMMIT;" to guarantee atomicity.
+ * The engine runs this template without a transaction of the driver (the
+ * repository, the database log writer and the retention set UseTransaction
+ * to false), so each statement commits on its own unless the template
+ * opens a transaction itself. Statements that share an invariant must open
+ * BEGIN IMMEDIATE ... COMMIT or leave the decision to one statement. The
+ * sqlite3 CLI needs the same: run the file as it is, without a transaction
+ * around it ("sqlite3 db.sqlite < file.sql").
  *
- * This template is the exception: it opens and rolls back a transaction of
- * its own (BEGIN ... ROLLBACK, which also removes the empty log table it may
- * create for the count), and SQLite does not nest transactions. Run it
- * without UseTransaction and unwrapped, in the sqlite3 CLI as well.
+ * This template opens a transaction of its own and rolls it back (BEGIN
+ * ... ROLLBACK), which also removes the empty log table it may create for
+ * the count; SQLite does not nest transactions.
  */
 
 CREATE TEMP TABLE IF NOT EXISTS "_rc_log_count" ("existed" INTEGER) STRICT;

@@ -254,9 +254,9 @@ public class SqliteTypeConventionsTests
         var content = ReadTemplate("Sqlite", templateFile);
 
         content.Should().Contain(TransactionMarker,
-            $"'{templateFile}' is a multi-statement template and must carry the DAL-024 transaction requirement comment " +
-            "to warn operators that manual sqlite3 CLI execution requires BEGIN TRANSACTION/COMMIT; " +
-            "see .implement/03-templates.md for the classification rationale");
+            $"'{templateFile}' is a multi-statement template and must carry the DAL-024 transaction requirement comment, " +
+            "which says that the engine runs it without a transaction of the driver, so that every statement commits on " +
+            "its own unless the template opens BEGIN IMMEDIATE ... COMMIT itself");
     }
 
     [Theory]
