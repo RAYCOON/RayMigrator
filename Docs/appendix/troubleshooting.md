@@ -131,8 +131,11 @@ docker exec rm_db_mysql mysql -u rayuser -praypass123 raydb -e "SELECT 1"
 **Symptoms:**
 - Error: "RayMigrator aborted because another migration is already running"
 - SQLite with a RayMigrator before 0.20.0, once the repository holds two runs: the start fails instead with `Error executing template [TemplateType: Repository_MigrationRun_Insert, DatabaseType: Sqlite, ...]` and `UNIQUE constraint failed: MigrationRunMeta.MigrationRunId` (SQLite error 19)
+- SQLite with a RayMigrator before 0.20.0: two processes that started at the same moment both ran instead, and the repository shows two runs of the product and environment that overlap in time
 
 **Explanation (SQLite before 0.20.0):** The SQLite template of the run insert took the Id of the new run from `last_insert_rowid()` although the open run had kept the insert from adding a row. The function then returned the rowid of a row of the template's own state table, 2, and the template tried to write a `MigrationRunMeta` row for run 2, which already had one. So the start reported no parallel run, and the auto-fix of the next start did not close an orphaned run. From 0.20.0 the template takes the Id only when its insert added a row.
+
+**Explanation (SQLite before 0.20.0, starts at the same moment):** The repository runs its templates without a transaction of the driver, and the run insert checked for an open run and inserted the run in statements that committed one by one. A start that checked before the other had inserted its run found none, so both took the run lock and migrated the same targets. From 0.20.0 the check, the insert and the `MigrationRunMeta` row run in one `BEGIN IMMEDIATE` transaction: the second start waits for the first and fails with this error. After two such runs, compare the records and the history rows of both runs with the targets before the next run.
 
 **Solutions:**
 

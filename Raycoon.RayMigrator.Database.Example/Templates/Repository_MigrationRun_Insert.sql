@@ -1,6 +1,12 @@
 -- TODO: Implement for your database engine
--- Purpose: Inserts a new migration run record
+-- Purpose: Inserts a new migration run record and its MigrationRunMeta row, unless the product and environment have
+--          an open run (FinishedAt IS NULL); return -2 then. Serialise the check for an open run and the insert, so
+--          that two starts at the same moment cannot both take the run lock (SQL Server: a transaction with
+--          UPDLOCK, HOLDLOCK; PostgreSQL: pg_advisory_xact_lock; MySQL and MariaDB: GET_LOCK(); SQLite: BEGIN
+--          IMMEDIATE ... COMMIT, because the repository runs its templates without a transaction of the driver).
 -- See the corresponding template in Database.SqlServer or Database.PostgreSQL for reference.
+-- Returns: 'code,message' where code is the MigrationRunId, -2 when an open run refused the insert, or -1 when the
+--          insert failed.
 --
 -- Parameters used in this template:
 -- {CFG:SchemaName} - The repository schema name

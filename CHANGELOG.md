@@ -97,9 +97,9 @@ RayMigrator follows Semantic Versioning where applicable.
   neither does a run cancelled before its run row: it is `Cancelled` with
   `MigrationRunId` 0, and a rollback action reports that there is nothing
   to roll back. The repository writes of a run on the repository's own
-  connection never take its token, so a record and its history row always
-  change together; on the atomic path the record updates share the
-  transaction of the file and take the token with it, so a cancel rolls
+  connection never take its token, so a record and its history row are
+  never separated by a cancel; on the atomic path the record updates share
+  the transaction of the file and take the token with it, so a cancel rolls
   back the blocks of the file and their updates as one. Every write after
   the stop runs to its end.
 - `RepositoryQueryHelper` (`Raycoon.RayMigrator.Testing`) reads what the
@@ -748,6 +748,21 @@ RayMigrator follows Semantic Versioning where applicable.
   SQLite), and both starts may report that they created the log. SQL
   Server, PostgreSQL and MySQL check for the log tables under their
   initialization lock and were not affected.
+- On SQLite, two migrate-up, migrate-down or baseline starts for the same
+  product and environment at the same moment could both take the run lock
+  and migrate the same targets in parallel. The repository runs its
+  templates without a transaction of the driver, so
+  `Repository_MigrationRun_Insert` checked for an open run and inserted the
+  new run in statements that each committed on their own: a start that
+  checked before the other had inserted its run found none and inserted a
+  second open run. The template now runs the check, the insert and the
+  `MigrationRunMeta` row in one `BEGIN IMMEDIATE` transaction, as the
+  schema steps do; the second start waits for the first in the busy
+  timeout (the command timeout of the repository) and is refused with
+  `MigrationAlreadyRunning` (-2). Every earlier version has the fault on
+  SQLite; SQL Server, PostgreSQL, MariaDB and MySQL check under their lock
+  and were not affected. Like the shipped DALs, an external DAL serialises
+  the check for an open run and its insert.
 
 ## [0.19.0] — 2026-10-15
 

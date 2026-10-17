@@ -674,6 +674,13 @@ public class ScenarioContext : IAsyncDisposable
     public Task<bool> InitDatabaseLoggerWithNewWriterAsync(Task start) => _host.InitDatabaseLoggerWithNewWriterAsync(start);
 
     /// <summary>
+    /// Inserts a run as the start of another host does, with a DAL and a connection of its own, once
+    /// <paramref name="start"/> completes (<see cref="EngineTestHost.InsertMigrationRunWithNewDalAsync"/>): the Id of the
+    /// run, or -2 when an open run of the product and environment refused it.
+    /// </summary>
+    public Task<int> InsertMigrationRunWithNewDalAsync(Task start) => _host.InsertMigrationRunWithNewDalAsync(start);
+
+    /// <summary>
     /// Counts MigrationLog entries at a specific log level.
     /// </summary>
     public int CountLogEntriesAtLevel(int logLevelId) => _queryHelper.CountLogEntriesAtLevel(logLevelId);
@@ -728,6 +735,9 @@ public class ScenarioContext : IAsyncDisposable
     /// Gets the count of MigrationRun records in the repository.
     /// </summary>
     public int CountMigrationRuns() => _queryHelper.CountMigrationRuns();
+
+    /// <summary>Counts the open MigrationRun records of the repository, those with the result Running (10).</summary>
+    public int CountRunningMigrationRuns() => _queryHelper.CountMigrationRuns((int)MigrationRunResult.Running);
 
     /// <summary>Whether the run at the 1-based index wrote a heartbeat after its start (<c>LastHeartbeatAt &gt; StartedAt</c>).</summary>
     public bool HeartbeatAdvanced(int runIndex) => _queryHelper.HeartbeatAdvanced(runIndex);

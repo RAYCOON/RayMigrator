@@ -286,6 +286,8 @@ Called immediately after Product registration by every `MigrationService` entry 
 2. If found -> returns error `-2` (parallel migration not allowed)
 3. If not found -> INSERT into `MigrationRun` with provided parameters and `SYSUTCDATETIME()` as `StartedAt`, then INSERT settings JSON into `MigrationRunMeta`
 
+The check and the insert run under the lock of the engine (`UPDLOCK, HOLDLOCK` in a transaction on SQL Server, `pg_advisory_xact_lock` on PostgreSQL, `GET_LOCK()` on MariaDB and MySQL, `BEGIN IMMEDIATE … COMMIT` on SQLite), so two starts at the same moment cannot both pass the check: the second waits or fails to get the lock and returns `-2`.
+
 **Return value:** MigrationRunId (positive integer), stored in `MigrationContext.MigrationState.MigrationRunId`
 
 ---

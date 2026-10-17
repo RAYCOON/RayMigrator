@@ -329,8 +329,10 @@ Authoritative page: [Resilience](https://github.com/RAYCOON/RayMigrator/blob/mai
 The lock is the open `MigrationRun` row. `Repository_MigrationRun_Insert` refuses the insert with `-2` when a row with the same
 `ProductId` and `EnvironmentId` and `FinishedAt IS NULL` exists; the run mode is not part of the predicate, and `Validate` and
 `Simulate` runs never insert a row. The check is serialized inside the engine: `UPDLOCK, HOLDLOCK` on SQL Server,
-`pg_advisory_xact_lock` keyed by product on PostgreSQL, `GET_LOCK` named by product and environment on MariaDB and MySQL, a write
-transaction on SQLite. `TemplateExecutor.RepositoryMigrationRunInsertAsync` converts the code into `MigrationAlreadyRunningException`;
+`pg_advisory_xact_lock` keyed by product on PostgreSQL, `GET_LOCK` named by product and environment on MariaDB and MySQL, a
+`BEGIN IMMEDIATE` transaction around the check, the insert and the `MigrationRunMeta` row on SQLite, whose repository templates
+run without a transaction of the driver (before 0.20.0 the check and the insert committed one by one, and two starts at the same
+moment could both pass the check). `TemplateExecutor.RepositoryMigrationRunInsertAsync` converts the code into `MigrationAlreadyRunningException`;
 a running migrate-up, migrate-down or baseline refreshes `MigrationRun.LastHeartbeatAt` every
 `Repository.HeartbeatIntervalInSeconds` (30), and `RepositoryMigrationRunInsertWithAutoFix` closes runs whose last heartbeat (or
 start, without one) is older than `Repository.OrphanedRunThresholdInMinutes` (2) as `Error` and retries once; `fix` refuses to

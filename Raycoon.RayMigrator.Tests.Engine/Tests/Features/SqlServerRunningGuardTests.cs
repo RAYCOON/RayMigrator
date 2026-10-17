@@ -195,4 +195,17 @@ public class SqlServerRunningGuardTests : SqlServerTestBase
         ctx.CountMigrationRuns().Should().Be(runs, "the refused start inserts no run");
         ctx.CountRepoRows("MigrationRunMeta").Should().Be(runMeta, "the refused start writes no MigrationRunMeta row");
     }
+
+    /// <summary>
+    /// G8: Hosts that start a run of one product and environment at the same moment take the run lock once: in each of
+    /// ten rounds eight starts of their own run the run insert at once, one gets a run and the others are refused with -2
+    /// (<see cref="RunLockContract"/>).
+    /// </summary>
+    [Fact]
+    public async Task MigrateUp_ParallelStarts_TakeTheRunLockOnce()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+
+        await RunLockContract.VerifyParallelStartsTakeTheRunLockOnceAsync(CreateScenario());
+    }
 }

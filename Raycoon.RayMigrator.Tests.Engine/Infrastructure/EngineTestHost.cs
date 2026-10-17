@@ -8,6 +8,7 @@ using Raycoon.RayMigrator.Core.Configuration;
 using Raycoon.RayMigrator.Core.Configuration.Enums;
 using Raycoon.RayMigrator.Core.Configuration.Options;
 using Raycoon.RayMigrator.Core.Configuration.Validation;
+using Raycoon.RayMigrator.Core.Extensions;
 using Raycoon.RayMigrator.Core.Templates;
 using Raycoon.RayMigrator.Database;
 using Raycoon.RayMigrator.Database.Common;
@@ -17,6 +18,7 @@ using Raycoon.RayMigrator.Services;
 using Raycoon.RayMigrator.Services.Abstractions;
 using Raycoon.RayMigrator.Shared;
 using Raycoon.RayMigrator.Shared.Configuration;
+using Raycoon.RayMigrator.Shared.Constants;
 using Raycoon.RayMigrator.Shared.Exceptions;
 using Serilog;
 using Serilog.Core;
@@ -334,6 +336,54 @@ public sealed class EngineTestHost : IDisposable
         finally
         {
             writer.Flush();
+        }
+    }
+
+    /// <summary>
+    /// Inserts a run as the start of another host does: <c>Repository_MigrationRun_Insert</c> runs on a DAL and a
+    /// connection of its own against the repository, with the product, the environment and the engine version that a
+    /// command of this host registered and the values of a migrate-up, as <c>RepositoryMigrationRunInsertAsync</c> binds
+    /// them. The DAL is created first and runs the template once <paramref name="start"/> completes, so that several
+    /// starts can begin at the same moment.
+    /// </summary>
+    /// <returns>The Id of the run the template inserted, or <see cref="TemplateResultCode.MigrationAlreadyRunning"/> (-2)
+    /// when an open run of the product and environment refused it.</returns>
+    public async Task<int> InsertMigrationRunWithNewDalAsync(Task start)
+    {
+        var repository = RayMigratorOptions.Repository!;
+        var state = MigrationContext.MigrationState;
+        if (state.ProductId < 1 || state.EnvironmentId < 1 || state.MigratorMetaId < 1)
+            throw new InvalidOperationException("No command of the host has registered the product, the environment and the engine version yet.");
+        if (!DalFactory.TryGetDal(repository.DatabaseType!, repository.ConnectionString!, out IDal? dal))
+            throw new InvalidOperationException($"No DAL for the database type of the repository [{repository.DatabaseType}].");
+
+        var parameters = new DalParameterList();
+        parameters.AddParameter(new DalParameter("ProductId", state.ProductId, typeof(int)));
+        parameters.AddParameter(new DalParameter("EnvironmentId", state.EnvironmentId, typeof(int)));
+        parameters.AddParameter(new DalParameter("MigrationRunModeId", (byte)MigrationRunMode.Migrate, typeof(byte)));
+        parameters.AddParameter(new DalParameter("MigratorMetaId", state.MigratorMetaId, typeof(int)));
+        parameters.AddParameter(new DalParameter("MigrationRunResultId", (byte)MigrationRunResult.Running, typeof(byte)));
+        parameters.AddParameter(new DalParameter("FromReleaseVersion", null, typeof(string)));
+        parameters.AddParameter(new DalParameter("ToReleaseVersion", null, typeof(string)));
+        parameters.AddParameter(new DalParameter("MigrationRunSettingsJson", "{}", typeof(string)));
+        parameters.AddParameter(new DalParameter("MigrationOperationId", (byte)MigrationOperation.MigrateUp, typeof(byte)));
+        parameters.AddParameter(new DalParameter("MigrationRunSourceId", null, typeof(byte)));
+        parameters.AddParameter(new DalParameter("InitiatedBy", null, typeof(string)));
+        parameters.AddParameter(new DalParameter("InitiatedBySubject", null, typeof(string)));
+        parameters.AddParameter(new DalParameter("Host", nameof(InsertMigrationRunWithNewDalAsync), typeof(string)));
+
+        var template = Services.GetRequiredService<TemplateCache>().GetRepositoryTemplate(TemplateType.Repository_MigrationRun_Insert, repository);
+        var executor = Services.GetRequiredService<TemplateExecutor>();
+
+        await start;
+        try
+        {
+            var response = await executor.ExecuteScalarWithNegativeResultCodeExceptionAsync(template, dal!, repository.GetDalSettings(), parameters);
+            return response.ResultCode;
+        }
+        catch (TemplateResultException ex) when (ex.ResultCode == TemplateResultCode.MigrationAlreadyRunning)
+        {
+            return ex.ResultCode;
         }
     }
 

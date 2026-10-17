@@ -12,22 +12,26 @@ RayMigrator enforces **exclusive migration runs** per product and environment co
 
 Before starting a migration, RayMigrator:
 
-1. Checks for existing unfinished runs (`FinishedAt IS NULL`) for the product and environment
-2. Attempts to create a new MigrationRun with "Running" status
-3. If another run exists, the operation fails immediately
+1. Takes the run lock of its engine for the product and environment (see [Database Enforcement](#database-enforcement))
+2. Checks under that lock for an unfinished run (`FinishedAt IS NULL`) of the product and environment
+3. Creates the new MigrationRun with "Running" status only when there is none; otherwise the template returns `-2` and the start fails, unless the open run is orphaned and the auto-fix closes it (see [Automatic Cleanup on Migration Start](#automatic-cleanup-on-migration-start))
 
 ```
-Process A                          Process B
----------                          ---------
-Check for Running run → None
-                                   Check for Running run → None
+Process A                               Process B
+---------                               ---------
+Take the run lock ✓
+Check for an unfinished run → none
+                                        Take the run lock: waits for A (SQL Server,
+                                        PostgreSQL, SQLite); MySQL and MariaDB
+                                        return -2 at once
 Create MigrationRun (Running) ✓
-                                   Create MigrationRun (Running) ✗
-                                   (Fails: Another run already exists)
+Commit, release the lock
+                                        Check for an unfinished run → A's run
+                                        Return -2 ✗ (migration already running)
 Execute migrations...
 Update MigrationRun (Ok) ✓
-                                   Retry: Check for Running run → None
-                                   Create MigrationRun (Running) ✓
+                                        Next start: check → none,
+                                        create MigrationRun (Running) ✓
 ```
 
 ### Database Enforcement
@@ -70,6 +74,17 @@ DO RELEASE_LOCK(@v_lock_name);
 ```
 
 `GET_LOCK()` belongs to the session, not to a transaction. When a template fails, times out or is cancelled between its `GET_LOCK()` and its `RELEASE_LOCK()`, the MySQL and MariaDB DALs release the locks of the session (`DO RELEASE_ALL_LOCKS()`) before the connection goes back to the pool, so the lock does not hold back another process until the pool reuses or prunes the connection (up to 180 seconds). The same holds for the `GET_LOCK()` of the repository schema steps and, on MySQL, of the log initialization.
+
+**SQLite** opens a write transaction of its own, because the repository runs its templates without a transaction of the driver (`UseTransaction = false`), where every statement commits on its own:
+
+```sql
+BEGIN IMMEDIATE;
+-- Then checks for an unfinished run, inserts the run when none was found (the INSERT checks
+-- MigrationRun itself as well) and writes its MigrationRunMeta row
+COMMIT;
+```
+
+`BEGIN IMMEDIATE` takes the write lock of the file before the check reads `MigrationRun`. A parallel start waits for that lock in the busy timeout, the command timeout of the repository (`DbCommandTimeoutInSeconds`, 60 seconds by default), and then finds the open run; a failed statement before the `COMMIT` is rolled back by the DAL, so a pooled connection does not keep the lock. Before 0.20.0 the check and the insert were statements that committed one by one: two starts at the same moment could both find no open run and both migrate the same targets. Two processes on one host are safe through this transaction; a SQLite repository on a network file system stays unsupported.
 
 **Lock names.** The schema steps of the repository (`Repository_CheckCreate`, `Repository_Upgrade_1` to `_3`) take the lock `CONCAT('raymigrator_schema_', DATABASE())`, and `Repository_MigratorMeta_CheckInsert` takes `CONCAT('raymigrator_meta_', DATABASE())`: both names carry the whole name of the repository database. MySQL refuses a lock name of more than 64 characters with error 4163 (`User-level lock name '...' should not exceed 64 characters.`, measured on MySQL 8.4), so on MySQL every command fails at its start when the repository database has a name of 46 characters or more (the version lock alone would allow 47). MariaDB accepts lock names of up to 192 bytes and refuses longer ones with error 1059 (`Identifier name '...' is too long`, measured on MariaDB 11.6); an ASCII database name, at most 64 characters, never reaches that, only a name of more than 173 bytes in UTF-8. Give a MySQL repository a database name of at most 45 characters. The lock of the log initialization on MySQL (`DatabaseLogging_CheckCreate`) cuts the database name to 48 characters (`raymigrator_log_` plus at most 48) and stays within the limit, and the run lock `RayMigrator_Run_{ProductId}_{EnvironmentId}` is short. See [Troubleshooting](../appendix/troubleshooting.md#mysql-database-name-too-long-for-the-schema-lock).
 

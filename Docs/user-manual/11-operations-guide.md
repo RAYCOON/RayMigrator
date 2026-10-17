@@ -258,7 +258,7 @@ Each database engine uses its own locking mechanism to prevent parallel migratio
 - **SQL Server**: `UPDLOCK, HOLDLOCK` table hints within a transaction
 - **PostgreSQL**: `pg_advisory_xact_lock` (transaction-scoped advisory lock)
 - **MariaDB / MySQL**: `GET_LOCK()` (cross-process advisory lock with immediate timeout)
-- **SQLite**: File-level locking (inherent to SQLite's architecture)
+- **SQLite**: a `BEGIN IMMEDIATE` transaction around the check and the insert, which takes the write lock of the file; a second instance waits for it and then finds the open run (before 0.20.0 two instances that started at the same moment could both run). This holds for processes on one host; a repository file on a network file system is not supported
 
 On MariaDB and MySQL, when a call fails, times out or is cancelled, the DAL releases the `GET_LOCK()` locks of its session before the connection goes back to the pool, so a template that stopped halfway does not hold back another instance.
 

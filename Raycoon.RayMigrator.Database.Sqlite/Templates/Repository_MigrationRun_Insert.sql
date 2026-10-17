@@ -6,18 +6,20 @@ RayMigrator SQL Template
 TemplateType   = "Repository_MigrationRun_Insert"
 DatabaseType   = "Sqlite"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-10-17.1"
+Version        = "2026-10-17.2"
 
 [Description]
 Function = """
 Creates a new MigrationRun record to track a migration session.
-Uses inline EXISTS check to prevent parallel migrations (SQLite has file-level locking).
+Checks for an open run of the product and environment and inserts the run and its MigrationRunMeta
+row in one BEGIN IMMEDIATE transaction, so that a parallel start waits and then finds the open run.
 """
 
 Behaviour = """
 - Return value >= 0: Success (MigrationRunId returned, logged at Debug level)
 - Return value < 0: Error (logged at Error level, migration aborted)
-- SQLite uses file-level locking instead of advisory locks (GET_LOCK)
+- BEGIN IMMEDIATE takes the write lock of the file before the check reads MigrationRun: a parallel start
+  waits for it in the busy timeout (the command timeout of the repository) and then finds the open run
 - Checks for existing unfinished MigrationRun before inserting
 - Parallel migrations for same Product/Environment are prevented
 - Writes the MigrationRunMeta row only for the run it inserted; a refused insert writes nothing
@@ -52,10 +54,11 @@ Error_-1_InsertFail = "-1,Failed to create MigrationRun for ProductId [N]"
 Note1 = "SELECT result format: 'code,message' - DO NOT change this format"
 Note2 = "No commas allowed in error messages"
 Note3 = "Use datetime('now') for StartedAt timestamp"
-Note4 = "SQLite uses file-level locking - no GET_LOCK/RELEASE_LOCK needed"
+Note4 = "The check, the INSERT and the MigrationRunMeta row run in one BEGIN IMMEDIATE transaction: the repository DAL settings open none, and in statements that commit one by one two starts at the same moment both pass the check. Keep the COMMIT before the final SELECT; the DAL rolls the transaction back when a statement before it fails"
 Note5 = "Uses temp table _rc_state to store intermediate state since SQLite has no session variables"
 Note6 = "ResultCode convention: >= 0 = Success, -1 = General template error, -2 = Migration already active (parallel run)"
 Note7 = "new_id takes last_insert_rowid() only when changes() > 0 in the statement right after the MigrationRun INSERT: a gated INSERT that inserts nothing leaves last_insert_rowid() at the last row inserted before on the connection (a row of _rc_state), so new_id stays NULL then"
+Note8 = "The INSERT repeats the check against MigrationRun itself (NOT EXISTS), so the statement that writes the run never adds a second open run, whatever the state table says"
 ================================================================================
 */
 
@@ -68,11 +71,20 @@ Note7 = "new_id takes last_insert_rowid() only when changes() > 0 in the stateme
  * BEGIN IMMEDIATE ... COMMIT or leave the decision to one statement. The
  * sqlite3 CLI needs the same: run the file as it is, without a transaction
  * around it ("sqlite3 db.sqlite < file.sql").
+ *
+ * This template opens BEGIN IMMEDIATE ... COMMIT around the check for an
+ * open run, the INSERT and the MigrationRunMeta row: a parallel start waits
+ * for the write lock and then finds the open run.
  */
 
 -- Store intermediate state in temp table
 CREATE TEMP TABLE IF NOT EXISTS "_rc_state" ("key" TEXT PRIMARY KEY, "val" TEXT);
 DELETE FROM "_rc_state";
+
+-- The repository DAL settings run templates without a transaction, so the run lock opens its own: BEGIN IMMEDIATE
+-- takes the write lock before the check reads MigrationRun, and a parallel start waits here until this start has
+-- committed its run, which it then finds.
+BEGIN IMMEDIATE;
 
 -- Check for existing running migration
 INSERT OR REPLACE INTO "_rc_state" ("key", "val") VALUES
@@ -89,7 +101,10 @@ INSERT INTO "{CFG:TableBaseName}MigrationRun"
 SELECT @MigratorMetaId, @ProductId, @EnvironmentId, @MigrationRunModeId, @MigrationRunResultId,
        @FromReleaseVersion, @ToReleaseVersion, datetime('now'),
        @MigrationOperationId, @MigrationRunSourceId, @InitiatedBy, @InitiatedBySubject, @Host, datetime('now')
-WHERE CAST((SELECT "val" FROM "_rc_state" WHERE "key"='running') AS INTEGER) = 0;
+WHERE CAST((SELECT "val" FROM "_rc_state" WHERE "key"='running') AS INTEGER) = 0
+  AND NOT EXISTS (SELECT 1 FROM "{CFG:TableBaseName}MigrationRun"
+      WHERE "ProductId" = @ProductId AND "EnvironmentId" = @EnvironmentId
+        AND "FinishedAt" IS NULL);
 
 -- Capture insert state: new_id MUST be captured first in a separate INSERT, directly after
 -- the MigrationRun INSERT. SQLite evaluates multi-row VALUES sequentially — row1's INSERT
@@ -108,6 +123,8 @@ INSERT OR REPLACE INTO "_rc_state" ("key", "val") VALUES
 INSERT INTO "{CFG:TableBaseName}MigrationRunMeta" ("MigrationRunId", "MigrationRunSettingsJson")
 SELECT CAST((SELECT "val" FROM "_rc_state" WHERE "key"='new_id') AS INTEGER), @MigrationRunSettingsJson
 WHERE CAST((SELECT "val" FROM "_rc_state" WHERE "key"='inserted') AS INTEGER) > 0;
+
+COMMIT;
 
 -- Final result
 SELECT CASE
