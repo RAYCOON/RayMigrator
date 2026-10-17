@@ -426,6 +426,7 @@ WHERE [LastName] IN ('Herbert', 'Asimov', 'Le Guin');
 ### Best Practices for Rollback Files
 
 - **Always use `IF EXISTS`** in DROP and ALTER statements to make rollbacks idempotent.
+- **Tolerate a partially applied file.** `migrate-down`, the error recovery and the rollback of a cancel action also roll back a file that stopped after some of its blocks or ran under `MigrationErrorAction=Ignore` with failed blocks, from its first rollback block: write the rollback so that it works whatever part of the file ran (`DROP TABLE IF EXISTS`, `DELETE … WHERE` on the rows the file inserted).
 - **Handle foreign keys first.** Drop dependent constraints before dropping referenced tables.
 - **Reverse the order.** If migration 003 added a FK and a column, the rollback should drop the FK first, then the column.
 - **Test rollbacks.** Run `migrate-up` followed by `migrate-down` in development to verify rollbacks work correctly.

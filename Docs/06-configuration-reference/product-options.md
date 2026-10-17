@@ -28,10 +28,10 @@ All string properties support `{ENV:VARIABLE_NAME}` placeholders.
 | Value | Description |
 |-------|-------------|
 | `Terminate` | Stop immediately on error, no rollback |
-| `Rollback` | Execute rollback scripts for all migrations performed in the current run |
+| `Rollback` | Execute rollback scripts for all migrations performed in the current run, newest first: the failed file, the files the run migrated and the files it left `Failed` under `Ignore` |
 | `RollbackErrorOnly` | Rollback only the failed migration using its associated rollback file |
-| `RollbackRelease` | Rollback the current run's migrations of the release that caused the error. Migrations from earlier releases remain intact. |
-| `Ignore` | Ignore the error and continue execution. Failed SQL blocks are skipped, and the migration file is marked as Failed with the blocks before the first failed one, so the next run resumes at that block. The migration run continues with the next file. |
+| `RollbackRelease` | Rollback the current run's migrations of the release that caused the error, those it left `Failed` under `Ignore` included. Migrations from earlier releases remain intact. |
+| `Ignore` | Ignore the error and continue execution. Failed SQL blocks are skipped, and the migration file is marked as Failed with the blocks before the first failed one, so the next run resumes at that block. The migration run continues with the next file. When the same run is rolled back later (`Rollback`, `RollbackRelease`, or a cancel with a rollback action), the chain rolls the file back with the others, so it needs a rollback file that tolerates a partially applied file. |
 
 See [Error Handling](../02-core-concepts/error-handling.md) for detailed behavior descriptions, flow diagrams, and the full priority chain.
 

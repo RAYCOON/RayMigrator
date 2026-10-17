@@ -87,7 +87,7 @@ Rollback B
 Rollback A
 ```
 
-Rolls back all migrations performed by the current MigrationRun (the failed file first, then successful files in reverse order).
+Rolls back all migrations performed by the current MigrationRun (the failed file first when it has a record, then the files the run migrated and the files it left `Failed` under `Ignore`, in reverse order).
 
 #### RollbackErrorOnly (value 21)
 
@@ -118,15 +118,15 @@ Rollback C
 (Release 1.0 migrations A and B remain intact)
 ```
 
-Rolls back the current run's migrations of the release that caused the error. Migrations from earlier releases remain intact.
+Rolls back the current run's migrations of the release that caused the error, those it left `Failed` under `Ignore` included. Migrations from earlier releases remain intact.
 
 #### Ignore (value 30)
 
-No rollback is performed. The failed SQL blocks are skipped, the migration file is marked as `Failed`, and the migration run continues with the next file.
+No rollback is performed. The failed SQL blocks are skipped, the migration file is marked as `Failed`, and the migration run continues with the next file. When the same run is rolled back later, by a `Rollback` or `RollbackRelease` of a later file or by a cancel with a rollback action, the chain rolls the file back as well, from its first rollback block ([Rollback of a Partially Applied File](#rollback-of-a-partially-applied-file)).
 
 ### Multi-Target Rollback Tracking
 
-When `Rollback` or `RollbackRelease` triggers a rollback chain, each successfully migrated record stores its own `TargetAlias` at the time of execution. This ensures that rollback SQL is executed against the correct target database, even when multiple targets exist within a target group.
+When `Rollback` or `RollbackRelease` triggers a rollback chain, each record of the run stores its own `TargetAlias` at the time of execution. This ensures that rollback SQL is executed against the correct target database, even when multiple targets exist within a target group.
 
 ## Execution Order
 
@@ -349,7 +349,7 @@ Document in migration that rollback is not possible. Note that this only works w
 
 ## Rollback of a Partially Applied File
 
-A rollback file does not only run after its migration file completed. The error recovery of a `MigrationErrorAction` and the rollback of a `MigrationCancelledAction` roll back the file that stopped first, with the blocks it committed, and migrate-down rolls back a file that a failed, cancelled or abruptly ended migrate-up left with committed blocks ([migrate-down — Rollback Order](../08-cli-reference/migrate-down.md#rollback-order)). The rollback file then runs from its first rollback block on a target where only the leading blocks of the file committed, with `MigrationErrorAction=Ignore` also blocks after a failed one. A rollback file must tolerate that: `DROP TABLE IF EXISTS`, `DROP INDEX IF EXISTS`, `DELETE … WHERE` on the rows the file inserted. A rollback file that fails on a partially applied file leaves the record `Failed` with the rollback blocks that ran, as every failed rollback does: the next migrate-down continues it at the failed rollback block, and migrate-up refuses the file while some rollback blocks ran ([Partial Rollback Resume](#partial-rollback-resume)).
+A rollback file does not only run after its migration file completed. The error recovery of a `MigrationErrorAction` and the rollback of a `MigrationCancelledAction` roll back the file that stopped first, with the blocks it committed, and then the files the run left `Failed` under `MigrationErrorAction=Ignore` with the files it migrated, also a file without a committed block, and migrate-down rolls back a file that a failed, cancelled or abruptly ended migrate-up left with committed blocks ([migrate-down — Rollback Order](../08-cli-reference/migrate-down.md#rollback-order)). The rollback file then runs from its first rollback block on a target where only the leading blocks of the file committed, with `MigrationErrorAction=Ignore` also blocks after a failed one. A rollback file must tolerate that: `DROP TABLE IF EXISTS`, `DROP INDEX IF EXISTS`, `DELETE … WHERE` on the rows the file inserted. A rollback file that fails on a partially applied file leaves the record `Failed` with the rollback blocks that ran, as every failed rollback does: the next migrate-down continues it at the failed rollback block, and migrate-up refuses the file while some rollback blocks ran ([Partial Rollback Resume](#partial-rollback-resume)).
 
 ## Partial Rollback Resume
 

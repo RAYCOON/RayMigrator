@@ -160,6 +160,17 @@ public static class SqlDialect
         };
     }
 
+    /// <summary>Returns an INSERT of one row into the TableD of the fixtures (created by Release_2.0/02_CreateTableD.sql).</summary>
+    public static string GetInsertIntoTableDSql(string databaseType, string code)
+    {
+        return databaseType switch
+        {
+            "SqlServer" => $"INSERT INTO [dbo].[TableD] ([Code]) VALUES ('{code}')",
+            "PostgreSQL" or "MariaDb" or "MySql" or "Sqlite" => $"INSERT INTO tabled (code) VALUES ('{code}')",
+            _ => throw new NotSupportedException($"Unsupported database type: {databaseType}")
+        };
+    }
+
     /// <summary>Returns a DELETE of one row from the TableC of the fixtures (created by Release_2.0/01_CreateTableC.sql).</summary>
     public static string GetDeleteFromTableCSql(string databaseType, string title)
     {

@@ -568,7 +568,7 @@ private async Task<RollbackResult?> HandleMigrationError(
     ProductOptions productOptions,
     MigrationFileInfo failedFile,
     int failedMigrationRecordId,
-    List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)> successfullyMigratedRecords,
+    List<RunRecord> recordsOfThisRun,
     MigrationRunMode runMode,
     CancellationToken cancellationToken)
 {
@@ -582,14 +582,14 @@ private async Task<RollbackResult?> HandleMigrationError(
             return null;
 
         case MigrationErrorAction.RollbackErrorOnly:  // the failed file only
-        case MigrationErrorAction.Rollback:           // the failed file and every file the run migrated, newest first
-        case MigrationErrorAction.RollbackRelease:    // the failed file and the files of its release the run migrated
+        case MigrationErrorAction.Rollback:           // the failed file and every file the run migrated or left Failed under Ignore, newest first
+        case MigrationErrorAction.RollbackRelease:    // the failed file and the files of its release the run migrated or left Failed under Ignore
             break;
     }
 
     // The rollback chain an error and a cancel share
     return await HandleStopAsync(
-        errorAction, failedFile, failedMigrationRecordId, successfullyMigratedRecords, productOptions, runMode, cancellationToken);
+        errorAction, failedFile, failedMigrationRecordId, recordsOfThisRun, productOptions, runMode, cancellationToken);
 }
 ```
 

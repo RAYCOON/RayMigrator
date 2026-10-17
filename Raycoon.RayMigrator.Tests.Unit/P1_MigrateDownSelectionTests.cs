@@ -12,7 +12,8 @@ namespace Raycoon.RayMigrator.Tests.Unit;
 /// blocks without a rollback attempt (Failed, or Executing in a run that has ended), which the next migrate-up would
 /// resume after those blocks, and a rollback that stopped in the middle, which it continues. A file that stopped without a
 /// committed block and without a rollback attempt is not rolled back, and migrate-down names it in a warning
-/// (<see cref="MigrationService.IsStoppedWithoutCommittedBlock"/>).
+/// (<see cref="MigrationService.IsStoppedWithoutCommittedBlock"/>). The closing line of a chain that reached its end counts
+/// the records it rolled back cleanly (<see cref="MigrationService.RollbackChainSummary"/>).
 /// </summary>
 public class MigrateDownSelectionTests
 {
@@ -132,5 +133,22 @@ public class MigrateDownSelectionTests
 
         // Assert
         outcome.Should().Be(expected, because: "the record keeps its status, and the message says what the next command does with it");
+    }
+
+    [Theory]
+    [InlineData(3, 3, "Successfully rolled back 3 migration(s)")]
+    [InlineData(2, 3, "Rolled back 2 of 3 migration(s) cleanly; 1 with a warning")]
+    [InlineData(0, 2, "Rolled back 0 of 2 migration(s) cleanly; 2 with a warning")]
+    public void RollbackChainSummary_ChainThatReachedItsEnd_CountsTheCleanRollbacksOnly(int rolledBack, int total, string expected)
+    {
+        // Arrange: a chain that rolled back every record cleanly, one that passed a record with a warning (a missing rollback
+        // file that is not required, rollback errors that RollbackErrorAction=Ignore skipped), and one that passed every
+        // record with a warning
+
+        // Act
+        string summary = MigrationService.RollbackChainSummary(rolledBack, total);
+
+        // Assert
+        summary.Should().Be(expected, because: "a record the chain passed with a warning is no clean rollback, and its warning comes before the line");
     }
 }

@@ -211,10 +211,10 @@ Error behavior depends on the `MigrationErrorAction` configuration (set at produ
 | Action | Behavior |
 |--------|----------|
 | `Terminate` | Stop immediately on error, no rollback performed |
-| `Rollback` | Rollback all migrations in current run (failed + all previously successful) |
+| `Rollback` | Rollback all migrations in current run (failed + every file the run migrated or left `Failed` under `Ignore`, newest first) |
 | `RollbackErrorOnly` | Rollback only the failed migration file |
-| `RollbackRelease` | Rollback the current run's migrations of the failed release only (earlier releases remain intact) |
-| `Ignore` | Mark failed file as `Failed`, skip remaining targets for this file, continue with next file |
+| `RollbackRelease` | Rollback the current run's migrations of the failed release only, those left `Failed` under `Ignore` included (earlier releases remain intact) |
+| `Ignore` | Mark failed file as `Failed`, skip remaining targets for this file, continue with next file; a later `Rollback` or `RollbackRelease` of the run, or a cancel with a rollback action, rolls the file back with the others |
 
 For all actions except `Ignore`, an error aborts the entire migration run. The `Ignore` action allows the run to continue with subsequent files.
 

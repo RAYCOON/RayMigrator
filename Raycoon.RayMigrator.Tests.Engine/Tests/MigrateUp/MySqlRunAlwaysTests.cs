@@ -135,9 +135,9 @@ public class MySqlRunAlwaysTests : MySqlTestBase
     }
 
     /// <summary>
-    /// #58 Same as #57 but with Rollback. Run 2 only has R1/F3 in its
-    /// successfullyMigratedRecords (nothing else new), so rollback scope is empty/R1/F3 only.
-    /// R1/F3 = NotMigrated. Other files = Migrated from Run 1. Run 2 = Error.
+    /// #58 Same as #57 but with Rollback. Run 2 writes no other record before R1/F3 fails
+    /// (nothing else new), so the rollback scope is R1/F3 only.
+    /// R1/F3 = NotMigrated. Other files = Migrated from Run 1. Run 2 = Recovered.
     /// </summary>
     [Fact]
     public async Task RunAlways_FailsOnRerun_Rollback()
@@ -176,7 +176,7 @@ public class MySqlRunAlwaysTests : MySqlTestBase
         ctx.AssertSuccess(false);
         ctx.AssertRunCount(2);
 
-        // Run 1 Ok, Run 2 Error
+        // Run 1 Ok, Run 2 Recovered
         ctx.AssertMigrationRun(1, new MigrationRunExpectation { MigrationRunResultId = (int)MigrationRunResult.Ok });
         ctx.AssertMigrationRun(2, new MigrationRunExpectation { MigrationRunResultId = (int)MigrationRunResult.Recovered });
 

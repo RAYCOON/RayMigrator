@@ -425,7 +425,7 @@ raymigrator migrate-down -p BookStore -env Production -rm migrate -tr "Release 1
 raymigrator migrate-down -p BookStore -env Production -rm simulate -tr "Release 1.0"
 ```
 
-> **Warning:** Manual rollback executes rollback files in reverse order. Ensure all rollback files are present and tested before relying on this in production.
+> **Warning:** Manual rollback executes rollback files in reverse order. Ensure all rollback files are present and tested before relying on this in production. A rollback file must also tolerate a partially applied file: `migrate-down` rolls back a file that stopped after some of its blocks from its first rollback block (see [Rollback Files](../07-migration-files/rollback-files.md#rollback-of-a-partially-applied-file)).
 
 ### Rollback File Requirements
 

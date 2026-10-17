@@ -89,7 +89,7 @@ flowchart TD
 
 ### Rollback
 
-Execute all rollback scripts for the current migration run in reverse order.
+Execute the rollback scripts of every file of the current migration run in reverse order: the failed file, the files the run migrated and the files it left `Failed` under `Ignore`.
 
 ```mermaid
 flowchart TD
@@ -103,7 +103,7 @@ flowchart TD
     G --> I[Return Error with Rollback Failure]
 ```
 
-**Implementation detail**: The rollback list is built from `successfullyMigratedRecords`, a `List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)>`. Each record stores the `TargetAlias` at the time the migration was executed, ensuring that rollbacks target the correct database even when multiple targets exist. The failed migration itself uses the current `MigrationState.TargetAlias`.
+**Implementation detail**: The rollback list is built by `BuildStopChain` from the records the run wrote, a `List<RunRecord>` in execution order: every file the run migrated or finalized (`Migrated` with every block) and every file it left `Failed` under `MigrationErrorAction=Ignore` (with the blocks it committed, also none). The failed file comes first when it has a record (a file that failed before the insert of its record ran nothing and is left out), `Failed` with its committed blocks on the current `MigrationState.TargetAlias`, then these records, newest first; the chain rolls back each one from its first rollback block, so that the next `migrate-up` runs the file from its first block. Each record stores the `TargetAlias` at the time the migration was executed, ensuring that rollbacks target the correct database even when multiple targets exist. Records of earlier runs are never part of the chain.
 
 **Characteristics**:
 - Attempts to restore pre-migration state
@@ -146,7 +146,7 @@ flowchart TD
 
 ### RollbackRelease
 
-Rollback the current run's migrations of the release where the error occurred, keep migrations from previous releases and migrations of the same release that earlier runs applied (#20).
+Rollback the failed file and the current run's files of the release where the error occurred, those it migrated and those it left `Failed` under `Ignore`; keep migrations from previous releases and migrations of the same release that earlier runs applied (#20).
 
 ```mermaid
 flowchart TD
@@ -198,7 +198,7 @@ flowchart TD
 **Characteristics**:
 - Does not abort the migration run
 - Failed files are marked as `Failed` (re-attempted on next run). The record keeps the blocks before the first failed one, so the next run resumes at that block when the blocks of the file did not change, and runs the whole file when the first block failed or the file changed. The re-attempt is decided per target: a file that succeeded on one target and failed on another is executed again on the failed target only, the successful target is not touched (#8)
-- Failed files are NOT added to `successfullyMigratedRecords` — they won't be rolled back if a later file fails with Rollback
+- A file left `Failed` stays one of the files of the run: when a later file of the same run fails with `Rollback` or `RollbackRelease`, or a cancel with a rollback action stops the run, the chain rolls it back from its first rollback block with the files before it, also when its record counts no committed block, so its rollback file must tolerate a partially applied file ([S47, S48](error-scenarios-and-recovery.md#category-13-ignore--rollback-interaction))
 - In FileByFile mode: if a file fails on one target, remaining targets for that file are skipped
 - The overall `MigrationRunResult` is `PartialSuccess` (50) when any ignored failures occurred; the CLI exit code is 1 (#18)
 
@@ -270,9 +270,9 @@ What a cancelled migrate-up does after it stopped. The value belongs to the run,
 |------|-------|----------------|-------------------|
 | `Undefined` | 0 | Invalid; `Cancel` refuses it | — |
 | `Terminate` | 10 | Nothing else (the default): the interrupted file keeps its committed blocks for the next migrate-up, or for a migrate-down of its release, which rolls them back | — |
-| `RollbackRun` | 20 | Rolls back the interrupted file and every file the run migrated, newest first | `Rollback` |
+| `RollbackRun` | 20 | Rolls back the interrupted file and every file the run migrated or left `Failed` under `Ignore`, newest first | `Rollback` |
 | `RollbackFile` | 21 | Rolls back the interrupted file only; nothing when the run stopped between two files or, in FileByFile order, between two targets of a file | `RollbackErrorOnly` |
-| `RollbackRelease` | 22 | Rolls back the interrupted file and the files of its release the run migrated; without an interrupted file the release of the file the run migrated last | `RollbackRelease` |
+| `RollbackRelease` | 22 | Rolls back the interrupted file and the files of its release the run migrated or left `Failed` under `Ignore`; without an interrupted file the release of the file the run ran last | `RollbackRelease` |
 
 Source: `Raycoon.RayMigrator.Core/Configuration/Enums/MigrationCancelledAction.cs` (namespace `Raycoon.RayMigrator.Core.Configuration.Enums`)
 
@@ -322,7 +322,7 @@ A second Ctrl+C or SIGTERM keeps the default and ends the process at once. The r
 
 - MySQL ends only the statement in progress: a block with several statements runs its remaining statements after `KILL QUERY`, and the run stops at the next block boundary. On MySQL and MariaDB `KILL QUERY` ends a `SLEEP()` early without an error, so a block that waits in `SLEEP()` runs to its end as well.
 - A first rollback block that fails, rather than being cancelled, still leaves the record `Failed` with no rollback block, which migrate-down does not continue and migrate-up runs again from its first block; this predates the cancellation. The same holds when `RollbackErrorAction=Ignore` went on after the failed first block and a cancel stopped the rollback later, and for a failed atomic rollback or a failed rollback through a CLI tool that continued no earlier attempt. It also holds for the rollback that migrate-down starts for a file that stopped after committed blocks: when its first rollback block fails, migrate-up runs the file again from its first block on a target that still holds what those blocks committed.
-- migrate-down does not roll back a file that stopped without a committed block (`Failed`, no `FileDownHash`), because its record counts nothing that committed; with `MigrationErrorAction=Ignore` blocks after a failed first block may have run, and a CLI tool counts no block. migrate-down names each such file in a warning.
+- migrate-down does not roll back a file that stopped without a committed block (`Failed`, no `FileDownHash`), because its record counts nothing that committed; with `MigrationErrorAction=Ignore` blocks after a failed first block may have run, and a CLI tool counts no block. migrate-down names each such file in a warning. The rollback chain of the run that left such a file `Failed` under `Ignore` rolls it back nonetheless, from its first rollback block, because the run knows that it ran the file; a later migrate-down knows only the record and names such a file instead of rolling it back.
 
 ---
 

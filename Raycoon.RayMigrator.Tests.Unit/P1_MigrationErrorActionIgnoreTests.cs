@@ -175,7 +175,7 @@ public class MigrationErrorActionIgnoreHandleMigrationErrorTests
             MigrationErrorActionOverride = MigrationErrorAction.Ignore
         };
 
-        var successRecords = new List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)>();
+        var runRecords = new List<MigrationService.RunRecord>();
 
         // HandleMigrationError is private — invoke via reflection
         var method = typeof(MigrationService).GetMethod("HandleMigrationError",
@@ -183,7 +183,7 @@ public class MigrationErrorActionIgnoreHandleMigrationErrorTests
         method.Should().NotBeNull("HandleMigrationError should exist");
 
         // It's async, so we get a Task back
-        var task = (Task)method!.Invoke(service, new object[] { productOptions, file, 42, successRecords, MigrationRunMode.Migrate, TestContext.Current.CancellationToken })!;
+        var task = (Task)method!.Invoke(service, new object[] { productOptions, file, 42, runRecords, MigrationRunMode.Migrate, TestContext.Current.CancellationToken })!;
         await task;
 
         // Should have logged the debug message
@@ -205,15 +205,15 @@ public class MigrationErrorActionIgnoreHandleMigrationErrorTests
             MigrationErrorActionOverride = null // Uses product default = Ignore
         };
 
-        var successRecords = new List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)>
+        var runRecords = new List<MigrationService.RunRecord>
         {
-            (new MigrationFileInfo { Filename = "10_Schema.sql", ReleaseVersion = "Release 1.0", TargetGroupAlias = "Backend" }, 1, "T1")
+            new(new MigrationFileInfo { Filename = "10_Schema.sql", ReleaseVersion = "Release 1.0", TargetGroupAlias = "Backend" }, 1, "T1", MigrationStatus.Migrated, 0)
         };
 
         var method = typeof(MigrationService).GetMethod("HandleMigrationError",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 
-        var task = (Task)method!.Invoke(service, new object[] { productOptions, file, 42, successRecords, MigrationRunMode.Migrate, TestContext.Current.CancellationToken })!;
+        var task = (Task)method!.Invoke(service, new object[] { productOptions, file, 42, runRecords, MigrationRunMode.Migrate, TestContext.Current.CancellationToken })!;
         await task;
 
         // Should NOT contain any rollback-related log messages

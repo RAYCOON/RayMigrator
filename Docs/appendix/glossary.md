@@ -171,9 +171,9 @@ An exception thrown when attempting to start a migration while another migration
 What a cancelled migrate-up does after it stopped (`MigrationCancelledAction` enum, a value of the run and not a configuration option; CLI option `--cancelled-action` / `-ca`):
 - **Undefined** (0): Invalid value
 - **Terminate** (10): Stop and do nothing else (default); the next migrate-up resumes the interrupted file
-- **RollbackRun** (20): Roll back the interrupted file and every file the run migrated before it, like `MigrationErrorAction.Rollback`
+- **RollbackRun** (20): Roll back the interrupted file and every file the run migrated or left `Failed` under `Ignore` before it, like `MigrationErrorAction.Rollback`
 - **RollbackFile** (21): Roll back the interrupted file only, like `MigrationErrorAction.RollbackErrorOnly`
-- **RollbackRelease** (22): Roll back the interrupted file and the files of its release the run migrated, like `MigrationErrorAction.RollbackRelease`
+- **RollbackRelease** (22): Roll back the interrupted file and the files of its release the run migrated or left `Failed` under `Ignore`, like `MigrationErrorAction.RollbackRelease`
 
 The rollback of an action cannot be cancelled again. Migrate-down, baseline and an error recovery that is already running stop and ignore the action. See **Cancellation**.
 
@@ -212,7 +212,7 @@ Configuration that determines behavior when a migration fails (`MigrationErrorAc
 - **Rollback** (20): Undo all migrations in current run
 - **RollbackErrorOnly** (21): Undo only the failed migration
 - **RollbackRelease** (22): Undo the current run's migrations of the release that caused the error
-- **Ignore** (30): Ignore the error and continue execution with the next file
+- **Ignore** (30): Ignore the error and continue execution with the next file; a later rollback of the same run rolls the file back with the others
 
 ### Migration File
 A SQL file containing database changes to be applied, optionally with TOML metadata.

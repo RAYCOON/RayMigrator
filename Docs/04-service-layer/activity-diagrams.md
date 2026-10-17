@@ -95,7 +95,7 @@ flowchart TD
     TargetLoop --> Checkpoint["Checkpoint:<br/>token cancelled → OperationCanceledException"]
     Checkpoint --> TryFinalize["TryFinalizeCompletedMigrationAsync()"]
     TryFinalize --> WasFinalized{Already<br/>complete?}
-    WasFinalized -->|Yes| AddRecovered["Add to successfullyMigratedRecords"]
+    WasFinalized -->|Yes| AddRecovered["Add to recordsOfThisRun<br/>(Migrated)"]
     AddRecovered --> TargetLoop
     WasFinalized -->|No| InsertMig["RepositoryMigrationInsertAsync()"]
 
@@ -107,10 +107,10 @@ flowchart TD
     ExecSql --> BlockResult
 
     BlockResult{Failed blocks?}
-    BlockResult -->|No| MarkOk["Update record → Migrated<br/>Add to successfullyMigratedRecords"]
+    BlockResult -->|No| MarkOk["Update record → Migrated<br/>Add to recordsOfThisRun"]
     MarkOk --> TargetLoop
 
-    BlockResult -->|Yes| MarkFailed["Update record → Failed with the blocks<br/>before the first failed one<br/>Break target loop"]
+    BlockResult -->|Yes| MarkFailed["Update record → Failed with the blocks<br/>before the first failed one<br/>Add to recordsOfThisRun (Failed)<br/>Break target loop"]
     MarkFailed --> FailCount["result.FailCount++"]
     FailCount --> FileLoop
 
@@ -121,7 +121,7 @@ flowchart TD
 
     subgraph Exception Path
         CatchEx["Update record → Failed"] --> IsIgnore{Ignore mode?}
-        IsIgnore -->|Yes| IgnoreEx["FailCount++, continue"]
+        IsIgnore -->|Yes| IgnoreEx["Add an inserted record to recordsOfThisRun (Failed)<br/>FailCount++, continue"]
         IsIgnore -->|No| AbortTG["result.Success = false<br/>Return immediately"]
     end
 
@@ -150,10 +150,10 @@ flowchart TD
     Switch -->|RollbackErrorOnly| BuildOne["HandleStopAsync() rollback list:<br/>failed file only"]
     BuildOne --> ExecRB
 
-    Switch -->|RollbackRelease| BuildRelease["HandleStopAsync() rollback list:<br/>failed file +<br/>this run's files of the same Release<br/>(reverse order)"]
+    Switch -->|RollbackRelease| BuildRelease["HandleStopAsync() rollback list:<br/>failed file +<br/>this run's files of the same Release,<br/>migrated or left Failed under Ignore<br/>(reverse order)"]
     BuildRelease --> ExecRB
 
-    Switch -->|Rollback| BuildAll["HandleStopAsync() rollback list:<br/>failed file +<br/>ALL successfully migrated files<br/>(reverse order)"]
+    Switch -->|Rollback| BuildAll["HandleStopAsync() rollback list:<br/>failed file +<br/>ALL files of this run, migrated<br/>or left Failed under Ignore<br/>(reverse order)"]
     BuildAll --> ExecRB
 
     ExecRB["ExecuteRollbackForMigrations()<br/>(with the run's token)"]

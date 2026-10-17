@@ -42,7 +42,7 @@ RayMigrator follows Semantic Versioning where applicable.
   `RollbackErrorAction`; a run cancelled between two files, or in
   FileByFile order between two targets of a file, has no interrupted file,
   so `RollbackFile` rolls nothing back and `RollbackRelease` takes the
-  release of the file migrated last; a file stopped between two of its
+  release of the file the run ran last; a file stopped between two of its
   targets counts as a finished file in the result and in
   `RunCompletedEvent`, since it migrated on the targets it ran on. This
   rollback cannot be cancelled again. The run is recorded as the new
@@ -687,13 +687,44 @@ RayMigrator follows Semantic Versioning where applicable.
   file is there, one that is not required is skipped with a warning that names
   them.
 - **Breaking (behaviour):** a rollback file now runs for a file that stopped
-  after committed blocks when migrate-down rolls back its release. A rollback
-  file must tolerate a partially applied file (`DROP TABLE IF EXISTS`,
-  `DELETE … WHERE`), as it must already for the error recovery of a
-  `MigrationErrorAction` and for the rollback of a `MigrationCancelledAction`,
-  which roll back the stopped file the same way; a rollback file that does not
-  now fails the migrate-down at that file (`Error`), where it succeeded before
-  and left the file's blocks behind.
+  after committed blocks when migrate-down rolls back its release, and for a
+  file that ended under `MigrationErrorAction=Ignore`, which the rollback
+  chain of a `Rollback`/`RollbackRelease` action now runs, as does that of a
+  `RollbackRun`/`RollbackRelease` cancel. A rollback file must tolerate a
+  partially applied file (`DROP TABLE IF EXISTS`, `DELETE … WHERE`), as it
+  must already for the error recovery of a `MigrationErrorAction` and for the
+  rollback of a `MigrationCancelledAction`, which roll back the stopped file
+  the same way; a rollback file that does not now fails the migrate-down at
+  that file (`Error`), where it succeeded before and left the file's blocks
+  behind, and the chain of a run at a file the run left under `Ignore`
+  (`Error` instead of `Recovered` or `Cancelled`). A file with `Ignore` in a
+  product with `RequireRollbackFile=false` needs a rollback file or
+  `StopRollbackOnMissingRollbackFile=false`, otherwise the chain stops at it.
+  With `RequireRollbackFile=true` a migrate-down now aborts at a file that
+  stopped after committed blocks and whose rollback file is missing, also
+  when the migration file and the rollback file were removed from disk,
+  where it passed over the record of such a file before.
+- The rollback chain of a `MigrationErrorAction` (`Rollback`,
+  `RollbackRelease`) and of a `MigrationCancelledAction` (`RollbackRun`,
+  `RollbackRelease`) rolls back the files the run left `Failed` under
+  `MigrationErrorAction=Ignore` as well: every file the run ran, newest
+  first, the stopped file first when it has a record — the files it
+  migrated, those it finalized and those that ended with ignored failed
+  blocks, with the blocks they committed, also none. `RollbackRelease` takes
+  those of the stopped file's release; without a stopped file the release of
+  the file the run ran last. `RollbackErrorOnly` and `RollbackFile` still
+  roll back the stopped file only. Before, such a file was left `Failed`
+  with its committed blocks while the chain rolled back the files before it,
+  and the run still reported `Recovered` or `Cancelled` with a clean
+  rollback; in 0.19.0 the next migrate-up ran the file again in full, so
+  rows it had written into tables the chain did not drop were written twice;
+  in this version it would have resumed the file after blocks whose effect
+  the rollback had taken away, as migrate-down did until this version (see
+  above). A rollback file that is missing or fails for such a file is
+  handled as for any file of the chain (`RequireRollbackFile`,
+  `StopRollbackOnMissingRollbackFile`, `RollbackErrorAction`), so a run
+  whose chain stops there is `Error` (1005 after a cancel) instead of
+  `Recovered` or `Cancelled`.
 
 ### Fixed
 
@@ -779,6 +810,30 @@ RayMigrator follows Semantic Versioning where applicable.
   that they created the name. Every earlier version has the fault. Like
   the shipped DALs, an external DAL tolerates a parallel first
   registration.
+- The closing line of a rollback chain in the messages of migrate-down
+  (`MigrationOperationResult.Messages`) counted a record that the chain
+  skipped for a missing rollback file, or rolled back with rollback errors
+  that `RollbackErrorAction=Ignore` skipped, as rolled back:
+  `Successfully rolled back n migration(s)`. A chain that passed records with
+  a warning now closes with `Rolled back k of n migration(s) cleanly; m with
+  a warning`; a clean chain keeps the line.
+- The rollback events of the error recovery of a `MigrationErrorAction` and
+  of the rollback of a `MigrationCancelledAction` carry the position of each
+  file (`FileStartedEvent.FileOrderId`) and, for a file whose rollback file
+  is missing, the number of its blocks (`BlocksTotal`), as those of
+  migrate-down do. The chain of a stopped migrate-up built its records
+  without them, so these events reported 0 and 1. Every version since
+  0.17.0, which added the events, has the fault.
+- A migrate-up whose file failed before the record of the file was written
+  (a repository write at the start of the file failed) no longer breaks the
+  rollback of its `MigrationErrorAction`. The chain began with that file
+  under record Id 0 and on the target of the file before it: it aborted
+  there and rolled back nothing, or, without the rollback file of that
+  file, stopped there or skipped it with a warning, and the run ended
+  `Error` instead of `Recovered`. A file without a record ran nothing on its
+  target, so the chain now leaves it out and rolls back the files the run
+  ran in the scope of the action. Every earlier version has the fault;
+  before 0.17.0 the chain took the record of the file before it instead.
 
 ## [0.19.0] — 2026-10-15
 

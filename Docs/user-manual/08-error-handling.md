@@ -49,6 +49,8 @@ Rollback triggered:
 
 > **Warning:** Rollback requires matching `.rollback.sql` files. If a rollback file is missing and `RequireRollbackFile` is `true`, the rollback chain stops at that file: the file keeps its status (`Migrated` stays `Migrated`), the run ends as Error with the message of the failure, and the log names the missing rollback file. Once the rollback file is there, `migrate-down` rolls the file back.
 
+> **Note:** The chain rolls back every file of the run, also one that the run left `Failed` because the file sets `MigrationErrorAction = Ignore` for itself (see [Ignore](#ignore)): its rollback file runs from its first block, so it must tolerate a partially applied file.
+
 > **Note:** When the rollback chain completes without a failure or warning, the migration run is persisted as Recovered (80) instead of Error (90): every rolled-back file is `NotMigrated` again and repository and database are consistent. This applies to Rollback, RollbackErrorOnly and RollbackRelease. A failed rollback block, a missing rollback file or a stopped chain keep Error (90). The exit code is 1 in both cases, so schedulers still see the failure; `info` shows which of the two it was.
 
 ---
@@ -109,6 +111,8 @@ Migration 004 ✓ (Migrated — execution continues)
 > **Warning:** With Ignore, the migration run is persisted as PartialSuccess (50) because at least one file failed; all other files are still executed and the CLI exit code is 1. An aborted run is Error (90).
 
 A failed file keeps the blocks that committed before its first failed block. The next `migrate-up` resumes at that block, as long as the SQL blocks of the file did not change, and runs the blocks after it again; when the first block failed, or the file was changed, it runs the whole file. A `RunAlways` file always runs as a whole: the next `migrate-up` runs all of its blocks again. A `migrate-down` that rolls back the release of such a file rolls the file back as well, from its first rollback block, and the next `migrate-up` then runs it from its first block (see [Rolling Back Migrations](09-rollback-guide.md#how-rollback-works)).
+
+When the same run is rolled back later, because a later file fails under `Rollback` or `RollbackRelease` or because you cancel it with `--cancelled-action rollback-run` or `rollback-release`, the rollback chain rolls back a file the run left `Failed` with the files before it, from its first rollback block, also when no block of it committed. Give such a file a rollback file that tolerates a partially applied file: with `RequireRollbackFile = false` and no rollback file the chain stops at it (or skips it with `StopRollbackOnMissingRollbackFile = false`), and the run is Error (90).
 
 ---
 
@@ -330,7 +334,7 @@ Some work always runs to its end, so that the repository never records a step ha
 - The block in progress on MySQL, which interrupts only the statement in progress and runs the rest of the block, and on SQLite, which cannot interrupt a statement. SQL Server, PostgreSQL and MariaDB abort it, except that MariaDB, like MySQL, ends a `SLEEP()` early without an error and runs the rest of the block.
 - During a rollback (a `migrate-down`, or the error recovery of a `migrate-up`): the first block of a rollback file, an atomic rollback and a rollback through a CLI tool. A cancelled `migrate-down` leaves the record in progress `Failed` with its rollback blocks, and the next `migrate-down` continues it unless its first rollback block failed under `RollbackErrorAction=Ignore`; until then `migrate-up` refuses to run that file (see [Rolling Back Migrations](09-rollback-guide.md#block-level-rollback-tracking)).
 
-With `MigrationErrorAction` = `Ignore`, the interrupted file is stored like a file with ignored errors: its record is `Failed` with the blocks before the first failed one, and the next `migrate-up` resumes at the failed block.
+With `MigrationErrorAction` = `Ignore`, the interrupted file is stored like a file with ignored errors: its record is `Failed` with the blocks before the first failed one, and the next `migrate-up` resumes at the failed block. `rollback-run` and `rollback-release` roll back the files the run left `Failed` under `Ignore` as well, with the files it migrated.
 
 Instead of resuming the interrupted file, you can roll its release back with `migrate-down`: it rolls back the interrupted file as well when some of its blocks committed, before the files it came after, and the next `migrate-up` runs it from its first block; a file without a committed block, as on the atomic path, is only named in a warning.
 

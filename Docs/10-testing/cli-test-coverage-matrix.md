@@ -74,14 +74,14 @@ This document provides a comprehensive overview of unit and engine test coverage
 | `--run-mode simulate` | COVERED | COVERED | `SimulateModeTests` x5 DBs (S1-S3) |
 | `--run-mode validate` | COVERED | COVERED | `SimulateModeTests.S4` x5 DBs |
 | `--to-release` | COVERED | COVERED | `HappyPathTests` partial migration, `IncrementalTests` |
-| `--allow-out-of-order` | COVERED | COVERED | 11 unit tests + `OutOfOrderBlockingTests` O1-O3 x5 DBs (blocking + allowing + data intact) |
+| `--allow-out-of-order` | COVERED | COVERED | 24 unit tests + `OutOfOrderBlockingTests` O1-O3 x5 DBs (blocking + allowing + data intact) |
 | `--target-group` | COVERED | COVERED | `TargetGroupFilterTests` x5 DBs |
 | `--target-group-migration-order` | COVERED | COVERED | `TargetGroupMigrationOrderTests` x5 DBs, 20+ unit tests |
 | `--stop-rollback-on-missing-rollback-file` | COVERED | COVERED | Config inheritance + `RollbackTests` x5 DBs |
 | `--cancelled-action` | COVERED | PARTIAL | `P0_CancelledActionOptionTests` (parsing), `P1_ConsoleCancellationTests` (Ctrl+C and SIGTERM), `P2_CancelledExitCodeTests` (exit code 130); all four actions run in `CancellationTests` x5 DBs through a `RunCancellation`, which the engine tests pass instead of the CLI option; `SqliteCliSignalTests` sends SIGINT to the real CLI process (default `terminate`) and checks exit code 130 and the run `Cancelled` |
 | `--startup-info` | **MISSING** | **MISSING** | Hardcoded `false` in EngineTestHost. Cosmetic feature, not testable without console output capture. |
 | `--reveal-sensitive-data` | COVERED | COVERED | Unit masking tests + `MigrationRunMetaTests` M4 x5 DBs (masking in settings JSON) |
-| `--config-dir` | COVERED | N/A | 17 unit tests. Not testable at engine level (EngineTestHost bypasses config-dir pipeline). |
+| `--config-dir` | COVERED | N/A | 23 unit tests. Not testable at engine level (EngineTestHost bypasses config-dir pipeline). |
 
 ### migrate-down
 
@@ -97,7 +97,7 @@ This document provides a comprehensive overview of unit and engine test coverage
 | `--cancelled-action` | COVERED | PARTIAL | Accepted (`P0_CancelledActionOptionTests`) and ignored (`CancellationTests`); a cancelled migrate-down stops before the next rollback block and the next one continues, and migrate-up refuses the file until the rollback has completed (`CancellationTests` x5 DBs) |
 | `--startup-info` | **MISSING** | **MISSING** | Cosmetic feature, not testable without console output capture. |
 | `--reveal-sensitive-data` | COVERED | COVERED | Unit masking + `MigrationRunMetaTests.M6` (MigrateDown settings JSON masked) x5 DBs |
-| `--config-dir` | COVERED | N/A | 17 unit tests. Not testable at engine level. |
+| `--config-dir` | COVERED | N/A | 23 unit tests. Not testable at engine level. |
 
 ### validate-hash
 
@@ -111,7 +111,7 @@ This document provides a comprehensive overview of unit and engine test coverage
 | `--target-group` | COVERED | PARTIAL | Unit filtering tested, engine tests don't explicitly filter |
 | `--startup-info` | **MISSING** | **MISSING** | Cosmetic feature, not testable without console output capture. |
 | `--reveal-sensitive-data` | COVERED | **MISSING** | Unit masking covered. ValidateHash is read-only (no MigrationRunMeta written). |
-| `--config-dir` | COVERED | N/A | 17 unit tests. Not testable at engine level. |
+| `--config-dir` | COVERED | N/A | 23 unit tests. Not testable at engine level. |
 
 ### update-hash
 
@@ -122,7 +122,7 @@ This document provides a comprehensive overview of unit and engine test coverage
 | `--target-group` | COVERED | COVERED | `TargetGroupFilterTests.T8` (`UpdateHash_BackendOnly`) x5 DBs |
 | `--startup-info` | **MISSING** | **MISSING** | Cosmetic feature, not testable without console output capture. |
 | `--reveal-sensitive-data` | COVERED | **MISSING** | Unit masking covered. UpdateHash is read-modify (no MigrationRunMeta written). |
-| `--config-dir` | COVERED | N/A | 17 unit tests. Not testable at engine level. |
+| `--config-dir` | COVERED | N/A | 23 unit tests. Not testable at engine level. |
 
 ### Info
 
@@ -132,8 +132,8 @@ This document provides a comprehensive overview of unit and engine test coverage
 | `--environment` | PARTIAL | COVERED | Implicit in all Info scenarios |
 | `--startup-info` | **MISSING** | **MISSING** | Cosmetic feature, not testable without console output capture. |
 | `--reveal-sensitive-data` | PARTIAL | **MISSING** | Unit model tests. Info is read-only (no MigrationRunMeta written). |
-| `--config-dir` | COVERED | N/A | 17 unit tests. Not testable at engine level. |
-| **Overall** | PARTIAL | COVERED | 23 tests x 5 DBs = 115 tests. ScenarioContext `InfoAsync()` + `GetHistoryAsync()`; the printed pending list in `P2_InfoPendingOutputTests`. |
+| `--config-dir` | COVERED | N/A | 23 unit tests. Not testable at engine level. |
+| **Overall** | PARTIAL | COVERED | 29 tests x 5 DBs = 145 tests. ScenarioContext `InfoAsync()` + `GetHistoryAsync()`; the printed pending list in `P2_InfoPendingOutputTests`. |
 
 ### Baseline
 
@@ -147,13 +147,13 @@ This document provides a comprehensive overview of unit and engine test coverage
 | `--cancelled-action` | COVERED | PARTIAL | Accepted (`P0_CancelledActionOptionTests`) and ignored (`CancellationTests`); a cancelled baseline keeps the records it wrote (`CancellationTests` x5 DBs) |
 | `--startup-info` | **MISSING** | **MISSING** | Cosmetic feature, not testable without console output capture. |
 | `--reveal-sensitive-data` | PARTIAL | COVERED | `MigrationRunMetaTests.M7` (Baseline settings JSON masked) x5 DBs |
-| `--config-dir` | COVERED | N/A | 17 unit tests. Not testable at engine level. |
+| `--config-dir` | COVERED | N/A | 23 unit tests. Not testable at engine level. |
 
 ### Fix
 
 | Option | Unit Tests | Engine Tests | Notes |
 |--------|:----------:|:------------:|-------|
-| `--product` | PARTIAL | COVERED | `FixTests` x5 DBs (F1-F8) |
+| `--product` | PARTIAL | COVERED | `FixTests` x5 DBs (F1-F9) |
 | `--environment` | PARTIAL | COVERED | Implicit in all Fix scenarios |
 | `--scope orphanedruns` | COVERED | COVERED | F1-F8 all use OrphanedRuns scope |
 | `--scope all` | COVERED | **MISSING** | Enum test only. Engine only tests OrphanedRuns scope. |
@@ -162,8 +162,8 @@ This document provides a comprehensive overview of unit and engine test coverage
 | `--last-migration-status` | COVERED | COVERED | F8: AssumedMigrationStatus=Migrated; `OrphanRepairTests` x5 DBs: without the option the repair keeps the progress of each open record, `not-migrated` sets it with the counter kept; `P0_LastMigrationStatusOptionTests`: no default, unknown value is a parse error |
 | `--startup-info` | **MISSING** | **MISSING** | Cosmetic feature, not testable without console output capture. |
 | `--reveal-sensitive-data` | PARTIAL | **MISSING** | Unit model test only. Fix does not write MigrationRunMeta settings JSON. |
-| `--config-dir` | COVERED | N/A | 17 unit tests. Not testable at engine level. |
-| **Overall** | COVERED (models) | COVERED | 8 tests x 5 DBs = 40 tests. ScenarioContext `FixIssuesAsync()` + `InsertOrphanedMigrationRun()`. |
+| `--config-dir` | COVERED | N/A | 23 unit tests. Not testable at engine level. |
+| **Overall** | COVERED (models) | COVERED | 9 tests x 5 DBs = 45 tests. ScenarioContext `FixIssuesAsync()` + `InsertOrphanedMigrationRun()`. |
 
 ---
 
@@ -171,7 +171,7 @@ This document provides a comprehensive overview of unit and engine test coverage
 
 ### 3.1 migrate-up
 
-**Engine test files** (51 files, ~211 tests, all 5 DB engines):
+**Engine test files** (57 files, ~349 tests, all 5 DB engines):
 
 | Category | Base File | DB Variants | Key Scenarios |
 |----------|-----------|-------------|---------------|
@@ -180,7 +180,8 @@ This document provides a comprehensive overview of unit and engine test coverage
 | Rollback (ErrorOnly) | `RollbackErrorOnlyTests.cs` | SqlServer, MariaDb, MySql, Sqlite | Fail-fast without rollback; partial state on error |
 | Rollback (Release) | `RollbackReleaseTests.cs` | SqlServer, MariaDb, MySql, Sqlite | Roll back only latest release; preserve earlier |
 | Terminate | `TerminateTests.cs` | SqlServer, MariaDb, MySql, Sqlite | Stop execution, record failures |
-| Ignore | `IgnoreTests.cs` | SqlServer, MariaDb, MySql, Sqlite | Continue despite errors |
+| Ignore | `IgnoreTests.cs` | SqlServer, MariaDb, MySql, Sqlite | Continue despite errors; a later failure under `Rollback` rolls the ignored file back with the run |
+| Ignored files rolled back | `PostgreSqlIgnoredFileRollbackTests.cs` | SqlServer, MariaDb, MySql, Sqlite | The rollback chain of a stopped run (error recovery under `Rollback`, cancel with `RollbackRun` or `RollbackRelease`) rolls back the files the run left `Failed` under `Ignore` with the files it migrated, newest first, from their first rollback block, also one without a committed block, and the next migrate-up runs such a file from block 1; `RollbackRelease` keeps its release; in FileByFile order the chain takes the record of the target that ran the file; a missing rollback file of such a file stops or skips the chain, and the run is `Error` (1005 after a cancel) |
 | RunAlways | `RunAlwaysTests.cs` | SqlServer, MariaDb, MySql, Sqlite | Re-execute on each run without `--allow-out-of-order`; a third run after a failed re-run is still in order; the file runs in full from block 1 after an attempt that committed blocks: a failure (FileByFile and TargetByTarget), a cancel, a record on the atomic shared connection that is neither resumed nor finalized, and the open record of an orphaned run after its repair (`Infrastructure/RunAlwaysContract.cs`) |
 | FlatLayout | `FlatLayoutTests.cs` | SqlServer, MariaDb, MySql, Sqlite | Files at release root (no /Backend) |
 | Incremental | `IncrementalTests.cs` | SqlServer, MariaDb, MySql, Sqlite | Multiple migration runs, partial state progression |
@@ -188,9 +189,10 @@ This document provides a comprehensive overview of unit and engine test coverage
 | BlockLevel | `SqlServerBlockLevelTests.cs` | SqlServer only | GO statement splitting, multiple batches |
 
 **Unit test files** (relevant to migrate-up):
-- `P0_MigrationRunModeExtensionsTests.cs` — ShouldExecuteSql, ShouldWriteRepository, ShouldReadRepository (12 tests)
-- `P1_OutOfOrderDetectionTests.cs` — DetectOutOfOrderFiles logic (11 tests)
+- `P0_MigrationRunModeExtensionsTests.cs` — ShouldExecuteSql, ShouldWriteRepository, ShouldReadRepository, ShouldConnectToTargets (16 tests)
+- `P1_OutOfOrderDetectionTests.cs` — DetectOutOfOrderFiles logic (24 tests)
 - `P1_HandleMigrationErrorBehaviorTests.cs` — Error strategy dispatch
+- `P1_StopChainTests.cs` — the rollback chain of a stopped migrate-up: the stopped file when it has a record, then the files the run migrated or left `Failed` under `Ignore` in the scope of the action, newest first
 - `P1_TargetMigrationOrderExecutionTests.cs` — FileByFile vs TargetByTarget (20 tests)
 - `P1_RequireRollbackFileValidationTests.cs` — Rollback file requirement validation
 - `P1_FilterByTargetReleaseTests.cs` — `--to-release` filtering logic
@@ -206,7 +208,7 @@ This document provides a comprehensive overview of unit and engine test coverage
 
 ### 3.2 migrate-down
 
-**Engine test files** (15 files, ~50 tests):
+**Engine test files** (20 files, ~95 tests):
 
 | Category | Base File | DB Variants | Key Scenarios |
 |----------|-----------|-------------|---------------|
@@ -215,11 +217,11 @@ This document provides a comprehensive overview of unit and engine test coverage
 | Errors | `ErrorTests.cs` | SqlServer, MariaDb, MySql, Sqlite | Missing rollback files (a required one stops the chain, keeps its file `Migrated`, and the next migrate-down rolls it back once the file is there); broken rollback SQL |
 | Stopped files | `PostgreSqlStartedFileRollbackTests.cs` | SqlServer, MariaDb, MySql, Sqlite | A file that stopped after committed blocks (cancel, failure, ignored failed blocks, orphan repair) is rolled back from its first rollback block before the files it came after, and the next migrate-up runs it from block 1; a file without a committed block is named in a warning; a failed rollback of such a file stops in the middle; a missing rollback file keeps its committed blocks; Simulate lists its rollback (`Infrastructure/StartedFileRollbackContract.cs`) |
 
-**Unit test files**: Same filtering/mode tests as migrate-up (shared logic), and `P1_MigrateDownSelectionTests.cs` — the records migrate-down rolls back, those it names in a warning, and the message of a missing required rollback file per kind of record.
+**Unit test files**: Same filtering/mode tests as migrate-up (shared logic), and `P1_MigrateDownSelectionTests.cs` — the records migrate-down rolls back, those it names in a warning, the message of a missing required rollback file per kind of record, and the closing line of a chain that counts its clean rollbacks only.
 
 ### 3.3 validate-hash
 
-**Engine test files** (5 files, 40 tests):
+**Engine test files** (5 files, 60 tests):
 
 | Category | Base File | DB Variants | Key Scenarios |
 |----------|-----------|-------------|---------------|
@@ -231,7 +233,7 @@ This document provides a comprehensive overview of unit and engine test coverage
 
 ### 3.4 update-hash
 
-**Engine test files** (5 files, 25 tests):
+**Engine test files** (5 files, 45 tests):
 
 | Category | Base File | DB Variants | Key Scenarios |
 |----------|-----------|-------------|---------------|
@@ -246,7 +248,7 @@ Also tested as part of:
 
 ### 3.5 Info
 
-**Engine test files** (5 files, 115 tests):
+**Engine test files** (5 files, 145 tests):
 
 | Category | Base File | DB Variants | Key Scenarios |
 |----------|-----------|-------------|---------------|
@@ -274,7 +276,7 @@ Also tested as part of:
 
 ### 3.7 Fix
 
-**Engine test files** (5 files, 40 tests):
+**Engine test files** (5 files, 45 tests):
 
 | Category | Base File | DB Variants | Key Scenarios |
 |----------|-----------|-------------|---------------|
@@ -324,7 +326,7 @@ Also tested as part of `CancellationTests` (a fix cancelled between two orphaned
 
 | Test File | Options Tested | Test Count |
 |-----------|---------------|------------|
-| `P0_ConfigDirTests.cs` | `--config-dir` for all 7 commands | 17 |
+| `P0_ConfigDirTests.cs` | `--config-dir` for all 7 commands | 23 |
 | `P1_SensitiveDataMaskerTests.cs` | `--reveal-sensitive-data` masking logic | 20+ |
 | `P2_ToDetailStringMaskingTests.cs` | Config detail string masking | Multiple |
 | `P1_BuildMigrationRunSettingsJsonTests.cs` | ShowStartupInfo, RevealSensitiveData, AllowOutOfOrder in settings JSON | Multiple |
@@ -356,7 +358,7 @@ Also tested as part of `CancellationTests` (a fix cancelled between two orphaned
 | Gap | Impact | Status |
 |-----|--------|--------|
 | **`--startup-info` (all 7 commands)** | LOW | **WONTFIX** — Cosmetic console output. EngineTestHost hardcodes `false`. Would require console output capture infrastructure. |
-| **`--config-dir` (all 7 commands)** | LOW | **WONTFIX** — Not testable at engine level. EngineTestHost bypasses the config-dir pipeline entirely. 17 unit tests in `P0_ConfigDirTests` prove parsing works. |
+| **`--config-dir` (all 7 commands)** | LOW | **WONTFIX** — Not testable at engine level. EngineTestHost bypasses the config-dir pipeline entirely. 23 unit tests in `P0_ConfigDirTests` prove parsing works. |
 | **`--reveal-sensitive-data` for read-only commands** | LOW | **N/A** — ValidateHash, UpdateHash, Info, Fix do not write MigrationRunMeta settings JSON. Nothing to mask at engine level. |
 | **Fix `--scope all`** | LOW | **MISSING** — Only `OrphanedRuns` scope tested. `All` scope shares the same code path with additional checks. |
 
@@ -368,7 +370,7 @@ Also tested as part of `CancellationTests` (a fix cancelled between two orphaned
 | ~~MigrateDown + `--run-mode validate`~~ | **RESOLVED** | `SimulateModeTests` S6-S7 x5 DBs. Non-destructive validation + missing rollback detection. |
 | ~~MigrateDown + `--target-group`~~ | **ALREADY COVERED** | Existing T4 (`MigrateDown_BackendOnly_PreservesFrontend`) x5 DBs. |
 | ~~validate-hash + `--scope disabled`~~ | **RESOLVED** | `ValidateHashTests` V7-V8 x5 DBs. Ignores modification + pass after full migration. |
-| ~~`--config-dir` engine integration~~ | **NOT FEASIBLE** | EngineTestHost bypasses config-dir pipeline. 17 unit tests sufficient. |
+| ~~`--config-dir` engine integration~~ | **NOT FEASIBLE** | EngineTestHost bypasses config-dir pipeline. 23 unit tests sufficient. |
 
 ### ~~Priority 4: Minor gaps~~ (RESOLVED)
 

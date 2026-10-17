@@ -144,8 +144,8 @@ What a run does when Ctrl+C or SIGTERM cancels it. Available on migrate-up, migr
 |-------|-------------|
 | `terminate` | Stop at the next block boundary and do nothing else (default) |
 | `rollback-file` | Stop, then roll back the interrupted file |
-| `rollback-run` | Stop, then roll back the interrupted file and every file the run migrated before it |
-| `rollback-release` | Stop, then roll back the interrupted file and the files of its release that the run migrated |
+| `rollback-run` | Stop, then roll back the interrupted file and every file the run migrated or left `Failed` under `Ignore` before it |
+| `rollback-release` | Stop, then roll back the interrupted file and the files of its release that the run migrated or left `Failed` under `Ignore` |
 
 Migrate-down and baseline accept the option so that a script can pass the same options to every run command, and ignore it. See [Cancelling a Run](#cancelling-a-run).
 

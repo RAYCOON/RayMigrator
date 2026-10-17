@@ -570,9 +570,9 @@ What a cancelled migrate-up does after it stopped at the next block boundary (`-
 |------|-------|-----------|-------------|
 | `Undefined` | 0 | — | Invalid — not set |
 | `Terminate` | 10 | `terminate` | Stop and do nothing else; the next migrate-up resumes the interrupted file (default) |
-| `RollbackRun` | 20 | `rollback-run` | Roll back the interrupted file and every file the run migrated before it, like `Rollback` |
+| `RollbackRun` | 20 | `rollback-run` | Roll back the interrupted file and every file the run migrated or left `Failed` under `Ignore` before it, like `Rollback` |
 | `RollbackFile` | 21 | `rollback-file` | Roll back the interrupted file only, like `RollbackErrorOnly` |
-| `RollbackRelease` | 22 | `rollback-release` | Roll back the interrupted file and the files of its release the run migrated, like `RollbackRelease` |
+| `RollbackRelease` | 22 | `rollback-release` | Roll back the interrupted file and the files of its release the run migrated or left `Failed` under `Ignore`, like `RollbackRelease` |
 
 Source: `Raycoon.RayMigrator.Core/Configuration/Enums/MigrationCancelledAction.cs`
 

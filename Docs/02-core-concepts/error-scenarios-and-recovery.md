@@ -38,7 +38,7 @@ The `fix` command only handles **orphaned runs** — `MigrationRun` entries stuc
 
 ### 5. MigrateDown Rolls Back Migrated Files and Files That Stopped After Committed Blocks
 
-The `migrate-down` command processes files with status `Migrated` (100), files that a failed, cancelled or abruptly ended `migrate-up` left `Failed` (30), or `Executing` in a run that has ended, with committed blocks and without a rollback, and records whose rollback stopped in the middle. A file that stopped after committed blocks is rolled back like a migrated one, from its first rollback block, so that the next `migrate-up` runs it from its first block instead of resuming it after blocks whose effect the rollback took away; its rollback file must tolerate a partially applied file ([Rollback Files](../07-migration-files/rollback-files.md#rollback-of-a-partially-applied-file)). Files with status `NotMigrated` (50) or `NoRecord` (-1), and `Failed` files without a committed block, are skipped; migrate-down names a skipped `Failed` file in a warning, because with `MigrationErrorAction=Ignore` or a CLI tool blocks of it may have run. So `migrate-down` to a release before the files of a failed or cancelled run rolls back what the run committed, the stopped file included.
+The `migrate-down` command processes files with status `Migrated` (100), files that a failed, cancelled or abruptly ended `migrate-up` left `Failed` (30), or `Executing` in a run that has ended, with committed blocks and without a rollback, and records whose rollback stopped in the middle. A file that stopped after committed blocks is rolled back like a migrated one, from its first rollback block, so that the next `migrate-up` runs it from its first block instead of resuming it after blocks whose effect the rollback took away; its rollback file must tolerate a partially applied file ([Rollback Files](../07-migration-files/rollback-files.md#rollback-of-a-partially-applied-file)). Files with status `NotMigrated` (50) or `NoRecord` (-1), and `Failed` files without a committed block, are skipped; migrate-down names a skipped `Failed` file in a warning, because with `MigrationErrorAction=Ignore` or a CLI tool blocks of it may have run. So `migrate-down` to a release before the files of a failed or cancelled run rolls back what the run committed, the stopped file included. The rollback chain of the run itself, after a failure under `Rollback` or `RollbackRelease` or a cancel with a rollback action, rolls back every file the run left `Failed` under `Ignore`, also one without a committed block (S47, S48).
 
 ---
 
@@ -893,28 +893,55 @@ These scenarios test what happens when `RequireRollbackFile = false` and specifi
 
 ### Category 13: Ignore + Rollback Interaction
 
-#### S47 — Ignored File NOT Rolled Back When Later Rollback Triggers
+#### S47 — Ignored File Rolled Back With the Run When a Later Rollback Triggers
 
 | Setting | Value |
 |---------|-------|
 | MigrationErrorAction | Rollback (product-level), Ignore (per-file on R1F3) |
-| Error Position | R1F3 fails (Ignore), R2F2 fails (Rollback) |
-| MigrationRunResult | Error (90) |
+| Error Position | R1F3 fails at block 2 of 3 (Ignore), R2F2 fails (Rollback) |
+| MigrationRunResult | Recovered (80) |
 
 | File | Status |
 |------|--------|
 | R1F1 `01_CreateTableA.sql` | NM |
 | R1F2 `02_CreateTableB.sql` | NM |
-| R1F3 `03_InsertDataA.sql` | F |
+| R1F3 `03_InsertDataA.sql` | NM |
 | R2F1 `01_CreateTableC.sql` | NM |
 | R2F2 `02_InsertDataB.sql` | NM |
 | R2F3–R3F3 | -- |
 
-**Key insight**: R1F3 failed with `Ignore`, so it was NOT added to `successfullyMigratedRecords`. When R2F2 failed with `Rollback`, the rollback chain only rolled back files in `successfullyMigratedRecords` — R1F3 was excluded. R1F3 stays `Failed`.
+**Key insight**: Under `Ignore`, R1F3 runs to its end and is `Failed` with its first block, although block 3 committed after the failed block as well. When R2F2 fails with `Rollback`, the chain rolls back R2F2 first and then every file the run ran: migrated ones and those it left Failed under Ignore, newest first. R1F3 is rolled back from its first rollback block, before R1F2 and R1F1, so its rollback file must tolerate a partially applied file ([Rollback Files](../07-migration-files/rollback-files.md#rollback-of-a-partially-applied-file)), and it ends `NotMigrated`: the next `migrate-up` runs it from its first block instead of resuming it at block 2 after the rollback of R1F1 took away what block 1 wrote. A file of the run without its rollback file stops or skips the chain as any file does (`RequireRollbackFile`, `StopRollbackOnMissingRollbackFile`), and the run is then `Error` (90).
 
-**Inconsistency**: **Logical inconsistency** — R1F3 is `Failed` while R1F1 and R1F2 are `NotMigrated` (they were rolled back). The database has no R1 tables, but R1F3's data was never successfully applied anyway.
+**DB State**: Clean — the R1 and R2 tables are dropped, the rows of R1F3 with them.
 
-**Recovery**: Fix both `03_InsertDataA.sql` (R1F3) and `02_InsertDataB.sql` (R2F2), re-run `migrate-up`. All `Failed` and `NotMigrated` files are retried.
+**Inconsistency**: None — the chain rolled back every file of the run.
+
+**Recovery**: Fix both `03_InsertDataA.sql` (R1F3) and `02_InsertDataB.sql` (R2F2), re-run `migrate-up`. Every file of R1 and R2 runs from its first block.
+
+#### S48 — Ignore and a Cancel with `rollback-run`
+
+| Setting | Value |
+|---------|-------|
+| MigrationErrorAction | Ignore (product-level) |
+| Error Position | R1F3 fails at block 2 of 3 (Ignore) |
+| Cancel | Ctrl+C while R2F2 runs, `--cancelled-action rollback-run` |
+| MigrationRunResult | Cancelled (70) |
+
+| File | Status |
+|------|--------|
+| R1F1–R1F2 | NM |
+| R1F3 `03_InsertDataA.sql` | NM |
+| R2F1 `01_CreateTableC.sql` | NM |
+| R2F2 `02_InsertDataB.sql` | NM |
+| R2F3–R3F3 | -- |
+
+**Key insight**: Under `Ignore`, R1F3 ends `Failed` with its first block, and the run goes on. The cancel stops it at the next block boundary of R2F2, which is `Failed` with the blocks it committed. `rollback-run` rolls back R2F2 first and then every file the run ran, newest first, R1F3 included: the run is `Cancelled` with the message `Cancelled on request (RollbackRun): 5 file(s) rolled back`. With `rollback-release` the chain takes R2F2 and the files of release 2.0 the run ran, and R1F3 stays `Failed` with its first block, which the next `migrate-up` resumes at block 2 on the tables of R1, which the chain did not touch. A missing rollback file of R1F3 makes the run `Error` with `CancelledRollbackIncomplete` (1005), as for any file of the chain.
+
+**DB State**: Clean — the R1 and R2 tables are dropped.
+
+**Inconsistency**: None.
+
+**Recovery**: Fix `03_InsertDataA.sql` (R1F3), re-run `migrate-up`. Every file of R1 and R2 runs from its first block.
 
 ---
 
@@ -925,7 +952,7 @@ These scenarios test what happens when `RequireRollbackFile = false` and specifi
 | None (clean Terminate/Rollback) | Yes | Fix the SQL error, re-run `migrate-up` |
 | Database (partial data, `UseTransaction=false`) | No | Manually clean up partial data, then re-run |
 | Repository (rollback failed, status ≠ DB state) | Partial | May need manual SQL to align DB with desired state, then re-run |
-| Logical (Ignore left Failed + Migrated mix) | Yes | Fix the failed file, re-run `migrate-up` |
+| Logical (Ignore left Failed + Migrated mix) | Yes | Fix the failed file, re-run `migrate-up`. A rollback of the same run (error action or cancel action) rolls the `Failed` file back with the files the run migrated (S47, S48) |
 | Missing rollback files | No | Create the rollback files, manually fix DB if needed, then re-run |
 | Orphaned run (stuck `Running`) | Yes | Start the next run once the last heartbeat is older than `Repository.OrphanedRunThresholdInMinutes` (default 2 minutes; auto-fix) or run `fix` command; the interrupted file keeps its committed blocks, and the next `migrate-up` normally runs only the block that was running again (a `RunAlways` file runs in full; under `MigrationErrorAction=Ignore` the blocks from the first failed one run again) |
 | Cancelled run (`Cancelled`, CLI exit code 130) | Yes | Re-run `migrate-up`: the interrupted file resumes with its first uncommitted block (`Terminate`; a `RunAlways` file runs again from block 1), or runs again after the rollback of the cancel action. Or roll the release back with `migrate-down`, which rolls back the interrupted file with its committed blocks as well. Re-run a cancelled `migrate-down`: it continues the record in progress |
@@ -1001,7 +1028,7 @@ When a migration run fails, follow these steps in order:
 
 - **`Rollback`** — Use when all releases are strongly interdependent and a partial state makes no sense (e.g., initial schema migration of a new system).
 
-- **`Ignore`** — Only for truly optional, independent files (seed data, permissions, views). **Never** for schema migrations or files in dependency chains (see S19 — logical inconsistency risk).
+- **`Ignore`** — Only for truly optional, independent files (seed data, permissions, views). **Never** for schema migrations or files in dependency chains (see S19 — logical inconsistency risk). When the same run is rolled back later, by `Rollback` or `RollbackRelease` or by a cancel with a rollback action, the chain rolls back a file the run left `Failed` under `Ignore` as well, from its first rollback block (S47, S48): give such a file a rollback file that tolerates a partially applied file, also with `RequireRollbackFile = false`, or the chain stops at it unless `StopRollbackOnMissingRollbackFile = false`.
 
 ---
 

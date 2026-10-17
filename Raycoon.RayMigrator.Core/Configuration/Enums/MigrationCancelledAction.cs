@@ -23,8 +23,8 @@ public enum MigrationCancelledAction : byte
     Terminate = 10,
 
     /// <summary>
-    /// Roll back the interrupted file and every file the run migrated before it, newest first, like
-    /// <see cref="MigrationErrorAction.Rollback"/>.
+    /// Roll back the interrupted file and every file the run ran before it, newest first: the files it migrated and the
+    /// files it left Failed under <see cref="MigrationErrorAction.Ignore"/>, like <see cref="MigrationErrorAction.Rollback"/>.
     /// </summary>
     RollbackRun = 20,
 
@@ -35,9 +35,9 @@ public enum MigrationCancelledAction : byte
     RollbackFile = 21,
 
     /// <summary>
-    /// Roll back the interrupted file and the files of its release the run migrated, like
-    /// <see cref="MigrationErrorAction.RollbackRelease"/>. Without an interrupted file the release is the one of the
-    /// file the run migrated last.
+    /// Roll back the interrupted file and the files of its release the run migrated or left Failed under
+    /// <see cref="MigrationErrorAction.Ignore"/>, newest first, like <see cref="MigrationErrorAction.RollbackRelease"/>.
+    /// Without an interrupted file the release is the one of the file the run ran last.
     /// </summary>
     RollbackRelease = 22
 }

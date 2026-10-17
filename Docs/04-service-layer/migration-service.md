@@ -661,8 +661,9 @@ public async Task<MigrationOperationResult> MigrateUpAsync(MigrateUpRequest requ
     using var runCancellation = LinkRunCancellation(cancellationToken, request.Cancellation);
     var token = runCancellation.Token;
 
-    // The records this run migrated, for the rollback of an error action or a cancel action
-    var successfullyMigratedRecords = new List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)>();
+    // The records this run wrote, in execution order, for the rollback of an error action or a cancel action: the files
+    // it migrated or finalized, and the files it left Failed under MigrationErrorAction=Ignore
+    var recordsOfThisRun = new List<RunRecord>();
 
     try
     {
@@ -731,7 +732,7 @@ public async Task<MigrationOperationResult> MigrateUpAsync(MigrateUpRequest requ
                     // The interrupted file is Failed with its committed blocks; take the MigrationCancelledAction
                     // (without the token) and record Cancelled (1004), or Error (1005) when the rollback was not clean
                     return await CompleteCancelledMigrateUpAsync(request, productOptions, result.CancelledFile,
-                        result.CancelledMigrationRecordId, successfullyMigratedRecords, ...);
+                        result.CancelledMigrationRecordId, recordsOfThisRun, ...);
                 }
 
                 if (!result.Success)
@@ -739,7 +740,7 @@ public async Task<MigrationOperationResult> MigrateUpAsync(MigrateUpRequest requ
                     // The error recovery runs with the token: a cancel stops it at the next rollback block, and the run
                     // stays Error with the code of the failure, its message the failure first, then the recovery
                     var recovery = await HandleMigrationError(productOptions, result.FailedFile!, result.FailedMigrationRecordId,
-                        successfullyMigratedRecords, request.RunMode, token);
+                        recordsOfThisRun, request.RunMode, token);
                     var runResult = recovery is { Cancelled: false, FailCount: 0, WarningCount: 0 } ? MigrationRunResult.Recovered
                         : MigrationRunResult.Error;
                     string? errorMessage = recovery is { Stop: { } stop }
@@ -758,7 +759,7 @@ public async Task<MigrationOperationResult> MigrateUpAsync(MigrateUpRequest requ
     catch (OperationCanceledException) when (token.IsCancellationRequested)
     {
         // Cancelled outside a file (before the run row, during discovery or the repository reads): no interrupted file
-        return await CompleteCancelledMigrateUpAsync(request, productOptions, null, 0, successfullyMigratedRecords, ...);
+        return await CompleteCancelledMigrateUpAsync(request, productOptions, null, 0, recordsOfThisRun, ...);
     }
 }
 ```
@@ -971,13 +972,13 @@ A cancel stops before the next run and returns `Success = false`, `ErrorCode = 1
 
 Executes migrations in **file-first** order: `foreach file -> foreach target`. This means each migration file is applied to all targets before moving to the next file.
 
-An error aborts the entire TargetGroup unless `MigrationErrorAction` is `Ignore`, in which case the file is marked as Failed with the blocks before its first failed block, which the next run resumes after, and execution continues to the next file. Within the FileByFile loop, when block-level failures occur with Ignore, remaining targets for that file are skipped (`break`), and the next file is processed.
+An error aborts the entire TargetGroup unless `MigrationErrorAction` is `Ignore`, in which case the file is marked as Failed with the blocks before its first failed block, which the next run resumes after, its record joins the records of the run (`Failed` with those blocks, also none; after an exception only when the record was inserted), which a later rollback of the run rolls back, and execution continues to the next file. Within the FileByFile loop, when block-level failures occur with Ignore, remaining targets for that file are skipped (`break`), and the next file is processed.
 
 ```csharp
 internal async Task<TargetGroupExecutionResult> ExecuteTargetGroupFileByFile(
     List<MigrationFileInfo> files, TargetGroupOptions targetGroupOptions,
     ProductOptions productOptions, MigrateUpRequest request,
-    List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)> successfullyMigratedRecords,
+    List<RunRecord> recordsOfThisRun,
     List<MigrationFileResult> migrationResults,
     List<MigrationRecord> existingRecords,
     CancellationToken cancellationToken)
@@ -993,7 +994,7 @@ Each file/target execution:
 7. If a CLI tool alias is resolved: executes via `ExecuteWithCliTool()` (entire file as single unit)
 8. Otherwise: executes SQL blocks via `ExecuteSqlBlocks()` (block-wise DAL execution, a checkpoint before every block)
 9. Updates migration record status (`RepositoryMigrationUpdateAsync`)
-10. Adds `(file, migrationRecordId, targetOptions.Alias!)` to `successfullyMigratedRecords`
+10. Adds `new RunRecord(file, migrationRecordId, targetOptions.Alias!, status, committedBlocks)` to `recordsOfThisRun`: `Migrated` with every block for a migrated or finalized file, `Failed` with `MigrationState.FileBlocksCommitted` for a file that ended with failed blocks under `Ignore`
 
 An `OperationCanceledException` while the token is cancelled goes to `CompleteCancelledFileAsync`: the block in progress did not commit where the provider interrupted it (SQLite, MySQL after `KILL QUERY`, and MariaDB in a `SLEEP()` that its `KILL QUERY` ended without an error may have run it to its end), the record is `Failed` with `MigrationState.FileBlocksCommitted` (under `MigrationErrorAction = Ignore` the blocks before the first failed one, as at the end of such a file), written without the token on the repository's own connection, and `FileCompletedEvent` reports `FileOutcome.Cancelled`. The method returns with `Cancelled = true`, `CancelledFile` and `CancelledMigrationRecordId`; a run cancelled before the file started on the target leaves no interrupted file. A cancel before the next target of a file that migrated on a target of this run already counts that file like a finished file (`SuccessCount`, a `MigrationFileResult` with `Success = true`), as the error path counts a file that failed on one of its targets; `RollbackFile` then has no interrupted file to roll back.
 
@@ -1009,7 +1010,7 @@ Error and cancel handling behavior is identical to FileByFile: Ignore causes the
 internal async Task<TargetGroupExecutionResult> ExecuteTargetGroupTargetByTarget(
     List<MigrationFileInfo> files, TargetGroupOptions targetGroupOptions,
     ProductOptions productOptions, MigrateUpRequest request,
-    List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)> successfullyMigratedRecords,
+    List<RunRecord> recordsOfThisRun,
     List<MigrationFileResult> migrationResults,
     List<MigrationRecord> existingRecords,
     CancellationToken cancellationToken)
@@ -1297,7 +1298,7 @@ private async Task<RollbackResult?> HandleMigrationError(
     ProductOptions productOptions,
     MigrationFileInfo failedFile,
     int failedMigrationRecordId,
-    List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)> successfullyMigratedRecords,
+    List<RunRecord> recordsOfThisRun,
     MigrationRunMode runMode,
     CancellationToken cancellationToken)
 {
@@ -1318,7 +1319,7 @@ private async Task<RollbackResult?> HandleMigrationError(
     // RollbackErrorOnly, Rollback, RollbackRelease: the shared rollback chain, with the run's token,
     // so a cancel stops the recovery at the next rollback block (RollbackResult.Cancelled); the run stays Error
     return await HandleStopAsync(errorAction, failedFile, failedMigrationRecordId,
-        successfullyMigratedRecords, productOptions, runMode, cancellationToken);
+        recordsOfThisRun, productOptions, runMode, cancellationToken);
 }
 ```
 
@@ -1326,9 +1327,9 @@ private async Task<RollbackResult?> HandleMigrationError(
 
 `CompleteCancelledMigrateUpAsync` ends a cancelled migrate-up: it reads the action of the request (`request.Cancellation?.Action ?? Terminate`), lets `HandleCancelActionAsync` take it, and records the run as `Cancelled` with `TemplateResultCode.Cancelled` (1004), or as `Error` with `TemplateResultCode.CancelledRollbackIncomplete` (1005) when the rollback reported a failure or a warning; the message is `Cancelled on request (<action>): <outcome>` plus the reason. A run cancelled before its files were discovered has nothing to act on: a rollback action reports `nothing to roll back`, and a run cancelled before its run row was inserted writes none (`MigrationRunId` 0). Simulate and Validate persist nothing and roll nothing back. A cancel is logged as a warning without the exception, whose message the warning names; the exception with its stack trace goes to `Debug`. `HandleCancelActionAsync` maps the action to the error action with the same number (`RollbackRun` → `Rollback`, `RollbackFile` → `RollbackErrorOnly`, `RollbackRelease` → `RollbackRelease`; `Terminate` rolls nothing back) and runs `HandleStopAsync` with `CancellationToken.None`, so a second cancel cannot leave the rollback halfway.
 
-`HandleStopAsync` is the rollback chain of an error action and a cancel action alike: the stopped file first (`Failed` with its committed blocks, when there is one), then the files this run migrated, newest first: all of them for `Rollback`, those of the stopped file's release for `RollbackRelease` (without a stopped file the release of the file migrated last), none for `RollbackErrorOnly`. It passes the list to `ExecuteRollbackForMigrations`.
+`HandleStopAsync` is the rollback chain of an error action and a cancel action alike. The static `BuildStopChain` builds the list: the stopped file first (`Failed` with its committed blocks, also none, when there is one with a record; a file that failed before the insert of its record ran nothing and is left out), then the records this run wrote (`recordsOfThisRun`), newest first, each as the run left it: the files it migrated or finalized (`Migrated` with every block) and the files it left `Failed` under `Ignore` (with their leading committed blocks, also none, because blocks after a failed one ran as well); all of them for `Rollback`, those of the stopped file's release for `RollbackRelease` (without a stopped file the release of the record the run wrote last), none for `RollbackErrorOnly`; a record of an earlier run never. `BuildStopChain` returns null for an action that rolls nothing back, and `HandleStopAsync` passes a list that is not empty to `ExecuteRollbackForMigrations`, which rolls back each record from its first rollback block.
 
-**Important**: The `successfullyMigratedRecords` tuple stores `targetOptions.Alias!` per record (not `_ctxAccessor.Current.MigrationState.TargetAlias`). This ensures that when building rollback records, each successful migration uses the correct target alias it was executed against, not the last-set target alias from the context.
+**Important**: `RunRecord` stores `targetOptions.Alias!` per record (not `_ctxAccessor.Current.MigrationState.TargetAlias`). This ensures that when building rollback records, each record uses the correct target alias it was executed against, not the last-set target alias from the context.
 
 The `MigrationErrorAction` is resolved via **ErrorAction Inheritance**: a file-level override (from TOML metadata or migsettings) takes precedence over the product-level configuration. This applies both in `HandleMigrationError` and within `ExecuteTargetGroupFileByFile`/`ExecuteTargetGroupTargetByTarget` where `MigrationErrorAction.Ignore` causes the file to be marked as Failed while execution continues to the next file.
 
@@ -1344,7 +1345,7 @@ For each migration record to rollback:
 3. If missing and `RequireRollbackFile=false` during **error-recovery rollback** (`MigrationErrorAction=Rollback/RollbackRelease/RollbackErrorOnly`): checks `StopRollbackOnMissingRollbackFile` (CLI > TargetGroup > Product, default `true`). If `true`, stops the chain (adds warning, returns without marking Failed). If `false`, logs a warning and continues to the next record without updating the migration status.
 4. If missing and `RequireRollbackFile=false` during **explicit migrate-down**: always logs a warning and continues the chain (skips the record, does not update status)
 
-   In both cases a file that stopped after committed blocks keeps them: the warning of the chain names them (`; the record keeps its k committed block(s), and the next migrate-up resumes the file`), and when the chain goes on, the log warns that the file keeps its committed blocks instead of the information line `No Rollback file provided`
+   In both cases a file that stopped after committed blocks keeps them: the warning of the chain names them (`; the record keeps its k committed block(s), and the file stays pending for the next migrate-up`), and when the chain goes on, the log warns that the file keeps its committed blocks instead of the information line `No Rollback file provided`
 5. Parses rollback file and resolves `RollbackErrorAction` (file-level override -> product-level -> default `Terminate`)
 6. Updates migration record with rollback metadata (`RepositoryMigrationUpdateRollbackAsync`), `Executing` with the rollback blocks the record already counts (a rollback that continues one that stopped in the middle keeps them, so a migrate-down that ends before the next rollback block leaves a rollback that migrate-down continues)
 7. Resolves CLI tool alias via `ResolveUseCliToolAlias(rollbackFileInfo, targetOptions)`
@@ -1353,6 +1354,8 @@ For each migration record to rollback:
 10. On block failure with `RollbackErrorAction.Terminate`: marks the record `Failed` with the rollback blocks before the failed one (on the atomic path those of the attempt it continued) and aborts entire rollback chain
 11. On block failure with `RollbackErrorAction.Ignore`: skips failed block, continues rollback; `FileDownBlocksMigrated` keeps the leading rollback blocks that ran before the first failure until the rollback ends, and a cancel keeps them, so that the next migrate-down runs the failed block again; the rollback that ran to its end is `Failed` with every rollback block
 12. On all blocks successful: marks migration as `NotMigrated`
+
+A chain that reached its end closes its messages, which migrate-down returns, with `RollbackChainSummary`: `Successfully rolled back n migration(s)` when every record was rolled back cleanly, otherwise `Rolled back k of n migration(s) cleanly; m with a warning`, because a record the chain passed with a warning (a missing rollback file that is not required, rollback errors that `RollbackErrorAction.Ignore` skipped) is no clean rollback; its warning comes before the line.
 
 A cancel of the token stops the chain before the next record, which keeps its state, or before the next rollback block of the record in progress, which ends `Failed` with the leading rollback blocks that ran (with `RollbackErrorAction.Ignore` those before the first failed one; `StopCancelledRollbackAsync`, `FileOutcome.Cancelled`, the write takes no token) and which migrate-up refuses to run until migrate-down completed it; the result has `Cancelled = true`. The first block of a rollback file, an atomic rollback and a rollback through a CLI tool always run to their end. The chain of a cancel action receives `CancellationToken.None`.
 
@@ -1427,7 +1430,9 @@ All marked `internal static` for testability:
 | `ResolveUseCliToolAlias` | Resolves the effective CLI tool alias for a file+target (file-level override -> target-level, returns null for DAL execution) |
 | `ResolveCliToolArguments` | Replaces `{FilePath}` and custom `CliToolParameters` placeholders in a CLI tool's `ArgumentTemplate` |
 | `ParseTargetGroupMigrationOrder` | Parses a comma-separated string of TargetGroup aliases into a string array; returns null for null/whitespace input |
-| `ValidateAndReorderTargetGroups` | Validates a TargetGroup execution order array against the configured TargetGroups (exact-case match required) and returns the reordered list; on a product with one TargetGroup it ignores an order of exactly its alias and hands out the warning (`out ignoredWarning`) for the caller to log |
+| `ValidateAndReorderTargetGroups` | Validates a TargetGroup execution order array against the configured TargetGroups (exact-case match required) and returns the reordered list; on a product with one TargetGroup it ignores an order of exactly its alias and names that TargetGroup in `ignoredTargetGroup` for the caller to log (`LogIgnoredTargetGroupMigrationOrder`) |
+| `BuildStopChain` | Builds the rollback chain of a stopped migrate-up from the stopped file and the records the run wrote (`RunRecord`): the stopped file first when it has a record, then the records in the scope of the action, newest first; null for an action that rolls nothing back (see [HandleCancelActionAsync and HandleStopAsync](#handlecancelactionasync-and-handlestopasync)) |
+| `RollbackChainSummary` | The closing line of a rollback chain that reached its end: how many of its records it rolled back cleanly |
 
 Additionally, this private static helper exists:
 

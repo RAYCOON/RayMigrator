@@ -374,7 +374,7 @@ flowchart TD
     H -->|Error| K
 ```
 
-> **Note**: Both FileByFile and TargetByTarget modes abort the TargetGroup and the entire migration run on error, **unless** `MigrationErrorAction` is `Ignore`. With `Ignore`, the failed file is marked as `Failed` and execution continues with the next file. For all other error actions (Terminate, Rollback, RollbackErrorOnly, RollbackRelease), the TargetGroup is aborted immediately and the caller handles rollback or termination.
+> **Note**: Both FileByFile and TargetByTarget modes abort the TargetGroup and the entire migration run on error, **unless** `MigrationErrorAction` is `Ignore`. With `Ignore`, the failed file is marked as `Failed` and execution continues with the next file; a later rollback of the same run rolls it back with the files the run migrated. For all other error actions (Terminate, Rollback, RollbackErrorOnly, RollbackRelease), the TargetGroup is aborted immediately and the caller handles rollback or termination.
 
 ## Target Group Scope
 
@@ -515,7 +515,7 @@ internal class TargetGroupExecutionResult
 
 ### ExecuteTargetGroupFileByFile
 
-Executes migrations in file-then-target order (`foreach file -> foreach target`). On error with `MigrationErrorAction.Ignore`, marks the file as `Failed` and continues to the next file. For all other error actions, aborts the TargetGroup immediately and returns the result to the caller for rollback handling.
+Executes migrations in file-then-target order (`foreach file -> foreach target`). On error with `MigrationErrorAction.Ignore`, marks the file as `Failed`, adds its record to the records of the run, which a later rollback of the run rolls back, and continues to the next file. For all other error actions, aborts the TargetGroup immediately and returns the result to the caller for rollback handling.
 
 ### ExecuteTargetGroupTargetByTarget
 

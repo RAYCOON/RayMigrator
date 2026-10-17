@@ -416,7 +416,8 @@ internal static class StartedFileRollbackContract
     /// RequireRollbackFile=true the chain aborts at the seed, which it reaches first: the run is Error, the message names
     /// the rollback file, and the files before the seed stay Migrated; once the file is there, migrate-down rolls the seed
     /// back. With RequireRollbackFile=false the chain skips the seed with a warning that names its committed block and rolls
-    /// the files before it back: the run is PartialSuccess.
+    /// the files before it back: the run is PartialSuccess, and the closing line of the chain counts the two files it rolled
+    /// back cleanly.
     /// </summary>
     public static async Task VerifyMissingRollbackFileKeepsTheCommittedBlocksAsync(ScenarioBuilder builder, EngineConfig config, bool requireRollbackFile)
     {
@@ -457,7 +458,9 @@ internal static class StartedFileRollbackContract
         {
             down.Result.Should().Be(MigrationRunResult.PartialSuccess, because: "the chain skipped the seed for its missing rollback file");
             down.Messages.Should().Contain(
-                $"WARNING [{Seed}]: Rollback file not found: {SeedRollback}; the record keeps its 1 committed block(s), and the next migrate-up resumes the file");
+                $"WARNING [{Seed}]: Rollback file not found: {SeedRollback}; the record keeps its 1 committed block(s), and the file stays pending for the next migrate-up");
+            down.Messages[^1].Should().Be("Rolled back 2 of 3 migration(s) cleanly; 1 with a warning",
+                because: "the closing line of the chain counts the files it rolled back cleanly, not the seed it skipped");
             warnings.Should().ContainSingle(w => w.Contains(Seed) && w.Contains("committed block"),
                 because: "the log names the committed block that stays on the target");
             ctx.AssertFileStatuses((CreateTableB, MigrationStatus.NotMigrated), (CreateTableA, MigrationStatus.NotMigrated));

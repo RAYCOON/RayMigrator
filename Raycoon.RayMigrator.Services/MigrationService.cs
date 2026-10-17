@@ -83,8 +83,9 @@ public class MigrationService : IMigrationService
         var migrationResults = new List<MigrationFileResult>();
         int successfulMigrations = 0;
         int failedMigrations = 0;
-        // The records this run migrated, for the rollback of an error action or a cancel action
-        var successfullyMigratedRecords = new List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)>();
+        // The records this run wrote, in execution order, for the rollback of an error action or a cancel action: the files
+        // it migrated or finalized, and the files it left Failed under MigrationErrorAction=Ignore
+        var recordsOfThisRun = new List<RunRecord>();
         ProductOptions? productOptions = null;
 
         try
@@ -331,10 +332,10 @@ public class MigrationService : IMigrationService
                     var result = targetGroup.TargetMigrationOrderEnum == TargetMigrationOrder.FileByFile
                         ? await ExecuteTargetGroupFileByFile(
                             tgFiles, targetGroup, productOptions, request,
-                            successfullyMigratedRecords, migrationResults, existingRecords, cancellationToken)
+                            recordsOfThisRun, migrationResults, existingRecords, cancellationToken)
                         : await ExecuteTargetGroupTargetByTarget(
                             tgFiles, targetGroup, productOptions, request,
-                            successfullyMigratedRecords, migrationResults, existingRecords, cancellationToken);
+                            recordsOfThisRun, migrationResults, existingRecords, cancellationToken);
 
                     successfulMigrations += result.SuccessCount;
                     failedMigrations += result.FailCount;
@@ -343,7 +344,7 @@ public class MigrationService : IMigrationService
                     {
                         return await CompleteCancelledMigrateUpAsync(
                             request, productOptions, result.CancelledFile, result.CancelledMigrationRecordId,
-                            successfullyMigratedRecords, migrationResults, successfulMigrations, failedMigrations, startTime);
+                            recordsOfThisRun, migrationResults, successfulMigrations, failedMigrations, startTime);
                     }
 
                     if (!result.Success)
@@ -361,7 +362,7 @@ public class MigrationService : IMigrationService
                             // run failed before the cancel, so it stays Error with the code of the failure.
                             var recovery = await HandleMigrationError(
                                 productOptions, result.FailedFile!, result.FailedMigrationRecordId,
-                                successfullyMigratedRecords, request.RunMode, cancellationToken);
+                                recordsOfThisRun, request.RunMode, cancellationToken);
 
                             if (recovery is { Stop: { } stop })
                             {
@@ -461,7 +462,7 @@ public class MigrationService : IMigrationService
             _logger.LogDebug(ex, "Migrate-Up for product {Product} cancelled before a file ran", request.ProductAlias);
             return await CompleteCancelledMigrateUpAsync(
                 request, productOptions, null, 0,
-                successfullyMigratedRecords, migrationResults, successfulMigrations, failedMigrations, startTime);
+                recordsOfThisRun, migrationResults, successfulMigrations, failedMigrations, startTime);
         }
         catch (Exception ex)
         {
@@ -511,17 +512,18 @@ public class MigrationService : IMigrationService
 
     /// <summary>
     /// Ends a migrate-up the host cancelled. The interrupted file is already Failed with its committed blocks; this
-    /// runs the <see cref="MigrationCancelledAction"/> of the request on it and on the files the run migrated, and
-    /// records the run as <see cref="MigrationRunResult.Cancelled"/>, or <see cref="MigrationRunResult.Error"/> when
-    /// the rollback did not complete cleanly. Everything here runs with <see cref="CancellationToken.None"/>: a second
-    /// cancel must not leave a rollback halfway. Simulate and Validate persist nothing and roll nothing back.
+    /// runs the <see cref="MigrationCancelledAction"/> of the request on it and on the files the run migrated or left
+    /// Failed under MigrationErrorAction=Ignore, and records the run as <see cref="MigrationRunResult.Cancelled"/>, or
+    /// <see cref="MigrationRunResult.Error"/> when the rollback did not complete cleanly. Everything here runs with
+    /// <see cref="CancellationToken.None"/>: a second cancel must not leave a rollback halfway. Simulate and Validate
+    /// persist nothing and roll nothing back.
     /// </summary>
     private async Task<MigrationOperationResult> CompleteCancelledMigrateUpAsync(
         MigrateUpRequest request,
         ProductOptions? productOptions,
         MigrationFileInfo? interruptedFile,
         int interruptedRecordId,
-        List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)> successfullyMigratedRecords,
+        List<RunRecord> recordsOfThisRun,
         List<MigrationFileResult> migrationResults,
         int successfulMigrations,
         int failedMigrations,
@@ -541,7 +543,7 @@ public class MigrationService : IMigrationService
         if (request.RunMode.ShouldWriteRepository() && productOptions != null)
         {
             rollback = await HandleCancelActionAsync(
-                action, interruptedFile, interruptedRecordId, successfullyMigratedRecords, productOptions, request.RunMode);
+                action, interruptedFile, interruptedRecordId, recordsOfThisRun, productOptions, request.RunMode);
         }
         else if (request.RunMode.ShouldWriteRepository() && action != MigrationCancelledAction.Terminate)
         {
@@ -724,13 +726,15 @@ public class MigrationService : IMigrationService
     /// Executes migrations in FileByFile order: foreach file → foreach target.
     /// An error aborts the entire TargetGroup unless MigrationErrorAction is Ignore,
     /// in which case the file is marked as Failed and execution continues.
+    /// <paramref name="recordsOfThisRun"/> gets the record of every file the group migrated, finalized or left Failed under
+    /// Ignore, which a later rollback of the run rolls back.
     /// A cancel stops the group before the next file or target, or at the next block of the file in progress, whose
     /// record ends Failed with its committed blocks; the result is <see cref="TargetGroupExecutionResult.Cancelled"/>.
     /// </summary>
     internal async Task<TargetGroupExecutionResult> ExecuteTargetGroupFileByFile(
         List<MigrationFileInfo> files, TargetGroupOptions targetGroupOptions,
         ProductOptions productOptions, MigrateUpRequest request,
-        List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)> successfullyMigratedRecords,
+        List<RunRecord> recordsOfThisRun,
         List<MigrationFileResult> migrationResults,
         List<MigrationRecord> existingRecords,
         CancellationToken cancellationToken)
@@ -785,7 +789,8 @@ public class MigrationService : IMigrationService
                         int finalizedId = await TryFinalizeCompletedMigrationAsync(file, targetOptions.Alias!, existingRecords, cancellationToken);
                         if (finalizedId > 0)
                         {
-                            successfullyMigratedRecords.Add((file, finalizedId, targetOptions.Alias!));
+                            recordsOfThisRun.Add(new RunRecord(file, finalizedId, targetOptions.Alias!, MigrationStatus.Migrated,
+                                file.FileUpBlocksTotal));
                             migratedOnATarget = true;
                             ReportFileStarted(MigrationOperation.MigrateUp, file, targetOptions.Alias!, finalizedId, file.FileUpBlocksTotal, targetStartTime);
                             ReportFileCompleted(MigrationOperation.MigrateUp, file, targetOptions.Alias!, finalizedId, FileOutcome.Recovered, targetStartTime);
@@ -885,6 +890,11 @@ public class MigrationService : IMigrationService
                                 migrationRecordId, MigrationStatus.Failed, _ctxAccessor.Current.MigrationState.FileBlocksCommitted);
                         }
 
+                        // What the blocks of the file wrote stays on the target, also after the gap, so a later rollback of
+                        // the run rolls the file back with the files before it
+                        recordsOfThisRun.Add(new RunRecord(file, migrationRecordId, targetOptions.Alias!, MigrationStatus.Failed,
+                            _ctxAccessor.Current.MigrationState.FileBlocksCommitted));
+
                         break; // Skip remaining targets for this file
                     }
 
@@ -894,7 +904,8 @@ public class MigrationService : IMigrationService
                             migrationRecordId, MigrationStatus.Migrated, file.FileUpBlocksTotal);
                     }
 
-                    successfullyMigratedRecords.Add((file, migrationRecordId, targetOptions.Alias!));
+                    recordsOfThisRun.Add(new RunRecord(file, migrationRecordId, targetOptions.Alias!, MigrationStatus.Migrated,
+                        file.FileUpBlocksTotal));
                     migratedOnATarget = true;
                     ReportFileCompleted(MigrationOperation.MigrateUp, file, targetOptions.Alias!, migrationRecordId,
                         request.RunMode.ShouldExecuteSql() ? FileOutcome.Migrated : FileOutcome.Simulated, targetStartTime);
@@ -984,6 +995,14 @@ public class MigrationService : IMigrationService
                         "MigrationErrorAction=Ignore: Exception in {Filename} on target {Target}. Continuing with next file.",
                         file.Filename, currentTargetAlias);
 
+                    // The blocks that committed before the failure, or what a failed CLI tool ran, stay on the target, so a
+                    // later rollback of the run rolls the file back; a failure before the record insert has no record
+                    if (currentRecordId > 0)
+                    {
+                        recordsOfThisRun.Add(new RunRecord(file, currentRecordId, currentTargetAlias, MigrationStatus.Failed,
+                            _ctxAccessor.Current.MigrationState.FileBlocksCommitted));
+                    }
+
                     result.FailCount++;
                     migrationResults.Add(new MigrationFileResult
                     {
@@ -1032,13 +1051,15 @@ public class MigrationService : IMigrationService
     /// Executes migrations in TargetByTarget order: foreach target → foreach file.
     /// An error aborts the entire TargetGroup unless MigrationErrorAction is Ignore,
     /// in which case the file is marked as Failed and execution continues.
+    /// <paramref name="recordsOfThisRun"/> gets the record of every file the group migrated, finalized or left Failed under
+    /// Ignore, which a later rollback of the run rolls back.
     /// A cancel stops the group before the next file, or at the next block of the file in progress, whose record
     /// ends Failed with its committed blocks; the result is <see cref="TargetGroupExecutionResult.Cancelled"/>.
     /// </summary>
     internal async Task<TargetGroupExecutionResult> ExecuteTargetGroupTargetByTarget(
         List<MigrationFileInfo> files, TargetGroupOptions targetGroupOptions,
         ProductOptions productOptions, MigrateUpRequest request,
-        List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)> successfullyMigratedRecords,
+        List<RunRecord> recordsOfThisRun,
         List<MigrationFileResult> migrationResults,
         List<MigrationRecord> existingRecords,
         CancellationToken cancellationToken)
@@ -1080,7 +1101,8 @@ public class MigrationService : IMigrationService
                         int finalizedId = await TryFinalizeCompletedMigrationAsync(file, targetOptions.Alias!, existingRecords, cancellationToken);
                         if (finalizedId > 0)
                         {
-                            successfullyMigratedRecords.Add((file, finalizedId, targetOptions.Alias!));
+                            recordsOfThisRun.Add(new RunRecord(file, finalizedId, targetOptions.Alias!, MigrationStatus.Migrated,
+                                file.FileUpBlocksTotal));
                             ReportFileStarted(MigrationOperation.MigrateUp, file, targetOptions.Alias!, finalizedId, file.FileUpBlocksTotal, fileStartTime);
                             ReportFileCompleted(MigrationOperation.MigrateUp, file, targetOptions.Alias!, finalizedId, FileOutcome.Recovered, fileStartTime);
                             _logger.LogInformation(
@@ -1190,6 +1212,11 @@ public class MigrationService : IMigrationService
                                 migrationRecordId, MigrationStatus.Failed, _ctxAccessor.Current.MigrationState.FileBlocksCommitted);
                         }
 
+                        // What the blocks of the file wrote stays on the target, also after the gap, so a later rollback of
+                        // the run rolls the file back with the files before it
+                        recordsOfThisRun.Add(new RunRecord(file, migrationRecordId, targetOptions.Alias!, MigrationStatus.Failed,
+                            _ctxAccessor.Current.MigrationState.FileBlocksCommitted));
+
                         result.FailCount++;
                         migrationResults.Add(new MigrationFileResult
                         {
@@ -1212,7 +1239,8 @@ public class MigrationService : IMigrationService
                             migrationRecordId, MigrationStatus.Migrated, file.FileUpBlocksTotal);
                     }
 
-                    successfullyMigratedRecords.Add((file, migrationRecordId, targetOptions.Alias!));
+                    recordsOfThisRun.Add(new RunRecord(file, migrationRecordId, targetOptions.Alias!, MigrationStatus.Migrated,
+                        file.FileUpBlocksTotal));
                     ReportFileCompleted(MigrationOperation.MigrateUp, file, targetOptions.Alias!, migrationRecordId,
                         request.RunMode.ShouldExecuteSql() ? FileOutcome.Migrated : FileOutcome.Simulated, fileStartTime);
 
@@ -1269,6 +1297,14 @@ public class MigrationService : IMigrationService
                         _logger.LogWarning(
                             "MigrationErrorAction=Ignore: Exception in {Filename} on target {Target}. Continuing with next file.",
                             file.Filename, targetOptions.Alias);
+
+                        // The blocks that committed before the failure, or what a failed CLI tool ran, stay on the target, so
+                        // a later rollback of the run rolls the file back; a failure before the record insert has no record
+                        if (currentRecordId > 0)
+                        {
+                            recordsOfThisRun.Add(new RunRecord(file, currentRecordId, targetOptions.Alias!, MigrationStatus.Failed,
+                                _ctxAccessor.Current.MigrationState.FileBlocksCommitted));
+                        }
 
                         result.FailCount++;
                         migrationResults.Add(new MigrationFileResult
@@ -2602,7 +2638,7 @@ public class MigrationService : IMigrationService
 
                     // A file that stopped after committed blocks keeps them, and the warning of the chain names them
                     string keptBlocks = IsStoppedAfterCommittedBlocks(record)
-                        ? $"; the record keeps its {record.FileUpBlocksMigrated} committed block(s), and the next migrate-up resumes the file"
+                        ? $"; the record keeps its {record.FileUpBlocksMigrated} committed block(s), and the file stays pending for the next migrate-up"
                         : string.Empty;
 
                     if (productOptions.RequireRollbackFile == true)
@@ -2663,7 +2699,8 @@ public class MigrationService : IMigrationService
                     }
 
                     // The record keeps its status: a Migrated record stays Migrated, and a file that stopped after committed
-                    // blocks keeps them, so that the next migrate-up resumes it
+                    // blocks keeps them; the next migrate-up resumes it after them or, for a RunAlways file, changed blocks
+                    // or a CLI tool, runs it in full
                     ReportRollbackFileCompleted(FileOutcome.Skipped, $"Rollback file not found: {rollbackFilename}");
                     result.AddWarning(record.Filename, $"Rollback file not found: {rollbackFilename}{keptBlocks}");
                     result.SuccessCount++;
@@ -3019,13 +3056,25 @@ public class MigrationService : IMigrationService
             }
         }
 
+        // Every record is done here: rolled back cleanly, or passed with a warning (a missing rollback file that is not
+        // required, rollback errors that RollbackErrorAction=Ignore skipped), which SuccessCount counts as well
         if (result.AllSuccessful)
         {
-            result.Messages.Add($"Successfully rolled back {result.SuccessCount} migration(s)");
+            result.Messages.Add(RollbackChainSummary(result.RolledBackCount, result.Total));
         }
 
         return result;
     }
+
+    /// <summary>
+    /// The closing line of a rollback chain that reached its end, in the messages of migrate-down: how many of its
+    /// <paramref name="total"/> records it rolled back cleanly. A record the chain passed with a warning (a missing rollback
+    /// file that is not required, rollback errors that RollbackErrorAction=Ignore skipped) is no clean rollback; its
+    /// warning comes before the line.
+    /// </summary>
+    internal static string RollbackChainSummary(int rolledBack, int total) => rolledBack == total
+        ? $"Successfully rolled back {total} migration(s)"
+        : $"Rolled back {rolledBack} of {total} migration(s) cleanly; {total - rolledBack} with a warning";
 
     /// <summary>
     /// Executes the configured <see cref="MigrationErrorAction"/> for a failed file. Returns the result of the
@@ -3039,7 +3088,7 @@ public class MigrationService : IMigrationService
         ProductOptions productOptions,
         MigrationFileInfo failedFile,
         int failedMigrationRecordId,
-        List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)> successfullyMigratedRecords,
+        List<RunRecord> recordsOfThisRun,
         MigrationRunMode runMode,
         CancellationToken cancellationToken)
     {
@@ -3064,13 +3113,13 @@ public class MigrationService : IMigrationService
 
             case MigrationErrorAction.Rollback:
                 _logger.LogInformation(
-                    "MigrationErrorAction=Rollback: Rolling back failed migration and {Count} previously successful migration(s).",
-                    successfullyMigratedRecords.Count);
+                    "MigrationErrorAction=Rollback: Rolling back the failed migration and {Count} file(s) this run migrated or left Failed under Ignore.",
+                    recordsOfThisRun.Count);
                 break;
 
             case MigrationErrorAction.RollbackRelease:
                 _logger.LogInformation(
-                    "MigrationErrorAction=RollbackRelease: Rolling back all migrations from release {Release}.",
+                    "MigrationErrorAction=RollbackRelease: Rolling back the failed migration and the files of release {Release} this run migrated or left Failed under Ignore.",
                     failedFile.ReleaseVersion);
                 break;
 
@@ -3086,7 +3135,7 @@ public class MigrationService : IMigrationService
         }
 
         return await HandleStopAsync(
-            errorAction, failedFile, failedMigrationRecordId, successfullyMigratedRecords, productOptions, runMode, cancellationToken);
+            errorAction, failedFile, failedMigrationRecordId, recordsOfThisRun, productOptions, runMode, cancellationToken);
     }
 
     /// <summary>
@@ -3099,7 +3148,7 @@ public class MigrationService : IMigrationService
         MigrationCancelledAction action,
         MigrationFileInfo? interruptedFile,
         int interruptedRecordId,
-        List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)> successfullyMigratedRecords,
+        List<RunRecord> recordsOfThisRun,
         ProductOptions productOptions,
         MigrationRunMode runMode)
     {
@@ -3119,90 +3168,128 @@ public class MigrationService : IMigrationService
         }
 
         _logger.LogInformation(
-            "MigrationCancelledAction={Action}: rolling back {Interrupted} and up to {Count} file(s) this run migrated",
-            action, interruptedFile?.Filename ?? "no interrupted file", successfullyMigratedRecords.Count);
+            "MigrationCancelledAction={Action}: rolling back {Interrupted} and up to {Count} file(s) this run migrated or left Failed under Ignore",
+            action, interruptedFile?.Filename ?? "no interrupted file", recordsOfThisRun.Count);
 
         return await HandleStopAsync(
-            stopAction, interruptedFile, interruptedRecordId, successfullyMigratedRecords, productOptions, runMode, CancellationToken.None);
+            stopAction, interruptedFile, interruptedRecordId, recordsOfThisRun, productOptions, runMode, CancellationToken.None);
     }
 
     /// <summary>
-    /// Rolls back what a stopped migrate-up leaves behind, for an error action and a cancel action alike: the stopped
-    /// file first (Failed with its committed blocks, when there is one), then the files this run migrated, newest
-    /// first: all of them for <see cref="MigrationErrorAction.Rollback"/>, those of the stopped file's release for
-    /// <see cref="MigrationErrorAction.RollbackRelease"/> (without a stopped file the release of the file migrated
-    /// last), none for <see cref="MigrationErrorAction.RollbackErrorOnly"/>. Returns null for an action that rolls
-    /// nothing back, an empty clean result when there is nothing to roll back.
+    /// Rolls back what a stopped migrate-up leaves behind, for an error action and a cancel action alike, through the chain
+    /// of <see cref="BuildStopChain"/>: the stopped file first when it has a record, then the files this run migrated or left
+    /// Failed under MigrationErrorAction=Ignore in the scope of the action, newest first. Returns null for an action that
+    /// rolls nothing back, an empty clean result when there is nothing to roll back.
     /// </summary>
     private async Task<RollbackResult?> HandleStopAsync(
         MigrationErrorAction action,
         MigrationFileInfo? stoppedFile,
         int stoppedRecordId,
-        List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)> successfullyMigratedRecords,
+        List<RunRecord> recordsOfThisRun,
         ProductOptions productOptions,
         MigrationRunMode runMode,
         CancellationToken cancellationToken)
     {
-        IEnumerable<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)> migratedToRollBack;
+        var chain = BuildStopChain(action, stoppedFile, stoppedRecordId, _ctxAccessor.Current.MigrationState.TargetAlias,
+            _ctxAccessor.Current.MigrationState.FileBlocksCommitted, recordsOfThisRun);
+        if (chain == null)
+        {
+            return null;
+        }
+
+        if (chain.Count == 0)
+        {
+            _logger.LogInformation("Nothing to roll back: the run stopped before it ran a file in the scope of the action");
+            return new RollbackResult();
+        }
+
+        return await ExecuteRollbackForMigrations(chain, productOptions, runMode, isErrorRecovery: true, cancellationToken);
+    }
+
+    /// <summary>
+    /// The rollback chain of a stopped migrate-up, for an error action and a cancel action alike. The stopped file comes
+    /// first, when there is one with a record (<paramref name="stoppedRecordId"/> &gt; 0; a file that failed before the insert
+    /// of its record ran nothing on its target): Failed on <paramref name="stoppedTarget"/> with the
+    /// <paramref name="committedBlocks"/> it committed, also none. Then come the records this run wrote
+    /// (<paramref name="recordsOfThisRun"/>, in execution order), newest first, each as the run left it: the files it migrated
+    /// or finalized, Migrated with every block, and the files it left Failed under MigrationErrorAction=Ignore with their
+    /// leading committed blocks, also none, because what the blocks of such a file wrote is on the target, after a failed
+    /// block as well. Each record carries the position and the blocks of its file, which the rollback events of the chain
+    /// report. <see cref="MigrationErrorAction.Rollback"/> takes every record of the run,
+    /// <see cref="MigrationErrorAction.RollbackRelease"/> those of the stopped file's release (without a stopped file the
+    /// release of the record the run wrote last), <see cref="MigrationErrorAction.RollbackErrorOnly"/> none; a record of an
+    /// earlier run is never part of the chain. The chain rolls back each record from its first rollback block, so that the
+    /// next migrate-up runs the file from its first block instead of resuming it after blocks whose effect the rollback of
+    /// the files before it took away. Returns null for an action that rolls nothing back (Terminate, Ignore), an empty list
+    /// when there is nothing to roll back.
+    /// </summary>
+    internal static List<MigrationRecord>? BuildStopChain(
+        MigrationErrorAction action,
+        MigrationFileInfo? stoppedFile,
+        int stoppedRecordId,
+        string stoppedTarget,
+        int committedBlocks,
+        IReadOnlyList<RunRecord> recordsOfThisRun)
+    {
+        IEnumerable<RunRecord> scope;
         switch (action)
         {
             case MigrationErrorAction.RollbackErrorOnly:
-                migratedToRollBack = [];
+                scope = [];
                 break;
 
             case MigrationErrorAction.Rollback:
-                migratedToRollBack = successfullyMigratedRecords;
+                scope = recordsOfThisRun;
                 break;
 
             case MigrationErrorAction.RollbackRelease:
                 string? release = stoppedFile?.ReleaseVersion
-                    ?? (successfullyMigratedRecords.Count > 0 ? successfullyMigratedRecords[^1].File.ReleaseVersion : null);
-                migratedToRollBack = successfullyMigratedRecords.Where(r => r.File.ReleaseVersion == release);
+                    ?? (recordsOfThisRun.Count > 0 ? recordsOfThisRun[^1].File.ReleaseVersion : null);
+                scope = recordsOfThisRun.Where(r => r.File.ReleaseVersion == release);
                 break;
 
             default:
                 return null;
         }
 
-        var recordsToRollback = new List<MigrationRecord>();
+        var chain = new List<MigrationRecord>();
 
-        // The stopped file first: on its target it is Failed with the blocks that committed (#11)
-        if (stoppedFile != null)
+        // The stopped file first: on its target it is Failed with the blocks that committed (#11). A file that failed before
+        // the insert of its record ran nothing on its target, and the state of the run still names the pair before it.
+        if (stoppedFile != null && stoppedRecordId > 0)
         {
-            recordsToRollback.Add(new MigrationRecord
+            chain.Add(new MigrationRecord
             {
                 Id = stoppedRecordId,
                 Filename = stoppedFile.Filename,
                 ReleaseVersion = stoppedFile.ReleaseVersion,
                 TargetGroupAlias = stoppedFile.TargetGroupAlias,
-                TargetAlias = _ctxAccessor.Current.MigrationState.TargetAlias,
+                TargetAlias = stoppedTarget,
+                FileOrderId = stoppedFile.FileOrderId,
                 MigrationStatusId = MigrationStatus.Failed,
-                FileUpBlocksMigrated = _ctxAccessor.Current.MigrationState.FileBlocksCommitted
+                FileUpBlocksMigrated = committedBlocks,
+                FileUpBlocksTotal = stoppedFile.FileUpBlocksTotal
             });
         }
 
-        // Then the migrated files in reverse order
-        foreach (var (file, migrationRecordId, targetAlias) in migratedToRollBack.Reverse())
+        // Then the records of the run in reverse order of execution, each as the run left it
+        foreach (var record in scope.Reverse())
         {
-            recordsToRollback.Add(new MigrationRecord
+            chain.Add(new MigrationRecord
             {
-                Id = migrationRecordId,
-                Filename = file.Filename,
-                ReleaseVersion = file.ReleaseVersion,
-                TargetGroupAlias = file.TargetGroupAlias,
-                TargetAlias = targetAlias,
-                MigrationStatusId = MigrationStatus.Migrated,
-                FileUpBlocksMigrated = file.FileUpBlocksTotal
+                Id = record.MigrationRecordId,
+                Filename = record.File.Filename,
+                ReleaseVersion = record.File.ReleaseVersion,
+                TargetGroupAlias = record.File.TargetGroupAlias,
+                TargetAlias = record.TargetAlias,
+                FileOrderId = record.File.FileOrderId,
+                MigrationStatusId = record.Status,
+                FileUpBlocksMigrated = record.CommittedBlocks,
+                FileUpBlocksTotal = record.File.FileUpBlocksTotal
             });
         }
 
-        if (recordsToRollback.Count == 0)
-        {
-            _logger.LogInformation("Nothing to roll back: the run stopped before a file of the action's scope was migrated");
-            return new RollbackResult();
-        }
-
-        return await ExecuteRollbackForMigrations(recordsToRollback, productOptions, runMode, isErrorRecovery: true, cancellationToken);
+        return chain;
     }
 
     #endregion Shared Rollback Execution
@@ -7041,6 +7128,15 @@ public class MigrationService : IMigrationService
         /// <summary>The record of <see cref="CancelledFile"/>, or 0.</summary>
         public int CancelledMigrationRecordId { get; set; }
     }
+
+    /// <summary>
+    /// A record a migrate-up wrote for <paramref name="File"/> on <paramref name="TargetAlias"/>, as the run left it, for the
+    /// rollback chain of an error action or a cancel action (<see cref="BuildStopChain"/>): <see cref="MigrationStatus.Migrated"/>
+    /// with every block for a file the run migrated or finalized, <see cref="MigrationStatus.Failed"/> with the leading blocks
+    /// that committed (also none) for a file it left Failed under MigrationErrorAction=Ignore.
+    /// </summary>
+    internal readonly record struct RunRecord(
+        MigrationFileInfo File, int MigrationRecordId, string TargetAlias, MigrationStatus Status, int CommittedBlocks);
 
     /// <summary>
     /// Where a cancel stopped a rollback chain: before the record at position <paramref name="RecordsDone"/> (zero-based;

@@ -121,7 +121,7 @@ Extension guides for developers.
 Testing infrastructure and test documentation.
 
 - [test-infrastructure.md](10-testing/test-infrastructure.md) - Docker setup and container configuration
-- [engine-tests.md](10-testing/engine-tests.md) - Engine integration tests (~1,080 tests across 175 test class files, test matrix, ScenarioBuilder API)
+- [engine-tests.md](10-testing/engine-tests.md) - Engine integration tests (~1,920 tests across 267 test class files, test matrix, ScenarioBuilder API)
 - [unit-tests.md](10-testing/unit-tests.md) - Unit test structure and conventions
 - [cli-test-coverage-matrix.md](10-testing/cli-test-coverage-matrix.md) - CLI command test coverage matrix across unit and engine tests
 

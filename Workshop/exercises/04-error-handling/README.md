@@ -82,7 +82,7 @@ You work in `Workshop/exercises/bookstore/`. The files for Release 1.2 are prepa
    [INF] Migration successful | ... | File: 001_CreateCategories.sql | MigrationRecordId: 5 | SqlBlocks: 1
    [ERR] Migration FAILED | ... | File: 002_SeedCategories.sql | MigrationRecordId: 6 | SqlBlock: 3/3
    ...
-   [INF] MigrationErrorAction=Rollback: Rolling back failed migration and 1 previously successful migration(s).
+   [INF] MigrationErrorAction=Rollback: Rolling back the failed migration and 1 file(s) this run migrated or left Failed under Ignore.
    [INF] Rollback successful | ... | File: 002_SeedCategories.sql | MigrationRecordId: 6 | SqlBlocks: 1
    [INF] Rollback successful | ... | File: 001_CreateCategories.sql | MigrationRecordId: 5 | SqlBlocks: 1
    [ERR] Migrate-Up failed for product BookStore: Violation of PRIMARY KEY constraint 'PK_Categories'. ...
