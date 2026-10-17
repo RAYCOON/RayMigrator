@@ -763,6 +763,22 @@ RayMigrator follows Semantic Versioning where applicable.
   SQLite; SQL Server, PostgreSQL, MariaDB and MySQL check under their lock
   and were not affected. Like the shipped DALs, an external DAL serialises
   the check for an open run and its insert.
+- Two first starts of a new product or environment at the same moment no
+  longer fail on the unique index of `NameLower` (SQL Server 2601,
+  PostgreSQL 23505, MySQL and MariaDB 1062, SQLite 19, none of them
+  transient). `Repository_Product_CheckInsert` and
+  `Repository_Environment_CheckInsert` looked the name up and inserted it
+  without a lock, so both starts could find it missing, and the insert of
+  the second failed. They now register the name idempotently, and both
+  starts get the same Id: SQL Server looks the name up with
+  `UPDLOCK, HOLDLOCK` in a transaction with the insert, PostgreSQL inserts
+  with `ON CONFLICT (name_lower) DO NOTHING`, MySQL and MariaDB with
+  `ON DUPLICATE KEY UPDATE` (which tolerates the duplicate key and no other
+  error) and SQLite with `ON CONFLICT ("NameLower") DO NOTHING`, and each
+  reads the Id from the table; on MySQL and MariaDB both starts may report
+  that they created the name. Every earlier version has the fault. Like
+  the shipped DALs, an external DAL tolerates a parallel first
+  registration.
 
 ## [0.19.0] — 2026-10-15
 

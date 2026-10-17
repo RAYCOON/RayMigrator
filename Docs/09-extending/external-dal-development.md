@@ -254,7 +254,7 @@ The `Database.Example` project includes all 30 files as placeholders with TODO c
 | `Repository_Upgrade_3.sql` | Schema step 3: add the row `Cancelled` (70) to `MigrationRunResult` and the indexes `ix_{CFG:TableBaseName}MigrationRun_Product_Environment_StartedAt`, `ix_{CFG:TableBaseName}MigrationRecordHistory_MigrationRunId`, `ix_{CFG:TableBaseName}MigrationRecordHistory_HistorizedAt` and `ix_{CFG:TableBaseName}MigrationRecord_Product_Environment`, write version row 3; must be idempotent and return `'3,message'`. Every later schema version is a further `Repository_Upgrade_{n}.sql` |
 | `Repository_MigratorMeta_CheckInsert.sql` | Register the RayMigrator version in `MigratorMeta` if missing, return the `MigratorMetaId` (`-12` when several rows match) |
 | `Repository_Drop.sql` | Drop all repository tables and schema |
-| `Repository_Environment_CheckInsert.sql` | Insert environment if not exists, return EnvironmentId |
+| `Repository_Environment_CheckInsert.sql` | Insert environment if not exists, return EnvironmentId; tolerate a parallel first registration of the same name as `Repository_Product_CheckInsert.sql` does |
 | `Repository_MigrationRecord_FixOrphaned.sql` | Settle the open records of an orphaned run: with `@MigrationStatusId = 0` decide per record from `FileUpBlocksMigrated`/`FileUpBlocksTotal` and the `FileDown*` columns as the shipped templates do (keep the counters), with 30, 50 or 100 set that status on every open record; set `FinishedAt` where it is NULL, leave `DurationInMs` |
 | `Repository_MigrationRecord_GetInterrupted.sql` | Get interrupted migrations |
 | `Repository_MigrationRecordHistory_Select.sql` | Select the terminal state transitions (MigrationRecordHistory rows) of a product/environment for the `info` run history; the same columns as `Repository_MigrationRecord_Select.sql`, `StartedAt` and `FinishedAt` included |
@@ -271,11 +271,11 @@ The `Database.Example` project includes all 30 files as placeholders with TODO c
 | `Repository_MigrationRun_Select.sql` | Select the newest runs of a product and environment (`@ProductId`, `@EnvironmentId`, `@Limit`) |
 | `Repository_MigrationRun_SelectOrphaned.sql` | Select orphaned runs |
 | `Repository_MigrationRun_Update.sql` | Update run result |
-| `Repository_Product_CheckInsert.sql` | Lookup product by `NameLower`, insert if not exists; returns `ProductId` |
+| `Repository_Product_CheckInsert.sql` | Lookup product by `NameLower`, insert if not exists; returns `ProductId`. Two starts that register the same new name at the same moment both succeed with the Id of the one row: lock the name before the lookup (SQL Server: `UPDLOCK, HOLDLOCK` in a transaction), or insert idempotently and read the Id from the table (PostgreSQL and SQLite: `ON CONFLICT … DO NOTHING`, MySQL and MariaDB: `ON DUPLICATE KEY UPDATE`) |
 | `Repository_Product_Select.sql` | Lookup product by `NameLower` WITHOUT inserting; returns `ProductId` or `0` when not registered (used by Simulate mode, #7) |
 | `Repository_Environment_Select.sql` | Lookup environment by `NameLower` WITHOUT inserting; returns `EnvironmentId` or `0` when not registered (used by Simulate mode, #7) |
 
-> **Note on `Repository_Product_CheckInsert.sql` signature**: the template binds two SQL parameters — `@Name` (original casing) and `@NameLower` (pre-computed lowercase). Lookup must be performed by `NameLower` to remain case-insensitive. See `Database.SqlServer/Templates/Repository_Product_CheckInsert.sql` and `Database.MariaDb/Templates/Repository_Product_CheckInsert.sql` for reference implementations.
+> **Note on `Repository_Product_CheckInsert.sql` signature**: the template binds two SQL parameters — `@Name` (original casing) and `@NameLower` (pre-computed lowercase). Lookup must be performed by `NameLower` to remain case-insensitive, and a start that finds the name missing must tolerate a parallel start that inserts it meanwhile instead of failing on the unique index of `NameLower`. See `Database.SqlServer/Templates/Repository_Product_CheckInsert.sql` and `Database.MariaDb/Templates/Repository_Product_CheckInsert.sql` for reference implementations.
 
 ### Template Placeholders
 

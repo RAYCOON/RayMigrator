@@ -208,6 +208,8 @@ This template is **not executed immediately**. It is first used when the Serilog
 3. If found -> returns existing `ProductId`
 4. If not found -> INSERT with `Name`, `NameLower`, `CreatedAt` -> returns new `ProductId`
 
+Two first starts of a new product at the same moment register it once and get the same `ProductId`: SQL Server runs the SELECT with `UPDLOCK, HOLDLOCK` in a transaction with the INSERT, so the second start waits and then finds the row; PostgreSQL and SQLite insert with `ON CONFLICT … DO NOTHING`, MySQL and MariaDB with `ON DUPLICATE KEY UPDATE`, so the second start keeps the row of the first instead of failing on the unique index of `NameLower`, and the Id comes from the table.
+
 **Return value:** ProductId (positive integer), stored in `MigrationContext.MigrationState.ProductId`
 
 ---
@@ -233,6 +235,8 @@ Called immediately after Product registration by every `MigrationService` entry 
 2. SELECT on `Environment` table by `NameLower`
 3. If found -> returns existing `EnvironmentId`
 4. If not found -> INSERT with `Name`, `NameLower`, `CreatedAt` -> returns new `EnvironmentId`
+
+Two first starts in a new environment at the same moment register it once and get the same `EnvironmentId`, the same way as a product.
 
 **Return value:** EnvironmentId (positive integer), stored in `MigrationContext.MigrationState.EnvironmentId`
 

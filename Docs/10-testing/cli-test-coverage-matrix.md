@@ -314,7 +314,7 @@ Also tested as part of `CancellationTests` (a fix cancelled between two orphaned
 | OutOfOrderBlocking | 5 (x5 DBs) | O1: blocking when false; O2: allowing when true; O3: data integrity after blocking |
 | UpdateHash | 5 (x5 DBs) | U1-U5: fresh migration, file modification, validate after update, idempotent, empty repo |
 | MigSettingsInheritance | 5 (x5 DBs) | .migsettings file loading, config precedence |
-| RepositoryIntegrity | 5 (x5 DBs) | Schema validation, table structure |
+| RepositoryIntegrity | 5 (x5 DBs) | Schema validation, table structure; first starts of a new product or environment at the same moment register it once (R5, R6) |
 | AtomicSharedConnection | 1 (SqlServer) | Atomic transaction handling |
 | CliTool | 12 (4 DBs) | File mode, Stdin mode, Docker exec mode |
 | Compound/RoundTrip | 5 (x5 DBs) | Up → Down → Up |

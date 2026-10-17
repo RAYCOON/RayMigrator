@@ -5,6 +5,7 @@ using Raycoon.RayMigrator.Core;
 using Raycoon.RayMigrator.Core.Configuration;
 using Raycoon.RayMigrator.Core.Configuration.Enums;
 using Raycoon.RayMigrator.Core.Progress;
+using Raycoon.RayMigrator.Core.Templates;
 using Raycoon.RayMigrator.Services.Abstractions;
 using Raycoon.RayMigrator.Testing;
 using Serilog.Events;
@@ -679,6 +680,14 @@ public class ScenarioContext : IAsyncDisposable
     /// run, or -2 when an open run of the product and environment refused it.
     /// </summary>
     public Task<int> InsertMigrationRunWithNewDalAsync(Task start) => _host.InsertMigrationRunWithNewDalAsync(start);
+
+    /// <summary>
+    /// Registers a product or an environment as the first start of another host does, with a DAL and a connection of its
+    /// own, once <paramref name="start"/> completes (<see cref="EngineTestHost.RegisterWithNewDalAsync"/>): the Id of the
+    /// row of <paramref name="name"/>.
+    /// </summary>
+    public Task<int> RegisterWithNewDalAsync(TemplateType templateType, string name, Task start)
+        => _host.RegisterWithNewDalAsync(templateType, name, start);
 
     /// <summary>
     /// Counts MigrationLog entries at a specific log level.

@@ -239,7 +239,7 @@ Registered products for migration tracking. Populated automatically via `Reposit
 | `NameLower` | NVARCHAR(100) | Product alias in lowercase (unique index) |
 | `CreatedAt` | DATETIME2(3) | Registration timestamp |
 
-The `NameLower` column carries a unique index (`uix_Product_NameLower`) to prevent duplicate product registrations regardless of casing. The `Id` is stored in `MigrationState.ProductId` after registration.
+The `NameLower` column carries a unique index (`uix_Product_NameLower`) to prevent duplicate product registrations regardless of casing. Two first starts of a new product at the same moment register it once: SQL Server looks the name up with `UPDLOCK, HOLDLOCK` in a transaction, so the second start waits and finds the row, PostgreSQL and SQLite insert with `ON CONFLICT … DO NOTHING` and MySQL and MariaDB with `ON DUPLICATE KEY UPDATE`, so the second start keeps the row of the first instead of failing on the index; each reads the `Id` from the table, so both get the same one. The `Id` is stored in `MigrationState.ProductId` after registration.
 
 ### Environment
 
@@ -252,7 +252,7 @@ Registered deployment environments for migration tracking. Populated automatical
 | `NameLower` | NVARCHAR(100) | Environment name in lowercase (unique index) |
 | `CreatedAt` | DATETIME2(3) | Registration timestamp |
 
-The `NameLower` column carries a unique index (`uix_Environment_NameLower`) to prevent duplicate environment registrations regardless of casing. The `Id` is stored in `MigrationState.EnvironmentId` after registration.
+The `NameLower` column carries a unique index (`uix_Environment_NameLower`) to prevent duplicate environment registrations regardless of casing. Two first starts in a new environment at the same moment register it once, the same way as a product. The `Id` is stored in `MigrationState.EnvironmentId` after registration.
 
 ### MigrationRun
 

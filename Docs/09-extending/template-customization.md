@@ -311,7 +311,7 @@ END
 - `@Name` -- the name in original casing (e.g., `MyApplication`, `Docker`)
 - `@NameLower` -- the pre-computed lowercase form used for the lookup
 
-The lookup must be performed against `NameLower` to remain case-insensitive. Both `Product` and `Environment` tables carry a `UNIQUE` index on `NameLower`. Here is the SQL Server Product template (excerpt):
+The lookup must be performed against `NameLower` to remain case-insensitive. Both `Product` and `Environment` tables carry a `UNIQUE` index on `NameLower`, and two first starts of the same name at the same moment must both succeed with the Id of the one row: the SQL Server template looks the name up with `UPDLOCK, ROWLOCK, HOLDLOCK` in a transaction with the insert, so the second start waits and then finds the row (the other engines insert idempotently, see [External DAL Development](external-dal-development.md#required-templates)). Here is the SQL Server Product template (excerpt):
 
 ```sql
 -- Repository_Product_CheckInsert.sql (SQL Server, excerpt)
@@ -323,11 +323,14 @@ if (@Name IS NULL OR LEN(@Name) = 0)
 
 declare @ProductId int, @numberOfRows int;
 
-select @ProductId = [Id] from [{CFG:SchemaName}].[{CFG:TableBaseName}Product] where [NameLower] = @NameLower;
+BEGIN TRANSACTION;
+
+select @ProductId = [Id] from [{CFG:SchemaName}].[{CFG:TableBaseName}Product] WITH (UPDLOCK, ROWLOCK, HOLDLOCK) where [NameLower] = @NameLower;
 SET @numberOfRows = @@rowcount;
 
 if (@numberOfRows = 1)
     begin
+        COMMIT TRANSACTION;
         SELECT CAST(@ProductId AS varchar(10)) + ',Product [' + @Name + '] with Id [' + CAST(@ProductId AS varchar(10)) + '] found';
         return;
     end;
@@ -338,6 +341,7 @@ if (@numberOfRows = 0)
         VALUES (@Name, @NameLower, SYSUTCDATETIME());
 
         SET @ProductId = SCOPE_IDENTITY();
+        COMMIT TRANSACTION;
         SELECT CAST(@ProductId AS varchar(10)) + ',Product [' + @Name + '] with Id [' + CAST(@ProductId AS varchar(10)) + '] successfully created';
         return;
     end;

@@ -282,12 +282,14 @@ public class EnvironmentCheckInsertTests
     }
 
     [Fact]
-    public void Sqlite_EnvironmentCheckInsert_UsesTempTableForState()
+    public void Sqlite_EnvironmentCheckInsert_ReadsTheIdOfTheRowFromTheTable()
     {
         var content = ReadTemplate("Sqlite", "Repository_Environment_CheckInsert.sql");
 
-        content.Should().Contain("_rc_state",
-            "Sqlite template must use temp table _rc_state for intermediate state (no session variables in SQLite)");
+        content.Should().Contain("SELECT CAST(\"Id\" AS TEXT) FROM \"{CFG:TableBaseName}Environment\" WHERE \"NameLower\" = @NameLower",
+            "Sqlite template should read the Id of the row of the name from the table, whichever start inserted it");
+        content.Should().NotContain("last_insert_rowid()",
+            "last_insert_rowid() is not the Id of the row when a parallel first start inserted it");
     }
 
     #endregion

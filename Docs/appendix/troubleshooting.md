@@ -398,6 +398,15 @@ The database log is not versioned. The next start adds the indexes of this versi
 
 **Solution:** Give the repository database a name of at most 45 characters (on MariaDB, keep it within 173 bytes in UTF-8). The engine does not shorten the name of the schema lock, and no option changes it.
 
+### First Start of a New Product or Environment Fails on a Duplicate Key
+
+**Symptoms:**
+- RayMigrator before 0.20.0: two runs of a new product, or in a new environment, started at the same moment, and one of them failed at its start with `Error executing template [TemplateType: Repository_Product_CheckInsert, ...]` (or `Repository_Environment_CheckInsert`) and a duplicate key on the unique index of `NameLower`: SQL Server error 2601, PostgreSQL SQLSTATE 23505, MySQL and MariaDB error 1062, SQLite error 19 (`UNIQUE constraint failed`)
+
+**Cause:** The template looked the name up and inserted it without a lock, so both starts could find the name missing, and the insert of the second failed on the index. The error is not transient, so the start was not retried.
+
+**Solution:** Start the failed run again; the name is registered by then. From 0.20.0 both starts register the name once and get the same Id.
+
 ### Product or Environment Name Empty (`TemplateResultException`)
 
 **Symptoms:**

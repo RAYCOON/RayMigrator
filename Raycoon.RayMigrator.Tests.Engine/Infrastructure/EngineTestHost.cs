@@ -387,6 +387,35 @@ public sealed class EngineTestHost : IDisposable
         }
     }
 
+    /// <summary>
+    /// Registers a product or an environment as the first start of another host does: the CheckInsert template of
+    /// <paramref name="templateType"/> (<c>Repository_Product_CheckInsert</c> or <c>Repository_Environment_CheckInsert</c>)
+    /// runs on a DAL and a connection of its own against the repository with <paramref name="name"/> and its lowercase
+    /// form, as <c>TemplateExecutor</c> binds them. The DAL is created first and runs the template once
+    /// <paramref name="start"/> completes, so that several starts can begin at the same moment.
+    /// </summary>
+    /// <returns>The Id of the row of the name, which the template inserted or found.</returns>
+    public async Task<int> RegisterWithNewDalAsync(TemplateType templateType, string name, Task start)
+    {
+        if (templateType is not (TemplateType.Repository_Product_CheckInsert or TemplateType.Repository_Environment_CheckInsert))
+            throw new ArgumentOutOfRangeException(nameof(templateType), templateType, "Only a product or an environment is registered.");
+
+        var repository = RayMigratorOptions.Repository!;
+        if (!DalFactory.TryGetDal(repository.DatabaseType!, repository.ConnectionString!, out IDal? dal))
+            throw new InvalidOperationException($"No DAL for the database type of the repository [{repository.DatabaseType}].");
+
+        var parameters = new DalParameterList();
+        parameters.AddParameter(new DalParameter("Name", name, typeof(string)));
+        parameters.AddParameter(new DalParameter("NameLower", name.ToLowerInvariant(), typeof(string)));
+
+        var template = Services.GetRequiredService<TemplateCache>().GetRepositoryTemplate(templateType, repository);
+        var executor = Services.GetRequiredService<TemplateExecutor>();
+
+        await start;
+        var response = await executor.ExecuteScalarWithNegativeResultCodeExceptionAsync(template, dal!, repository.GetDalSettings(), parameters);
+        return response.ResultCode;
+    }
+
     public void Dispose()
     {
         // Flush pending database log entries before disposal

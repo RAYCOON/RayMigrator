@@ -57,4 +57,29 @@ public class SqliteRepositoryIntegrityTests : SqliteTestBase
         ctx.GetLatestRunResultId().Should().Be((int)MigrationRunResult.Ok,
             "Latest MigrationRun should have Result=Ok");
     }
+
+    /// <summary>
+    /// R5: Hosts that start the first run of a new product at the same moment register it once: in each of five rounds
+    /// eight starts of their own run Repository_Product_CheckInsert at once with a new name, none fails, and all get the
+    /// Id of the one new row (<see cref="RegistrationContract"/>).
+    /// </summary>
+    [Fact]
+    public async Task Product_ParallelFirstRegistrations_CreateItOnce()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+
+        await RegistrationContract.VerifyParallelFirstRegistrationsCreateTheProductOnceAsync(CreateScenario());
+    }
+
+    /// <summary>
+    /// R6: Hosts that start the first run in a new environment at the same moment register it once, the same way
+    /// (<see cref="RegistrationContract"/>).
+    /// </summary>
+    [Fact]
+    public async Task Environment_ParallelFirstRegistrations_CreateItOnce()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+
+        await RegistrationContract.VerifyParallelFirstRegistrationsCreateTheEnvironmentOnceAsync(CreateScenario());
+    }
 }

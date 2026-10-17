@@ -329,7 +329,7 @@ SELECT '-1,Error description';
 
 See `Database.SqlServer/Templates/` or `Database.PostgreSQL/Templates/` for reference implementations. All five built-in DALs (`SqlServer`, `PostgreSQL`, `MariaDb`, `MySql`, `Sqlite`) provide complete template sets of 30 files. Each template file in `Database.Example/Templates/` contains a TODO comment pointing to the reference implementations. The contracts of the schema step `Repository_Upgrade_3.sql`, the two log indexes of `DatabaseLogging_CheckCreate.sql` and the four retention templates are listed in [External DAL Development](external-dal-development.md#required-templates).
 
-> **Note on `Repository_Product_CheckInsert.sql` and `Repository_Environment_CheckInsert.sql`**: both templates bind two SQL parameters — `@Name` (original casing) and `@NameLower` (pre-computed lowercase). Lookup must be performed by `NameLower` to remain case-insensitive; the `Product` and `Environment` tables each have a `UNIQUE` index on `NameLower`.
+> **Note on `Repository_Product_CheckInsert.sql` and `Repository_Environment_CheckInsert.sql`**: both templates bind two SQL parameters — `@Name` (original casing) and `@NameLower` (pre-computed lowercase). Lookup must be performed by `NameLower` to remain case-insensitive; the `Product` and `Environment` tables each have a `UNIQUE` index on `NameLower`, and a start that finds the name missing must tolerate a parallel first start that inserts it meanwhile (see [External DAL Development](external-dal-development.md#required-templates)).
 
 ### Constraint and Index Names
 
