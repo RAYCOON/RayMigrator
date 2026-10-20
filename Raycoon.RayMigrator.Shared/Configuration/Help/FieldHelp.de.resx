@@ -103,9 +103,9 @@ None: Deaktiviert die Datenbank-Protokollierung</value></data>
   <data name="ProductDefaults_MigrationErrorAction_ValidValues" xml:space="preserve"><value>Terminate | Rollback | RollbackErrorOnly | RollbackRelease | Ignore</value></data>
   <data name="ProductDefaults_MigrationErrorAction_DefaultValue" xml:space="preserve"><value>Terminate</value></data>
   <data name="ProductDefaults_MigrationErrorAction_Examples" xml:space="preserve"><value>Terminate: Gesamten Migrationslauf sofort stoppen. Kein Rollback.
-Rollback: ALLE erfolgreich migrierten Dateien im aktuellen Lauf zurückrollen, dann stoppen.
+Rollback: Die fehlgeschlagene Datei und alle Dateien zurückrollen, die der aktuelle Lauf migriert oder unter Ignore als Failed hinterlassen hat, dann stoppen.
 RollbackErrorOnly: Nur die fehlgeschlagene Migrationsdatei zurückrollen, dann stoppen.
-RollbackRelease: Alle Migrationen innerhalb des fehlgeschlagenen Release zurückrollen, dann stoppen.
+RollbackRelease: Die fehlgeschlagene Datei und die Dateien ihres Release zurückrollen, die der aktuelle Lauf migriert oder unter Ignore als Failed hinterlassen hat, dann stoppen.
 Ignore: Fehler protokollieren und mit der nächsten Migrationsdatei fortfahren.</value></data>
   <data name="ProductDefaults_MigrationErrorAction_InheritanceNote" xml:space="preserve"><value>Dies ist der globale Standardwert. Kann pro Produkt überschrieben werden. Der effektive Wert fließt an alle TargetGroups und Targets innerhalb des Produkts weiter.</value></data>
   <data name="ProductDefaults_RollbackErrorAction_Title" xml:space="preserve"><value>Produkt-Standardwerte - Rollback-Fehleraktion</value></data>
@@ -135,7 +135,7 @@ Rollback:  001_CreateUsers.rollback.sql</value></data>
   <data name="ProductDefaults_RequireRollbackFile_DefaultValue" xml:space="preserve"><value>true</value></data>
   <data name="ProductDefaults_RequireRollbackFile_InheritanceNote" xml:space="preserve"><value>Bei true muss jede Migrationsdatei eine zugehörige Rollback-Datei haben, sonst schlägt die Validierung fehl. Kann pro Produkt überschrieben werden.</value></data>
   <data name="ProductDefaults_StopRollbackOnMissingRollbackFile_Title" xml:space="preserve"><value>Produkt-Standardwerte - Rollback bei fehlender Rollback-Datei stoppen</value></data>
-  <data name="ProductDefaults_StopRollbackOnMissingRollbackFile_Description" xml:space="preserve"><value>Bei true wird ein Rollback-Vorgang gestoppt, wenn eine Rollback-Datei für eine Migration fehlt. Bei false wird die Migration übersprungen und der Rollback fortgesetzt. Standard: true.</value></data>
+  <data name="ProductDefaults_StopRollbackOnMissingRollbackFile_Description" xml:space="preserve"><value>Bei true stoppt die Rollback-Kette eines gescheiterten oder abgebrochenen migrate-up (MigrationErrorAction Rollback, RollbackErrorOnly oder RollbackRelease oder ein Abbruch mit einer Rollback-Aktion) bei einer Migration, deren Rollback-Datei fehlt; bei false wird die Migration übersprungen und die Kette fortgesetzt. Gilt nur bei RequireRollbackFile=false; migrate-down überspringt eine fehlende, nicht verlangte Rollback-Datei immer. Standard: true.</value></data>
   <data name="ProductDefaults_StopRollbackOnMissingRollbackFile_DefaultValue" xml:space="preserve"><value>true</value></data>
   <data name="ProductDefaults_StopRollbackOnMissingRollbackFile_InheritanceNote" xml:space="preserve"><value>Kann pro Produkt oder pro TargetGroup überschrieben werden. Wenn RequireRollbackFile true ist, ist diese Einstellung weniger relevant, da fehlende Rollback-Dateien bereits bei der Validierung erkannt werden.</value></data>
   <data name="ProductDefaults_TargetMigrationOrder_Title" xml:space="preserve"><value>Produkt-Standardwerte - Target Migrationsreihenfolge</value></data>
@@ -284,7 +284,7 @@ Offener Bereich nach oben: "10.." -- trifft auf 10, 11, 12, ... zu.
 Offener Bereich nach unten: "..-1" -- trifft auf ..., -3, -2, -1 zu.
 Kombiniert: ["0", "100..110"] -- trifft auf 0 und 100 bis 110 zu.</value></data>
   <data name="CliTool_Timeout_Title" xml:space="preserve"><value>CLI-Werkzeug - Timeout</value></data>
-  <data name="CliTool_Timeout_Description" xml:space="preserve"><value>Maximale Wartezeit in Sekunden für die Ausführung des CLI-Werkzeugs. Standard: 120.</value></data>
+  <data name="CliTool_Timeout_Description" xml:space="preserve"><value>Maximale Zeit in Sekunden für die Ausführung des CLI-Werkzeugs, gezählt ab seinem Start; im Stdin-Modus umfasst sie auch das Schreiben der Migrationsdatei in die Standardeingabe des Werkzeugs. Standard: 120.</value></data>
   <data name="CliTool_Timeout_DefaultValue" xml:space="preserve"><value>120</value></data>
 
   <!-- Serilog -->

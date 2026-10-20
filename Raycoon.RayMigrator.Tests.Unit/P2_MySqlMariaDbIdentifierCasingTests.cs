@@ -25,6 +25,7 @@ public class MySqlMariaDbIdentifierCasingTests
         "Repository_CheckCreate.sql",
         "Repository_Upgrade_1.sql",
         "Repository_Upgrade_2.sql",
+        "Repository_Upgrade_3.sql",
         "Repository_MigratorMeta_CheckInsert.sql",
         "Repository_Drop.sql",
         "Repository_Environment_CheckInsert.sql",
@@ -35,6 +36,8 @@ public class MySqlMariaDbIdentifierCasingTests
         "Repository_MigrationRecord_UpdateRollback.sql",
         "Repository_MigrationRecord_Select.sql",
         "Repository_MigrationRecordHistory_Select.sql",
+        "Repository_MigrationRecordHistory_Delete.sql",
+        "Repository_MigrationRecordHistory_Count.sql",
         "Repository_MigrationRecord_GetInterrupted.sql",
         "Repository_MigrationRecord_FixOrphaned.sql",
         "Repository_MigrationRun_Insert.sql",
@@ -44,7 +47,9 @@ public class MySqlMariaDbIdentifierCasingTests
         "Repository_MigrationRun_FixOrphaned.sql",
         "Repository_MigrationRun_Heartbeat.sql",
         "DatabaseLogging_CheckCreate.sql",
-        "DatabaseLogging_Insert.sql"
+        "DatabaseLogging_Insert.sql",
+        "DatabaseLogging_Delete.sql",
+        "DatabaseLogging_Count.sql"
     ];
 
     // -------------------------------------------------------------------------
@@ -67,6 +72,7 @@ public class MySqlMariaDbIdentifierCasingTests
     [InlineData("Repository_CheckCreate.sql")]
     [InlineData("Repository_Upgrade_1.sql")]
     [InlineData("Repository_Upgrade_2.sql")]
+    [InlineData("Repository_Upgrade_3.sql")]
     [InlineData("Repository_MigratorMeta_CheckInsert.sql")]
     [InlineData("Repository_Drop.sql")]
     [InlineData("Repository_Environment_CheckInsert.sql")]
@@ -89,6 +95,10 @@ public class MySqlMariaDbIdentifierCasingTests
     [InlineData("Repository_MigrationRun_Heartbeat.sql")]
     [InlineData("DatabaseLogging_CheckCreate.sql")]
     [InlineData("DatabaseLogging_Insert.sql")]
+    [InlineData("Repository_MigrationRecordHistory_Delete.sql")]
+    [InlineData("Repository_MigrationRecordHistory_Count.sql")]
+    [InlineData("DatabaseLogging_Delete.sql")]
+    [InlineData("DatabaseLogging_Count.sql")]
     public void MySqlTemplate_HasNoStrayBacktickedPascalCaseIdentifiers(string templateFile)
     {
         var raw = ReadTemplate("MySql", templateFile);
@@ -131,6 +141,7 @@ public class MySqlMariaDbIdentifierCasingTests
     [InlineData("Repository_CheckCreate.sql")]
     [InlineData("Repository_Upgrade_1.sql")]
     [InlineData("Repository_Upgrade_2.sql")]
+    [InlineData("Repository_Upgrade_3.sql")]
     [InlineData("Repository_MigratorMeta_CheckInsert.sql")]
     [InlineData("Repository_Drop.sql")]
     [InlineData("Repository_Environment_CheckInsert.sql")]
@@ -153,6 +164,10 @@ public class MySqlMariaDbIdentifierCasingTests
     [InlineData("Repository_MigrationRun_Heartbeat.sql")]
     [InlineData("DatabaseLogging_CheckCreate.sql")]
     [InlineData("DatabaseLogging_Insert.sql")]
+    [InlineData("Repository_MigrationRecordHistory_Delete.sql")]
+    [InlineData("Repository_MigrationRecordHistory_Count.sql")]
+    [InlineData("DatabaseLogging_Delete.sql")]
+    [InlineData("DatabaseLogging_Count.sql")]
     public void MariaDbTemplate_HasNoStrayBacktickedPascalCaseIdentifiers(string templateFile)
     {
         var raw = ReadTemplate("MariaDb", templateFile);
@@ -178,36 +193,66 @@ public class MySqlMariaDbIdentifierCasingTests
             $"Found: {string.Join(", ", strayMatches)}");
     }
 
+    /// <summary>
+    /// Every index and constraint name of the schema templates is snake_case after its prefix (DAL-018). The guards
+    /// above only find backticked PascalCase, so an unquoted PascalCase name would pass them. information_schema
+    /// compares index names without case on both engines, so this is the convention of the templates, not a lookup
+    /// that would fail.
+    /// </summary>
+    [Theory]
+    [InlineData("MySql", "Repository_Upgrade_1.sql")]
+    [InlineData("MySql", "Repository_Upgrade_2.sql")]
+    [InlineData("MySql", "Repository_Upgrade_3.sql")]
+    [InlineData("MySql", "DatabaseLogging_CheckCreate.sql")]
+    [InlineData("MariaDb", "Repository_Upgrade_1.sql")]
+    [InlineData("MariaDb", "Repository_Upgrade_2.sql")]
+    [InlineData("MariaDb", "Repository_Upgrade_3.sql")]
+    [InlineData("MariaDb", "DatabaseLogging_CheckCreate.sql")]
+    public void Template_IndexAndConstraintNames_AreLowerCase(string engine, string templateFile)
+    {
+        // Arrange: the SQL without the TOML header and the line comments
+        string sql = Regex.Replace(ReadTemplate(engine, templateFile), @"/\*.*?\*/", string.Empty, RegexOptions.Singleline);
+        sql = Regex.Replace(sql, @"--[^\r\n]*", string.Empty);
+
+        // Act
+        var names = Regex.Matches(sql, @"\b(?:pk|fk|ix|uix)_\{CFG:TableBaseName\}(?<rest>\w+)").ToList();
+
+        // Assert
+        names.Should().NotBeEmpty(because: $"{engine}/{templateFile} names at least one index or constraint");
+        names.Where(m => m.Groups["rest"].Value.Any(char.IsUpper)).Select(m => m.Value).Should().BeEmpty(
+            because: $"{engine}/{templateFile} must write every index and constraint name in snake_case (DAL-018)");
+    }
+
     // -------------------------------------------------------------------------
     // 2. Template counts
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// Confirms the count of MySQL templates: exactly 18. If a new template is added without
+    /// Confirms the count of MySQL templates: exactly 30. If a new template is added without
     /// updating this test class the count assertion fails, prompting a review.
     /// </summary>
     [Fact]
-    public void MySqlTemplates_TotalCount_IsTwentyFive()
+    public void MySqlTemplates_TotalCount_IsThirty()
     {
         var templatesDir = GetTemplatesDir("MySql");
         var actualFiles = Directory.GetFiles(templatesDir, "*.sql");
 
-        actualFiles.Should().HaveCount(25,
-            "the MySql Templates directory must contain exactly 25 .sql files after DAL-018 (+2 read-only Select templates, #7; +1 history Select template, #13; +3 schema version templates, ADR-024; +1 heartbeat template); " +
+        actualFiles.Should().HaveCount(30,
+            "the MySql Templates directory must contain exactly 30 .sql files after DAL-018 (+2 read-only Select templates, #7; +1 history Select template, #13; +4 schema version templates, ADR-024; +1 heartbeat template; +4 retention templates, ADR-027); " +
             "if you added a new template, also add it to P2_MySqlMariaDbIdentifierCasingTests");
     }
 
     /// <summary>
-    /// Confirms the count of MariaDB templates: exactly 25. Mirrors MySqlTemplates_TotalCount_IsTwentyFive.
+    /// Confirms the count of MariaDB templates: exactly 30. Mirrors MySqlTemplates_TotalCount_IsThirty.
     /// </summary>
     [Fact]
-    public void MariaDbTemplates_TotalCount_IsTwentyFive()
+    public void MariaDbTemplates_TotalCount_IsThirty()
     {
         var templatesDir = GetTemplatesDir("MariaDb");
         var actualFiles = Directory.GetFiles(templatesDir, "*.sql");
 
-        actualFiles.Should().HaveCount(25,
-            "the MariaDb Templates directory must contain exactly 25 .sql files after DAL-018 (+2 read-only Select templates, #7; +1 history Select template, #13; +3 schema version templates, ADR-024; +1 heartbeat template); " +
+        actualFiles.Should().HaveCount(30,
+            "the MariaDb Templates directory must contain exactly 30 .sql files after DAL-018 (+2 read-only Select templates, #7; +1 history Select template, #13; +4 schema version templates, ADR-024; +1 heartbeat template; +4 retention templates, ADR-027); " +
             "if you added a new template, also add it to P2_MySqlMariaDbIdentifierCasingTests");
     }
 
@@ -216,38 +261,55 @@ public class MySqlMariaDbIdentifierCasingTests
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// Repository_MigrationRecord_Select.sql (MySQL) must expose exactly 21 PascalCase output aliases
+    /// Repository_MigrationRecord_Select.sql (MySQL) must expose exactly 23 PascalCase output aliases
     /// (one per column consumed by TemplateExecutor.RepositoryMigrationSelect and the
-    /// cross-engine row["PascalCaseKey"] reader contract). Aliases use backtick quoting
-    /// (AS `PascalCase`) which is the MySQL/MariaDB equivalent of PG's AS "PascalCase".
+    /// cross-engine row["PascalCaseKey"] reader contract: 21 plus StartedAt and FinishedAt of 0.20.0). Aliases use
+    /// backtick quoting (AS `PascalCase`) which is the MySQL/MariaDB equivalent of PG's AS "PascalCase".
     /// </summary>
     [Fact]
-    public void MigrationSelect_Has21Aliases_MySql()
+    public void MigrationSelect_Has23Aliases_MySql()
     {
         var content = ReadTemplate("MySql", "Repository_MigrationRecord_Select.sql");
 
         var aliasPattern = new Regex(@"\bAS\s+`[A-Z][a-zA-Z]+`", RegexOptions.IgnoreCase);
         var count = aliasPattern.Matches(content).Count;
 
-        count.Should().Be(21,
-            "Repository_MigrationRecord_Select.sql (MySql) must have exactly 21 AS `PascalCase` aliases to " +
+        count.Should().Be(23,
+            "Repository_MigrationRecord_Select.sql (MySql) must have exactly 23 AS `PascalCase` aliases to " +
             "satisfy the cross-engine row[\"PascalCase\"] reader contract (DAL-018 Strategy B)");
     }
 
     /// <summary>
-    /// Repository_MigrationRecord_Select.sql (MariaDB) must expose exactly 21 PascalCase output aliases.
+    /// Repository_MigrationRecord_Select.sql (MariaDB) must expose exactly 23 PascalCase output aliases.
     /// </summary>
     [Fact]
-    public void MigrationSelect_Has21Aliases_MariaDb()
+    public void MigrationSelect_Has23Aliases_MariaDb()
     {
         var content = ReadTemplate("MariaDb", "Repository_MigrationRecord_Select.sql");
 
         var aliasPattern = new Regex(@"\bAS\s+`[A-Z][a-zA-Z]+`", RegexOptions.IgnoreCase);
         var count = aliasPattern.Matches(content).Count;
 
-        count.Should().Be(21,
-            "Repository_MigrationRecord_Select.sql (MariaDb) must have exactly 21 AS `PascalCase` aliases to " +
+        count.Should().Be(23,
+            "Repository_MigrationRecord_Select.sql (MariaDb) must have exactly 23 AS `PascalCase` aliases to " +
             "satisfy the cross-engine row[\"PascalCase\"] reader contract (DAL-018 Strategy B)");
+    }
+
+    /// <summary>
+    /// Repository_MigrationRecordHistory_Select.sql returns the columns of Repository_MigrationRecord_Select under the
+    /// same names and in the same order: TemplateExecutor.MapMigrationRecord maps the rows of both.
+    /// </summary>
+    [Theory]
+    [InlineData("MySql")]
+    [InlineData("MariaDb")]
+    public void MigrationRecordHistorySelect_HasTheAliasesOfTheRecordSelect(string engine)
+    {
+        var aliasPattern = new Regex(@"\bAS\s+`([A-Z][a-zA-Z]+)`");
+
+        var record = aliasPattern.Matches(ReadTemplate(engine, "Repository_MigrationRecord_Select.sql")).Select(m => m.Groups[1].Value);
+        var history = aliasPattern.Matches(ReadTemplate(engine, "Repository_MigrationRecordHistory_Select.sql")).Select(m => m.Groups[1].Value);
+
+        history.Should().Equal(record, $"both {engine} selects feed the same reader contract");
     }
 
     /// <summary>

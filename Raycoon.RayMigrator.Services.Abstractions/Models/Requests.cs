@@ -16,6 +16,12 @@ public class MigrateUpRequest
     public bool AllowOutOfOrder { get; set; } = false;
     public string[]? TargetGroupAliases { get; set; }
     public string[]? TargetGroupMigrationOrder { get; set; }
+    /// <summary>
+    /// The handle the host cancels this run with, or null. The run stops at the next block boundary and takes the
+    /// action the first <see cref="RunCancellation.Cancel"/> chose; the token of the call cancels with
+    /// <see cref="MigrationCancelledAction.Terminate"/>.
+    /// </summary>
+    public RunCancellation? Cancellation { get; set; }
 }
 
 /// <summary>
@@ -30,6 +36,12 @@ public class MigrateDownRequest
     public bool ShowInfo { get; set; } = true;
     public bool RevealSensitiveData { get; set; } = false;
     public string[]? TargetGroupAliases { get; set; }
+    /// <summary>
+    /// The handle the host cancels this run with, or null. A migrate-down stops at the next rollback block and
+    /// ignores the action the handle carries: the record in progress stays Failed with its leading rollback blocks, and
+    /// the next migrate-down continues it unless its first rollback block failed under RollbackErrorAction=Ignore.
+    /// </summary>
+    public RunCancellation? Cancellation { get; set; }
 }
 
 /// <summary>
@@ -67,6 +79,11 @@ public class BaselineRequest
     public bool RevealSensitiveData { get; set; } = false;
     public string[]? TargetGroupAliases { get; set; }
     public string[]? TargetGroupMigrationOrder { get; set; }
+    /// <summary>
+    /// The handle the host cancels this run with, or null. A baseline stops before the next file and ignores the
+    /// action the handle carries; the records it wrote stay Migrated.
+    /// </summary>
+    public RunCancellation? Cancellation { get; set; }
 }
 
 /// <summary>
@@ -87,7 +104,14 @@ public class FixIssuesRequest
     /// <c>MigrationContext</c> was built with (#17, #22).
     /// </summary>
     public MigrationRunMode RunMode { get; set; } = MigrationRunMode.Migrate;
-    public MigrationStatus AssumedMigrationStatus { get; set; } = MigrationStatus.NotMigrated;
+    /// <summary>
+    /// The status the repair gives the open (Pending, Executing) records of an orphaned run. Null, the default, keeps the
+    /// progress of each file: Failed after some committed blocks, so that the next migrate-up resumes after them, Migrated
+    /// when every block committed, NotMigrated without progress; for a rollback that was running Failed with its rollback
+    /// blocks, which migrate-down continues when some ran, or NotMigrated when every rollback block ran. NotMigrated or
+    /// Migrated is set on every open record of the run (<c>--last-migration-status</c>).
+    /// </summary>
+    public MigrationStatus? AssumedMigrationStatus { get; set; }
     public bool ShowInfo { get; set; } = true;
     public bool RevealSensitiveData { get; set; } = false;
 }

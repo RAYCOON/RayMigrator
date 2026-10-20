@@ -39,13 +39,13 @@ public class RepositorySchemaServiceTests : IDisposable
     }
 
     [Fact]
-    public void Ensure_FreshRepository_CreatesEveryStepAndRegistersTheEngineVersion()
+    public async Task Ensure_FreshRepository_CreatesEveryStepAndRegistersTheEngineVersion()
     {
         // Arrange
         var service = CreateService();
 
         // Act
-        var result = service.Ensure(Repository());
+        var result = await service.EnsureAsync(Repository(), cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert
         result.Created.Should().BeTrue();
@@ -60,14 +60,14 @@ public class RepositorySchemaServiceTests : IDisposable
     }
 
     [Fact]
-    public void Ensure_Twice_LeavesTheRepositoryUnchanged()
+    public async Task Ensure_Twice_LeavesTheRepositoryUnchanged()
     {
         // Arrange
         var service = CreateService();
-        var first = service.Ensure(Repository());
+        var first = await service.EnsureAsync(Repository(), cancellationToken: TestContext.Current.CancellationToken);
 
         // Act
-        var second = service.Ensure(Repository());
+        var second = await service.EnsureAsync(Repository(), cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert
         second.Created.Should().BeFalse();
@@ -80,31 +80,31 @@ public class RepositorySchemaServiceTests : IDisposable
     }
 
     [Fact]
-    public void Ensure_RepositoryNewerThanTheEngine_IsRefused()
+    public async Task Ensure_RepositoryNewerThanTheEngine_IsRefused()
     {
         // Arrange
         var service = CreateService();
-        service.Ensure(Repository());
+        await service.EnsureAsync(Repository(), cancellationToken: TestContext.Current.CancellationToken);
         Query().ExecuteOnConnection(ConnectionString,
             "INSERT INTO \"RepositorySchemaVersion\" (\"Version\", \"AppliedAt\", \"RayMigratorVersion\") VALUES (99, datetime('now'), 'future')");
 
         // Act
-        var act = () => service.Ensure(Repository());
+        var act = () => service.EnsureAsync(Repository());
 
         // Assert
-        var ex = act.Should().Throw<RepositorySchemaException>().Which;
+        var ex = (await act.Should().ThrowAsync<RepositorySchemaException>()).Which;
         ex.RepositoryVersion.Should().Be(99);
         ex.SupportedVersion.Should().Be(RepositorySchema.CurrentVersion);
     }
 
     [Fact]
-    public void Ensure_WritesTheDocumentedDefaultsIntoTheOptions()
+    public async Task Ensure_WritesTheDocumentedDefaultsIntoTheOptions()
     {
         // Arrange
         var repository = Repository();
 
         // Act
-        CreateService().Ensure(repository);
+        await CreateService().EnsureAsync(repository, cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert
         repository.DbCommandTimeoutInSeconds.Should().Be(60);
@@ -116,14 +116,14 @@ public class RepositorySchemaServiceTests : IDisposable
     }
 
     [Fact]
-    public void Ensure_LogsTheCreatedRepositoryAtInformationLevel()
+    public async Task Ensure_LogsTheCreatedRepositoryAtInformationLevel()
     {
         // Arrange
         var logger = new Helpers.CapturingLogger<RepositorySchemaService>();
         var service = new RepositorySchemaService(new TemplateCache(false, NullLogger<TemplateCache>.Instance), logger);
 
         // Act
-        service.Ensure(Repository());
+        await service.EnsureAsync(Repository(), cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert
         logger.Entries.Should().ContainSingle(e => e.LogLevel == LogLevel.Information)
@@ -131,43 +131,43 @@ public class RepositorySchemaServiceTests : IDisposable
     }
 
     [Fact]
-    public void Ensure_WithoutDatabaseType_IsRefusedBeforeTheDatabaseIsTouched()
+    public async Task Ensure_WithoutDatabaseType_IsRefusedBeforeTheDatabaseIsTouched()
     {
         // Arrange
         var repository = new RepositoryOptions { ConnectionString = ConnectionString };
 
         // Act
-        var act = () => CreateService().Ensure(repository);
+        var act = () => CreateService().EnsureAsync(repository);
 
         // Assert
-        act.Should().Throw<ConfigurationValidationException>().Which.Message.Should().Contain("DatabaseType");
+        (await act.Should().ThrowAsync<ConfigurationValidationException>()).Which.Message.Should().Contain("DatabaseType");
         File.Exists(_file).Should().BeFalse();
     }
 
     [Fact]
-    public void Ensure_WithoutConnectionString_IsRefused()
+    public async Task Ensure_WithoutConnectionString_IsRefused()
     {
         // Arrange
         var repository = new RepositoryOptions { DatabaseType = "Sqlite" };
 
         // Act
-        var act = () => CreateService().Ensure(repository);
+        var act = () => CreateService().EnsureAsync(repository);
 
         // Assert
-        act.Should().Throw<ConfigurationValidationException>().Which.Message.Should().Contain("ConnectionString");
+        (await act.Should().ThrowAsync<ConfigurationValidationException>()).Which.Message.Should().Contain("ConnectionString");
     }
 
     [Fact]
-    public void Ensure_UnknownDatabaseType_IsRefusedWithTheAvailableTypes()
+    public async Task Ensure_UnknownDatabaseType_IsRefusedWithTheAvailableTypes()
     {
         // Arrange
         var repository = new RepositoryOptions { DatabaseType = "Oracle", ConnectionString = ConnectionString };
 
         // Act
-        var act = () => CreateService().Ensure(repository);
+        var act = () => CreateService().EnsureAsync(repository);
 
         // Assert
-        act.Should().Throw<ConfigurationValidationException>().Which.Message.Should().Contain("[Oracle]").And.Contain("Sqlite");
+        (await act.Should().ThrowAsync<ConfigurationValidationException>()).Which.Message.Should().Contain("[Oracle]").And.Contain("Sqlite");
     }
 
     [Fact]
@@ -189,32 +189,32 @@ public class RepositorySchemaServiceTests : IDisposable
     }
 
     [Fact]
-    public void Ensure_RefusesAPrefixTheRunsWouldRefuse()
+    public async Task Ensure_RefusesAPrefixTheRunsWouldRefuse()
     {
         // Arrange: longer than RULE_4_4 allows
         var tooLong = new RepositoryOptions { DatabaseType = "Sqlite", ConnectionString = ConnectionString, TableBaseName = "seventeen_chars__" };
 
         // Act
-        var act = () => CreateService().Ensure(tooLong);
+        var act = () => CreateService().EnsureAsync(tooLong);
 
         // Assert
-        act.Should().Throw<ConfigurationValidationException>().Which.Message.Should().Contain("RULE_4_4").And.Contain("TableBaseName");
+        (await act.Should().ThrowAsync<ConfigurationValidationException>()).Which.Message.Should().Contain("RULE_4_4").And.Contain("TableBaseName");
         File.Exists(_file).Should().BeFalse("nothing is created for options a run would refuse");
     }
 
     [Fact]
-    public void Ensure_UnknownDatabaseTypeInAnotherCase_NamesTheExactName()
+    public async Task Ensure_UnknownDatabaseTypeInAnotherCase_NamesTheExactName()
     {
         var repository = new RepositoryOptions { DatabaseType = "sqlite", ConnectionString = ConnectionString };
 
-        var act = () => CreateService().Ensure(repository);
+        var act = () => CreateService().EnsureAsync(repository);
 
-        act.Should().Throw<ConfigurationValidationException>().Which.Message.Should().Contain("Did you mean [Sqlite]");
+        (await act.Should().ThrowAsync<ConfigurationValidationException>()).Which.Message.Should().Contain("Did you mean [Sqlite]");
     }
 
 
     [Fact]
-    public void Ensure_ResolvesPlaceholders_AndRefusesAMissingVariable()
+    public async Task Ensure_ResolvesPlaceholders_AndRefusesAMissingVariable()
     {
         // Arrange
         var service = CreateService();
@@ -223,7 +223,7 @@ public class RepositorySchemaServiceTests : IDisposable
         try
         {
             // Act
-            var result = service.Ensure(new RepositoryOptions { DatabaseType = "Sqlite", ConnectionString = $"{{ENV:{variable}}}" });
+            var result = await service.EnsureAsync(new RepositoryOptions { DatabaseType = "Sqlite", ConnectionString = $"{{ENV:{variable}}}" }, cancellationToken: TestContext.Current.CancellationToken);
 
             // Assert
             result.Created.Should().BeTrue("the placeholder named the SQLite file");
@@ -235,37 +235,52 @@ public class RepositorySchemaServiceTests : IDisposable
             Environment.SetEnvironmentVariable(variable, null);
         }
 
-        var missing = () => service.Ensure(new RepositoryOptions { DatabaseType = "Sqlite", ConnectionString = "{ENV:RM_SCHEMA_SERVICE_UNSET}" });
-        missing.Should().Throw<ConfigurationValidationException>().WithMessage("*RM_SCHEMA_SERVICE_UNSET*");
+        var missing = () => service.EnsureAsync(new RepositoryOptions { DatabaseType = "Sqlite", ConnectionString = "{ENV:RM_SCHEMA_SERVICE_UNSET}" });
+        await missing.Should().ThrowAsync<ConfigurationValidationException>().WithMessage("*RM_SCHEMA_SERVICE_UNSET*");
     }
 
     [Fact]
-    public void Ensure_RefusesAnUppercasePrefix_AndAMissingSchemaName_BeforeTheDatabaseIsTouched()
+    public async Task Ensure_RefusesAnUppercasePrefix_AndAMissingSchemaName_BeforeTheDatabaseIsTouched()
     {
         // Arrange: the connection strings point nowhere; the rules refuse the options first.
         var service = CreateService();
 
         // Act
-        var uppercase = () => service.Ensure(new RepositoryOptions { DatabaseType = "PostgreSQL", ConnectionString = "Host=nowhere.invalid;Database=x", SchemaName = "ray", TableBaseName = "Rm_" });
-        var noSchema = () => service.Ensure(new RepositoryOptions { DatabaseType = "SqlServer", ConnectionString = "Server=nowhere.invalid;Database=x" });
+        var uppercase = () => service.EnsureAsync(new RepositoryOptions { DatabaseType = "PostgreSQL", ConnectionString = "Host=nowhere.invalid;Database=x", SchemaName = "ray", TableBaseName = "Rm_" });
+        var noSchema = () => service.EnsureAsync(new RepositoryOptions { DatabaseType = "SqlServer", ConnectionString = "Server=nowhere.invalid;Database=x" });
 
         // Assert
-        uppercase.Should().Throw<ConfigurationValidationException>().WithMessage("*RULE_4_3*");
-        noSchema.Should().Throw<ConfigurationValidationException>().WithMessage("*RULE_4_2*");
+        await uppercase.Should().ThrowAsync<ConfigurationValidationException>().WithMessage("*RULE_4_3*");
+        await noSchema.Should().ThrowAsync<ConfigurationValidationException>().WithMessage("*RULE_4_2*");
     }
 
     [Fact]
-    public void Ensure_UpgradesARepositoryOfAnOlderSchemaVersion()
+    public async Task EnsureAsync_TokenCancelledBeforeTheCall_ThrowsOperationCanceledExceptionWithoutTouchingTheDatabase()
+    {
+        // Arrange
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        // Act
+        var act = () => CreateService().EnsureAsync(Repository(), cts.Token);
+
+        // Assert
+        await act.Should().ThrowAsync<OperationCanceledException>(because: "the token reaches the DAL call of the first schema step");
+        File.Exists(_file).Should().BeFalse(because: "the cancelled call never opened the SQLite file");
+    }
+
+    [Fact]
+    public async Task Ensure_UpgradesARepositoryOfAnOlderSchemaVersion()
     {
         // Arrange: a repository at schema version 1, created through the executor with that target.
         var cache = new TemplateCache(false, NullLogger<TemplateCache>.Instance);
         var versionOne = new RepositoryOptions { DatabaseType = "Sqlite", ConnectionString = ConnectionString, TableBaseName = "", DbCommandTimeoutInSeconds = 60, DbCommandMaxRetries = 100, DbCommandWaitTimeInMsBeforeRetry = 250 };
         DalFactory.TryGetDal("Sqlite", ConnectionString, out var dal).Should().BeTrue();
-        new RepositorySchemaExecutor(cache, NullLogger.Instance, versionOne, dal!, "test", 1).Ensure();
+        await new RepositorySchemaExecutor(cache, NullLogger.Instance, versionOne, dal!, "test", 1).EnsureAsync(TestContext.Current.CancellationToken);
         Query().CountRows("RepositorySchemaVersion").Should().Be(1);
 
         // Act
-        var result = CreateService().Ensure(Repository());
+        var result = await CreateService().EnsureAsync(Repository(), cancellationToken: TestContext.Current.CancellationToken);
 
         // Assert
         result.Upgraded.Should().BeTrue();

@@ -14,6 +14,7 @@ The `RayMigratorService` bridges the CLI layer to the service layer. It is the f
 - `Raycoon.RayMigrator.Pipeline/RayMigratorService.cs` -- Command dispatch bridge
 - `Raycoon.RayMigrator.Console/Program.cs` -- Entry point, CLI parsing, environment resolution, early exits
 - `Raycoon.RayMigrator.Pipeline/DirectModePipeline.cs` -- Unified execution pipeline for Standalone mode
+- `Raycoon.RayMigrator.Pipeline/ConsoleCancellation.cs` -- Ctrl+C and SIGTERM while the command runs
 - `Raycoon.RayMigrator.Pipeline/JsonOptionsSource.cs` -- Configuration loading from JSON files (Standalone mode)
 - `Raycoon.RayMigrator.Pipeline/SerilogFactory.cs` -- Serilog logger creation
 - `Raycoon.RayMigrator.Core/Configuration/EnvironmentResolver.cs` -- Environment resolution logic (called from Program.cs)
@@ -40,7 +41,9 @@ Main()
   |
   +-- Environment resolution
   |
-  +-- RunDirectMode(JsonOptionsSource)
+  +-- One RunCancellation for the process
+  |
+  +-- RunDirectMode(JsonOptionsSource, cancellation)
        |
        +-- JsonOptionsSource.LoadAsync() loads appsettings.json hierarchy
        |   (up to 4 files: base, environment, product, product+environment),
@@ -57,10 +60,10 @@ Main()
 4. Resolve `DatabaseLogWriter` (triggers options validation in Standalone mode: the data annotations, naming a failed element by alias, and the rule catalog, both on the shared sections and the run's product)
 5. Register sensitive configuration values for masking in TRACE logs
 6. Resolve `MigrationContext`: the product alias, which the loader already found among the files' aliases, is matched case-sensitively here (a near miss in another case gets a hint), and `MigrationLoggingContext.Current` is set (enables log enrichment with migration properties)
-7. Initialize database logging infrastructure (wire database sink to `DatabaseLogWriter`)
+7. Initialize database logging infrastructure (`InitDatabaseLoggerAsync` runs `DatabaseLogging_CheckCreate`, then the database sink is wired to `DatabaseLogWriter`)
 8. Populate `DalSpecificPropertiesDictionary` for all configured database types and validate schema names (Repository and DatabaseLogging)
 9. Validate all target connection strings via `ConnectionValidator.ValidateTargetConnections`
-10. Resolve `RayMigratorService` from DI and call `DoWorkAsync`
+10. Resolve `RayMigratorService` from DI and call `DoWorkAsync(host, cancellation)` inside `ConsoleCancellation.Listen`: while the command runs, the first Ctrl+C or SIGTERM (SIGTERM on Linux and macOS) cancels the `RunCancellation` of the process with the `--cancelled-action` of the command and keeps the process alive, a second one keeps the default and ends the process at once; before and after the command both signals keep their default
 11. Flush queued database logs (`dbLogWriter.Flush()`), then stop the host
 
 ## Dependencies
@@ -88,11 +91,13 @@ public class RayMigratorService
 
 ### DoWorkAsync (Entry Point)
 
-The central dispatch method uses a switch on `_consoleOptions.Command`:
+The central dispatch method uses a switch on `_consoleOptions.Command`. It takes the `RunCancellation` of the process: migrate-up, migrate-down and baseline carry it in their request, so that a cancelled migrate-up takes the action of its `Cancel` (migrate-down and baseline stop and ignore it), and every service call observes its token. It returns 0 for success, 130 (`CancelledExitCode`, 128 + SIGINT) when the cancel stopped the command, and 1 for a failure:
 
 ```csharp
-public async Task<int> DoWorkAsync(IHost host)
+public async Task<int> DoWorkAsync(IHost host, RunCancellation cancellation)
 {
+    ArgumentNullException.ThrowIfNull(cancellation);
+
     try
     {
         _logger.LogDebug("Executing command: {Command}", _consoleOptions.Command);
@@ -100,23 +105,30 @@ public async Task<int> DoWorkAsync(IHost host)
         switch (_consoleOptions.Command)
         {
             case MigrationCommand.MigrateUp:
-                return await ExecuteMigrateUpAsync();
+                return await ExecuteMigrateUpAsync(cancellation);
             case MigrationCommand.MigrateDown:
-                return await ExecuteMigrateDownAsync();
+                return await ExecuteMigrateDownAsync(cancellation);
             case MigrationCommand.ValidateHash:
-                return await ExecuteValidateHashAsync();
+                return await ExecuteValidateHashAsync(cancellation);
             case MigrationCommand.UpdateHash:
-                return await ExecuteUpdateHashAsync();
+                return await ExecuteUpdateHashAsync(cancellation);
             case MigrationCommand.Info:
-                return await ExecuteInfoAsync();
+                return await ExecuteInfoAsync(cancellation);
             case MigrationCommand.Baseline:
-                return await ExecuteBaselineAsync();
+                return await ExecuteBaselineAsync(cancellation);
             case MigrationCommand.FixIssues:
-                return await ExecuteFixIssuesAsync();
+                return await ExecuteFixIssuesAsync(cancellation);
             default:
                 throw new ConfigurationValidationException(
                     $"Unknown command: {_consoleOptions.Command}. Valid commands: {string.Join(", ", Enum.GetNames<MigrationCommand>())}");
         }
+    }
+    catch (OperationCanceledException) when (cancellation.Token.IsCancellationRequested)
+    {
+        // The read commands (validate-hash, info) throw when they are cancelled; the others return their result
+        _logger.LogWarning("Command {Command} for product {Product} cancelled on request ({Reason})",
+            _consoleOptions.Command, _consoleOptions.Product, cancellation.Reason ?? "no reason given");
+        return CancelledExitCode;
     }
     catch (MigrationAlreadyRunningException ex)
     {
@@ -139,7 +151,7 @@ public async Task<int> DoWorkAsync(IHost host)
 ### ExecuteMigrateUpAsync
 
 ```csharp
-private async Task<int> ExecuteMigrateUpAsync()
+private async Task<int> ExecuteMigrateUpAsync(RunCancellation cancellation)
 {
     _logger.LogDebug("Executing Migrate-Up command for product {Product} in environment {Environment}",
         _consoleOptions.Product, _consoleOptions.Environment);
@@ -155,15 +167,23 @@ private async Task<int> ExecuteMigrateUpAsync()
         AllowOutOfOrder = _consoleOptions.AllowOutOfOrder == true,
         TargetGroupAliases = _consoleOptions.TargetGroupAliases,
         TargetGroupMigrationOrder = _consoleOptions.TargetGroupMigrationOrder,
+        Cancellation = cancellation,
     };
 
     // Note: StopRollbackOnMissingRollbackFile is not part of the request — MigrationService
     // reads it directly from the MigrationContext (which carries RayMigratorConsoleOptions).
 
-    var result = await _migrationService.MigrateUpAsync(request);
+    var result = await _migrationService.MigrateUpAsync(request, cancellation.Token);
 
     if (!result.Success)
     {
+        if (result.Result == MigrationRunResult.Cancelled)
+        {
+            _logger.LogWarning("Migrate-Up cancelled for product {Product}: {Message}",
+                _consoleOptions.Product, result.ErrorMessage);
+            return CancelledExitCode;
+        }
+
         _logger.LogError("Migrate-Up failed for product {Product}: {Error}",
             _consoleOptions.Product, result.ErrorMessage);
         return 1;
@@ -176,7 +196,7 @@ private async Task<int> ExecuteMigrateUpAsync()
 ### ExecuteMigrateDownAsync
 
 ```csharp
-private async Task<int> ExecuteMigrateDownAsync()
+private async Task<int> ExecuteMigrateDownAsync(RunCancellation cancellation)
 {
     _logger.LogDebug("Executing Migrate-Down command for product {Product} to release {TargetRelease}",
         _consoleOptions.Product, _consoleOptions.TargetReleaseVersion);
@@ -190,12 +210,20 @@ private async Task<int> ExecuteMigrateDownAsync()
         ShowInfo = _consoleOptions.ShowStartupInfo,
         RevealSensitiveData = _consoleOptions.RevealSensitiveData,
         TargetGroupAliases = _consoleOptions.TargetGroupAliases,
+        Cancellation = cancellation,
     };
 
-    var result = await _migrationService.MigrateDownAsync(request);
+    var result = await _migrationService.MigrateDownAsync(request, cancellation.Token);
 
     if (!result.Success)
     {
+        if (result.Result == MigrationRunResult.Cancelled)
+        {
+            _logger.LogWarning("Migrate-Down cancelled for product {Product}: {Message}",
+                _consoleOptions.Product, result.ErrorMessage);
+            return CancelledExitCode;
+        }
+
         _logger.LogError("Migrate-Down failed for product {Product}: {Error}",
             _consoleOptions.Product, result.ErrorMessage);
         return 1;
@@ -208,7 +236,7 @@ private async Task<int> ExecuteMigrateDownAsync()
 ### ExecuteValidateHashAsync
 
 ```csharp
-private async Task<int> ExecuteValidateHashAsync()
+private async Task<int> ExecuteValidateHashAsync(RunCancellation cancellation)
 {
     _logger.LogDebug("Executing Validate-Hash command for product {Product} with scope {Scope}",
         _consoleOptions.Product, _consoleOptions.HashValidationScope);
@@ -222,9 +250,11 @@ private async Task<int> ExecuteValidateHashAsync()
         TargetGroupAliases = _consoleOptions.TargetGroupAliases,
     };
 
-    var result = await _migrationService.ValidateHashAsync(request);
+    var result = await _migrationService.ValidateHashAsync(request, cancellation.Token);
 
-    if (!result.Success)
+    // ValidationResult.Success means "no hash issues found", not "the command ran".
+    // A command failure (exception inside the service) carries an ErrorMessage; hash issues do not.
+    if (!result.Success && result.ErrorMessage != null)
     {
         _logger.LogError("Validate-Hash failed for product {Product}: {Error}",
             _consoleOptions.Product, result.ErrorMessage);
@@ -247,7 +277,7 @@ private async Task<int> ExecuteValidateHashAsync()
 ### ExecuteUpdateHashAsync
 
 ```csharp
-private async Task<int> ExecuteUpdateHashAsync()
+private async Task<int> ExecuteUpdateHashAsync(RunCancellation cancellation)
 {
     _logger.LogDebug("Executing Update-Hash command for product {Product}", _consoleOptions.Product);
 
@@ -259,10 +289,18 @@ private async Task<int> ExecuteUpdateHashAsync()
         TargetGroupAliases = _consoleOptions.TargetGroupAliases,
     };
 
-    var result = await _migrationService.UpdateHashAsync(request);
+    var result = await _migrationService.UpdateHashAsync(request, cancellation.Token);
 
     if (!result.Success)
     {
+        // The engine maps every OperationCanceledException to Cancelled; only the cancel of the process exits with 130
+        if (result.ErrorCode == TemplateResultCode.Cancelled && cancellation.Token.IsCancellationRequested)
+        {
+            _logger.LogWarning("Update-Hash cancelled for product {Product}: {Message}",
+                _consoleOptions.Product, result.ErrorMessage);
+            return CancelledExitCode;
+        }
+
         _logger.LogError("Update-Hash failed for product {Product}: {Error}",
             _consoleOptions.Product, result.ErrorMessage);
         return 1;
@@ -280,7 +318,7 @@ private async Task<int> ExecuteUpdateHashAsync()
 `--to-release` is optional. When omitted, all releases are baselined. The `releaseLabel` variable formats log messages accordingly.
 
 ```csharp
-private async Task<int> ExecuteBaselineAsync()
+private async Task<int> ExecuteBaselineAsync(RunCancellation cancellation)
 {
     var releaseLabel = string.IsNullOrWhiteSpace(_consoleOptions.TargetReleaseVersion)
         ? "all releases"
@@ -298,12 +336,20 @@ private async Task<int> ExecuteBaselineAsync()
         RevealSensitiveData = _consoleOptions.RevealSensitiveData,
         TargetGroupAliases = _consoleOptions.TargetGroupAliases,
         TargetGroupMigrationOrder = _consoleOptions.TargetGroupMigrationOrder,
+        Cancellation = cancellation,
     };
 
-    var result = await _migrationService.BaselineAsync(request);
+    var result = await _migrationService.BaselineAsync(request, cancellation.Token);
 
     if (!result.Success)
     {
+        if (result.Result == MigrationRunResult.Cancelled)
+        {
+            _logger.LogWarning("Baseline cancelled for product {Product}: {Message}",
+                _consoleOptions.Product, result.ErrorMessage);
+            return CancelledExitCode;
+        }
+
         _logger.LogError("Baseline failed for product {Product}: {Error}",
             _consoleOptions.Product, result.ErrorMessage);
         return 1;
@@ -317,22 +363,26 @@ private async Task<int> ExecuteBaselineAsync()
 
 ### ExecuteInfoAsync
 
-Calls both `GetStatusAsync` and `GetHistoryAsync` to display migration status information including current release, pending migrations, target group details, and recent migration run history. The history is rendered as a formatted table using `StringBuilder`:
+Calls both `GetStatusAsync` and `GetHistoryAsync` to display migration status information including current release, pending migrations, target group details, and recent migration run history. The pending count comes last in the summary, so that the list of pending migrations follows it (`MigrationStatusInfo.PendingFiles`, in the order of the next migrate-up, cut after `PendingListLimit` = 50 entries); every target group line names its pending count and its last migration (`TargetGroupStatus.LastMigrationDate`, `—` without one). The history is rendered as a formatted table using `StringBuilder`:
 
 ```csharp
-private async Task<int> ExecuteInfoAsync()
+private async Task<int> ExecuteInfoAsync(RunCancellation cancellation)
 {
     _logger.LogDebug("Executing Info command for product {Product} in environment {Environment}",
         _consoleOptions.Product, _consoleOptions.Environment);
 
-    var status = await _migrationService.GetStatusAsync(_consoleOptions.Product!);
-    var history = await _migrationService.GetHistoryAsync(_consoleOptions.Product!, 10);
+    var status = await _migrationService.GetStatusAsync(_consoleOptions.Product!, cancellation.Token);
+    var history = await _migrationService.GetHistoryAsync(_consoleOptions.Product!, 10, cancellation.Token);
 
-    // Display status summary
+    // Display status summary; the pending migrations come last, so that their list follows their count
     _logger.LogInformation("--- Migration Status for product {Product}, environment {Environment} ---", status.ProductAlias, _consoleOptions.Environment);
     _logger.LogInformation("  Current Release:     {Release}", status.CurrentRelease);
-    _logger.LogInformation("  Pending Migrations:  {Pending}", status.PendingMigrations);
     _logger.LogInformation("  Total Executed:      {Total}", status.TotalMigrationsExecuted);
+    _logger.LogInformation("  Pending Migrations:  {Pending}", status.PendingMigrations);
+    if (status.PendingFiles.Count > 0)
+    {
+        _logger.LogInformation("\n{PendingMigrationList}", FormatPendingMigrations(status.PendingFiles, PendingListLimit));
+    }
 
     // Display target groups
     if (status.TargetGroups.Count > 0)
@@ -340,8 +390,9 @@ private async Task<int> ExecuteInfoAsync()
         _logger.LogInformation("--- Target Groups ---");
         foreach (var (alias, tg) in status.TargetGroups)
         {
-            _logger.LogInformation("  [{Alias}] Type={DbType}, Release={Release}, Executed={Count}, Targets=[{Targets}]",
-                tg.Alias, tg.DatabaseType, tg.CurrentRelease, tg.ExecutedMigrations,
+            _logger.LogInformation("  [{Alias}] Type={DbType}, Release={Release}, Executed={Count}, Pending={Pending}, LastMigration={LastMigration}, Targets=[{Targets}]",
+                tg.Alias, tg.DatabaseType, tg.CurrentRelease, tg.ExecutedMigrations, tg.PendingMigrations,
+                tg.LastMigrationDate?.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) ?? "—",
                 string.Join(", ", tg.Targets));
         }
     }
@@ -372,12 +423,50 @@ private async Task<int> ExecuteInfoAsync()
 }
 ```
 
+The pending list is a table of release, target group, target, file and reason, indented by four spaces, with a `─` rule under the header; a resumed file shows `Resumable after block n`, the last block that committed, and a file whose rollback stopped in the middle `RollbackIncomplete after k of n rollback blocks, run migrate-down`:
+
+```csharp
+internal static string FormatPendingMigrations(IReadOnlyList<PendingMigrationInfo> pending, int limit)
+{
+    var shown = pending.Take(limit).ToList();
+    string[] headers = ["Release", "Target group", "Target", "File", "Reason"];
+    var rows = shown
+        .Select(p => new[] { p.ReleaseVersion, p.TargetGroupAlias, p.TargetAlias ?? "—", p.Filename, DescribeReason(p) })
+        .ToList();
+    int[] widths = headers.Select((header, column) => rows.Select(row => row[column].Length).Append(header.Length).Max()).ToArray();
+
+    var sb = new StringBuilder();
+    AppendRow(headers);
+    AppendRow(widths.Select(width => new string('─', width)).ToArray());
+    foreach (var row in rows)
+    {
+        AppendRow(row);
+    }
+    if (pending.Count > shown.Count)
+    {
+        sb.AppendLine($"    … and {pending.Count - shown.Count} more");
+    }
+    return sb.ToString().TrimEnd();
+
+    void AppendRow(string[] cells)
+        => sb.AppendLine(("    " + string.Join("  ", cells.Select((cell, column) => cell.PadRight(widths[column])))).TrimEnd());
+}
+
+internal static string DescribeReason(PendingMigrationInfo pending) => pending.Reason switch
+{
+    PendingMigrationReason.Resumable => $"Resumable after block {pending.ResumeFromBlock ?? 0}",
+    PendingMigrationReason.RollbackIncomplete =>
+        $"RollbackIncomplete after {pending.RollbackBlocksMigrated ?? 0} of {pending.RollbackBlocksTotal ?? 0} rollback blocks, run migrate-down",
+    _ => pending.Reason.ToString()
+};
+```
+
 ### ExecuteFixIssuesAsync
 
 Fixes repository inconsistencies such as orphaned migration runs. With `--run-mode simulate` it previews what would be fixed without making changes:
 
 ```csharp
-private async Task<int> ExecuteFixIssuesAsync()
+private async Task<int> ExecuteFixIssuesAsync(RunCancellation cancellation)
 {
     _logger.LogDebug("Executing Fix command for product {Product} in environment {Environment}",
         _consoleOptions.Product, _consoleOptions.Environment);
@@ -387,17 +476,25 @@ private async Task<int> ExecuteFixIssuesAsync()
         ProductAlias = _consoleOptions.Product!,
         Environment = _consoleOptions.Environment!,
         Scope = _consoleOptions.FixScope ?? FixScope.OrphanedRuns,
-        OlderThanMinutes = _consoleOptions.FixOlderThanMinutes ?? 60,
+        OlderThanMinutes = _consoleOptions.FixOlderThanMinutes ?? 2,
         RunMode = _consoleOptions.RunMode,
-        AssumedMigrationStatus = _consoleOptions.FixAssumedMigrationStatus ?? MigrationStatus.NotMigrated,
+        AssumedMigrationStatus = _consoleOptions.FixAssumedMigrationStatus,   // null without --last-migration-status: the progress rule
         ShowInfo = _consoleOptions.ShowStartupInfo,
         RevealSensitiveData = _consoleOptions.RevealSensitiveData
     };
 
-    var result = await _migrationService.FixIssuesAsync(request);
+    var result = await _migrationService.FixIssuesAsync(request, cancellation.Token);
 
     if (!result.Success)
     {
+        // The engine maps every OperationCanceledException to Cancelled; only the cancel of the process exits with 130
+        if (result.ErrorCode == TemplateResultCode.Cancelled && cancellation.Token.IsCancellationRequested)
+        {
+            _logger.LogWarning("Fix command cancelled for product {Product}: {Message}",
+                _consoleOptions.Product, result.ErrorMessage);
+            return CancelledExitCode;
+        }
+
         _logger.LogError("Fix command failed for product {Product}: {Error}",
             _consoleOptions.Product, result.ErrorMessage);
         return 1;
@@ -405,18 +502,20 @@ private async Task<int> ExecuteFixIssuesAsync()
 
     if (result.WasSimulated)
     {
-        _logger.LogInformation("Fix simulation completed for product {Product}: {Found} orphaned run(s) found",
-            _consoleOptions.Product, result.OrphanedRunsFound);
+        _logger.LogInformation("Fix simulation completed for product {Product} (repairs: {Repairs}): {Found} orphaned run(s) found",
+            _consoleOptions.Product, string.Join(", ", result.Repairs), result.OrphanedRunsFound);
     }
     else
     {
-        _logger.LogInformation("Fix completed for product {Product}: {Fixed} orphaned run(s) fixed",
-            _consoleOptions.Product, result.OrphanedRunsFixed);
+        _logger.LogInformation("Fix completed for product {Product} (repairs: {Repairs}): {Fixed} orphaned run(s) fixed",
+            _consoleOptions.Product, string.Join(", ", result.Repairs), result.OrphanedRunsFixed);
     }
 
     return 0;
 }
 ```
+
+`--older-than` defaults to 2 minutes, the default of `Repository.OrphanedRunThresholdInMinutes`: a run counts as orphaned when its last heartbeat (or, without one, its start) is older.
 
 ## Integration with CLI
 
@@ -426,12 +525,12 @@ CLI argument parsing is handled by `CommandLineConfiguration` (in the Core proje
 
 All command methods follow the same pattern:
 
-1. Build a request object from `_consoleOptions`
-2. Call the appropriate `_migrationService` method
-3. Check `result.Success` and log `result.ErrorMessage` on failure
-4. Return `0` for success, `1` for failure
+1. Build a request object from `_consoleOptions` (migrate-up, migrate-down and baseline with the `RunCancellation` of the process)
+2. Call the appropriate `_migrationService` method with the token of the process
+3. Check `result.Success` and log `result.ErrorMessage` on failure, as a warning when the cancel ended the command
+4. Return `0` for success, `130` when the cancel ended the command (`MigrationRunResult.Cancelled` for migrate-up, migrate-down and baseline, `TemplateResultCode.Cancelled` (1004) for update-hash and fix while the token of the process is cancelled), `1` for failure
 
-Top-level exception handling in `DoWorkAsync` catches `MigrationAlreadyRunningException` specifically (with guidance to use the Fix command) and all other exceptions generically, returning exit code `1` in both cases.
+A cancelled migrate-up whose rollback did not complete cleanly is an `Error` (code 1005) and exits with `1`, and so does a migrate-up that failed at a file before the cancel stopped its error recovery (`Error` with the code of the failure): the result decides, not the signal. The engine maps every `OperationCanceledException` of a failure to 1004, so an update-hash or fix that returns 1004 without the signal is logged as an error and exits with `1` as well. Top-level exception handling in `DoWorkAsync` catches an `OperationCanceledException` while the token of the process is cancelled (validate-hash and info throw it) and returns `130` with a warning; it catches `MigrationAlreadyRunningException` specifically (with guidance to use the Fix command) and all other exceptions generically, including an `OperationCanceledException` that did not come from the cancel of the process, returning exit code `1` in both cases. See [Cancellation](../02-core-concepts/error-handling.md#cancellation).
 
 ## Exit Codes
 

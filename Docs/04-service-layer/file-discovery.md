@@ -135,7 +135,7 @@ Two additional validations run inside `DiscoverAndPrepareMigrationFiles` before 
 
 `FilterAlreadyMigratedFiles` compares discovered files against existing `MigrationRecord` entries from the repository. A file is considered already migrated when a record with matching `Filename`, `ReleaseVersion`, `TargetGroupAlias`, and `MigrationStatusId = Migrated` exists.
 
-- **RunAlways files**: Always included regardless of existing records.
+- **RunAlways files**: Always included regardless of existing records, on every target their `Targets` filter selects. Migrate-up runs them in full from the first block: it neither resumes nor finalizes a record of an earlier attempt of a RunAlways file.
 - **Hash-changed files**: If an already-migrated file's `FileUpHash` no longer matches the repository record, it is re-included with a warning.
 - **Validate mode**: When the run mode does not read the repository (`Validate`), all discovered files are included. `Simulate` and `Migrate` modes read the repository and filter accordingly.
 
@@ -272,11 +272,11 @@ A migration file is included for execution if all of the following conditions ar
 2. Not a rollback file, not a migsettings file, not an environment-specific file for a different environment
 3. Passes TOML `Environments` filter for the current environment
 4. Passes `RequireRollbackFile` validation (rollback file exists when required)
-5. Not recorded in repository as `Migrated` for the same `Filename` + `ReleaseVersion` + `TargetGroupAlias` combination -- unless `RunAlways = true` or the file hash has changed
+5. Not recorded in repository as `Migrated` for the same `Filename` + `ReleaseVersion` + `TargetGroupAlias` combination on the target -- unless `RunAlways = true` or the file hash has changed; the decision is made per target (#8)
 6. Within the `--to-release` scope (if specified)
 7. Within the `--target-group` scope (if specified)
 
-Pending detection is handled inside `MigrationService.MigrateUpAsync()` by comparing discovered `MigrationFileInfo` records against existing `MigrationRecord` entries from the repository.
+Pending detection is handled inside `MigrationService.MigrateUpAsync()` by comparing discovered `MigrationFileInfo` records against existing `MigrationRecord` entries from the repository. `GetStatusAsync` (the `info` command) applies the same rules before a run and lists the result as `MigrationStatusInfo.PendingFiles`: one entry per file and target, in the order migrate-up runs them, with a `PendingMigrationReason` (`NotMigrated`, `Failed`, `Resumable`, `RunAlways`, `HashMismatch`, `RollbackIncomplete`); see [Migration Service: MigrationStatusInfo](migration-service.md#migrationstatusinfo). A pending file whose record on the target is `Failed` with some but not all of its rollback blocks (`RollbackIncomplete`) makes migrate-up refuse the run before its first file, until migrate-down has completed the rollback.
 
 > **Note**: The TOML `Targets` parameter (file header, else inherited from `migsettings.txt`) restricts a file to the named targets of its target group: the file is executed, baselined and counted as pending only on those targets. `null`, `[]` and `["*"]` mean all targets. An alias that is not a target of the file's target group is a configuration error reported during discovery, before anything is executed (`ConfigurationValidationException`; the command fails like any other discovery-time configuration error). See [TOML Metadata](../07-migration-files/toml-metadata.md#target-filtering) for details.
 

@@ -114,7 +114,7 @@ When `true`, this migration is executed on every migration run, even if it was s
 RunAlways = true
 ```
 
-During migrate-up, RunAlways files bypass the hash-based skip logic entirely and are always included in the execution list. The `validate-hash` command still checks RunAlways files for hash changes, so you can detect unintended modifications before deploying.
+During migrate-up, RunAlways files bypass the hash-based skip logic entirely and are always included in the execution list. They always run in full from their first block: a RunAlways file that failed or was cancelled after some of its blocks committed runs all of its blocks again on the next migrate-up, not just the remaining ones. The `validate-hash` command still checks RunAlways files for hash changes, so you can detect unintended modifications before deploying.
 
 ### RequireRollbackFile
 
@@ -155,7 +155,7 @@ RollbackErrorAction = "Terminate"
 Valid values:
 
 - `Terminate` — Stop the rollback chain immediately. No further rollbacks are performed. This is the default.
-- `Ignore` — Skip the failed rollback and continue with the next rollback file in the chain.
+- `Ignore` — Skip the failed rollback block, run the remaining blocks of the rollback file and continue with the next rollback file in the chain.
 
 If omitted, the value is inherited from the nearest `migsettings.txt` / `migsettings.{Environment}.txt` file in the directory hierarchy, or from the product configuration.
 
@@ -194,7 +194,7 @@ TargetGroupMigrationOrder = ["Frontend", "Backend"]
 
 This TOML key is only meaningful in release-level migsettings files (applied per-release), not in individual migration file headers. If omitted, the value is inherited from the nearest `migsettings.txt` / `migsettings.{Environment}.txt` file in the directory hierarchy, from the `TargetGroupMigrationOrder` property in the product's `appsettings.json`, or from the `--target-group-migration-order` CLI option. When no order is set anywhere, target groups are processed in the order they appear in configuration.
 
-This parameter is only applicable when the product has more than one target group. Applies to `migrate-up` and `baseline` commands.
+This parameter is only applicable when the product has more than one target group; with one target group, an order that names exactly its alias is ignored with a warning, and any other order is an error. Applies to `migrate-up` and `baseline` commands.
 
 ---
 
@@ -426,6 +426,7 @@ WHERE [LastName] IN ('Herbert', 'Asimov', 'Le Guin');
 ### Best Practices for Rollback Files
 
 - **Always use `IF EXISTS`** in DROP and ALTER statements to make rollbacks idempotent.
+- **Tolerate a partially applied file.** `migrate-down`, the error recovery and the rollback of a cancel action also roll back a file that stopped after some of its blocks or ran under `MigrationErrorAction=Ignore` with failed blocks, from its first rollback block: write the rollback so that it works whatever part of the file ran (`DROP TABLE IF EXISTS`, `DELETE … WHERE` on the rows the file inserted).
 - **Handle foreign keys first.** Drop dependent constraints before dropping referenced tables.
 - **Reverse the order.** If migration 003 added a FK and a column, the rollback should drop the FK first, then the column.
 - **Test rollbacks.** Run `migrate-up` followed by `migrate-down` in development to verify rollbacks work correctly.
@@ -619,6 +620,8 @@ GO
 ```
 
 **Hash validation:** During migrate-up, RunAlways files bypass the hash-based skip logic and are always re-executed regardless of whether their content has changed. To detect unintended changes to RunAlways files, use the `validate-hash` command, which compares current file hashes against the repository records.
+
+**Failed or cancelled runs:** Other files resume after the blocks that a failed or cancelled run committed. A RunAlways file always runs in full instead: the next `migrate-up` starts it at its first block, so the blocks that committed before the failure or the cancel run a second time, and `info` lists it as `RunAlways`, not as `Resumable after block n`. Make every block of a RunAlways file safe to repeat. A rollback of the file that stopped in the middle is the one exception, as for any file: `migrate-up` refuses to run until `migrate-down` has completed it.
 
 **Out-of-order detection:** A RunAlways file may live in any release. Once a target has received it, it is re-executed on every run without triggering the out-of-order check, even after newer releases have been migrated on that target. A RunAlways file that has never been executed on a target counts as out of order like any other new file in an older release and needs `--allow-out-of-order` for its first run on that target.
 

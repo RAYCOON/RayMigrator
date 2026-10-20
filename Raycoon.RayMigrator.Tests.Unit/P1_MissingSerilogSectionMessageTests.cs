@@ -2,6 +2,7 @@ using AwesomeAssertions;
 using Raycoon.RayMigrator.Core.Configuration.Enums;
 using Raycoon.RayMigrator.Core.Configuration.Options;
 using Raycoon.RayMigrator.Pipeline;
+using Raycoon.RayMigrator.Services.Abstractions;
 
 namespace Raycoon.RayMigrator.Tests.Unit;
 
@@ -141,9 +142,11 @@ public class MissingSerilogSectionMessageTests
                 RevealSensitiveData = false,
             };
 
+            using var cancellation = new RunCancellation();
+
             // Act
             int exitCode = await DirectModePipeline.ExecuteAsync(
-                [], sourceResult, options, "banner", "Workshop", "console parameter [-Environment]");
+                [], sourceResult, options, "banner", "Workshop", "console parameter [-Environment]", cancellation);
 
             // Assert
             exitCode.Should().Be(4, because: "a loaded configuration without a Serilog section is refused before the host is built");

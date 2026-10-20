@@ -28,8 +28,9 @@ public class MigrationState
     /// <summary>
     /// Number of leading blocks of the current file that are committed on the current target. This is what a
     /// <c>Failed</c> record stores in <c>FileUpBlocksMigrated</c>, and what the next run skips when it resumes the
-    /// file (#11). Block-by-block execution advances it after every committed block; atomic execution leaves it at
-    /// the resume offset until the transaction commits, because a rolled-back transaction leaves nothing behind.
+    /// file (#11). Block-by-block execution advances it after every committed block until a block fails, which under
+    /// MigrationErrorAction=Ignore ends the count while the file goes on; atomic execution leaves it at the resume
+    /// offset until the transaction commits, because a rolled-back transaction leaves nothing behind.
     /// </summary>
     public int FileBlocksCommitted { get; set; }
 

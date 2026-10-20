@@ -42,7 +42,7 @@ Domain model and business logic fundamentals.
 - [configuration-system.md](02-core-concepts/configuration-system.md) - Options pattern hierarchy
 - [hash-validation.md](02-core-concepts/hash-validation.md) - File/config/blocks hashing
 - [execution-modes.md](02-core-concepts/execution-modes.md) - Operating modes, migration order (FileByFile/TargetByTarget), and run modes (Validate/Simulate/Migrate)
-- [error-handling.md](02-core-concepts/error-handling.md) - Error actions and rollback
+- [error-handling.md](02-core-concepts/error-handling.md) - Error actions, rollback and cancellation
 - [error-scenarios-and-recovery.md](02-core-concepts/error-scenarios-and-recovery.md) - Error scenario matrix and recovery procedures
 - [resilience.md](02-core-concepts/resilience.md) - Retry, recovery, orphaned run detection
 - [concurrency-control.md](02-core-concepts/concurrency-control.md) - Exclusive run protection
@@ -53,7 +53,7 @@ Database implementation details with ERD diagrams.
 - [dal-architecture.md](03-database-layer/dal-architecture.md) - DAL interface design
 - [template-system.md](03-database-layer/template-system.md) - SQL template placeholders
 - [template-execution-order.md](03-database-layer/template-execution-order.md) - Template execution order on initial startup
-- [repository-schema.md](03-database-layer/repository-schema.md) - 11 repository tables
+- [repository-schema.md](03-database-layer/repository-schema.md) - 13 repository tables, schema versions and retention
 - [logging-schema.md](03-database-layer/logging-schema.md) - Logging tables
 - [sql-dialects.md](03-database-layer/sql-dialects.md) - Database-specific differences
 - [transient-error-codes.md](03-database-layer/transient-error-codes.md) - Editable `TransientErrorCodes.txt` per DAL folder
@@ -121,7 +121,7 @@ Extension guides for developers.
 Testing infrastructure and test documentation.
 
 - [test-infrastructure.md](10-testing/test-infrastructure.md) - Docker setup and container configuration
-- [engine-tests.md](10-testing/engine-tests.md) - Engine integration tests (~1,080 tests across 175 test class files, test matrix, ScenarioBuilder API)
+- [engine-tests.md](10-testing/engine-tests.md) - Engine integration tests (~1,920 tests across 267 test class files, test matrix, ScenarioBuilder API)
 - [unit-tests.md](10-testing/unit-tests.md) - Unit test structure and conventions
 - [cli-test-coverage-matrix.md](10-testing/cli-test-coverage-matrix.md) - CLI command test coverage matrix across unit and engine tests
 

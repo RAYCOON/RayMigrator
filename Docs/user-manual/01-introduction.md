@@ -30,7 +30,7 @@ RayMigrator supports five database engines from a single configuration. You can 
 
 ### Rollback Support
 
-Every migration can have a companion `.rollback.sql` file. When a migration fails, RayMigrator can automatically execute rollback scripts for all previously successful migrations in the current run — restoring databases to their pre-migration state.
+Every migration can have a companion `.rollback.sql` file. When a migration fails, RayMigrator can automatically execute rollback scripts for the failed migration and the migrations before it in the current run — restoring databases to their pre-migration state.
 
 ### Configurable Error Strategies
 

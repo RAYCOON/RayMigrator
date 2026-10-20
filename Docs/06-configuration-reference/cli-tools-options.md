@@ -35,7 +35,9 @@ CLI tools are defined at the `RayMigrator` root level in the `CliTools` array, a
 | `ArgumentTemplate` | string | Yes | - | Command-line argument template with placeholders. `{FilePath}` is replaced with the migration file path (when `InputMode` is `File`). Custom placeholders (e.g., `{Server}`, `{User}`) are resolved from `CliToolParameters` on the Target. |
 | `InputMode` | string | Yes | - | How the SQL file is passed to the CLI tool: `File` (as argument via `{FilePath}`) or `Stdin` (piped via standard input). Matching is case-insensitive: `Stdin`, `stdin` and `STDIN` are equivalent. |
 | `SuccessExitCodes` | string[] | No | `["0"]` | Exit code whitelist. Supports single values (`"0"`), closed ranges (`"1..5"`), open-ended up (`"10.."`), and open-ended down (`"..-1"`). Any exit code not matched is treated as failure. |
-| `CliToolTimeoutInSeconds` | int | No | `120` | Maximum time in seconds to wait for the CLI tool to complete. Minimum: 1. |
+| `CliToolTimeoutInSeconds` | int | No | `120` | Maximum time in seconds to wait for the CLI tool to complete, counted from its start. Minimum: 1. In `Stdin` mode it covers the write of the file to the standard input of the tool as well, so a tool that does not read its input ends at the timeout too. When it runs out, the engine kills the tool and the processes it started. |
+
+A cancelled run (Ctrl+C or SIGTERM in the CLI, a host's `RunCancellation`) kills the tool of the migration file in progress and the processes it started; the file ends `Failed` like any interrupted file and the next migrate-up runs it again. A tool that has exited when the cancel takes effect is judged by its exit code: a success keeps its result if the tool got the whole file, and the file counts as migrated. A tool that fails, or that did not get the whole file in `Stdin` mode, after the cancel counts as the cancel, not as a tool failure for `MigrationErrorAction`: on Linux and macOS Ctrl+C reaches the whole process group, so the tool gets the signal as well, and the cancel may cut off the write of the file to the standard input of the tool. A tool is not started once the run is cancelled. A rollback file that runs through a CLI tool always completes, because a rollback stopped halfway could not be continued (see [Error handling: Cancellation](../02-core-concepts/error-handling.md#cancellation)).
 
 ### SuccessExitCodes Range Notation
 
@@ -67,7 +69,7 @@ The `Alias` pattern for CLI tools is slightly different from Product/TargetGroup
 | Value | Enum Value | Description |
 |-------|------------|-------------|
 | `File` | `1` | The file path is passed as a command-line argument via the `{FilePath}` placeholder in `ArgumentTemplate`. Used by tools like `sqlcmd` (`-i`), `psql` (`-f`), `sqlite3` (`-init`). |
-| `Stdin` | `2` | The file content is piped to the process via standard input (`Process.StandardInput`) as UTF-8 without a byte-order mark, independent of the console code page. Used by tools like `mysql` and `mariadb` that read SQL from stdin. |
+| `Stdin` | `2` | The file content is piped to the process via standard input (`Process.StandardInput`) as UTF-8 without a byte-order mark, independent of the console code page. Used by tools like `mysql` and `mariadb` that read SQL from stdin. A tool that exits before it read the whole file is judged by its exit code, and a success code then fails the file as well (`CLI tool '<path>' exited with code <n> before it read all of '<file>' from its standard input.`), because the tool cannot have run it. |
 
 The `CliToolInputMode` enum also defines `Undefined = 0` as the sentinel for an unset value. `InputMode` is required: a tool without it is rejected by configuration validation (RULE_3_11), there is no default (#19).
 

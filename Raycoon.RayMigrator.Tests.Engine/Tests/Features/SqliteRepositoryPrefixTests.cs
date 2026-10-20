@@ -5,7 +5,8 @@ namespace Raycoon.RayMigrator.Tests.Engine.Tests.Features;
 
 /// <summary>
 /// Table prefixes on Sqlite: a run against a repository with a prefix succeeds, and a second repository with another
-/// prefix is created beside it in the same database, because every index and constraint name carries the prefix.
+/// prefix is created beside it in the same database, because every index and constraint name carries the prefix. A
+/// scenario with a prefix leaves no table of it behind when it ends.
 /// </summary>
 [Collection("Sqlite")]
 [Trait("Engine", "Sqlite")]
@@ -25,6 +26,21 @@ public class SqliteRepositoryPrefixTests : SqliteTestBase
 
         ctx.AssertSuccess(true);
         ctx.AssertRepositoryTableExists("MigrationRecordHistory", true);
-        RepositoryPrefixContract.VerifySecondPrefixBesideTheFirst(ctx, Fixture.EngineConfig);
+        await RepositoryPrefixContract.VerifySecondPrefixBesideTheFirstAsync(ctx, Fixture.EngineConfig);
+    }
+
+    /// <summary>
+    /// The scenario drops the repository and log tables of its prefix when it ends, also in a log database of their own
+    /// (<see cref="PrefixTableCleanupContract"/>).
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Dispose_WithPrefix_LeavesNoTableOfThePrefix(bool logInADatabaseOfItsOwn)
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+
+        await PrefixTableCleanupContract.VerifyDisposeLeavesNoTableOfThePrefixAsync(
+            CreateScenario(), Fixture.EngineConfig, logInADatabaseOfItsOwn);
     }
 }

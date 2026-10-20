@@ -1,0 +1,14 @@
+-- TODO: Implement for your database engine
+-- Purpose: Schema version 3 (ADR-024): adds the row (70, 'Cancelled', 'Migration(s) stopped on request before completion')
+--          to the MigrationRunResult lookup table, the indexes ix_{CFG:TableBaseName}MigrationRun_Product_Environment_StartedAt
+--          (ProductId, EnvironmentId, StartedAt), ix_{CFG:TableBaseName}MigrationRecordHistory_MigrationRunId (MigrationRunId),
+--          ix_{CFG:TableBaseName}MigrationRecordHistory_HistorizedAt (HistorizedAt) and
+--          ix_{CFG:TableBaseName}MigrationRecord_Product_Environment (ProductId, EnvironmentId), and version row 3.
+--          Must be idempotent.
+-- See the corresponding template in Database.SqlServer or Database.PostgreSQL for reference.
+-- Returns: 'code,message' where code equals the step number (3).
+--
+-- Parameters used in this template:
+-- {CFG:SchemaName} - The repository schema name
+-- {CFG:TableBaseName} - The table name prefix
+-- @RayMigratorVersion - The RayMigrator version applying the step

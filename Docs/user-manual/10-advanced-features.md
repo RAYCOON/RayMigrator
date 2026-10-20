@@ -180,7 +180,7 @@ Baseline follows a five-phase process, identical in structure to migrate-up but 
 
 5. **Finalization** — The MigrationRun record is updated to `Ok` and a summary is logged.
 
-If any error occurs during these phases, the MigrationRun is marked as `Error` and the error is logged.
+If any error occurs during these phases, the MigrationRun is marked as `Error` and the error is logged. A Ctrl+C stops the baseline before the next file: the records written so far stay `Migrated`, the run is `Cancelled` and the exit code is `130`.
 
 ### Key Properties
 
@@ -222,7 +222,7 @@ raymigrator baseline -p BookStore -env Production -tr "Release 1.2"
 raymigrator info -p BookStore -env Production
 ```
 
-This shows the current release as `Release 1.2`, the total migrations executed as the count of Releases 1.0–1.2 files, and Release 2.0 files counted as pending migrations.
+This shows the current release as `Release 1.2`, the total migrations executed as the count of Releases 1.0–1.2 files, and the Release 2.0 files as pending migrations, each listed with the reason `NotMigrated`.
 
 **Step 4** — Apply the new release:
 
@@ -479,9 +479,9 @@ The execution order can also be set at a more permanent level:
 **Precedence (highest to lowest):** CLI `--target-group-migration-order` > release-level migsettings > `appsettings.json` product property > configuration array order.
 
 **Rules:**
-- All TargetGroup aliases for the product must be listed exactly once.
-- Only applicable when the product has more than one target group.
-- Applies to `migrate-up` and `baseline` commands only.
+- All TargetGroup aliases for the product must be listed exactly once, with their exact spelling.
+- Only applicable when the product has more than one target group. With one target group, an order that names exactly its alias is ignored (the command warns about an order of `--target-group-migration-order` or of a release-level migsettings file, the validation at startup about the product setting); any other order is an error.
+- Applies to the `migrate-up` and `baseline` commands; `info` lists the pending migrations in this order.
 
 ### When to Use
 
@@ -540,7 +540,7 @@ You can also set `RunAlways = true` at the directory level using a `migsettings.
 RunAlways = true
 ```
 
-> **Warning:** RunAlways files are re-executed on every migration run. Ensure they are idempotent -- they must produce the same result regardless of how many times they run.
+> **Warning:** RunAlways files are re-executed on every migration run. Ensure they are idempotent -- they must produce the same result regardless of how many times they run. A RunAlways file always runs in full from its first block, also after a run that failed or was cancelled in the middle of it, so the blocks that committed in that run run again.
 
 ---
 
@@ -661,7 +661,9 @@ RayMigrator logs migration events to a database table for centralized log storag
 
 Database logging uses an asynchronous background queue (`DatabaseLoggerQueue`) to avoid blocking migration execution. Each log entry captures the current migration context: environment, release version, target group, target alias, filename, block ID, and more.
 
-On first use, RayMigrator automatically creates the logging schema and tables (`MigrationEvent` and `MigrationLog`) if they do not exist.
+On first use, RayMigrator automatically creates the logging schema and tables (`MigrationEvent` and `MigrationLog`) if they do not exist, together with two indexes on `MigrationLog`, one on `MigrationRunId` and one on `CreatedAt`, which the log queries below and a cleanup by age need. A log table that an older RayMigrator version created gets the indexes on the first start after the update. That start needs the right to create indexes on the log table once, and it builds them on the rows already there within `DbCommandTimeoutInSeconds`, which a large log may need raised for that one start.
+
+No RayMigrator command deletes log rows. The log and the run history in the repository (`MigrationRecordHistory`) grow with every run; a host such as RayMigrator Studio removes old rows through the engine's maintenance service, and the CLI has no command for it. See [Retention](../03-database-layer/repository-schema.md#retention).
 
 ### Same Database vs Separate Database
 
@@ -683,11 +685,13 @@ You can log to the same database as the repository (using a different schema) or
 }
 ```
 
+> **Note:** A host that removes old log rows through the maintenance service cleans the log only in its default place, the repository database under the schema and table prefix of the repository. A log in another schema, as above, or in another database keeps its rows.
+
 ### Querying Logs
 
 ```sql
 -- Recent errors
-SELECT CreatedAt, Environment, Filename, Message
+SELECT CreatedAt, EnvironmentId, Filename, Message
 FROM logs.MigrationLog
 WHERE LogLevelId >= 4
 ORDER BY CreatedAt DESC;
@@ -753,7 +757,7 @@ The exact code lists ship as `DataAccessLayers/{DatabaseType}/TransientErrorCode
 
 ### Block-Level Recovery
 
-If a migration file with multiple SQL blocks fails partway through, RayMigrator records which blocks were completed. On re-run, it automatically resumes from the last failed block rather than re-executing the entire file.
+If a migration file with multiple SQL blocks fails partway through, RayMigrator records which blocks were completed. On re-run, it automatically resumes from the last failed block rather than re-executing the entire file. A [RunAlways](#runalways-migrations) file is the exception: it runs in full on every run.
 
 > **Tip:** Target databases default to 0 retries (disabled) to avoid masking persistent errors in migration files. Repository operations default to 100 retries because repository availability is critical for state tracking.
 
@@ -768,10 +772,10 @@ The `fix` command resolves repository inconsistencies such as orphaned migration
 ### Basic Usage
 
 ```bash
-# Fix orphaned runs older than 60 minutes (default)
+# Fix orphaned runs whose last heartbeat is older than 2 minutes (default)
 raymigrator fix -p BookStore -env Production
 
-# Fix all orphaned runs immediately (no age threshold)
+# Fix all open runs immediately (no age threshold)
 raymigrator fix -p BookStore -env Production --older-than 0
 
 # Preview what would be fixed without applying changes
@@ -783,15 +787,15 @@ raymigrator fix -p BookStore -env Production --run-mode simulate
 | Option | Short | Default | Description |
 |--------|-------|---------|-------------|
 | `--scope` | `-s` | `OrphanedRuns` | Fix scope: `OrphanedRuns` or `All` |
-| `--older-than` | `-ot` | `60` | Only fix runs older than N minutes (0 = immediate) |
+| `--older-than` | `-ot` | `2` | Only fix runs whose last heartbeat (or start) is older than N minutes (0 = immediate) |
 | `--run-mode` | `-rm` | `migrate` | `simulate` shows what would be fixed without applying |
-| `--last-migration-status` | `-lms` | `not-migrated` | Status for orphaned migrations: `not-migrated` (re-execute next time) or `migrated` (skip next time) |
+| `--last-migration-status` | `-lms` | — | Status for the open records of an orphaned run: `not-migrated` (run again from block 1) or `migrated` (skip next time); without it each record keeps its progress |
 
 ### When to Use
 
 - **Process crash**: The migration process was killed or crashed, leaving a run in "Running" status
 - **Stuck migrations**: A migration run appears hung and the process is no longer running
-- **CI/CD recovery**: A pipeline step was cancelled mid-migration
+- **CI/CD recovery**: A pipeline step was killed mid-migration. A cancel that sends SIGTERM (Linux and macOS) and waits lets RayMigrator stop cleanly and record the run as `Cancelled`; only a kill, for example after the grace period of the runner, leaves the run in "Running" status
 
 > **Tip:** Always use `--run-mode simulate` first to review what will be changed before applying the fix.
 

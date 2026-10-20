@@ -105,7 +105,7 @@ All four files are searched in the directory specified by `--config-dir` (or the
 - **Cross-database support**: Track migrations across different database types
 - **Centralized tracking**: Single source of truth for all products
 - **Isolation**: Repository failures don't affect target databases
-- **Audit compliance**: Dedicated logging and history tables
+- **Audit compliance**: Dedicated logging and history tables; a host that applies a retention policy deletes their old rows through the engine, which decides nothing on them ([ADR-027](../arc42/09-Architecture-Decisions.md#adr-027-the-engine-deletes-log-and-history-rows-on-a-hosts-request-and-never-reads-them-for-a-decision))
 
 ## Block-Level Execution
 
@@ -115,6 +115,7 @@ All four files are searched in the directory specified by `--config-dir` (or the
 - **Partial recovery**: Resume from failed block, not entire file
 - **Large migrations**: Track progress within large migration files
 - **Hash validation**: Validate at file, config, or block level
+- **Clean stop**: A cancelled run stops at the next block boundary; with the default action `Terminate` the committed blocks stay and the next migrate-up resumes the file (under `MigrationErrorAction = Ignore` at its first failed block) ([ADR-028](../arc42/09-Architecture-Decisions.md#adr-028-a-run-cancels-at-the-next-block-boundary-with-a-migrationcancelledaction-and-records-cancelled))
 
 ## TOML for Migration Metadata
 
@@ -170,7 +171,7 @@ Configured per TargetGroup via `TargetMigrationOrder` option (default inherited 
 
 The order in which target groups are processed within a release is controlled by `TargetGroupMigrationOrder`. The resolution chain (highest priority first) is: CLI argument (`--target-group-migration-order`) > migsettings entry > `ProductOptions.TargetGroupMigrationOrder` (comma-separated) > configuration array order.
 
-When specified, all target group aliases must be listed exactly once. Applies to `MigrateUp` and `baseline` commands only.
+When specified, all target group aliases must be listed exactly once, with their exact spelling. Applies to `MigrateUp` and `baseline` commands only. On a product with one target group an order that names exactly its alias has nothing to sort and is ignored with a warning instead of failing the run; any other order is still refused. The configuration validation compares the aliases of the product setting the same way (RULE_1_10 to RULE_1_13), so that a configuration that `migrate-up` refuses stops at startup; it does not see the migsettings and CLI orders, which the commands check when they apply them.
 
 ## Error Handling Strategies
 

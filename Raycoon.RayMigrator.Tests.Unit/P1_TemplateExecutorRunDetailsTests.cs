@@ -20,12 +20,12 @@ namespace Raycoon.RayMigrator.Tests.Unit;
 public class TemplateExecutorRunDetailsTests
 {
     [Fact]
-    public void RepositoryMigrationRunInsert_BindsOperationSourceInitiatorAndHost()
+    public async Task RepositoryMigrationRunInsert_BindsOperationSourceInitiatorAndHost()
     {
         var (executor, calls) = CreateExecutor(MigrationRunSource.Studio, "Daniel", "oidc:123", "studio-host",
             ctx => ctx.MigrationState.MigrationOperation = MigrationOperation.Baseline);
 
-        executor.RepositoryMigrationRunInsert("{}");
+        await executor.RepositoryMigrationRunInsertAsync("{}", cancellationToken: TestContext.Current.CancellationToken);
 
         var parameters = calls.Single()!;
         Value(parameters, "MigrationOperationId").Should().Be((byte)MigrationOperation.Baseline);
@@ -36,11 +36,11 @@ public class TemplateExecutorRunDetailsTests
     }
 
     [Fact]
-    public void RepositoryMigrationRunInsert_WithoutInitiator_BindsNullsAndTheMachineName()
+    public async Task RepositoryMigrationRunInsert_WithoutInitiator_BindsNullsAndTheMachineName()
     {
         var (executor, calls) = CreateExecutor(configureContext: ctx => ctx.MigrationState.MigrationOperation = MigrationOperation.MigrateUp);
 
-        executor.RepositoryMigrationRunInsert("{}");
+        await executor.RepositoryMigrationRunInsertAsync("{}", cancellationToken: TestContext.Current.CancellationToken);
 
         var parameters = calls.Single()!;
         Value(parameters, "MigrationOperationId").Should().Be((byte)MigrationOperation.MigrateUp);
@@ -52,21 +52,21 @@ public class TemplateExecutorRunDetailsTests
     }
 
     [Fact]
-    public void RepositoryMigrationRunInsert_UndefinedSource_BindsNull()
+    public async Task RepositoryMigrationRunInsert_UndefinedSource_BindsNull()
     {
         var (executor, calls) = CreateExecutor(MigrationRunSource.Undefined);
 
-        executor.RepositoryMigrationRunInsert("{}");
+        await executor.RepositoryMigrationRunInsertAsync("{}", cancellationToken: TestContext.Current.CancellationToken);
 
         Value(calls.Single()!, "MigrationRunSourceId").Should().BeNull();
     }
 
     [Fact]
-    public void RepositoryMigrationRunUpdate_WithError_BindsCodeAndMessage()
+    public async Task RepositoryMigrationRunUpdate_WithError_BindsCodeAndMessage()
     {
         var (executor, calls) = CreateExecutor(configureContext: ctx => ctx.MigrationState.MigrationRunId = 5);
 
-        executor.RepositoryMigrationRunUpdate(MigrationRunResult.Error, "-2", "it's broken");
+        await executor.RepositoryMigrationRunUpdateAsync(MigrationRunResult.Error, "-2", "it's broken", cancellationToken: TestContext.Current.CancellationToken);
 
         var parameters = calls.Single()!;
         Value(parameters, "MigrationRunResultId").Should().Be((byte)MigrationRunResult.Error);
@@ -75,11 +75,11 @@ public class TemplateExecutorRunDetailsTests
     }
 
     [Fact]
-    public void RepositoryMigrationRunUpdate_Ok_BindsNullErrorDetails()
+    public async Task RepositoryMigrationRunUpdate_Ok_BindsNullErrorDetails()
     {
         var (executor, calls) = CreateExecutor(configureContext: ctx => ctx.MigrationState.MigrationRunId = 5);
 
-        executor.RepositoryMigrationRunUpdate(MigrationRunResult.Ok);
+        await executor.RepositoryMigrationRunUpdateAsync(MigrationRunResult.Ok, cancellationToken: TestContext.Current.CancellationToken);
 
         var parameters = calls.Single()!;
         Value(parameters, "ErrorCode").Should().BeNull();
@@ -88,43 +88,43 @@ public class TemplateExecutorRunDetailsTests
     }
 
     [Fact]
-    public void RepositoryMigrationRunUpdate_LongMessage_IsCutToTheColumnLength()
+    public async Task RepositoryMigrationRunUpdate_LongMessage_IsCutToTheColumnLength()
     {
         var (executor, calls) = CreateExecutor(configureContext: ctx => ctx.MigrationState.MigrationRunId = 5);
         var message = new string('x', TemplateExecutor.MaxErrorMessageLength + 100);
 
-        executor.RepositoryMigrationRunUpdate(MigrationRunResult.Error, null, message);
+        await executor.RepositoryMigrationRunUpdateAsync(MigrationRunResult.Error, null, message, cancellationToken: TestContext.Current.CancellationToken);
 
         ((string)Value(calls.Single()!, "ErrorMessage")!).Length.Should().Be(TemplateExecutor.MaxErrorMessageLength);
     }
 
     [Fact]
-    public void RepositoryMigrationRunHeartbeat_BindsTheRunId_AndReportsAnOpenRow()
+    public async Task RepositoryMigrationRunHeartbeat_BindsTheRunId_AndReportsAnOpenRow()
     {
         var (executor, calls) = CreateExecutor(configureContext: ctx => ctx.MigrationState.MigrationRunId = 5);
 
-        bool open = executor.RepositoryMigrationRunHeartbeat();
+        bool open = await executor.RepositoryMigrationRunHeartbeatAsync(cancellationToken: TestContext.Current.CancellationToken);
 
         open.Should().BeTrue("the mocked template answers 1");
         Value(calls.Single()!, "MigrationRunId").Should().Be(5);
     }
 
     [Fact]
-    public void RepositoryMigrationRunHeartbeat_WithoutRun_Throws()
+    public async Task RepositoryMigrationRunHeartbeat_WithoutRun_Throws()
     {
         var (executor, _) = CreateExecutor();
 
-        var act = () => executor.RepositoryMigrationRunHeartbeat();
+        var act = () => executor.RepositoryMigrationRunHeartbeatAsync();
 
-        act.Should().Throw<Raycoon.RayMigrator.Shared.Exceptions.RayMigratorInternalException>();
+        await act.Should().ThrowAsync<Raycoon.RayMigrator.Shared.Exceptions.RayMigratorInternalException>();
     }
 
     [Fact]
-    public void RepositoryMigrationRunFixOrphaned_BindsTheRunIdAndTheThreshold()
+    public async Task RepositoryMigrationRunFixOrphaned_BindsTheRunIdAndTheThreshold()
     {
         var (executor, calls) = CreateExecutor();
 
-        executor.RepositoryMigrationRunFixOrphaned(9, 2);
+        await executor.RepositoryMigrationRunFixOrphanedAsync(9, 2, cancellationToken: TestContext.Current.CancellationToken);
 
         var parameters = calls.Single()!;
         Value(parameters, "MigrationRunId").Should().Be(9);
@@ -158,7 +158,7 @@ public class TemplateExecutorRunDetailsTests
         var calls = new List<DalParameterList?>();
         var dal = Substitute.For<IDal>();
         dal.DatabaseType.Returns("SqlServer");
-        dal.ExecuteScalarAsync(Arg.Any<string>(), Arg.Any<IDalSettings>(), Arg.Any<DalParameterList?>())
+        dal.ExecuteScalarAsync(Arg.Any<string>(), Arg.Any<IDalSettings>(), Arg.Any<DalParameterList?>(), Arg.Any<CancellationToken>())
            .Returns(callInfo =>
            {
                calls.Add(callInfo.ArgAt<DalParameterList?>(2));

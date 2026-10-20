@@ -67,8 +67,9 @@ public class SqlServerErrorTests : SqlServerTestBase
     /// <summary>
     /// #40 Phase 1: MigrateUp all (RequireRollbackFile=false). Between phases: delete R2/F1 rollback,
     /// update config to RequireRollbackFile=true. Phase 2: MigrateDown to Release_1.0.
-    /// Chain aborted at R2/F1 (missing and required). R2/F2-R4 already rolled back before R2/F1.
-    /// R1=Migrated, R2/F1=Failed, R2/F2+F3-R4=NotMigrated.
+    /// Chain aborted at R2/F1 (missing and required), which keeps its status: nothing of its rollback ran.
+    /// R2/F2-R4 already rolled back before R2/F1. R1=Migrated, R2/F1=Migrated, R2/F2+F3-R4=NotMigrated.
+    /// Phase 3: the rollback file is back, and MigrateDown to Release_1.0 rolls R2/F1 back.
     /// </summary>
     [Fact]
     public async Task MissingRollback_RequireTrue_ChainAborted()
@@ -86,6 +87,7 @@ public class SqlServerErrorTests : SqlServerTestBase
 
         // Between phases: delete R2/F1 rollback file
         string rollbackPath = Path.Combine(ctx.WorkDirectory, "Release_2.0", "Backend", "01_CreateTableC.rollback.sql");
+        string rollbackContent = File.ReadAllText(rollbackPath);
         File.Delete(rollbackPath);
 
         // Between phases: update config to RequireRollbackFile=true
@@ -96,7 +98,7 @@ public class SqlServerErrorTests : SqlServerTestBase
 
         // Phase 2: Migrate down to Release_1.0
         await ctx.RebuildForAsync(MigrationCommand.MigrateDown, MigrationRunMode.Migrate, "Release_1.0");
-        await ctx.MigrateDownAsync("Release_1.0");
+        var down = await ctx.MigrateDownAsync("Release_1.0");
         ctx.AssertSuccess(false);
         ctx.AssertRunCount(2);
 
@@ -109,8 +111,8 @@ public class SqlServerErrorTests : SqlServerTestBase
             ("01_CreateTableA.sql", MigrationStatus.Migrated),
             ("02_CreateTableB.sql", MigrationStatus.Migrated),
             ("03_SeedDataA.sql", MigrationStatus.Migrated),
-            // R2/F1: Failed (chain aborted due to missing required rollback)
-            ("01_CreateTableC.sql", MigrationStatus.Failed),
+            // R2/F1: Migrated (chain aborted at the missing required rollback, the record keeps its status)
+            ("01_CreateTableC.sql", MigrationStatus.Migrated),
             // R2/F2+F3: NotMigrated (rolled back before abort)
             ("02_CreateTableD.sql", MigrationStatus.NotMigrated),
             ("03_SeedDataB.sql", MigrationStatus.NotMigrated),
@@ -122,6 +124,14 @@ public class SqlServerErrorTests : SqlServerTestBase
             ("02_CreateTableH.sql", MigrationStatus.NotMigrated),
             ("03_SeedDataD.sql", MigrationStatus.NotMigrated)
         );
+        down.ErrorMessage.Should().Contain("01_CreateTableC.rollback.sql", because: "the message names the missing rollback file");
+
+        // Phase 3: the rollback file is back, and the next MigrateDown rolls R2/F1 back
+        File.WriteAllText(rollbackPath, rollbackContent);
+        await ctx.RebuildForAsync(MigrationCommand.MigrateDown, MigrationRunMode.Migrate, "Release_1.0");
+        await ctx.MigrateDownAsync("Release_1.0");
+        ctx.AssertSuccess(true);
+        ctx.AssertFileStatus("01_CreateTableC.sql", MigrationStatus.NotMigrated);
     }
 
     /// <summary>

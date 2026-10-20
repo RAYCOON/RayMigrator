@@ -87,10 +87,11 @@ These settings exist only as command-line arguments and control execution behavi
 | `--stop-rollback-on-missing-rollback-file` | `-sromrf` | bool? | `null` (uses config) | migrate-up | Override `StopRollbackOnMissingRollbackFile` for this run. Only applies to error-recovery rollback when `RequireRollbackFile=false`. |
 | `--target-group` | `-tg` | string[] | `null` | migrate-up, migrate-down, validate-hash, update-hash, baseline | Filter execution to specific target groups |
 | `--target-group-migration-order` | `-tgmo` | string | `null` | migrate-up, baseline | Comma-separated TargetGroup aliases defining execution order (e.g. `"Frontend,Backend"`). Overrides product config and migsettings. |
+| `--cancelled-action` | `-ca` | string | `terminate` | migrate-up, migrate-down, baseline | What a run does when the first Ctrl+C or SIGTERM cancels it: `terminate`, `rollback-file`, `rollback-run` or `rollback-release`. Migrate-down and baseline accept it and ignore it. See [Error handling: Cancellation](../02-core-concepts/error-handling.md#cancellation). |
 | `--scope` | `-s` | string | *(none)* | validate-hash | Hash scope override: `File`, `SqlBlocks` or `Disabled`. If omitted, uses per-TargetGroup config. |
 | `--scope` | `-s` | string | `OrphanedRuns` | Fix | Fix scope: `OrphanedRuns` or `All` |
 | `--older-than` | `-ot` | int | `2` | Fix | Only fix runs whose last heartbeat (or start) is older than N minutes (0 = immediate) |
-| `--last-migration-status` | `-lms` | string | `not-migrated` | Fix | Status for orphaned migrations: `migrated` or `not-migrated` |
+| `--last-migration-status` | `-lms` | string | — | Fix | Status for the open records of an orphaned run: `migrated` or `not-migrated`; without it each record keeps its progress |
 | `--startup-info` | `-si` | bool | `true` | Global | Show startup information |
 | `--reveal-sensitive-data` | `-rsd` | bool | `false` | Global | Include passwords in logs |
 | `--config-dir` | `-cd` | string | `null` (cwd) | Global | Override directory where RayMigrator searches for configuration files (`appsettings.json` hierarchy). Supports `{ENV:VAR_NAME}` syntax. |
@@ -326,6 +327,8 @@ Hardcoded default (false)
             ← TargetGroup/migsettings.{Env}.txt
               ← Migration file TOML
 ```
+
+When `true`, the file runs on every migrate-up, always in full from its first block: the blocks that an earlier attempt committed before it failed or was cancelled run again. See [TOML Metadata: Run Always](../07-migration-files/toml-metadata.md#run-always).
 
 ### Environments
 
@@ -589,7 +592,7 @@ Environments = ["Docker", "Development"]
 
 9. **TargetMigrationOrder**: See [Execution Modes](../02-core-concepts/execution-modes.md#target-migration-order) for values and behavior.
 
-10. **TargetGroupMigrationOrder**: Only applies to products with more than one target group, and only to `migrate-up` and `baseline` commands. The CLI option (`--target-group-migration-order` / `-tgmo`) applies to all releases in the run. The migsettings override applies per release. All target group aliases must be listed exactly once. See [Product Options — TargetGroupMigrationOrder](product-options.md#targetgroupmigrationorder).
+10. **TargetGroupMigrationOrder**: Only meaningful for products with more than one target group; it orders `migrate-up` and `baseline`, and `info` lists the pending migrations in it. The CLI option (`--target-group-migration-order` / `-tgmo`) applies to all releases in the run. The migsettings override applies per release. All target group aliases must be listed exactly once, with their exact spelling. On a product with one target group, an order from any of the three sources that names exactly its alias is ignored, with a warning of the command for the CLI and migsettings orders and RULE_1_13 at startup for the product value; any other order is an error. The startup validation (RULE_1_10 to RULE_1_13) checks the product value only; the commands check the migsettings and CLI values with the same rules. See [Product Options — TargetGroupMigrationOrder](product-options.md#targetgroupmigrationorder).
 
 ---
 

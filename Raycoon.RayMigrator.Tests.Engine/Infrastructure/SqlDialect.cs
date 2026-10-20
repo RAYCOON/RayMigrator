@@ -74,6 +74,39 @@ public static class SqlDialect
     }
 
     /// <summary>
+    /// Returns a DROP of a table that <see cref="GetCreateSimpleTableSql"/> creates, which does nothing when the table
+    /// does not exist.
+    /// </summary>
+    public static string GetDropSimpleTableIfExistsSql(string databaseType, string tableName)
+    {
+        return databaseType switch
+        {
+            "SqlServer" => $"IF OBJECT_ID('[dbo].[{tableName}]', 'U') IS NOT NULL DROP TABLE [dbo].[{tableName}];",
+            "PostgreSQL" => $"DROP TABLE IF EXISTS public.{tableName.ToLower()} CASCADE;",
+            "MariaDb" or "MySql" => $"DROP TABLE IF EXISTS `{tableName.ToLower()}`;",
+            "Sqlite" => $"DROP TABLE IF EXISTS {tableName.ToLower()};",
+            _ => throw new NotSupportedException($"Unsupported database type: {databaseType}")
+        };
+    }
+
+    /// <summary>
+    /// Returns an INSERT of one row into a table that <see cref="GetCreateSimpleTableSql"/> creates. As a block of a
+    /// migration file it fails while the table does not exist and succeeds once a test created it, so the file keeps its
+    /// hash between two runs.
+    /// </summary>
+    public static string GetInsertIntoSimpleTableSql(string databaseType, string tableName, string name)
+    {
+        return databaseType switch
+        {
+            "SqlServer" => $"INSERT INTO [dbo].[{tableName}] ([Name]) VALUES ('{name}')",
+            "PostgreSQL" => $"INSERT INTO public.{tableName.ToLower()} (name) VALUES ('{name}')",
+            "MariaDb" or "MySql" => $"INSERT INTO `{tableName.ToLower()}` (Name) VALUES ('{name}')",
+            "Sqlite" => $"INSERT INTO {tableName.ToLower()} (Name) VALUES ('{name}')",
+            _ => throw new NotSupportedException($"Unsupported database type: {databaseType}")
+        };
+    }
+
+    /// <summary>
     /// Generates a TOML metadata header block for migration files.
     /// Only emits non-default fields. Returns empty string if all values are defaults and description is empty.
     /// </summary>
@@ -96,6 +129,57 @@ public static class SqlDialect
             sb.AppendLine("RunAlways = true");
         sb.AppendLine("*/");
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Joins SQL statements into the body of a migration file whose every statement is a block of its own: the engine
+    /// splits a file at a line holding only its block delimiter, GO on SQL Server and a semicolon elsewhere.
+    /// </summary>
+    public static string JoinBlocks(string databaseType, params string[] blocks)
+        => string.Join(databaseType == "SqlServer" ? "\nGO\n" : "\n;\n", blocks);
+
+    /// <summary>Returns an INSERT of one row into the TableA of the fixtures (created by 01_CreateTableA.sql).</summary>
+    public static string GetInsertIntoTableASql(string databaseType, string name, int value)
+    {
+        return databaseType switch
+        {
+            "SqlServer" => $"INSERT INTO [dbo].[TableA] ([Name], [Value]) VALUES ('{name}', {value})",
+            "PostgreSQL" or "MariaDb" or "MySql" or "Sqlite" => $"INSERT INTO tablea (name, value) VALUES ('{name}', {value})",
+            _ => throw new NotSupportedException($"Unsupported database type: {databaseType}")
+        };
+    }
+
+    /// <summary>Returns a DELETE of one row from the TableA of the fixtures (created by 01_CreateTableA.sql).</summary>
+    public static string GetDeleteFromTableASql(string databaseType, string name)
+    {
+        return databaseType switch
+        {
+            "SqlServer" => $"DELETE FROM [dbo].[TableA] WHERE [Name] = '{name}'",
+            "PostgreSQL" or "MariaDb" or "MySql" or "Sqlite" => $"DELETE FROM tablea WHERE name = '{name}'",
+            _ => throw new NotSupportedException($"Unsupported database type: {databaseType}")
+        };
+    }
+
+    /// <summary>Returns an INSERT of one row into the TableD of the fixtures (created by Release_2.0/02_CreateTableD.sql).</summary>
+    public static string GetInsertIntoTableDSql(string databaseType, string code)
+    {
+        return databaseType switch
+        {
+            "SqlServer" => $"INSERT INTO [dbo].[TableD] ([Code]) VALUES ('{code}')",
+            "PostgreSQL" or "MariaDb" or "MySql" or "Sqlite" => $"INSERT INTO tabled (code) VALUES ('{code}')",
+            _ => throw new NotSupportedException($"Unsupported database type: {databaseType}")
+        };
+    }
+
+    /// <summary>Returns a DELETE of one row from the TableC of the fixtures (created by Release_2.0/01_CreateTableC.sql).</summary>
+    public static string GetDeleteFromTableCSql(string databaseType, string title)
+    {
+        return databaseType switch
+        {
+            "SqlServer" => $"DELETE FROM [dbo].[TableC] WHERE [Title] = '{title}'",
+            "PostgreSQL" or "MariaDb" or "MySql" or "Sqlite" => $"DELETE FROM tablec WHERE title = '{title}'",
+            _ => throw new NotSupportedException($"Unsupported database type: {databaseType}")
+        };
     }
 
     /// <summary>

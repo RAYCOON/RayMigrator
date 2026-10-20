@@ -19,7 +19,7 @@ public class RetryHelperTests
 
         var result = await RetryHelper.ExecuteWithRetryAsync(
             () => { callCount++; return Task.FromResult(42); },
-            maxRetries: 3, retryDelayMs: 10, isTransientPredicate: TransientPredicate);
+            maxRetries: 3, retryDelayMs: 10, isTransientPredicate: TransientPredicate, cancellationToken: TestContext.Current.CancellationToken);
 
         result.Should().Be(42);
         callCount.Should().Be(1);
@@ -32,7 +32,7 @@ public class RetryHelperTests
 
         await RetryHelper.ExecuteWithRetryAsync(
             () => { callCount++; return Task.CompletedTask; },
-            maxRetries: 3, retryDelayMs: 10, isTransientPredicate: TransientPredicate);
+            maxRetries: 3, retryDelayMs: 10, isTransientPredicate: TransientPredicate, cancellationToken: TestContext.Current.CancellationToken);
 
         callCount.Should().Be(1);
     }
@@ -63,7 +63,7 @@ public class RetryHelperTests
                     throw new TimeoutException("Simulated timeout");
                 return Task.FromResult(42);
             },
-            maxRetries: 3, retryDelayMs: 10, isTransientPredicate: TransientPredicate);
+            maxRetries: 3, retryDelayMs: 10, isTransientPredicate: TransientPredicate, cancellationToken: TestContext.Current.CancellationToken);
 
         result.Should().Be(42);
         callCount.Should().Be(2);
@@ -82,7 +82,7 @@ public class RetryHelperTests
                     throw new TimeoutException("Simulated timeout");
                 return Task.CompletedTask;
             },
-            maxRetries: 3, retryDelayMs: 10, isTransientPredicate: TransientPredicate);
+            maxRetries: 3, retryDelayMs: 10, isTransientPredicate: TransientPredicate, cancellationToken: TestContext.Current.CancellationToken);
 
         callCount.Should().Be(2);
     }
@@ -180,10 +180,77 @@ public class RetryHelperTests
             onRetry: (attempt, maxAttempts, errorCode, desc, delay) =>
             {
                 retryAttempts.Add(attempt);
-            });
+            }, cancellationToken: TestContext.Current.CancellationToken);
 
         retryAttempts.Should().HaveCount(2);
         retryAttempts.Should().ContainInOrder(1, 2);
+    }
+
+    [Fact(Timeout = 30_000)]
+    public async Task RetryHelper_CancelledWhileWaitingToRetry_StopsWaitingAndDoesNotRetry()
+    {
+        // Arrange
+        using var cts = new CancellationTokenSource();
+        var callCount = 0;
+
+        // Act
+        var act = () => RetryHelper.ExecuteWithRetryAsync(
+            () => { callCount++; return ThrowAndReturn<int>(new TimeoutException("Simulated timeout")); },
+            maxRetries: 3, retryDelayMs: 60_000, isTransientPredicate: TransientPredicate,
+            onRetry: (_, _, _, _, _) => cts.Cancel(),
+            cancellationToken: cts.Token);
+
+        // Assert
+        var thrown = await act.Should().ThrowAsync<OperationCanceledException>(
+            because: "the cancellation ends the minute-long wait before the second attempt");
+        thrown.Which.CancellationToken.Should().Be(cts.Token);
+        callCount.Should().Be(1, because: "no attempt starts after the cancellation");
+    }
+
+    [Fact(Timeout = 30_000)]
+    public async Task RetryHelper_AsyncVoid_CancelledWhileWaitingToRetry_StopsWaitingAndDoesNotRetry()
+    {
+        // Arrange
+        using var cts = new CancellationTokenSource();
+        var callCount = 0;
+
+        // Act
+        var act = () => RetryHelper.ExecuteWithRetryAsync(
+            () => { callCount++; return Task.FromException(new TimeoutException("Simulated timeout")); },
+            maxRetries: 3, retryDelayMs: 60_000, isTransientPredicate: TransientPredicate,
+            onRetry: (_, _, _, _, _) => cts.Cancel(),
+            cancellationToken: cts.Token);
+
+        // Assert
+        await act.Should().ThrowAsync<OperationCanceledException>(because: "the void overload passes the token on");
+        callCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task RetryHelper_TransientFailureAfterCancellation_IsNotClassifiedOrRetried()
+    {
+        // Arrange
+        using var cts = new CancellationTokenSource();
+        var callCount = 0;
+        var classified = 0;
+
+        // Act
+        var act = () => RetryHelper.ExecuteWithRetryAsync(
+            () =>
+            {
+                callCount++;
+                cts.Cancel();
+                return ThrowAndReturn<int>(new TimeoutException("Simulated timeout"));
+            },
+            maxRetries: 3, retryDelayMs: 1,
+            isTransientPredicate: ex => { classified++; return TransientPredicate(ex); },
+            cancellationToken: cts.Token);
+
+        // Assert
+        await act.Should().ThrowExactlyAsync<TimeoutException>(
+            because: "the helper passes the failure on as it is; the DAL makes it a cancellation");
+        callCount.Should().Be(1, because: "a failure after the cancellation is not retried");
+        classified.Should().Be(0, because: "a failure after the cancellation is not classified as transient at all");
     }
 
     /// <summary>

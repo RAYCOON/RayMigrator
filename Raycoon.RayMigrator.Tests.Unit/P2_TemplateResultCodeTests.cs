@@ -123,6 +123,17 @@ public class TemplateResultCodeTests
         TemplateResultCode.IsKnown(code).Should().Be(expected);
     }
 
+    [Fact]
+    public void OrphanedRunClosed_IsThePositiveEngineCodeAfterTheCancelCodes()
+    {
+        // Act
+        int code = TemplateResultCode.OrphanedRunClosed;
+
+        // Assert
+        code.Should().Be(1006, "the engine codes are positive and follow CancelledRollbackIncomplete (1005)");
+        TemplateResultCode.IsKnown(code).Should().BeFalse("the catalog of known codes lists the negative template codes only");
+    }
+
     #endregion IsKnown
 
     #region ExtractErrorCode via MigrationFileParsingException

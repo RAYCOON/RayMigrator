@@ -93,10 +93,58 @@ public class MySqlDatabaseLogTests : MySqlTestBase
             "template execution events (MigrationEvent.TemplateExecution*) are logged with an EventId that must be persisted");
 
         // A second command against the same log database runs the "already exists" branch of
-        // DatabaseLogging_CheckCreate on this engine (no catalogue seed, no upgrade: the catalogue is
-        // written only when the log tables are created).
+        // DatabaseLogging_CheckCreate on this engine: no catalogue seed, because the catalogue is written
+        // only when the log tables are created, and no index, because both exist already.
         await ctx.RebuildForAsync(MigrationCommand.MigrateUp, MigrationRunMode.Migrate);
         await ctx.MigrateUpAsync();
         ctx.AssertSuccess(true);
+    }
+
+    /// <summary>
+    /// D6: A fresh log table carries the indexes on MigrationRunId and CreatedAt, and the next initialization keeps
+    /// them (<see cref="DatabaseLogIndexContract"/>).
+    /// </summary>
+    [Fact]
+    public async Task LogIndexes_FreshLogTable_ExistOnMigrationRunIdAndCreatedAt()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+
+        await DatabaseLogIndexContract.VerifyFreshLogTableCarriesTheIndexesAsync(CreateScenario());
+    }
+
+    /// <summary>
+    /// D7: A log table that an older engine created without the indexes gets them at the next initialization, which
+    /// reports that the log existed and keeps its rows.
+    /// </summary>
+    [Fact]
+    public async Task LogIndexes_LogTableOfAnOlderEngine_AreAddedAtTheNextInitialization()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+
+        await DatabaseLogIndexContract.VerifyLogTableOfAnOlderEngineGetsTheIndexesAsync(CreateScenario());
+    }
+
+    /// <summary>
+    /// D8: With the longest table prefix RULE_4_4 allows, both index names carry the prefix in full.
+    /// </summary>
+    [Fact]
+    public async Task LogIndexes_LongestTablePrefix_CarryThePrefixInFull()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+
+        await DatabaseLogIndexContract.VerifyFreshLogTableCarriesTheIndexesAsync(
+            CreateScenario().WithTableBaseName(DatabaseLogIndexContract.LongestPrefix));
+    }
+
+    /// <summary>
+    /// D9: Hosts that start at the same moment against a log database without log tables all initialize the log, and
+    /// the event catalogue holds each event once (<see cref="DatabaseLogIndexContract"/>).
+    /// </summary>
+    [Fact]
+    public async Task LogCatalogue_ParallelFirstStarts_InsertItOnce()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+
+        await DatabaseLogIndexContract.VerifyParallelFirstStartsInsertTheCatalogueOnceAsync(CreateScenario());
     }
 }

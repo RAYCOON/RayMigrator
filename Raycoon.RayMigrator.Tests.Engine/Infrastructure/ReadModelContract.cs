@@ -79,7 +79,11 @@ internal static class ReadModelContract
 
         AssertLookup<MigrationRunMode>(rows[RepositoryTable.MigrationRunMode]);
         AssertLookup<MigrationOperation>(rows[RepositoryTable.MigrationOperation]);
-        AssertLookup<MigrationRunResult>(rows[RepositoryTable.MigrationRunResult]);
+        // The rows come in the order of the table (PostgreSQL keeps the insertion order, step 3 inserted Cancelled last)
+        var runResults = AssertLookup<MigrationRunResult>(rows[RepositoryTable.MigrationRunResult]);
+        runResults.Select(r => (MigrationRunResult)r.Id).OrderBy(r => r).Should().Equal(
+            Enum.GetValues<MigrationRunResult>().Where(r => r != MigrationRunResult.Undefined).OrderBy(r => r),
+            "every run result the engine records has its lookup row, Cancelled of schema step 3 included");
         AssertLookup<MigrationStatus>(rows[RepositoryTable.MigrationStatus]);
         var sources = AssertLookup<MigrationRunSource>(rows[RepositoryTable.MigrationRunSource]);
         sources.Select(s => (MigrationRunSource)s.Id).Should().Contain([MigrationRunSource.Cli, MigrationRunSource.Ci, MigrationRunSource.Studio]);

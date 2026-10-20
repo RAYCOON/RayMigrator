@@ -46,11 +46,11 @@ public class SqlServerKilledPooledSessionTests : SqlServerTestBase
             await AlterDefaultLanguageAsync(unpooled, loginName, otherLanguage);
 
             var noRetry = new DalSettings { MaxRetries = 0, DbCommandTimeoutInSeconds = 10 };
-            var firstFailure = await Assert.ThrowsAsync<SqlException>(() => dal.ExecuteScalarAsync("SELECT 1", noRetry));
+            var firstFailure = await Assert.ThrowsAsync<SqlException>(() => dal.ExecuteScalarAsync("SELECT 1", noRetry, cancellationToken: TestContext.Current.CancellationToken));
             firstFailure.Number.Should().Be(4021);
             firstFailure.Errors.Cast<SqlError>().Select(e => e.Number).Should().Contain(596);
 
-            (await dal.ExecuteScalarAsync("SELECT 1", noRetry)).Should().Be(1);
+            (await dal.ExecuteScalarAsync("SELECT 1", noRetry, cancellationToken: TestContext.Current.CancellationToken)).Should().Be(1);
 
             // With one retry the caller never sees the killed session. The successful call above opened a session
             // while the other language was active, so restoring the language poisons that one: clear the pool first.
@@ -60,7 +60,7 @@ public class SqlServerKilledPooledSessionTests : SqlServerTestBase
             await AlterDefaultLanguageAsync(unpooled, loginName, otherLanguage);
 
             var oneRetry = new DalSettings { MaxRetries = 1, RetryDelayMs = 10, DbCommandTimeoutInSeconds = 10 };
-            (await dal.ExecuteScalarAsync("SELECT 1", oneRetry)).Should().Be(1);
+            (await dal.ExecuteScalarAsync("SELECT 1", oneRetry, cancellationToken: TestContext.Current.CancellationToken)).Should().Be(1);
         }
         finally
         {

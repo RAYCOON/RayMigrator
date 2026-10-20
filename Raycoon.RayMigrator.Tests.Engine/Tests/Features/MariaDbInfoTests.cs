@@ -360,4 +360,154 @@ public class MariaDbInfoTests : MariaDbTestBase
         docker.Runs[0].FromRelease.Should().BeNull("nothing was migrated before the first run");
         docker.Runs[0].MigrationRunId.Should().BePositive();
     }
+
+    /// <summary>
+    /// I12: A fresh repository lists every file as NotMigrated in release and file order, and the next migrate-up runs
+    /// exactly the listed files (<see cref="PendingMigrationsContract"/>).
+    /// </summary>
+    [Fact]
+    public async Task Info_OnFreshRepository_ListsEveryFileAsNotMigrated()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+
+        await PendingMigrationsContract.VerifyFreshRepositoryAsync(CreateScenario());
+    }
+
+    /// <summary>I13: After a migrate-up to Release_2.0 the list holds the files of the later releases.</summary>
+    [Fact]
+    public async Task Info_AfterPartialMigration_ListsTheRemainingFiles()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+
+        await PendingMigrationsContract.VerifyPartialMigrationAsync(CreateScenario());
+    }
+
+    /// <summary>I14: A file that failed without a committed block is listed as Failed, the files after it as NotMigrated.</summary>
+    [Fact]
+    public async Task Info_AfterFailedFile_ListsItAsFailed()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+
+        await PendingMigrationsContract.VerifyFailedFileAsync(CreateScenario(), Fixture.EngineConfig);
+    }
+
+    /// <summary>I15: A file cancelled after its first block is listed as Resumable after block 1, as migrate-up resumes it.</summary>
+    [Fact]
+    public async Task Info_AfterCancelInFile_ListsItAsResumable()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        Assert.SkipWhen(Fixture.EngineConfig.ConnectionString2 is null, "Second connection string not configured");
+
+        await PendingMigrationsContract.VerifyResumableFileAsync(CreateScenario(), Fixture.EngineConfig);
+    }
+
+    /// <summary>I16: A RunAlways file is listed after every migrate-up.</summary>
+    [Fact]
+    public async Task Info_RunAlwaysFile_IsListedAfterEveryRun()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+
+        await PendingMigrationsContract.VerifyRunAlwaysFileAsync(CreateScenario());
+    }
+
+    /// <summary>I17: A migrated file changed on disk is listed as a HashMismatch and runs again.</summary>
+    [Fact]
+    public async Task Info_AfterFileModification_ListsAHashMismatch()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+
+        await PendingMigrationsContract.VerifyHashMismatchAsync(CreateScenario());
+    }
+
+    /// <summary>I18: A changed file of an older release is listed, although migrate-up refuses it without allow-out-of-order.</summary>
+    [Fact]
+    public async Task Info_ModifiedFileOfOlderRelease_IsListedAlthoughMigrateUpRefusesItOutOfOrder()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+
+        await PendingMigrationsContract.VerifyOutOfOrderHashMismatchAsync(CreateScenario());
+    }
+
+    /// <summary>I19: With a failed second target the list holds its pairs and the rest of both targets in the target order (#8).</summary>
+    [Theory]
+    [InlineData(TargetMigrationOrder.TargetByTarget)]
+    [InlineData(TargetMigrationOrder.FileByFile)]
+    public async Task Info_SecondTargetFailed_ListsThePendingPairsInTargetOrder(TargetMigrationOrder order)
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        Assert.SkipWhen(Fixture.EngineConfig.ConnectionString2 is null, "Second connection string not configured");
+
+        await PendingMigrationsContract.VerifyMultiTargetWithFailedTargetAsync(CreateScenario(), Fixture.EngineConfig, order);
+    }
+
+    /// <summary>I20: The list follows the TargetGroupMigrationOrder of the product, like migrate-up.</summary>
+    [Fact]
+    public async Task Info_TargetGroupMigrationOrder_ListsTheTargetGroupsInThatOrder()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        Assert.SkipWhen(Fixture.EngineConfig.ConnectionString2 is null, "Second connection string not configured");
+
+        await PendingMigrationsContract.VerifyTargetGroupMigrationOrderAsync(CreateScenario(), Fixture.EngineConfig);
+    }
+
+    /// <summary>I21: A record with committed blocks of an open run whose heartbeat went stale is listed as the orphan repair leaves it.</summary>
+    [Fact]
+    public async Task Info_OpenRecordWithCommittedBlocks_IsListedAsResumable()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        Assert.SkipWhen(Fixture.EngineConfig.ConnectionString2 is null, "Second connection string not configured");
+
+        await PendingMigrationsContract.VerifyOpenRecordWithCommittedBlocksAsync(CreateScenario(), Fixture.EngineConfig);
+    }
+
+    /// <summary>I22: A record of an open run with every block committed is not listed, because the orphan repair finishes it.</summary>
+    [Fact]
+    public async Task Info_OpenRecordWithEveryBlockCommitted_IsNotListed()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        Assert.SkipWhen(Fixture.EngineConfig.ConnectionString2 is null, "Second connection string not configured");
+
+        await PendingMigrationsContract.VerifyOpenRecordWithEveryBlockCommittedAsync(CreateScenario(), Fixture.EngineConfig);
+    }
+
+    /// <summary>
+    /// I23: A RunAlways file with committed blocks of a cancelled attempt is listed as RunAlways, and the next migrate-up
+    /// runs it in full.
+    /// </summary>
+    [Fact]
+    public async Task Info_RunAlwaysFileAfterCommittedBlocks_IsListedAsRunAlways()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        Assert.SkipWhen(Fixture.EngineConfig.ConnectionString2 is null, "Second connection string not configured");
+
+        await PendingMigrationsContract.VerifyRunAlwaysFileAfterCommittedBlocksAsync(CreateScenario(), Fixture.EngineConfig);
+    }
+
+    /// <summary>
+    /// I24: A file that a CLI tool runs, with committed blocks or every block of an earlier attempt, is listed as Failed,
+    /// not Resumable, and the next migrate-up runs it in full instead of resuming or finalizing the record.
+    /// </summary>
+    [Theory]
+    [InlineData(TargetMigrationOrder.FileByFile)]
+    [InlineData(TargetMigrationOrder.TargetByTarget)]
+    public async Task Info_CliToolFileAfterCommittedBlocks_IsListedAsFailed(TargetMigrationOrder order)
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        Assert.SkipWhen(Fixture.EngineConfig.ConnectionString2 is null, "Second connection string not configured");
+
+        await PendingMigrationsContract.VerifyCliToolFileAfterCommittedBlocksAsync(CreateScenario(), Fixture.EngineConfig, order);
+    }
+
+    /// <summary>
+    /// I25: A TargetGroupMigrationOrder of the product that names exactly its only target group is ignored, like migrate-up
+    /// ignores it, instead of being refused, without a warning of the status, because the validation at startup reports
+    /// the product setting (RULE_1_13); the list stays in release and file order.
+    /// </summary>
+    [Fact]
+    public async Task Info_SingleTargetGroupMigrationOrder_IsIgnoredWithoutAWarningOfItsOwn()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+
+        await PendingMigrationsContract.VerifySingleTargetGroupMigrationOrderAsync(CreateScenario());
+    }
 }

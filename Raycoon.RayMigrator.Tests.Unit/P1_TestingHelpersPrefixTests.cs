@@ -24,17 +24,17 @@ public class TestingHelpersPrefixTests : IDisposable
             File.Delete(_file);
     }
 
-    private void CreateRepository(string prefix)
+    private async Task CreateRepositoryAsync(string prefix)
     {
         var service = new RepositorySchemaService(new TemplateCache(false, NullLogger<TemplateCache>.Instance), NullLogger<RepositorySchemaService>.Instance);
-        service.Ensure(new RepositoryOptions { DatabaseType = "Sqlite", ConnectionString = ConnectionString, TableBaseName = prefix });
+        await service.EnsureAsync(new RepositoryOptions { DatabaseType = "Sqlite", ConnectionString = ConnectionString, TableBaseName = prefix });
     }
 
     [Fact]
-    public void QueryHelper_WithPrefix_ReadsThePrefixedTables()
+    public async Task QueryHelper_WithPrefix_ReadsThePrefixedTables()
     {
         // Arrange
-        CreateRepository("a_");
+        await CreateRepositoryAsync("a_");
         var withPrefix = new RepositoryQueryHelper("Sqlite", ConnectionString, "", "a_");
         var withoutPrefix = new RepositoryQueryHelper("Sqlite", ConnectionString, "");
 
@@ -45,11 +45,11 @@ public class TestingHelpersPrefixTests : IDisposable
     }
 
     [Fact]
-    public void CleanDatabase_WithPrefix_DropsOnlyThatRepository()
+    public async Task CleanDatabase_WithPrefix_DropsOnlyThatRepository()
     {
         // Arrange: two repositories with different prefixes in one database
-        CreateRepository("a_");
-        CreateRepository("b_");
+        await CreateRepositoryAsync("a_");
+        await CreateRepositoryAsync("b_");
         var a = new RepositoryQueryHelper("Sqlite", ConnectionString, "", "a_");
         var b = new RepositoryQueryHelper("Sqlite", ConnectionString, "", "b_");
 

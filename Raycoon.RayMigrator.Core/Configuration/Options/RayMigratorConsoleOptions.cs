@@ -36,7 +36,8 @@ public class RayMigratorConsoleOptions
 
     /// <summary>
     /// Explicit TargetGroup execution order (optional, parsed from comma-separated CLI input).
-    /// When specified, all TargetGroup aliases must be listed exactly once.
+    /// When specified, all TargetGroup aliases must be listed exactly once, with their exact spelling; on a product with
+    /// one TargetGroup an order that names exactly its alias is ignored with a warning.
     /// Applies to MigrateUp and Baseline commands only.
     /// </summary>
     public string[]? TargetGroupMigrationOrder { get; init; }
@@ -67,12 +68,13 @@ public class RayMigratorConsoleOptions
     public bool? AllowOutOfOrder { get; init; }
 
     /// <summary>
-    /// Fix command: Only fix runs older than N minutes (default 60, 0 = immediate)
+    /// Fix command: Only fix runs whose last heartbeat (or start) is older than N minutes (default 2, 0 = immediate)
     /// </summary>
     public int? FixOlderThanMinutes { get; init; }
 
     /// <summary>
-    /// Fix command: Status to assign to orphaned migrations (Migrated or NotMigrated)
+    /// Fix command: the status of <c>--last-migration-status</c> (Migrated or NotMigrated), set on every open record of an
+    /// orphaned run; null when the option is not given, and every open record keeps the progress of its file.
     /// </summary>
     public MigrationStatus? FixAssumedMigrationStatus { get; init; }
 
@@ -81,6 +83,15 @@ public class RayMigratorConsoleOptions
     /// CLI override for StopRollbackOnMissingRollbackFile configuration.
     /// </summary>
     public bool? StopRollbackOnMissingRollbackFile { get; init; }
+
+    /// <summary>
+    /// What a run does when Ctrl+C or SIGTERM cancels the CLI process (<c>--cancelled-action</c> on migrate-up,
+    /// migrate-down and baseline): the CLI passes it to the <c>RunCancellation.Cancel</c> of the first signal. Migrate-down
+    /// and baseline accept it like migrate-up so that scripts can pass it to every run command, and ignore it: a
+    /// cancelled migrate-down stops at the next rollback block, a cancelled baseline before the next file.
+    /// Default <see cref="MigrationCancelledAction.Terminate"/>, also for every other command.
+    /// </summary>
+    public MigrationCancelledAction CancelledAction { get; init; } = MigrationCancelledAction.Terminate;
 
     /// <summary>
     /// Override directory where RayMigrator searches for appsettings.json files.

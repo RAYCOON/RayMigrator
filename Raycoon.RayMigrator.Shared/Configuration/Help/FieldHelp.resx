@@ -103,9 +103,9 @@ None: Disables database logging</value></data>
   <data name="ProductDefaults_MigrationErrorAction_ValidValues" xml:space="preserve"><value>Terminate | Rollback | RollbackErrorOnly | RollbackRelease | Ignore</value></data>
   <data name="ProductDefaults_MigrationErrorAction_DefaultValue" xml:space="preserve"><value>Terminate</value></data>
   <data name="ProductDefaults_MigrationErrorAction_Examples" xml:space="preserve"><value>Terminate: Stop the entire migration run immediately. No rollback is attempted.
-Rollback: Roll back ALL successfully migrated files in the current run, then stop.
+Rollback: Roll back the failed file and every file the current run migrated or left Failed under Ignore, then stop.
 RollbackErrorOnly: Roll back only the failed migration file, then stop.
-RollbackRelease: Roll back all migrations within the failed release only, then stop.
+RollbackRelease: Roll back the failed file and the files of its release that the current run migrated or left Failed under Ignore, then stop.
 Ignore: Log the error and continue with the next migration file.</value></data>
   <data name="ProductDefaults_MigrationErrorAction_InheritanceNote" xml:space="preserve"><value>This is the global default. Can be overridden per Product. The effective value flows down to all TargetGroups and Targets within the Product.</value></data>
   <data name="ProductDefaults_RollbackErrorAction_Title" xml:space="preserve"><value>Product Defaults - RollbackErrorAction</value></data>
@@ -135,7 +135,7 @@ Rollback:  001_CreateUsers.rollback.sql</value></data>
   <data name="ProductDefaults_RequireRollbackFile_DefaultValue" xml:space="preserve"><value>true</value></data>
   <data name="ProductDefaults_RequireRollbackFile_InheritanceNote" xml:space="preserve"><value>When true, every migration file must have a corresponding rollback file or the validation will fail. Can be overridden per Product.</value></data>
   <data name="ProductDefaults_StopRollbackOnMissingRollbackFile_Title" xml:space="preserve"><value>Product Defaults - StopRollbackOnMissingRollbackFile</value></data>
-  <data name="ProductDefaults_StopRollbackOnMissingRollbackFile_Description" xml:space="preserve"><value>When true, a rollback operation stops if a rollback file is missing for a migration. When false, the migration is skipped and rollback continues. Default: true.</value></data>
+  <data name="ProductDefaults_StopRollbackOnMissingRollbackFile_Description" xml:space="preserve"><value>When true, the rollback chain of a failed or cancelled migrate-up (MigrationErrorAction Rollback, RollbackErrorOnly or RollbackRelease, or a cancel with a rollback action) stops at a migration whose rollback file is missing; when false, the migration is skipped and the chain continues. Applies with RequireRollbackFile=false only; migrate-down always skips a missing rollback file that is not required. Default: true.</value></data>
   <data name="ProductDefaults_StopRollbackOnMissingRollbackFile_DefaultValue" xml:space="preserve"><value>true</value></data>
   <data name="ProductDefaults_StopRollbackOnMissingRollbackFile_InheritanceNote" xml:space="preserve"><value>Can be overridden per Product or per TargetGroup. When RequireRollbackFile is true, this setting is less relevant because missing rollback files are caught during validation.</value></data>
   <data name="ProductDefaults_TargetMigrationOrder_Title" xml:space="preserve"><value>Product Defaults - TargetMigrationOrder</value></data>
@@ -284,7 +284,7 @@ Open-ended up: "10.." -- matches 10, 11, 12, ...
 Open-ended down: "..-1" -- matches ..., -3, -2, -1.
 Combined: ["0", "100..110"] -- matches 0 and 100 through 110.</value></data>
   <data name="CliTool_Timeout_Title" xml:space="preserve"><value>CLI Tool - Timeout</value></data>
-  <data name="CliTool_Timeout_Description" xml:space="preserve"><value>Maximum time in seconds to wait for the CLI tool to complete. Default: 120.</value></data>
+  <data name="CliTool_Timeout_Description" xml:space="preserve"><value>Maximum time in seconds for the CLI tool to complete, counted from its start; in Stdin mode it covers the write of the migration file to the standard input of the tool as well. Default: 120.</value></data>
   <data name="CliTool_Timeout_DefaultValue" xml:space="preserve"><value>120</value></data>
 
   <!-- Serilog -->

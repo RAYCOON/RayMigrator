@@ -47,7 +47,9 @@ Rollback triggered:
   Rollback 001 ✓ → status: NotMigrated
 ```
 
-> **Warning:** Rollback requires matching `.rollback.sql` files. If a rollback file is missing and `RequireRollbackFile` is `true`, the rollback itself will fail.
+> **Warning:** Rollback requires matching `.rollback.sql` files. If a rollback file is missing and `RequireRollbackFile` is `true`, the rollback chain stops at that file: the file keeps its status (`Migrated` stays `Migrated`), the run ends as Error with the message of the failure, and the log names the missing rollback file. Once the rollback file is there, `migrate-down` rolls the file back.
+
+> **Note:** The chain rolls back every file of the run, also one that the run left `Failed` because the file sets `MigrationErrorAction = Ignore` for itself (see [Ignore](#ignore)): its rollback file runs from its first block, so it must tolerate a partially applied file.
 
 > **Note:** When the rollback chain completes without a failure or warning, the migration run is persisted as Recovered (80) instead of Error (90): every rolled-back file is `NotMigrated` again and repository and database are consistent. This applies to Rollback, RollbackErrorOnly and RollbackRelease. A failed rollback block, a missing rollback file or a stopped chain keep Error (90). The exit code is 1 in both cases, so schedulers still see the failure; `info` shows which of the two it was.
 
@@ -107,6 +109,10 @@ Migration 004 ✓ (Migrated — execution continues)
 ```
 
 > **Warning:** With Ignore, the migration run is persisted as PartialSuccess (50) because at least one file failed; all other files are still executed and the CLI exit code is 1. An aborted run is Error (90).
+
+A failed file keeps the blocks that committed before its first failed block. The next `migrate-up` resumes at that block, as long as the SQL blocks of the file did not change, and runs the blocks after it again; when the first block failed, or the file was changed, it runs the whole file. A `RunAlways` file always runs as a whole: the next `migrate-up` runs all of its blocks again. A `migrate-down` that rolls back the release of such a file rolls the file back as well, from its first rollback block, and the next `migrate-up` then runs it from its first block (see [Rolling Back Migrations](09-rollback-guide.md#how-rollback-works)).
+
+When the same run is rolled back later, because a later file fails under `Rollback` or `RollbackRelease` or because you cancel it with `--cancelled-action rollback-run` or `rollback-release`, the rollback chain rolls back a file the run left `Failed` with the files before it, from its first rollback block, also when no block of it committed. Give such a file a rollback file that tolerates a partially applied file: with `RequireRollbackFile = false` and no rollback file the chain stops at it (or skips it with `StopRollbackOnMissingRollbackFile = false`), and the run is Error (90).
 
 ---
 
@@ -303,15 +309,50 @@ For a complete matrix of all error scenarios — including every combination of 
 
 ---
 
+## Stopping a Run with Ctrl+C
+
+A cancel is not an error. When you press Ctrl+C while a `migrate-up` runs, or a container stop or a cancelled CI job sends SIGTERM (Linux and macOS), RayMigrator does not die in the middle of a block: it stops at the next block boundary, logs a warning (no error and no stack trace), records the run as `Cancelled` (70) and exits with code `130`.
+
+```
+Migration 001 ✓ (Migrated)
+Migration 002 ■ (cancelled after block 2 of 4)
+
+Result with --cancelled-action terminate (the default):
+  001 → Migrated — kept
+  002 → Failed with 2 committed blocks — the next migrate-up continues with block 3
+  003 → never executed
+```
+
+The example assumes a target with a connection of its own. In the BookStore setup of this guide the target uses the connection string of the repository and the files set `UseTransaction = true`, so every file runs on the atomic shared-connection path: its blocks and their record updates share one transaction, a cancel rolls the whole file back, its record is `Failed` with no committed block, and the next `migrate-up` runs it again from block 1 (see [Atomic Shared Connection](../02-core-concepts/error-handling.md#atomic-shared-connection)).
+
+`--cancelled-action` decides what happens after the stop. `terminate` (the default) does nothing else. `rollback-file`, `rollback-run` and `rollback-release` roll back like the error actions `RollbackErrorOnly`, `Rollback` and `RollbackRelease`, with the same rules for missing rollback files and `RollbackErrorAction`. That rollback cannot be cancelled again; when it does not complete cleanly, the run is `Error` and the exit code is `1`.
+
+A cancel does not turn a failure into a cancel. When a file has already failed and Ctrl+C stops the error recovery of its `MigrationErrorAction` (`Rollback`, `RollbackErrorOnly`, `RollbackRelease`), the run stays `Error` with the error code of the failed file and the exit code is `1`, so a pipeline sees the failure. The message names the failure first, then where the cancel stopped the recovery and what that leaves; complete the rollback with `migrate-down`. `--cancelled-action` is ignored then, because a rollback is already running.
+
+Some work always runs to its end, so that the repository never records a step half done:
+
+- The block in progress on MySQL, which interrupts only the statement in progress and runs the rest of the block, and on SQLite, which cannot interrupt a statement. SQL Server, PostgreSQL and MariaDB abort it, except that MariaDB, like MySQL, ends a `SLEEP()` early without an error and runs the rest of the block.
+- During a rollback (a `migrate-down`, or the error recovery of a `migrate-up`): the first block of a rollback file, an atomic rollback and a rollback through a CLI tool. A cancelled `migrate-down` leaves the record in progress `Failed` with its rollback blocks, and the next `migrate-down` continues it unless its first rollback block failed under `RollbackErrorAction=Ignore`; until then `migrate-up` refuses to run that file (see [Rolling Back Migrations](09-rollback-guide.md#block-level-rollback-tracking)).
+
+With `MigrationErrorAction` = `Ignore`, the interrupted file is stored like a file with ignored errors: its record is `Failed` with the blocks before the first failed one, and the next `migrate-up` resumes at the failed block. `rollback-run` and `rollback-release` roll back the files the run left `Failed` under `Ignore` as well, with the files it migrated.
+
+Instead of resuming the interrupted file, you can roll its release back with `migrate-down`: it rolls back the interrupted file as well when some of its blocks committed, before the files it came after, and the next `migrate-up` runs it from its first block; a file without a committed block, as on the atomic path, is only named in a warning.
+
+A second Ctrl+C ends the process at once. That abandons the run like a crash: it stays `Running` until RayMigrator closes it as orphaned (next section) or you run `fix`. The repair keeps what committed: the next `migrate-up` resumes the interrupted file after its committed blocks, and normally runs only the block that was running again.
+
+The detailed semantics, also for hosts that cancel a run through the engine API, are in [Error Handling — Cancellation](../02-core-concepts/error-handling.md#cancellation) and [ADR-028](../arc42/09-Architecture-Decisions.md#adr-028-a-run-cancels-at-the-next-block-boundary-with-a-migrationcancelledaction-and-records-cancelled); what every command does when it is cancelled is listed in [Cancelling a Run](../08-cli-reference/global-options.md#cancelling-a-run).
+
+---
+
 ## When a Migration Is Already Running
 
 When RayMigrator starts a new migration run, it checks the repository for any existing runs in `Running` state for the same product. If one is found, RayMigrator attempts an automatic recovery before failing.
 
 ### Automatic Orphaned Run Recovery
 
-Before throwing an error, RayMigrator checks if the blocking run is an orphaned run (older than 10 minutes). If orphaned runs are found, they are automatically fixed (marked as `Error` with orphaned migrations set to `NotMigrated`), and the migration run is retried. This handles the common case where a previous process crashed without cleaning up.
+Before throwing an error, RayMigrator checks whether the blocking run is orphaned. A running command refreshes its heartbeat (`MigrationRun.LastHeartbeatAt`) every `Repository.HeartbeatIntervalInSeconds` (default 30 seconds); a run whose last heartbeat, or whose start when it has none, is older than `Repository.OrphanedRunThresholdInMinutes` (default 2 minutes) is orphaned. Orphaned runs are fixed automatically (marked as `Error`; their open migrations keep their progress: `Failed` with the committed blocks, which the new run resumes after, `Migrated` when every block committed, `NotMigrated` without progress), and the migration run is retried. This handles the common case where a previous process crashed or was killed without cleaning up.
 
-If no orphaned runs older than 10 minutes are found, RayMigrator assumes the blocking run is genuinely active and throws a `MigrationAlreadyRunningException`, exiting with code `1`:
+If the blocking run still writes heartbeats, RayMigrator assumes it is genuinely active and throws a `MigrationAlreadyRunningException`, exiting with code `1`:
 
 ```
 RayMigrator aborted because another migration is already running.
@@ -320,7 +361,7 @@ RayMigrator aborted because another migration is already running.
 This can happen in two scenarios:
 
 1. **Legitimate concurrent access**: Another process is genuinely running migrations for the same product. Wait for it to finish before starting a new run.
-2. **Recently orphaned run**: A previous migration was interrupted less than 10 minutes ago and the `MigrationRun` record was never closed. The run still appears as `Running` in the repository even though no process is executing it. Wait for the 10-minute threshold to pass, or use the `fix` command.
+2. **Recently orphaned run**: A previous migration was killed (or abandoned with a second Ctrl+C) and wrote its last heartbeat less than 2 minutes ago, and the `MigrationRun` record was never closed. The run still appears as `Running` in the repository even though no process is executing it. Wait for the threshold to pass, or use the `fix` command with `--older-than 0`.
 
 RayMigrator also provides a guidance message:
 
@@ -344,7 +385,7 @@ See [Fix Reference](../08-cli-reference/command-reference.md#fix) for all option
 # Always preview before fixing
 raymigrator fix -p BookStore -env Production --run-mode simulate
 
-# Fix orphaned runs older than 60 minutes (default)
+# Fix orphaned runs whose last heartbeat is older than 2 minutes (default)
 raymigrator fix -p BookStore -env Production
 ```
 
@@ -353,20 +394,21 @@ raymigrator fix -p BookStore -env Production
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--scope` | `OrphanedRuns` | What to fix: `OrphanedRuns` or `All` |
-| `--older-than` | `60` | Minimum age in minutes for a run to be considered orphaned |
+| `--older-than` | `2` | Minutes since the last heartbeat (or the start of a run without one) after which an open run counts as orphaned; `0` fixes every open run |
 | `--run-mode` | `migrate` | `simulate` previews what would be fixed without making changes |
-| `--last-migration-status` | `not-migrated` | Status to assign to orphaned MigrationRecord rows: `not-migrated` or `migrated` |
+| `--last-migration-status` | — | Status to set on every open MigrationRecord row of the run: `not-migrated` or `migrated`; without it each row keeps the progress of its file |
 
 ### What Fix Does
 
 For each orphaned `MigrationRun` that matches the age threshold:
 
-1. Updates orphaned `MigrationRecord` rows (entries stuck in `Pending` or `Executing`) to the status specified by `--last-migration-status` (default: `NotMigrated`).
-2. Marks the `MigrationRun` itself as `Error` and sets its `FinishedAt` timestamp.
+1. Settles the open `MigrationRecord` rows (entries stuck in `Pending` or `Executing`): without `--last-migration-status` by the progress of each file, `Failed` with its committed blocks (the next `migrate-up` resumes after them), `Migrated` when every block committed, `NotMigrated` without progress; with the option to the status it names. Rows without an end get `FinishedAt`, the time of the repair; a row whose rollback was running keeps its end and its duration.
+2. Marks the `MigrationRun` itself as `Error` and sets its `FinishedAt` timestamp. Its `ErrorCode` becomes `1006` and its `ErrorMessage` `Closed as orphaned by the repair: the run ended without finishing; last heartbeat <yyyy-MM-dd HH:mm:ss> UTC`, so that the run history tells such a run from one that failed; a code or a message that the run has already stays.
 
 ### Choosing --last-migration-status
 
-- Use `not-migrated` (default) when you are **unsure** whether the interrupted migrations completed successfully. This causes RayMigrator to re-execute them on the next run.
+- Leave the option out in the normal case: each open record keeps what committed, so the next `migrate-up` resumes a file after its committed blocks and normally runs only the block that was running again (under `MigrationErrorAction=Ignore` the blocks from the first failed one).
+- Use `not-migrated` when you want the files to run again from their first block, for example after you have undone their changes by hand.
 - Use `migrated` when you have **verified** that the interrupted migrations did complete on the database (e.g., by checking that the tables/data exist). This prevents re-execution.
 
 ---
@@ -391,6 +433,7 @@ Key takeaways:
 - Choose your `RollbackErrorAction` based on whether you prefer a safe abort or a best-effort rollback when rollback scripts fail.
 - Always write rollback files, especially for MariaDB and MySQL where DDL cannot be transactionally rolled back.
 - Use `Simulate` run mode to preview what will happen before committing to a real migration run.
+- Stop a running migration with Ctrl+C rather than killing the process: the run ends `Cancelled`, and with the default `--cancelled-action terminate` the next run continues where it stopped.
 - Use the `fix` command to clean up after unexpected interruptions.
 
 ---

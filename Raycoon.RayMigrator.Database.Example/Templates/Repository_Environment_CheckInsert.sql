@@ -1,5 +1,7 @@
 -- TODO: Implement for your database engine
--- Purpose: Inserts an environment record if it doesn't exist (lookup by NameLower)
+-- Purpose: Inserts an environment record if it doesn't exist (lookup by NameLower) and returns its Id. Two first starts
+--          of the same name at the same moment must both succeed with the Id of the one row, as in
+--          Repository_Product_CheckInsert.sql, instead of failing on the unique index of NameLower.
 -- See the corresponding template in Database.SqlServer or Database.PostgreSQL for reference.
 --
 -- Parameters used in this template:

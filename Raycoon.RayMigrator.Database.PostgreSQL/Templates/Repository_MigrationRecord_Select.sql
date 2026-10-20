@@ -6,7 +6,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_MigrationRecord_Select"
 DatabaseType   = "PostgreSQL"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-04-18.1"
+Version        = "2026-10-16.1"
 
 [Description]
 Function = """
@@ -23,7 +23,7 @@ Behaviour = """
 
 [ConfigPlaceholders]
 SchemaName    = "Database schema from Repository configuration (e.g., 'ray')"
-TableBaseName = "Table name prefix from Repository configuration (e.g., '' or 'RM_')"
+TableBaseName = "Table name prefix from Repository configuration (e.g., '' or 'rm_')"
 
 [Parameters]
 ProductId          = "INT | REQUIRED | The product ID to query migrations for"
@@ -37,13 +37,14 @@ MigrationRunModeId = "SMALLINT | REQUIRED | Run mode (typically 100=Migrate)"
 #   ReleaseVersion, TargetGroupAlias, TargetAlias, Filename, FileOrderId,
 #   FileUpHash, FileUpConfigHash, FileUpBlocksHash, FileUpBlocksMigrated, FileUpBlocksTotal,
 #   MigrateDownFileExists, FileDownHash, FileDownConfigHash, FileDownBlocksHash,
-#   FileDownBlocksMigrated, FileDownBlocksTotal
+#   FileDownBlocksMigrated, FileDownBlocksTotal, StartedAt, FinishedAt
 
 [ModificationNotes]
 Note1 = "This template returns a result set - NOT the standard 'code,message' format"
 Note2 = "Column order is critical - code depends on positional binding"
 Note3 = "Used for hash validation and determining migration state"
 Note4 = "DAL-017: Storage uses snake_case identifiers; output columns are aliased to PascalCase (AS \"...\") to preserve the cross-engine row[\"PascalCase\"] reader contract"
+Note5 = "StartedAt and FinishedAt are UTC; info reports the latest FinishedAt of the Migrated records of a target group (TargetGroupStatus.LastMigrationDate)"
 ================================================================================
 */
 
@@ -69,6 +70,8 @@ SELECT
     ,file_down_blocks_hash    AS "FileDownBlocksHash"
     ,file_down_blocks_migrated AS "FileDownBlocksMigrated"
     ,file_down_blocks_total   AS "FileDownBlocksTotal"
+    ,started_at               AS "StartedAt"
+    ,finished_at              AS "FinishedAt"
 FROM
     {CFG:SchemaName}.{CFG:TableBaseName}migration_record
 WHERE

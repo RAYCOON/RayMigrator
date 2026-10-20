@@ -18,6 +18,7 @@ Which options are available for each command. **R** = Required, **O** = Optional
 | `--allow-out-of-order` | O | — | — | — | — | — | — |
 | `--stop-rollback-on-missing-rollback-file` | O | — | — | — | — | — | — |
 | `--target-group-migration-order` | O | — | — | — | — | O | — |
+| `--cancelled-action` | O | O | — | — | — | O | — |
 | `--scope` | — | — | O | — | — | — | O |
 | `--older-than` | — | — | — | — | — | — | O |
 | `--last-migration-status` | — | — | — | — | — | — | O |
@@ -40,7 +41,7 @@ Apply pending migrations forward.
 ### Synopsis
 
 ```bash
-raymigrator migrate-up --product <alias> --environment <env> [--run-mode <mode>] [--to-release <version>] [--target-group <group>...] [--allow-out-of-order] [--stop-rollback-on-missing-rollback-file <bool>] [--target-group-migration-order <order>] [global-options]
+raymigrator migrate-up --product <alias> --environment <env> [--run-mode <mode>] [--to-release <version>] [--target-group <group>...] [--allow-out-of-order] [--stop-rollback-on-missing-rollback-file <bool>] [--target-group-migration-order <order>] [--cancelled-action <action>] [global-options]
 ```
 
 ### Options
@@ -55,6 +56,7 @@ raymigrator migrate-up --product <alias> --environment <env> [--run-mode <mode>]
 | `--allow-out-of-order` | `-ooo` | `bool` | No | `false` | `true`, `false` |
 | `--stop-rollback-on-missing-rollback-file` | `-sromrf` | `bool?` | No | `null` (uses config) | `true`, `false` |
 | `--target-group-migration-order` | `-tgmo` | `string?` | No | `null` (config/migsettings order) | Comma-separated list of all TargetGroup aliases |
+| `--cancelled-action` | `-ca` | `string` | No | `"terminate"` | `terminate`, `rollback-file`, `rollback-run`, `rollback-release` |
 
 ### Option Details
 
@@ -70,7 +72,9 @@ raymigrator migrate-up --product <alias> --environment <env> [--run-mode <mode>]
 
 **--stop-rollback-on-missing-rollback-file**: Overrides the `StopRollbackOnMissingRollbackFile` configuration value for this run. Only effective when `RequireRollbackFile=false`. When `true`, the error-recovery rollback chain stops at the first missing rollback file (warning logged, record status unchanged). When `false`, the chain continues past missing rollback files. Has no effect on migrate-down. When omitted, the value from configuration is used.
 
-**--target-group-migration-order**: Comma-separated string listing every TargetGroup alias of the product in the desired execution order. Whitespace around each alias is trimmed. All aliases must be present; partial lists, duplicates, and unknown aliases are rejected. Matching is case-sensitive; a case-insensitive-only match produces a specific error with the correct casing as a hint. Takes precedence over both the product-level appsettings value and any release-level migsettings value. Only applies to `migrate-up` and `baseline`; not used for `migrate-down` (rollback order is derived from repository records).
+**--cancelled-action**: What the run does when the first Ctrl+C or SIGTERM cancels it. The run stops at the next block boundary and records `Cancelled`; `terminate` leaves the interrupted file `Failed` with its committed blocks for the next migrate-up, `rollback-file`, `rollback-run` and `rollback-release` then roll back like the `MigrationErrorAction` of the same number. Validated case-insensitively and parsed via `ParseCancelledAction()` into `MigrationCancelledAction`; an unknown value is a parse error. See [Cancelling a Run](global-options.md#cancelling-a-run).
+
+**--target-group-migration-order**: Comma-separated string listing every TargetGroup alias of the product in the desired execution order. Whitespace around each alias is trimmed. All aliases must be present; partial lists, duplicates, and unknown aliases are rejected. Matching is case-sensitive; a case-insensitive-only match produces a specific error with the correct casing as a hint. On a product with one TargetGroup, an order that names exactly its alias is ignored with a warning, and any other order is rejected. The command checks the value when it applies it: the startup validation (RULE_1_10 to RULE_1_13) sees the product-level appsettings value only. Takes precedence over both the product-level appsettings value and any release-level migsettings value. Only applies to `migrate-up` and `baseline`; not used for `migrate-down` (rollback order is derived from repository records).
 
 ### Property Mapping
 
@@ -84,10 +88,13 @@ raymigrator migrate-up --product <alias> --environment <env> [--run-mode <mode>]
 | `--allow-out-of-order` | `AllowOutOfOrder` | `AllowOutOfOrder` |
 | `--stop-rollback-on-missing-rollback-file` | `StopRollbackOnMissingRollbackFile` | — (read directly from context) |
 | `--target-group-migration-order` | `TargetGroupMigrationOrder` | `TargetGroupMigrationOrder` |
+| `--cancelled-action` | `CancelledAction` | — (the action of `Cancellation.Cancel` on the first Ctrl+C or SIGTERM) |
 | `--startup-info` | `ShowStartupInfo` | `ShowInfo` |
 | `--reveal-sensitive-data` | `RevealSensitiveData` | `RevealSensitiveData` |
 
-**Handler:** `RayMigratorService.ExecuteMigrateUpAsync()` → `IMigrationService.MigrateUpAsync(MigrateUpRequest)`
+`MigrateUpRequest.Cancellation` is the `RunCancellation` of the process, and its token is the `CancellationToken` of the call.
+
+**Handler:** `RayMigratorService.ExecuteMigrateUpAsync()` → `IMigrationService.MigrateUpAsync(MigrateUpRequest, CancellationToken)`
 
 **Internal state:** `Command` is set to `MigrationCommand.MigrateUp`. `HashValidationScope` is set to `null`.
 
@@ -122,7 +129,7 @@ Rollback to a previous version.
 ### Synopsis
 
 ```bash
-raymigrator migrate-down --product <alias> --environment <env> --to-release <version> [--run-mode <mode>] [--target-group <group>...] [global-options]
+raymigrator migrate-down --product <alias> --environment <env> --to-release <version> [--run-mode <mode>] [--target-group <group>...] [--cancelled-action <action>] [global-options]
 ```
 
 ### Options
@@ -134,6 +141,7 @@ raymigrator migrate-down --product <alias> --environment <env> --to-release <ver
 | `--to-release` | `-tr` | `string` | **Yes** | — | Any release version string |
 | `--run-mode` | `-rm` | `string` | No | `"Migrate"` | `Migrate`, `Simulate`, `Validate` |
 | `--target-group` | `-tg` | `string[]` | No | `null` (all) | Target group aliases (can be specified multiple times) |
+| `--cancelled-action` | `-ca` | `string` | No | `"terminate"` | `terminate`, `rollback-file`, `rollback-run`, `rollback-release` |
 
 ### Option Details
 
@@ -142,6 +150,8 @@ raymigrator migrate-down --product <alias> --environment <env> --to-release <ver
 **--run-mode**: Same validation as migrate-up. Accepts `"Migrate"`, `"Simulate"`, and `"Validate"`.
 
 **--target-group**: Filters rollback to specific target groups. Can be specified multiple times. If omitted, all target groups are rolled back.
+
+**--cancelled-action**: Accepted with the values of migrate-up so that a script can pass the same options to every run command, and ignored (logged when it is not `terminate`): a cancelled migrate-down stops at the next rollback block, leaves the record in progress `Failed` with its rollback blocks and records the run as `Cancelled`; the next migrate-down continues it, unless its first rollback block failed under `RollbackErrorAction=Ignore`. See [Cancelling a Run](global-options.md#cancelling-a-run).
 
 ### Property Mapping
 
@@ -152,10 +162,13 @@ raymigrator migrate-down --product <alias> --environment <env> --to-release <ver
 | `--to-release` | `TargetReleaseVersion` | `TargetReleaseVersion` |
 | `--run-mode` | `RunMode` | `RunMode` |
 | `--target-group` | `TargetGroupAliases` | `TargetGroupAliases` |
+| `--cancelled-action` | `CancelledAction` | — (ignored by migrate-down) |
 | `--startup-info` | `ShowStartupInfo` | `ShowInfo` |
 | `--reveal-sensitive-data` | `RevealSensitiveData` | `RevealSensitiveData` |
 
-**Handler:** `RayMigratorService.ExecuteMigrateDownAsync()` → `IMigrationService.MigrateDownAsync(MigrateDownRequest)`
+`MigrateDownRequest.Cancellation` is the `RunCancellation` of the process, and its token is the `CancellationToken` of the call.
+
+**Handler:** `RayMigratorService.ExecuteMigrateDownAsync()` → `IMigrationService.MigrateDownAsync(MigrateDownRequest, CancellationToken)`
 
 **Internal state:** `Command` is set to `MigrationCommand.MigrateDown`. `HashValidationScope` is set to `null`.
 
@@ -208,13 +221,13 @@ raymigrator validate-hash --product <alias> --environment <env> [--scope <scope>
 | `--startup-info` | `ShowStartupInfo` | `ShowInfo` |
 | `--reveal-sensitive-data` | `RevealSensitiveData` | `RevealSensitiveData` |
 
-**Handler:** `RayMigratorService.ExecuteValidateHashAsync()` → `IMigrationService.ValidateHashAsync(ValidateHashRequest)`
+**Handler:** `RayMigratorService.ExecuteValidateHashAsync()` → `IMigrationService.ValidateHashAsync(ValidateHashRequest, CancellationToken)`
 
 **Internal state:** `Command` is set to `MigrationCommand.ValidateHash`. `RunMode` is set to `MigrationRunMode.Migrate` like for every non-migrate command (#6; it used to be `Validate`). `TargetReleaseVersion` is set to `null`.
 
 **Side effects:** repository read-only, no target connections, no DatabaseLogging rows (see the command profile matrix in [Execution Modes](../02-core-concepts/execution-modes.md#run-mode)).
 
-**Exit code logic:** Returns `1` if `result.InvalidFiles > 0` or `result.MissingFiles > 0`, otherwise `0`.
+**Exit code logic:** Returns `1` if `result.InvalidFiles > 0` or `result.MissingFiles > 0`, otherwise `0`; `130` when Ctrl+C or SIGTERM interrupted it.
 
 ### Examples
 
@@ -259,7 +272,7 @@ raymigrator update-hash --product <alias> --environment <env> [--target-group <g
 | `--startup-info` | `ShowStartupInfo` | `ShowInfo` |
 | `--reveal-sensitive-data` | `RevealSensitiveData` | `RevealSensitiveData` |
 
-**Handler:** `RayMigratorService.ExecuteUpdateHashAsync()` → `IMigrationService.UpdateHashAsync(UpdateHashRequest)`
+**Handler:** `RayMigratorService.ExecuteUpdateHashAsync()` → `IMigrationService.UpdateHashAsync(UpdateHashRequest, CancellationToken)`
 
 **Internal state:** `Command` is set to `MigrationCommand.UpdateHash`. `RunMode` is set to `MigrationRunMode.Migrate`. `TargetReleaseVersion` is set to `null`. `HashValidationScope` is set to `null`.
 
@@ -294,7 +307,7 @@ raymigrator info --product <alias> --environment <env> [global-options]
 | `--product` | `-p` | `string` | Yes | — | Any product alias from configuration |
 | `--environment` | `-env` | `string` | Yes | — | Any environment name |
 
-**Handler:** `RayMigratorService.ExecuteInfoAsync()` → `IMigrationService.GetStatusAsync(productAlias)` + `IMigrationService.GetHistoryAsync(productAlias, 10)`
+**Handler:** `RayMigratorService.ExecuteInfoAsync()` → `IMigrationService.GetStatusAsync(productAlias, CancellationToken)` + `IMigrationService.GetHistoryAsync(productAlias, 10, CancellationToken)`
 
 **Internal state:** `Command` is set to `MigrationCommand.Info`. `RunMode` is set to `MigrationRunMode.Migrate`. `TargetReleaseVersion` is set to `null`. `HashValidationScope` is set to `null`.
 
@@ -306,6 +319,40 @@ raymigrator info --product <alias> --environment <env> [global-options]
 raymigrator info --product MyProduct --environment Production
 ```
 
+### Output
+
+`info` prints the status of the product in the environment, the files the next migrate-up runs, the target groups and the last ten runs. Every log event starts with the prefix of the console sink, left out here; each of the two tables is one event, so only the empty line above it carries the prefix:
+
+```
+--- Migration Status for product MyProduct, environment Production ---
+  Current Release:     Release 1.2
+  Total Executed:      12
+  Pending Migrations:  3
+
+    Release      Target group  Target  File               Reason
+    ───────────  ────────────  ──────  ─────────────────  ───────────────────────
+    Release 1.2  Backend       Main    010_AddColumn.sql  Resumable after block 2
+    Release 1.2  Backend       Main    020_Seed.sql       NotMigrated
+    Release 1.2  Frontend      Web     010_Views.sql      HashMismatch
+--- Target Groups ---
+  [Backend] Type=SqlServer, Release=Release 1.1, Executed=8, Pending=2, LastMigration=2026-10-14 09:12:44, Targets=[Main]
+  [Frontend] Type=PostgreSQL, Release=Release 1.2, Executed=4, Pending=1, LastMigration=2026-10-14 09:13:02, Targets=[Web]
+
+--- Last 2 Migration Runs ---
+    RunId  Operation     RunMode     Result     # Migrations  StartedAt            FinishedAt           DurationInMs
+  ───────  ────────────  ──────────  ─────────  ────────────  ───────────────────  ───────────────────  ────────────
+       42  MigrateUp     Migrate     Cancelled             1  2026-10-15 17:40:02  2026-10-15 17:40:09          7012
+       41  MigrateUp     Migrate     Ok                   12  2026-10-14 09:12:31  2026-10-14 09:13:02         31188
+```
+
+- **Pending Migrations** counts one entry per file and target (`MigrationStatusInfo.PendingMigrations`). The list below it comes from `MigrationStatusInfo.PendingFiles` and is in the order of the next migrate-up without `--target-group-migration-order`: releases, the target groups of a release in their `TargetGroupMigrationOrder`, then file by file or target by target. It shows the first 50 entries and ends with `… and n more` when there are more; a host reads the whole list from `PendingFiles`.
+- **Reason** says why the file runs: `NotMigrated` (no record, a rolled back one, or a record of a run that is still open without a committed block), `Failed` (a failed attempt without a resume point), `Resumable after block n` (blocks 1 to n committed; migrate-up continues with block n + 1, or only finalizes the record when every block committed), `RunAlways` (the file runs on every migrate-up, always in full from block 1, also after blocks that an earlier attempt committed), `HashMismatch` (a migrated file whose hash no longer matches), or `RollbackIncomplete after k of n rollback blocks, run migrate-down` (the rollback of the file stopped after k of its n rollback blocks, for example after a cancelled migrate-down; migrate-up refuses to run while such an entry is listed, and migrate-down continues the rollback at block k + 1).
+- A run with `--to-release` or `--target-group` runs a part of the list, and files of a release older than what a target has migrated are listed although migrate-up refuses them without `--allow-out-of-order`.
+- Every target group line names its pending count and its last migration, the end of its `Migrated` record that finished last (`—` when none has an end, for example with an external DAL whose selects lack `FinishedAt`).
+- While a run that ended abruptly is still open, the lines read its records as the orphan repair of the next migrate-up will leave them, and **Reason** classifies them as that migrate-up treats such records: a record with every block committed counts as migrated for `Current Release`, `Total Executed` and its target group; the last migration moves only when the repair has written the end of the record.
+- **# Migrations** of the run history counts the records the run brought to a terminal state, read from `MigrationRecordHistory`; a run whose history rows a retention policy deleted shows `0` ([ADR-027](../arc42/09-Architecture-Decisions.md#adr-027-the-engine-deletes-log-and-history-rows-on-a-hosts-request-and-never-reads-them-for-a-decision)).
+- A Ctrl+C or SIGTERM ends `info` at once with exit code `130` ([Cancelling a Run](global-options.md#cancelling-a-run)).
+
 ---
 
 ## Baseline
@@ -315,7 +362,7 @@ Mark an existing database as migrated (all releases, or up to a specific release
 ### Synopsis
 
 ```bash
-raymigrator baseline --product <alias> --environment <env> [--to-release <version>] [--target-group <group>...] [--target-group-migration-order <order>] [global-options]
+raymigrator baseline --product <alias> --environment <env> [--to-release <version>] [--target-group <group>...] [--target-group-migration-order <order>] [--cancelled-action <action>] [global-options]
 ```
 
 ### Options
@@ -327,6 +374,13 @@ raymigrator baseline --product <alias> --environment <env> [--to-release <versio
 | `--to-release` | `-tr` | `string` | No | — | Any release version string (omit to baseline all releases) |
 | `--target-group` | `-tg` | `string[]` | No | `null` (all) | Target group aliases (can be specified multiple times) |
 | `--target-group-migration-order` | `-tgmo` | `string?` | No | `null` (config/migsettings order) | Comma-separated list of all TargetGroup aliases |
+| `--cancelled-action` | `-ca` | `string` | No | `"terminate"` | `terminate`, `rollback-file`, `rollback-run`, `rollback-release` |
+
+### Option Details
+
+**--target-group-migration-order**: The rules of [migrate-up](#migrate-up) apply, including the warning for an order that names exactly the only TargetGroup of the product, which baseline ignores as well.
+
+**--cancelled-action**: Accepted with the values of migrate-up so that a script can pass the same options to every run command, and ignored (logged when it is not `terminate`): a cancelled baseline stops before the next file, keeps the records it wrote and records the run as `Cancelled`. See [Cancelling a Run](global-options.md#cancelling-a-run).
 
 ### Property Mapping
 
@@ -337,10 +391,13 @@ raymigrator baseline --product <alias> --environment <env> [--to-release <versio
 | `--to-release` | `TargetReleaseVersion` | `TargetReleaseVersion` |
 | `--target-group` | `TargetGroupAliases` | `TargetGroupAliases` |
 | `--target-group-migration-order` | `TargetGroupMigrationOrder` | `TargetGroupMigrationOrder` |
+| `--cancelled-action` | `CancelledAction` | — (ignored by baseline) |
 | `--startup-info` | `ShowStartupInfo` | `ShowInfo` |
 | `--reveal-sensitive-data` | `RevealSensitiveData` | `RevealSensitiveData` |
 
-**Handler:** `RayMigratorService.ExecuteBaselineAsync()` → `IMigrationService.BaselineAsync(BaselineRequest)`
+`BaselineRequest.Cancellation` is the `RunCancellation` of the process, and its token is the `CancellationToken` of the call.
+
+**Handler:** `RayMigratorService.ExecuteBaselineAsync()` → `IMigrationService.BaselineAsync(BaselineRequest, CancellationToken)`
 
 **Internal state:** `Command` is set to `MigrationCommand.Baseline`. `RunMode` is set to `MigrationRunMode.Migrate`. `HashValidationScope` is set to `null`.
 
@@ -388,7 +445,7 @@ raymigrator fix --product <alias> --environment <env> [--scope <scope>] [--older
 | `--scope` | `-s` | `string` | No | `"OrphanedRuns"` | `OrphanedRuns`, `All` |
 | `--older-than` | `-ot` | `int` | No | `2` | Minutes since the last heartbeat (or the start) for orphan detection |
 | `--run-mode` | `-rm` | `string` | No | `"migrate"` | `migrate`, `simulate` |
-| `--last-migration-status` | `-lms` | `string` | No | `"not-migrated"` | `migrated`, `not-migrated` |
+| `--last-migration-status` | `-lms` | `string` | No | — | `migrated`, `not-migrated` |
 
 ### Option Details
 
@@ -398,7 +455,7 @@ raymigrator fix --product <alias> --environment <env> [--scope <scope>] [--older
 
 **--run-mode**: `migrate` repairs the orphaned runs; `simulate` lists the runs that would be repaired, writes nothing and leaves no DatabaseLogging rows. `validate` is rejected for `fix` (#22).
 
-**--last-migration-status**: Determines the `MigrationStatus` to assign to orphaned Migration records during fix. `"not-migrated"` maps to `MigrationStatus.NotMigrated`, `"migrated"` maps to `MigrationStatus.Migrated`.
+**--last-migration-status**: Without the option every open (`Pending`, `Executing`) record of an orphaned run keeps its progress: `Failed` after committed blocks, so that the next migrate-up resumes after them, `Migrated` when every block committed, `NotMigrated` without progress; a rollback that was running ends `Failed` with its rollback blocks, which migrate-down continues, or `NotMigrated` when every rollback block ran. `migrated` (`MigrationStatus.Migrated`) and `not-migrated` (`MigrationStatus.NotMigrated`) set that status on every open record of the run, for an operator who has checked the target. The counters of the records stay; the repair sets `FinishedAt` where it is empty and leaves `DurationInMs` as it is. The run itself becomes `Error` with the engine code `1006` (`OrphanedRunClosed`) and a message that names its last heartbeat.
 
 ### Property Mapping
 
@@ -413,7 +470,7 @@ raymigrator fix --product <alias> --environment <env> [--scope <scope>] [--older
 | `--startup-info` | `ShowStartupInfo` | `ShowInfo` |
 | `--reveal-sensitive-data` | `RevealSensitiveData` | `RevealSensitiveData` |
 
-**Handler:** `RayMigratorService.ExecuteFixIssuesAsync()` → `IMigrationService.FixIssuesAsync(FixIssuesRequest)`
+**Handler:** `RayMigratorService.ExecuteFixIssuesAsync()` → `IMigrationService.FixIssuesAsync(FixIssuesRequest, CancellationToken)`
 
 ### Internal State
 
@@ -505,6 +562,22 @@ Source: `Raycoon.RayMigrator.Core/Configuration/Enums/MigrationErrorAction.cs`
 
 See [Error Handling](../02-core-concepts/error-handling.md) for detailed behavior of each mode.
 
+### MigrationCancelledAction
+
+What a cancelled migrate-up does after it stopped at the next block boundary (`--cancelled-action`). A value of the run, not a configuration option; the numbers are those of the `MigrationErrorAction` whose rollback chain it runs.
+
+| Name | Value | CLI value | Description |
+|------|-------|-----------|-------------|
+| `Undefined` | 0 | — | Invalid — not set |
+| `Terminate` | 10 | `terminate` | Stop and do nothing else; the next migrate-up resumes the interrupted file (default) |
+| `RollbackRun` | 20 | `rollback-run` | Roll back the interrupted file and every file the run migrated or left `Failed` under `Ignore` before it, like `Rollback` |
+| `RollbackFile` | 21 | `rollback-file` | Roll back the interrupted file only, like `RollbackErrorOnly` |
+| `RollbackRelease` | 22 | `rollback-release` | Roll back the interrupted file and the files of its release the run migrated or left `Failed` under `Ignore`, like `RollbackRelease` |
+
+Source: `Raycoon.RayMigrator.Core/Configuration/Enums/MigrationCancelledAction.cs`
+
+See [Global Options — Cancelling a Run](global-options.md#cancelling-a-run).
+
 ### RollbackErrorAction
 
 Controls error handling behavior when a rollback SQL block fails. Applies both during explicit `migrate-down` execution and during error recovery rollback triggered by `MigrationErrorAction` (Rollback, RollbackErrorOnly, or RollbackRelease) in `migrate-up`.
@@ -563,7 +636,7 @@ Source: `Raycoon.RayMigrator.Core/Configuration/Enums/CliToolInputMode.cs`
 
 ### MigrationStatus
 
-Represents the status of a single migration record in the repository. The `--last-migration-status` option on the Fix command accepts `migrated` and `not-migrated` to set the assumed status for orphaned migrations.
+Represents the status of a single migration record in the repository. The `--last-migration-status` option on the Fix command accepts `migrated` and `not-migrated` to set that status on every open record of an orphaned run; without it each record keeps the progress of its file.
 
 | Name | Value | Description |
 |------|-------|-------------|
@@ -599,8 +672,9 @@ Represents the final result of a MigrationRun record (displayed by the Info comm
 | `Undefined` | 0 | Invalid -- not set |
 | `Running` | 10 | Migration process is currently running |
 | `PartialSuccess` | 50 | Finished, but at least one file was skipped or left Failed (migrate-up with `Ignore`, migrate-down that skipped a missing rollback file or ignored a failed rollback) |
+| `Cancelled` | 70 | Stopped on request (Ctrl+C or SIGTERM in the CLI) and the `MigrationCancelledAction` completed; exit code 130 |
 | `Recovered` | 80 | Failed, but the configured error recovery (`Rollback`, `RollbackRelease`, `RollbackErrorOnly`) rolled back without a failure or warning; repository and database are consistent. Exit code stays 1 |
-| `Error` | 90 | Migration(s) stopped due to error(s), or the error recovery did not complete cleanly |
+| `Error` | 90 | Migration(s) stopped due to error(s), or the error recovery did not complete cleanly, also when Ctrl+C or SIGTERM stopped it (with the code of the failure, exit code 1), or the rollback of a cancelled migrate-up did not complete cleanly (engine code `1005`, exit code 1); also a run that the orphan repair of a later start or `fix` closed (engine code `1006`) |
 | `Ok` | 100 | Migration(s) successfully executed and finished |
 
 Source: `Raycoon.RayMigrator.Core/Configuration/Enums/MigrationRunResult.cs`

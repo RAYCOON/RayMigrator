@@ -23,7 +23,7 @@ public class SqliteParameterRoundTripTests : SqliteTestBase
 
         var dal = new DalSqlite(Fixture.EngineConfig.ConnectionString);
 
-        var result = await dal.ExecuteScalarAsync("SELECT @Value", ParameterRoundTripValues.Settings, ParameterRoundTripValues.Parameters());
+        var result = await dal.ExecuteScalarAsync("SELECT @Value", ParameterRoundTripValues.Settings, ParameterRoundTripValues.Parameters(), cancellationToken: TestContext.Current.CancellationToken);
 
         result.Should().Be(ParameterRoundTripValues.HostileString);
     }
@@ -35,7 +35,7 @@ public class SqliteParameterRoundTripTests : SqliteTestBase
 
         var dal = new DalSqlite(Fixture.EngineConfig.ConnectionString);
 
-        var result = await dal.ExecuteScalarAsync("SELECT @Null", ParameterRoundTripValues.Settings, ParameterRoundTripValues.Parameters());
+        var result = await dal.ExecuteScalarAsync("SELECT @Null", ParameterRoundTripValues.Settings, ParameterRoundTripValues.Parameters(), cancellationToken: TestContext.Current.CancellationToken);
 
         (result == null || result is DBNull).Should().BeTrue();
     }

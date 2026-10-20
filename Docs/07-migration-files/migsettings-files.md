@@ -84,7 +84,7 @@ Key parsing is **case-insensitive**. Enum values (`MigrationErrorAction`, `Rollb
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `UseTransaction` | bool | `true` | Wrap migration in a database transaction |
-| `RunAlways` | bool | `false` | Re-execute every migration run |
+| `RunAlways` | bool | `false` | Re-execute every migration run, always in full from the first block |
 | `RequireRollbackFile` | bool? | inherits | Require a rollback file. When omitted, inherits from parent migsettings or product config (default: `true`) |
 | `StopRollbackOnMissingRollbackFile` | bool? | inherits | Accepted by the parser (to avoid an "unknown key" error) but has no effect. The effective value at runtime is resolved from appsettings only: CLI option → TargetGroup → Product → ProductDefaults → default (`true`). Unlike other migsettings parameters, this value is not applied to individual file metadata or consulted during rollback chain execution. |
 | `Environments` | array | not specified (= all) | Allowed environments. Use `["*"]` or omit for all |
@@ -92,7 +92,7 @@ Key parsing is **case-insensitive**. Enum values (`MigrationErrorAction`, `Rollb
 | `MigrationErrorAction` | string? | inherits | Error handling strategy. Values: `Terminate`, `Rollback`, `RollbackErrorOnly`, `RollbackRelease`, `Ignore` |
 | `RollbackErrorAction` | string? | inherits | Rollback error handling strategy. Values: `Terminate`, `Ignore`. **Note**: migsettings only affect forward migration file metadata. Rollback files are parsed independently without migsettings inheritance; use TOML in the rollback file itself or the product-level config instead. |
 | `UseCliToolAlias` | string? | inherits | CLI tool alias for executing migrations instead of the built-in DAL. References a `CliTools[].Alias` in `appsettings.json`. When omitted, inherits from parent migsettings or the Target/TargetGroup/Product/ProductDefaults configuration cascade. **Note**: like `RollbackErrorAction`, migsettings only affect forward migration file metadata. Rollback files are parsed independently without migsettings inheritance. |
-| `TargetGroupMigrationOrder` | string[]? | not set | **Release-level only.** Array of target group aliases defining execution order for this release. Overrides the product-level `TargetGroupMigrationOrder` appsettings value and is itself overridden by the CLI `--target-group-migration-order` option. All aliases must be listed; duplicates and unknown aliases are rejected. Case-sensitive. Only meaningful at release-level (not target-group-level) migsettings. Applies to `migrate-up` and `baseline` only. |
+| `TargetGroupMigrationOrder` | string[]? | not set | **Release-level only.** Array of target group aliases defining execution order for this release. Overrides the product-level `TargetGroupMigrationOrder` appsettings value and is itself overridden by the CLI `--target-group-migration-order` option. All aliases must be listed; duplicates and unknown aliases are rejected. Case-sensitive. With one target group, an order of exactly its alias is ignored with a warning. The command checks the value when it applies it; the startup validation does not see migsettings. Only meaningful at release-level (not target-group-level) migsettings. Applies to `migrate-up` and `baseline`, and `info` lists the pending migrations in it. |
 
 ## Examples
 

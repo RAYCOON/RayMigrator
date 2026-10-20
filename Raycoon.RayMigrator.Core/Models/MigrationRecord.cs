@@ -75,7 +75,8 @@ public class MigrationRecord
     public string FileUpBlocksHash { get; set; } = string.Empty;
 
     /// <summary>
-    /// Number of blocks successfully migrated (up).
+    /// The leading blocks that committed on the target, in a row from block 1; a block that commits after a failed one
+    /// (MigrationErrorAction=Ignore) does not count.
     /// </summary>
     public int FileUpBlocksMigrated { get; set; }
 
@@ -105,7 +106,8 @@ public class MigrationRecord
     public string? FileDownBlocksHash { get; set; }
 
     /// <summary>
-    /// Number of rollback blocks successfully executed.
+    /// The leading rollback blocks that ran on the target, in a row from rollback block 1; a rollback that ran to its end
+    /// with rollback errors that RollbackErrorAction=Ignore skipped stores the number of its rollback blocks.
     /// </summary>
     public int? FileDownBlocksMigrated { get; set; }
 
@@ -113,4 +115,20 @@ public class MigrationRecord
     /// Total number of blocks in the rollback file.
     /// </summary>
     public int? FileDownBlocksTotal { get; set; }
+
+    /// <summary>
+    /// When the record was created or last reset for a new attempt, in UTC (<see cref="DateTimeKind.Utc"/> on every
+    /// engine). Null when the select of the DAL does not return the column (an external DAL with a select of an engine
+    /// before 0.20.0).
+    /// </summary>
+    public DateTime? StartedAt { get; set; }
+
+    /// <summary>
+    /// When the record last reached a terminal status (Migrated, NotMigrated or Failed), in UTC
+    /// (<see cref="DateTimeKind.Utc"/> on every engine). A record whose rollback is running keeps the end of its last
+    /// terminal status; the orphan repair (the auto-fix of a later start, or <c>fix</c>) sets the time of the repair where
+    /// a record has none, a file that was running, and keeps it otherwise. Null while a file is pending or executing, and
+    /// when the select of the DAL does not return the column.
+    /// </summary>
+    public DateTime? FinishedAt { get; set; }
 }

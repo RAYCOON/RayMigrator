@@ -20,14 +20,19 @@ Templates are stored as flat files within each DAL project (`Raycoon.RayMigrator
 Raycoon.RayMigrator.Database.SqlServer/
 └── Templates/
     ├── DatabaseLogging_CheckCreate.sql
+    ├── DatabaseLogging_Count.sql
+    ├── DatabaseLogging_Delete.sql
     ├── DatabaseLogging_Insert.sql
     ├── Repository_CheckCreate.sql
     ├── Repository_Upgrade_1.sql
     ├── Repository_Upgrade_2.sql
+    ├── Repository_Upgrade_3.sql
     ├── Repository_MigratorMeta_CheckInsert.sql
     ├── Repository_Drop.sql
     ├── Repository_Environment_CheckInsert.sql
     ├── Repository_Environment_Select.sql
+    ├── Repository_MigrationRecordHistory_Count.sql
+    ├── Repository_MigrationRecordHistory_Delete.sql
     ├── Repository_MigrationRecordHistory_Select.sql
     ├── Repository_MigrationRecord_FixOrphaned.sql
     ├── Repository_MigrationRecord_GetInterrupted.sql
@@ -46,7 +51,7 @@ Raycoon.RayMigrator.Database.SqlServer/
     └── Repository_Product_Select.sql
 ```
 
-Each DAL (SqlServer, PostgreSQL, MariaDb, MySql, Sqlite) has the same 25 template files with database-specific SQL. Template file names correspond to `TemplateType` enum values. `TemplateCache` loads templates from `DataAccessLayers/{Type}/` on the filesystem at startup.
+Each DAL (SqlServer, PostgreSQL, MariaDb, MySql, Sqlite) has the same 30 template files with database-specific SQL. Template file names correspond to `TemplateType` enum values. `TemplateCache` loads templates from `DataAccessLayers/{Type}/` on the filesystem at startup.
 
 ## Template TOML Headers
 
@@ -154,10 +159,10 @@ All templates that use `ExecuteScalar` must return a result string in the format
 
 - **ResultCode >= 0**: Success (e.g., the new record ID)
 - **ResultCode < 0**: Error (migration aborted, see `TemplateResultCode.cs` for the catalog of known codes)
-- **Further codes**: template-specific information; `Repository_CheckCreate` returns the schema version as its first code and `unversionedTables` (`1`/`0`) as its second, from which the engine decides which `Repository_Upgrade_{n}` steps to run (ADR-024)
+- **Further codes**: template-specific information; `Repository_CheckCreate` returns the schema version as its first code and `unversionedTables` (`1`/`0`) as its second, from which the engine decides which `Repository_Upgrade_{n}` steps to run (ADR-024); `DatabaseLogging_Count` returns the row count and `1`, or `0,0` when the log table is not in the repository database, and with `@ExistsOnly` = 1 `0,1` without a count. The first code of a count template may exceed the `int` range and is read as a `long`
 - **ResultMessage**: A human-readable description after the last code; it must not start with an integer followed by a comma
 
-The result is parsed by `TemplateExecutor.ExecuteScalarWithNegativeResultCodeException()` into a `TemplateResponse` object with `ResultCode` (int), `ResultCodes` (int[]) and `ResultMessage` (string?).
+The result is parsed by `TemplateExecutor.ExecuteScalarWithNegativeResultCodeExceptionAsync()` into a `TemplateResponse` object with `ResultCode` (int), `ResultCodes` (int[]) and `ResultMessage` (string?).
 
 Known result codes (from `TemplateResultCode` in `Shared/Constants/`):
 
@@ -165,7 +170,7 @@ Known result codes (from `TemplateResultCode` in `Shared/Constants/`):
 
 | Code | Constant | Meaning |
 |------|----------|---------|
-| `-1` | `GeneralError` | General/unclassified template error |
+| `-1` | `GeneralError` | General/unclassified template error; also `DatabaseLogging_CheckCreate` on SQL Server and MySQL when the logging lock is not acquired within 60 seconds (reached only when `DatabaseLogging.DbCommandTimeoutInSeconds` is above 60 or 0; the default of 20 seconds times out first, and the initialization does not retry that timeout) |
 | `-2` | `MigrationAlreadyRunning` | Parallel run prevention |
 | `-12` | `RepositoryMultipleVersionEntries` | Multiple MigratorMeta entries for one RayMigrator version (`Repository_MigratorMeta_CheckInsert`) |
 | `-20` | `ProductNameEmpty` | Product name is NULL or empty |
@@ -184,6 +189,9 @@ Unknown negative codes (e.g., from user-customized templates) throw `UndefinedTe
 | `1001` | `RequireRollbackFileValidationFailed` | Missing rollback files when RequireRollbackFile is enabled |
 | `1002` | `MigrationFileParsingFailed` | Migration file parsing error |
 | `1003` | `ConfigurationValidationFailed` | Configuration validation error |
+| `1004` | `Cancelled` | The host cancelled the run and the engine stopped it: the run of a migrate-up, migrate-down or baseline is `MigrationRunResult.Cancelled`. Also the `ErrorCode` of an update-hash or fix that stopped early. The read commands (validate-hash, status, history) throw an `OperationCanceledException` instead, and the repository maintenance service reports a stopped cleanup with `RetentionResult.Completed = false` and no code |
+| `1005` | `CancelledRollbackIncomplete` | A cancelled migrate-up whose rollback did not complete cleanly (`MigrationRunResult.Error`) |
+| `1006` | `OrphanedRunClosed` | The orphan repair closed the run (`MigrationRunResult.Error`): `Repository_MigrationRun_FixOrphaned` writes it into `MigrationRun.ErrorCode`, with a message that names the last heartbeat, where the row has none; it is never the `ErrorCode` of a command's result, and the run history reports it with the run it closed |
 
 ## Template Examples
 
@@ -192,6 +200,10 @@ Unknown negative codes (e.g., from user-customized templates) throw `UndefinedTe
 `Repository_MigrationRecord_Update.sql` and `Repository_MigrationRecord_UpdateRollback.sql` include an inline `INSERT INTO MigrationRecordHistory` that fires whenever a migration record transitions to a terminal state. The insert is gated on `MigrationStatusId IN (30, 50, 100)` (Failed, NotMigrated, Migrated). This means historization happens at the moment each record reaches its final status — no separate archive step is required.
 
 When customizing these templates, preserve the inline `INSERT INTO MigrationRecordHistory` block and ensure the `HistorizedAt` column is populated with the current UTC timestamp.
+
+### Retention Templates
+
+`Repository_MigrationRecordHistory_Delete`, `Repository_MigrationRecordHistory_Count`, `DatabaseLogging_Delete` and `DatabaseLogging_Count` serve `IRepositoryMaintenanceService` and never run in a command (see [Repository Schema: Retention](../03-database-layer/repository-schema.md#retention)). When customizing them, keep the contract the service relies on: a delete is one statement that removes at most `@BatchSize` rows older than `@CutoffUtc` (UTC text `yyyy-MM-dd HH:mm:ss`), the oldest first, spares every row whose `MigrationRunId` points to a `MigrationRun` with `FinishedAt IS NULL`, and returns `'n,message'` with the rows it deleted; the service stops a table after a batch that deleted fewer than `@BatchSize`, so a delete must not take fewer while more such rows are there. A count counts the same rows. The log templates run with the schema and prefix of the `Repository` section, and `DatabaseLogging_Count` reports `'0,0,message'` when the log table is not there. `DatabaseLogging_Count` also takes `@ExistsOnly`: with `1` it counts nothing and returns `'0,1,message'` when the log table exists, which the service asks before it deletes from the log, so that a large log is not read whole; with `0` it counts, for the dry run. The service runs the four templates with the command timeout of the repository and without its retries; the next batch or the next call takes a failed batch up.
 
 ### Schema Creation Template
 
@@ -299,7 +311,7 @@ END
 - `@Name` -- the name in original casing (e.g., `MyApplication`, `Docker`)
 - `@NameLower` -- the pre-computed lowercase form used for the lookup
 
-The lookup must be performed against `NameLower` to remain case-insensitive. Both `Product` and `Environment` tables carry a `UNIQUE` index on `NameLower`. Here is the SQL Server Product template (excerpt):
+The lookup must be performed against `NameLower` to remain case-insensitive. Both `Product` and `Environment` tables carry a `UNIQUE` index on `NameLower`, and two first starts of the same name at the same moment must both succeed with the Id of the one row: the SQL Server template looks the name up with `UPDLOCK, ROWLOCK, HOLDLOCK` in a transaction with the insert, so the second start waits and then finds the row (the other engines insert idempotently, see [External DAL Development](external-dal-development.md#required-templates)). Here is the SQL Server Product template (excerpt):
 
 ```sql
 -- Repository_Product_CheckInsert.sql (SQL Server, excerpt)
@@ -311,11 +323,14 @@ if (@Name IS NULL OR LEN(@Name) = 0)
 
 declare @ProductId int, @numberOfRows int;
 
-select @ProductId = [Id] from [{CFG:SchemaName}].[{CFG:TableBaseName}Product] where [NameLower] = @NameLower;
+BEGIN TRANSACTION;
+
+select @ProductId = [Id] from [{CFG:SchemaName}].[{CFG:TableBaseName}Product] WITH (UPDLOCK, ROWLOCK, HOLDLOCK) where [NameLower] = @NameLower;
 SET @numberOfRows = @@rowcount;
 
 if (@numberOfRows = 1)
     begin
+        COMMIT TRANSACTION;
         SELECT CAST(@ProductId AS varchar(10)) + ',Product [' + @Name + '] with Id [' + CAST(@ProductId AS varchar(10)) + '] found';
         return;
     end;
@@ -326,12 +341,13 @@ if (@numberOfRows = 0)
         VALUES (@Name, @NameLower, SYSUTCDATETIME());
 
         SET @ProductId = SCOPE_IDENTITY();
+        COMMIT TRANSACTION;
         SELECT CAST(@ProductId AS varchar(10)) + ',Product [' + @Name + '] with Id [' + CAST(@ProductId AS varchar(10)) + '] successfully created';
         return;
     end;
 ```
 
-The C# caller (`TemplateExecutor.RepositoryProductCheckInsert` / `RepositoryEnvironmentCheckInsert`) pre-computes the lowercase form via `.ToLowerInvariant()` before binding the parameters.
+The C# caller (`TemplateExecutor.RepositoryProductCheckInsertAsync` / `RepositoryEnvironmentCheckInsertAsync`) pre-computes the lowercase form via `.ToLowerInvariant()` before binding the parameters.
 
 When customizing these templates, preserve both parameters and the lookup-by-`NameLower` semantics; returning a `ProductId` or `EnvironmentId` via the `{code},{message}` convention is required by the engine.
 
@@ -443,7 +459,7 @@ ON [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRecord];
 
 ### TemplateExecutor
 
-`TemplateExecutor` is a concrete class (namespace `Raycoon.RayMigrator.Core`, source file in the Infrastructure project) that executes SQL templates via `IDal`. All public methods are **synchronous** (internally calling async DAL methods with `.GetAwaiter().GetResult()`). Repository options and the DAL instance are lazily initialized from `IMigrationContextAccessor.Current` on first use:
+`TemplateExecutor` is a concrete class (namespace `Raycoon.RayMigrator.Core`, source file in the Infrastructure project) that executes SQL templates via `IDal`. All public methods are **asynchronous** (`…Async`, returning a `Task`) and take `CancellationToken cancellationToken = default` as their last parameter, which they hand to the DAL; a call that fails after the token was cancelled ends with the DAL's `OperationCanceledException` instead of a `TemplateExecutionException`. Repository options and the DAL instance are lazily initialized from `IMigrationContextAccessor.Current` on first use:
 
 ```csharp
 public class TemplateExecutor
@@ -451,59 +467,61 @@ public class TemplateExecutor
     public TemplateExecutor(TemplateCache templateCache, ILogger<TemplateExecutor> logger,
         IMigrationContextAccessor ctxAccessor) { ... }
 
+    // Every method below ends with CancellationToken cancellationToken = default (written as "ct" here)
+
     // Repository infrastructure
-    public void RepositoryCheckCreate() { ... }   // schema steps through RepositorySchemaExecutor
-    public void RepositoryProductCheckInsert() { ... }
-    public void RepositoryEnvironmentCheckInsert() { ... }
-    public bool RepositoryProductSelect() { ... }
-    public bool RepositoryEnvironmentSelect() { ... }
+    public Task RepositoryCheckCreateAsync(ct) { ... }   // schema steps through RepositorySchemaExecutor
+    public Task RepositoryProductCheckInsertAsync(ct) { ... }
+    public Task RepositoryEnvironmentCheckInsertAsync(ct) { ... }
+    public Task<bool> RepositoryProductSelectAsync(ct) { ... }
+    public Task<bool> RepositoryEnvironmentSelectAsync(ct) { ... }
 
     // MigrationRun operations
-    public void RepositoryMigrationRunInsert(string migrationRunSettingsJson) { ... }
-    public void RepositoryMigrationRunUpdate(MigrationRunResult runResult, string? errorCode = null, string? errorMessage = null) { ... }
-    public bool RepositoryMigrationRunHeartbeat() { ... }
-    public List<Dictionary<string, object?>> RepositoryMigrationRunSelect(int limit) { ... }
-    public List<Dictionary<string, object?>> RepositoryMigrationRunSelectOrphaned(int productId, int environmentId) { ... }
-    public bool RepositoryMigrationRunFixOrphaned(int migrationRunId, int thresholdMinutes) { ... }
+    public Task RepositoryMigrationRunInsertAsync(string migrationRunSettingsJson, ct) { ... }
+    public Task RepositoryMigrationRunUpdateAsync(MigrationRunResult runResult, string? errorCode = null, string? errorMessage = null, ct) { ... }
+    public Task<bool> RepositoryMigrationRunHeartbeatAsync(ct) { ... }
+    public Task<List<Dictionary<string, object?>>> RepositoryMigrationRunSelectAsync(int limit, ct) { ... }
+    public Task<List<Dictionary<string, object?>>> RepositoryMigrationRunSelectOrphanedAsync(int productId, int environmentId, ct) { ... }
+    public Task<bool> RepositoryMigrationRunFixOrphanedAsync(int migrationRunId, int thresholdMinutes, ct) { ... }
 
     // Migration operations
-    public int RepositoryMigrationInsert(int existingMigrationRecordId, string filename, string releaseVersion,
+    public Task<int> RepositoryMigrationInsertAsync(int existingMigrationRecordId, string filename, string releaseVersion,
         string targetGroupAlias, string targetAlias, int fileOrderId, string fileUpHash,
         string? fileUpConfigHash, string fileUpBlocksHash, int fileUpBlocksTotal,
-        string? fileUpConfigJson, bool migrateDownFileExists) { ... }   // Returns MigrationRecordId
-    public List<MigrationRecord> RepositoryMigrationSelect() { ... }   // always reads Migrate-mode records
-    public List<MigrationRecord> RepositoryMigrationRecordHistorySelect() { ... }
-    public InterruptedMigrationInfo? RepositoryMigrationGetInterrupted() { ... }
-    public int RepositoryMigrationRecordFixOrphaned(int migrationRunId, MigrationStatus status) { ... }
-    public void RepositoryMigrationUpdateHash(int migrationRecordId, string fileUpHash,
-        string? fileUpConfigHash, string fileUpBlocksHash) { ... }
+        string? fileUpConfigJson, bool migrateDownFileExists, ct) { ... }   // Returns MigrationRecordId
+    public Task<List<MigrationRecord>> RepositoryMigrationSelectAsync(ct) { ... }   // always reads Migrate-mode records
+    public Task<List<MigrationRecord>> RepositoryMigrationRecordHistorySelectAsync(ct) { ... }
+    public Task<InterruptedMigrationInfo?> RepositoryMigrationGetInterruptedAsync(ct) { ... }
+    public Task<int> RepositoryMigrationRecordFixOrphanedAsync(int migrationRunId, MigrationStatus? status, ct) { ... }
+    public Task RepositoryMigrationUpdateHashAsync(int migrationRecordId, string fileUpHash,
+        string? fileUpConfigHash, string fileUpBlocksHash, ct) { ... }
 
     // Standard update (DAL manages connection lifecycle)
-    public void RepositoryMigrationUpdate(int migrationRecordId, MigrationStatus migrationStatus,
-        int fileUpBlocksMigrated) { ... }
-    public void RepositoryMigrationUpdateRollback(int migrationRecordId, MigrationStatus migrationStatus,
+    public Task RepositoryMigrationUpdateAsync(int migrationRecordId, MigrationStatus migrationStatus,
+        int fileUpBlocksMigrated, ct) { ... }
+    public Task RepositoryMigrationUpdateRollbackAsync(int migrationRecordId, MigrationStatus migrationStatus,
         string fileDownHash, string? fileDownConfigHash, string fileDownBlocksHash,
-        int fileDownBlocksMigrated, int fileDownBlocksTotal, string? fileDownConfigJson) { ... }
+        int fileDownBlocksMigrated, int fileDownBlocksTotal, string? fileDownConfigJson, ct) { ... }
 
     // Shared-connection update overloads (atomic path: caller provides connection + transaction)
-    public void RepositoryMigrationUpdate(int migrationRecordId, MigrationStatus migrationStatus,
+    public Task RepositoryMigrationUpdateAsync(int migrationRecordId, MigrationStatus migrationStatus,
         int fileUpBlocksMigrated, DbConnection connection, DbTransaction transaction,
-        int repoCommandTimeoutInSeconds) { ... }
-    public void RepositoryMigrationUpdateRollback(int migrationRecordId, MigrationStatus migrationStatus,
+        int repoCommandTimeoutInSeconds, ct) { ... }
+    public Task RepositoryMigrationUpdateRollbackAsync(int migrationRecordId, MigrationStatus migrationStatus,
         string fileDownHash, string? fileDownConfigHash, string fileDownBlocksHash,
         int fileDownBlocksMigrated, int fileDownBlocksTotal, string? fileDownConfigJson,
-        DbConnection connection, DbTransaction transaction, int repoCommandTimeoutInSeconds) { ... }
+        DbConnection connection, DbTransaction transaction, int repoCommandTimeoutInSeconds, ct) { ... }
 
     // Core execution helpers
     // Standard overload: DAL manages connection
-    public TemplateResponse ExecuteScalarWithNegativeResultCodeException(
+    public Task<TemplateResponse> ExecuteScalarWithNegativeResultCodeExceptionAsync(
         Template template, IDal dal, DalSettings dalSettings,
-        DalParameterList? dalParameterList, ILogger? logger = null, EventId? eventId = null) { ... }
+        DalParameterList? dalParameterList, ILogger? logger = null, EventId? eventId = null, ct) { ... }
     // Shared-connection overload: caller provides connection + transaction
-    public TemplateResponse ExecuteScalarWithNegativeResultCodeException(
+    public Task<TemplateResponse> ExecuteScalarWithNegativeResultCodeExceptionAsync(
         Template template, IDal dal, DbConnection connection, DbTransaction transaction,
         int commandTimeoutInSeconds, DalParameterList? dalParameterList,
-        ILogger? logger = null, EventId? eventId = null) { ... }
+        ILogger? logger = null, EventId? eventId = null, ct) { ... }
 
     // Template resolution + execution flow:
     // 1. Get template: _templateCache.GetRepositoryTemplate(templateType, _repository)
@@ -564,18 +582,18 @@ The project uses xUnit and AwesomeAssertions for testing:
 
 ```csharp
 [Fact]
-public void CustomTemplate_CreatesRepositoryTables()
+public async Task CustomTemplate_CreatesRepositoryTables()
 {
-    // TemplateExecutor.RepositoryCheckCreate() creates the repository through
+    // TemplateExecutor.RepositoryCheckCreateAsync() creates the repository through
     // Repository_CheckCreate.sql and the schema steps Repository_Upgrade_{n}.sql
-    _templateExecutor.RepositoryCheckCreate();
+    await _templateExecutor.RepositoryCheckCreateAsync(TestContext.Current.CancellationToken);
 
     // Verify table exists using the DAL
     // TryGetDal returns true with the DAL, or throws ConfigurationValidationException for unknown types
     DalFactory.TryGetDal("SqlServer", connectionString, out var dal);
-    var result = dal!.ExecuteScalarAsync(
+    var result = await dal!.ExecuteScalarAsync(
         "SELECT 1 FROM sys.tables WHERE name = 'RayMigrationRecord'",
-        dalSettings).GetAwaiter().GetResult();
+        dalSettings, cancellationToken: TestContext.Current.CancellationToken);
 
     result.Should().NotBeNull();
 }
@@ -585,7 +603,7 @@ public void CustomTemplate_CreatesRepositoryTables()
 
 ### 1. Schema Changes Are New Steps
 
-The repository is upgraded in place in numbered steps (ADR-024): a change to its schema or its lookup master data is a new `Repository_Upgrade_{n}.sql` in every DAL plus a bump of `RepositorySchema.CurrentVersion`, not a change to an existing step, and the next command (or a host through `IRepositorySchemaService.Ensure`) applies the missing steps. `RepositorySchemaVersion` records the applied versions; `MigratorMeta.RayMigratorVersion` only lists the RayMigrator versions that used the repository. `Repository_CheckCreate` creates nothing but the schema and the version table. The log database is not upgraded in place: do not add `ALTER TABLE` guards or master-data back-fill blocks to the "already exists" branch of `DatabaseLogging_CheckCreate`, whose master data is written only when the tables are created. Bump the `Version` header of every changed template file (file revision).
+The repository is upgraded in place in numbered steps (ADR-024): a change to its schema or its lookup master data is a new `Repository_Upgrade_{n}.sql` in every DAL plus a bump of `RepositorySchema.CurrentVersion`, not a change to an existing step, and the next command (or a host through `IRepositorySchemaService.EnsureAsync`) applies the missing steps. `RepositorySchemaVersion` records the applied versions; `MigratorMeta.RayMigratorVersion` only lists the RayMigrator versions that used the repository. `Repository_CheckCreate` creates nothing but the schema and the version table. The log tables are not versioned, because a log database of its own is out of reach of a repository step: `DatabaseLogging_CheckCreate` creates the two `MigrationLog` indexes outside its creation branch, each only when it is missing, so that a log table an older engine created gets them at its next start, and writes its master data only when it creates the tables. Keep that shape: an addition to an existing log table must be idempotent and must not fail on a log account that lacks the right for it once the addition is there; do not add `ALTER TABLE` guards or master-data back-fill blocks. A timeout of `DatabaseLogging_CheckCreate` is not retried, because a retry would build an index from the start again (`DalBase.IsTimeout`): keep an addition that can take long, such as an index over a large log, within `DatabaseLogging.DbCommandTimeoutInSeconds`, or tell the operators to raise it for the first start. Bump the `Version` header of every template file whose SQL or whose description of its behaviour changes (file revision), also when no statement changes; a corrected example in the header alone, such as the casing of the example prefix, keeps it.
 
 ### 2. Use Idempotent Scripts
 

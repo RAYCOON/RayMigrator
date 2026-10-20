@@ -28,7 +28,7 @@ raymigrator migrate-down -p BookStore -env Development --to-release "Release 1.0
 
 The rollback process follows these steps:
 
-1. RayMigrator reads the repository to find all `Migrated` records after the target release. It also picks up partially-rolled-back records (`Failed` with `FileDownBlocksMigrated > 0` and less than `FileDownBlocksTotal`), allowing a previously interrupted rollback to resume.
+1. RayMigrator reads the repository to find all `Migrated` records after the target release. It also picks up partially-rolled-back records (`Failed`, or `Executing` in a run that has ended, with `FileDownBlocksMigrated > 0` and less than `FileDownBlocksTotal`), allowing a previously interrupted rollback to resume, and the records of files that stopped after committed blocks: a `migrate-up` that failed, was cancelled or crashed in the middle of a file leaves its record `Failed` with the blocks that committed, and the next `migrate-up` would resume the file after them. `migrate-down` rolls such a file back like a migrated one, so that the next `migrate-up` runs it from its first block. A `Failed` record without a committed block is not rolled back; RayMigrator names it in a warning, because with `MigrationErrorAction=Ignore` or a CLI tool blocks of the file may have run.
 2. Records are ordered by `FileOrderId` descending (reverse of migration order).
 3. For each record, RayMigrator locates the matching `.rollback.sql` file.
 4. Executes the rollback SQL blocks on the target database, tracking progress per block.
@@ -53,7 +53,7 @@ When a rollback file is not found, the behavior depends on two settings: `Requir
 
 | `RequireRollbackFile` | `StopRollbackOnMissingRollbackFile` | Flow | Behavior | Record Status |
 |-----------------------|-------------------------------------|------|----------|---------------|
-| `true` | N/A | Any | Rollback chain **aborted immediately** | `Failed` (30) |
+| `true` | N/A | Any | Rollback chain **aborted immediately** | Unchanged |
 | `false` | `true` (default) | Error-recovery Rollback | Chain **stopped** with Warning | Unchanged |
 | `false` | `false` | Error-recovery Rollback | Chain **continues** with Warning | Unchanged |
 | `false` | N/A | migrate-down | Chain **continues** with Warning | Unchanged |
@@ -64,7 +64,9 @@ When a rollback file is not found, the behavior depends on two settings: `Requir
 
 RayMigrator tracks rollback progress at the SQL block level. Each rollback file is split into blocks (separated by the engine's block separator on a line of its own: `GO` for SQL Server, `;` for the other engines; a `;` at the end of a statement does not split). As each block executes successfully, the repository records `FileDownBlocksMigrated` and `FileDownBlocksTotal`.
 
-If a rollback is interrupted (e.g., by a block error with `RollbackErrorAction=Terminate`), the partially-rolled-back record retains its block progress. A subsequent `migrate-down` command will detect this record and **resume from the last successful block**, rather than re-executing blocks that already completed.
+If a rollback is interrupted (e.g., by a block error with `RollbackErrorAction=Terminate`, or by Ctrl+C, which stops a `migrate-down` before its next rollback block and records the run as `Cancelled`), the partially-rolled-back record retains its block progress. A subsequent `migrate-down` command will detect this record and **resume from the last successful block**, rather than re-executing blocks that already completed. The first block of a rollback file, an atomic rollback and a rollback through a CLI tool always run to their end before a Ctrl+C takes effect, so a cancelled record has rollback progress to resume from, unless its first rollback block had failed under `RollbackErrorAction=Ignore`: the next `migrate-down` does not continue such a record, and the next `migrate-up` runs the file again from its first block.
+
+Until the rollback is complete, `migrate-up` refuses to run: it would run the file again from its first block on a database that kept part of it. The run ends with exit code `1` before any file runs, and the message names the release, the file, the target and how far the rollback got, for example `Release 2.0/001_RefactorAuthors.sql on target MainDB: 1 of 3 rollback blocks, migrate-down continues at block 2`. `info` lists the file as `RollbackIncomplete after 1 of 3 rollback blocks, run migrate-down`. Run `migrate-down` to a release before the file (it continues the rollback and also rolls back the migrated files of the later releases, as every `migrate-down` does; preview with `--run-mode simulate`), then `migrate-up`.
 
 ### RollbackErrorAction During migrate-down
 
@@ -117,8 +119,8 @@ raymigrator info -p BookStore -env Development
 
 You will see:
 - All Release 1.0 migrations remain with status `Migrated` (100)
-- All Release 1.1 migrations that had rollback files show status `NotMigrated` (50)
-- Migrations without rollback files (when `RequireRollbackFile=false`) retain their previous status (e.g., `Migrated` if they were previously applied)
+- All Release 1.1 migrations that had rollback files show status `NotMigrated` (50), and `info` lists them as pending migrations with the reason `NotMigrated`
+- Migrations without rollback files (when `RequireRollbackFile=false`) retain their previous status (e.g., `Migrated` if they were previously applied) and are not pending
 
 > **Tip:** Always verify with `info` after a rollback to confirm the expected state.
 
@@ -130,7 +132,7 @@ Rollback files use the same TOML metadata header as migration files, with the `.
 
 ### 1. Use IF EXISTS
 
-Always check before dropping to make rollback files idempotent:
+Always check before dropping to make rollback files idempotent. A rollback file also runs for a file that stopped after some of its blocks: the error recovery, a cancel action and `migrate-down` roll such a file back, so the rollback must not fail on what the file did not get to create:
 
 ```sql
 /*
@@ -207,7 +209,7 @@ Control whether rollback files are mandatory. This setting supports the full cro
 
 | Value | Behavior on migrate-up | Behavior on migrate-down / Error-recovery Rollback |
 |-------|------------------------|----------------------------------------------------|
-| `true` (default) | migrate-up fails during file discovery if any migration is missing its `.rollback.sql` file | Rollback chain is aborted if a rollback file is missing; record is set to `Failed` (30) |
+| `true` (default) | migrate-up fails during file discovery if any migration is missing its `.rollback.sql` file | Rollback chain is aborted if a rollback file is missing; record status is unchanged, and migrate-down rolls the file back once its rollback file is there |
 | `false` | Rollback files are optional; migrations without rollback files can be executed | Missing rollback files are skipped with a warning; record status is unchanged. For error-recovery rollback, whether the chain stops or continues depends on `StopRollbackOnMissingRollbackFile` |
 
 ## StopRollbackOnMissingRollbackFile Setting
@@ -273,7 +275,7 @@ This ensures that foreign key constraints are dropped before the tables they ref
 | Target group filter | Use `--target-group` / `-tg` to limit rollback to specific target groups |
 | Block-level tracking | Progress is tracked per SQL block; interrupted rollbacks can resume from the last successful block |
 | RollbackErrorAction | Controls behavior when a rollback SQL block fails: `Terminate` (abort chain) or `Ignore` (skip and continue) |
-| Missing rollback file | `RequireRollbackFile=true` aborts chain with `Failed` (30); `RequireRollbackFile=false` + `StopRollbackOnMissingRollbackFile=true` (default) stops error-recovery chain with Warning; `false`+`false` continues with Warning; status is unchanged for the skipped record |
+| Missing rollback file | `RequireRollbackFile=true` aborts the chain, and the record keeps its status, so that `migrate-down` rolls it back once the file is there; `RequireRollbackFile=false` + `StopRollbackOnMissingRollbackFile=true` (default) stops error-recovery chain with Warning; `false`+`false` continues with Warning; status is unchanged for the skipped record |
 | IF EXISTS | Always use defensive checks in rollback files |
 | Non-reversible ops | Backup data before destructive migrations |
 | RequireRollbackFile | Enforce rollback files globally or override per migration via TOML |

@@ -81,21 +81,25 @@ The existing `IMigrationService` interface uses typed request/response objects:
 public interface IMigrationService
 {
     // Existing methods (request/response pattern)
-    Task<MigrationOperationResult> MigrateUpAsync(MigrateUpRequest request);
-    Task<MigrationOperationResult> MigrateDownAsync(MigrateDownRequest request);
-    Task<ValidationResult> ValidateHashAsync(ValidateHashRequest request);
-    Task<HashUpdateResult> UpdateHashAsync(UpdateHashRequest request);
-    Task<BaselineResult> BaselineAsync(BaselineRequest request);
-    Task<FixIssuesResult> FixIssuesAsync(FixIssuesRequest request);
+    Task<MigrationOperationResult> MigrateUpAsync(MigrateUpRequest request, CancellationToken cancellationToken = default);
+    Task<MigrationOperationResult> MigrateDownAsync(MigrateDownRequest request, CancellationToken cancellationToken = default);
+    Task<ValidationResult> ValidateHashAsync(ValidateHashRequest request, CancellationToken cancellationToken = default);
+    Task<HashUpdateResult> UpdateHashAsync(UpdateHashRequest request, CancellationToken cancellationToken = default);
+    Task<BaselineResult> BaselineAsync(BaselineRequest request, CancellationToken cancellationToken = default);
+    Task<FixIssuesResult> FixIssuesAsync(FixIssuesRequest request, CancellationToken cancellationToken = default);
 
     // Existing methods (simple parameters, used by Info command)
-    Task<MigrationStatusInfo> GetStatusAsync(string productAlias);
-    Task<MigrationHistory> GetHistoryAsync(string productAlias, int limit = 100);
+    Task<MigrationStatusInfo> GetStatusAsync(string productAlias, CancellationToken cancellationToken = default);
+    Task<MigrationHistory> GetHistoryAsync(string productAlias, int limit = 100, CancellationToken cancellationToken = default);
 
     // New method
-    Task<MigrateStatusResponse> MigrateStatusAsync(MigrateStatusRequest request);
+    Task<MigrateStatusResponse> MigrateStatusAsync(MigrateStatusRequest request, CancellationToken cancellationToken = default);
 }
 ```
+
+Every method takes `CancellationToken cancellationToken = default` as its last parameter. A command that starts a run (migrate-up, migrate-down, baseline) also carries a `RunCancellation` in its request, so that the host can choose the `MigrationCancelledAction` of the cancel; see [Error handling: Cancellation](../02-core-concepts/error-handling.md#cancellation).
+
+> **Note**: A command that writes stops at its next checkpoint instead and returns its result with `ErrorCode = TemplateResultCode.Cancelled` (1004), as update-hash and fix do. Do not pass the token to its repository writes, so that a cancel never separates a record from its history row.
 
 > **Note**: Existing methods like `GetStatusAsync` and `GetHistoryAsync` take simple parameters (not request objects) because they were designed for the `info` command. New commands should follow the request/response pattern used by `MigrateUpAsync`, `MigrateDownAsync`, etc. All request classes should include `ShowInfo` and `RevealSensitiveData` properties. Most migration requests also include `TargetGroupAliases` (`string[]?`) for target group filtering (exception: `FixIssuesRequest` does not include `TargetGroupAliases`). `MigrateUpRequest` also includes `AllowOutOfOrder` (`bool`) for out-of-order migration execution and `TargetGroupMigrationOrder` (`string[]?`) for explicit target group ordering — both specific to that command. `BaselineRequest` also includes `TargetGroupMigrationOrder`. `FixIssuesRequest` includes `OlderThanMinutes`, `RunMode` (Migrate repairs, Simulate lists, #22), `AssumedMigrationStatus`, and `Scope` properties, which are populated from `_consoleOptions` in `ExecuteFixIssuesAsync()`. Some CLI options are not propagated via request classes but are read directly from `RayMigratorConsoleOptions` by the service (e.g., `StopRollbackOnMissingRollbackFile` for `migrate-up`); these options are typically also configurable in `appsettings.json` and the CLI value acts as an override.
 
@@ -103,14 +107,16 @@ public interface IMigrationService
 
 ```csharp
 // Raycoon.RayMigrator.Services/MigrationService.cs
-public async Task<MigrateStatusResponse> MigrateStatusAsync(MigrateStatusRequest request)
+public async Task<MigrateStatusResponse> MigrateStatusAsync(MigrateStatusRequest request, CancellationToken cancellationToken = default)
 {
     try
     {
         _logger.LogInformation("Getting migration status for {Product}/{Environment}",
             request.ProductAlias, request.Environment);
 
-        // Implementation using _ctxAccessor.Current, _templateExecutor, etc.
+        // Checkpoint before the work; hand the token to the reads of the repository and the targets
+        cancellationToken.ThrowIfCancellationRequested();
+        // Implementation using _ctxAccessor.Current, _templateExecutor.…Async(…, cancellationToken), etc.
         // ...
 
         return new MigrateStatusResponse
@@ -118,6 +124,10 @@ public async Task<MigrateStatusResponse> MigrateStatusAsync(MigrateStatusRequest
             Success = true,       // inherited from OperationResult
             TargetGroups = targetGroups
         };
+    }
+    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+    {
+        throw;                    // a read command lets the cancel through, as validate-hash, status and history do
     }
     catch (Exception ex)
     {
@@ -225,45 +235,45 @@ SetupMigrateStatusHandler(migrateStatusCommand, showInfoOption, revealSensitiveD
 
 ### Add Switch Case
 
-The `DoWorkAsync(IHost host)` method wraps the switch in a try/catch that handles `MigrationAlreadyRunningException` (suggesting the Fix command) and general exceptions:
+The `DoWorkAsync(IHost host, RunCancellation cancellation)` method wraps the switch in a try/catch. `cancellation` is the handle of the process: `DirectModePipeline` lets the first Ctrl+C or SIGTERM cancel it while the command runs, with the `--cancelled-action` of the command:
 
 ```csharp
-// In RayMigratorService.DoWorkAsync()
+// In RayMigratorService.DoWorkAsync(IHost host, RunCancellation cancellation)
 switch (_consoleOptions.Command)
 {
     case MigrationCommand.MigrateUp:
-        return await ExecuteMigrateUpAsync();
+        return await ExecuteMigrateUpAsync(cancellation);
     case MigrationCommand.MigrateDown:
-        return await ExecuteMigrateDownAsync();
+        return await ExecuteMigrateDownAsync(cancellation);
     case MigrationCommand.ValidateHash:
-        return await ExecuteValidateHashAsync();
+        return await ExecuteValidateHashAsync(cancellation);
     case MigrationCommand.UpdateHash:
-        return await ExecuteUpdateHashAsync();
+        return await ExecuteUpdateHashAsync(cancellation);
     case MigrationCommand.Info:
-        return await ExecuteInfoAsync();
+        return await ExecuteInfoAsync(cancellation);
     case MigrationCommand.Baseline:
-        return await ExecuteBaselineAsync();
+        return await ExecuteBaselineAsync(cancellation);
     case MigrationCommand.FixIssues:
-        return await ExecuteFixIssuesAsync();
+        return await ExecuteFixIssuesAsync(cancellation);
     case MigrationCommand.MigrateStatus:          // New case
-        return await ExecuteMigrateStatusAsync();
+        return await ExecuteMigrateStatusAsync(cancellation);
     default:
         throw new ConfigurationValidationException(
             $"Unknown command: {_consoleOptions.Command}. Valid commands: {string.Join(", ", Enum.GetNames<MigrationCommand>())}");
 }
 ```
 
-The `DoWorkAsync()` try/catch handles `MigrationAlreadyRunningException` (suggesting the Fix command) and general exceptions.
+The `DoWorkAsync()` try/catch turns an `OperationCanceledException` thrown while `cancellation.Token` is cancelled into a warning and exit code `130` (`CancelledExitCode`, 128 + SIGINT), and handles `MigrationAlreadyRunningException` (suggesting the Fix command) and general exceptions (exit code `1`).
 
 > **Note**: All commands that require the full DI container and migration context (MigrateUp, MigrateDown, ValidateHash, UpdateHash, Info, Baseline, FixIssues) go through `DoWorkAsync()`.
 
 ### Add Execute Method
 
-Execute methods are private, parameterless, and read from the injected `_consoleOptions`:
+Execute methods are private, take the `RunCancellation` of the process and read from the injected `_consoleOptions`:
 
 ```csharp
 // In RayMigratorService
-private async Task<int> ExecuteMigrateStatusAsync()
+private async Task<int> ExecuteMigrateStatusAsync(RunCancellation cancellation)
 {
     _logger.LogDebug("Executing Migrate-Status command for product {Product} in environment {Environment}",
         _consoleOptions.Product, _consoleOptions.Environment);
@@ -277,7 +287,8 @@ private async Task<int> ExecuteMigrateStatusAsync()
         TargetGroupAliases = _consoleOptions.TargetGroupAliases,
     };
 
-    var result = await _migrationService.MigrateStatusAsync(request);
+    // Every service call observes the token of the process; a request that starts a run also carries the handle
+    var result = await _migrationService.MigrateStatusAsync(request, cancellation.Token);
 
     if (!result.Success)
     {
@@ -291,7 +302,7 @@ private async Task<int> ExecuteMigrateStatusAsync()
 }
 ```
 
-> **Pattern**: All `Execute*Async()` methods follow the same structure: log the start at Debug level, build a request from `_consoleOptions` (mapping `_consoleOptions.ShowStartupInfo` to `request.ShowInfo`, `_consoleOptions.RevealSensitiveData` to `request.RevealSensitiveData`, and `_consoleOptions.TargetGroupAliases` to `request.TargetGroupAliases`), call `_migrationService`, check `result.Success`, return `0` for success or `1` for failure.
+> **Pattern**: All `Execute*Async()` methods follow the same structure: log the start at Debug level, build a request from `_consoleOptions` (mapping `_consoleOptions.ShowStartupInfo` to `request.ShowInfo`, `_consoleOptions.RevealSensitiveData` to `request.RevealSensitiveData`, and `_consoleOptions.TargetGroupAliases` to `request.TargetGroupAliases`), call `_migrationService`, check `result.Success`, return `0` for success, `130` (`CancelledExitCode`) for a result that the cancel of the process ended, or `1` for failure.
 
 ## Step 6: Add Tests
 
@@ -306,7 +317,7 @@ public class MigrateStatusTests
     {
         // Arrange
         var mockService = Substitute.For<IMigrationService>();
-        mockService.MigrateStatusAsync(Arg.Any<MigrateStatusRequest>())
+        mockService.MigrateStatusAsync(Arg.Any<MigrateStatusRequest>(), Arg.Any<CancellationToken>())
             .Returns(new MigrateStatusResponse
             {
                 Success = true,  // inherited from OperationResult
@@ -318,7 +329,7 @@ public class MigrateStatusTests
         {
             ProductAlias = "TestProduct",
             Environment = "Development"
-        });
+        }, TestContext.Current.CancellationToken);
 
         // Assert
         result.Success.Should().BeTrue();
@@ -356,12 +367,12 @@ The flow for any command follows this path:
 CLI args → CommandLineConfiguration.SetAction() → ParsedOptions
          → EnvironmentResolver.Resolve() → environment + origin
          → RunDirectMode(JsonOptionsSource) → IOptionsSource.LoadAsync()
-         → DirectModePipeline.ExecuteAsync()
+         → DirectModePipeline.ExecuteAsync(…, RunCancellation of the process)
          → Serilog init, DI host build, config validation
-         → RayMigratorService.DoWorkAsync() → switch on Command
-         → Execute*Async() → builds request from _consoleOptions
-         → IMigrationService method → returns result
-         → exit code 0 (success) or 1 (failure)
+         → RayMigratorService.DoWorkAsync(host, cancellation) → switch on Command   (Ctrl+C / SIGTERM cancel only here)
+         → Execute*Async(cancellation) → builds request from _consoleOptions
+         → IMigrationService method (cancellation.Token) → returns result
+         → exit code 0 (success), 1 (failure) or 130 (cancelled)
 ```
 
 All migration commands (migrate-up, migrate-down, validate-hash, update-hash, info, baseline, fix) go through `DoWorkAsync()`. The CLI command name for the FixIssues enum value is `fix` (not `Fix-Issues`).
@@ -377,7 +388,8 @@ All migration commands (migrate-up, migrate-down, validate-hash, update-hash, in
 - [ ] Add `Setup*Handler()` method to `CommandLineConfiguration` (Core)
 - [ ] Register command in `CommandLineConfiguration` constructor (Core)
 - [ ] Add switch case in `RayMigratorService.DoWorkAsync()` (Pipeline)
-- [ ] Add `Execute*Async()` method to `RayMigratorService` (Pipeline)
+- [ ] Add `Execute*Async(RunCancellation)` method to `RayMigratorService` (Pipeline): pass `cancellation.Token` to the service (and the handle in a request that starts a run) and return `130` for a cancelled result
+- [ ] For a command that starts a run: add `--cancelled-action` (`CreateCancelledActionOption`) and set `RayMigratorConsoleOptions.CancelledAction` in the handler
 - [ ] Write unit tests
 - [ ] Update CLI documentation
 

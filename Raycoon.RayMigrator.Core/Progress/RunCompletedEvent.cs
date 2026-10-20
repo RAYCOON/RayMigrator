@@ -10,7 +10,8 @@ namespace Raycoon.RayMigrator.Core.Progress;
 /// <param name="Command">The command that ran.</param>
 /// <param name="MigrationRunId">The repository id of the run row, or 0 when none was written.</param>
 /// <param name="Success">Whether the operation succeeded.</param>
-/// <param name="Result">The persisted run result for migrate-up and migrate-down; null for baseline.</param>
+/// <param name="Result">The run result the operation returned (Ok, PartialSuccess, Cancelled, Recovered or Error); null when
+/// the operation threw.</param>
 /// <param name="TotalFiles">The entries of the result: files, or file and target pairs, as the operation counts them.</param>
 /// <param name="SucceededFiles">The entries that succeeded.</param>
 /// <param name="FailedFiles">The entries that failed.</param>

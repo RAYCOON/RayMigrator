@@ -29,16 +29,17 @@ MySQL and MariaDB share a common ancestor and most SQL syntax, but they are two 
 
 **Rationale**
 
-- **Volume is manageable.** Each engine has 25 SQL template files under 300 lines each. The maintenance cost of duplicated files is measurable but bounded, and considerably cheaper than the readability cost of inline placeholders for every dialect-specific token.
+- **Volume is manageable.** Each engine has 30 SQL template files under 300 lines each. The maintenance cost of duplicated files is measurable but bounded, and considerably cheaper than the readability cost of inline placeholders for every dialect-specific token.
 - **Templates stay idiomatic.** Readers see native MySQL SQL or native MariaDB SQL — no `{ENGINE:Var}` placeholders obscuring which dialect is actually running.
 - **Divergence is expected to grow.** JSON path expressions, window-function variants, vector types, and dialect-specific optimizer hints are all areas where MySQL 8+ and MariaDB 10.10+ have already moved apart. A placeholder-shared file scales poorly into that future.
-- **Per-engine CI catches regressions.** `dotnet test Raycoon.RayMigrator.Tests.Engine/ --filter "Database=MySql"` runs only the MySQL engine; the equivalent MariaDB filter runs the MariaDB engine. A template change that breaks one engine is caught before merge.
+- **Per-engine CI catches regressions.** `dotnet test Raycoon.RayMigrator.Tests.Engine/ --filter "Engine=MySql"` runs only the MySQL engine; the equivalent MariaDB filter runs the MariaDB engine. A template change that breaks one engine is caught before merge.
 
 **Existing intentional divergence points**
 
 - **Default collation.** MySQL templates use `utf8mb4_0900_ai_ci` (available only in MySQL 8.0+). MariaDB templates use `utf8mb4_unicode_ci` (stable from MariaDB 10.5+ LTS). MariaDB does not ship `utf8mb4_0900_*` collations — copying MySQL's collation name into a MariaDB template produces `ERROR 1273 (HY000): Unknown collation: 'utf8mb4_0900_ai_ci'`. See DAL-015 for the original design decision.
 - **Transient-error codes.** `DalMySql` and `DalMariaDb` keep separate built-in lists (`TransientCodes`) and ship separate `DataAccessLayers/{Type}/TransientErrorCodes.txt` files even though today they hold the same values. Keeping them separate lets each engine's list diverge as the two driver dialects emit different codes for the same condition. See [Transient Error Codes](transient-error-codes.md).
 - **Minimum-version comments.** MySQL templates target 8.0+ (for expression defaults, `utf8mb4_0900_ai_ci`, and related features); MariaDB templates target 10.5+ LTS. Notes in the TOML header of each template should call out the engine-specific floor.
+- **Index DDL.** MySQL has no `CREATE INDEX IF NOT EXISTS`: its templates look an index up in `information_schema` and run the `CREATE INDEX` through `PREPARE`/`EXECUTE` (`Repository_Upgrade_3`, `DatabaseLogging_CheckCreate`) under `GET_LOCK()`. MariaDB has the clause; its schema step uses it directly under `GET_LOCK()`, and its `DatabaseLogging_CheckCreate` looks the index up first, because `CREATE INDEX IF NOT EXISTS` demands the `INDEX` privilege even when the index exists, and relies on the metadata lock of the table instead of a lock of its own.
 
 **Out of scope for this section**
 
@@ -397,6 +398,7 @@ INSERT OR REPLACE INTO "_rc_state" ("key", "val") VALUES
 - **Idempotent DDL**: `CREATE TABLE IF NOT EXISTS`
 - **Conditional DML**: master data via `INSERT ... SELECT ... FROM (VALUES ...) WHERE` gated on the pre-DDL flag in `_rc_state` (written only when the repository is created); `INSERT OR REPLACE` for `_rc_state`
 - **WAL mode**: Connection validation sets `PRAGMA journal_mode=WAL` for better concurrency
+- **Transactions in templates**: the repository, the database log writer and the retention run every template without a transaction of the driver (`UseTransaction = false`), so each statement commits on its own. A template whose statements share an invariant opens `BEGIN IMMEDIATE … COMMIT` itself, as the schema steps and the run lock of `Repository_MigrationRun_Insert` do, or decides it in one statement; the DAL rolls back a transaction the template opened when a statement before its `COMMIT` fails
 - **Foreign keys**: The DAL injects `Foreign Keys=true` into the connection string via `EnsureForeignKeysEnabled` (unless the user has explicitly set the value), which causes Microsoft.Data.Sqlite to issue `PRAGMA foreign_keys = ON` per connection
 - **STRICT tables**: RayMigrator's repository and logging templates use `CREATE TABLE ... STRICT` (SQLite 3.37+, DAL-022). This enforces column types (`INTEGER`, `TEXT`) at INSERT time instead of relying on SQLite's type-affinity coercion. The bundled `Microsoft.Data.Sqlite` is well above the 3.37 floor; no DAL code change is required.
 - **Datetime CHECK**: Every `TEXT` datetime column in the repository and logging schemas carries a CHECK constraint enforcing strict ISO-8601 (`YYYY-MM-DD HH:MM:SS`) via `datetime()` round-trip (DAL-021). Form for NOT NULL columns: `CHECK (datetime("X") IS NOT NULL AND datetime("X") = "X")`; nullable columns add `"X" IS NULL OR (...)`. The `IS NOT NULL` guard is required because SQLite's CHECK treats NULL as non-violation — without it, malformed input like `'yesterday'` would silently pass. All RayMigrator write paths use `datetime('now')` (no subsec, no `T` separator), so the strict CHECK never fires on Production inserts.
@@ -571,6 +573,8 @@ END;
 - **Conditional DML**: master data via `INSERT ... SELECT ... FROM (SELECT ... UNION ALL ...) AS v WHERE @v_version_table_exists = 0` (written only when the repository is created)
 - **Existence check**: `information_schema.TABLES` with `DATABASE()`
 - **Multi-statement**: Templates use multiple SET/DML/DDL statements; MySqlConnector's `ExecuteScalarAsync` automatically advances past intermediate SET statements (which produce no result sets) and returns the scalar value from the final `SELECT`
+- **Session locks**: `GET_LOCK()` serialises the schema steps (`Repository_CheckCreate`, `Repository_Upgrade_1` to `_3`, `Repository_MigratorMeta_CheckInsert`), the run lock (`Repository_MigrationRun_Insert`) and, on MySQL, `DatabaseLogging_CheckCreate`; every template releases its lock itself (`RELEASE_LOCK()`). Such a lock belongs to the session, not to a transaction, so when a call fails, times out or is cancelled between the two, `DalMySql` and `DalMariaDb` run `DO RELEASE_ALL_LOCKS()` on the connection of the call before it goes back to the pool (best effort, without the token). Before, the lock stayed on the pooled session, and every other host waited for it until the pool reused or pruned the connection (up to 180 seconds)
+- **Lock names**: the schema lock is `CONCAT('raymigrator_schema_', DATABASE())` and the version lock `CONCAT('raymigrator_meta_', DATABASE())`, both with the whole database name. MySQL refuses a lock name of more than 64 characters (error 4163, `User-level lock name '...' should not exceed 64 characters.`), so a MySQL repository database needs a name of at most 45 characters; MariaDB accepts up to 192 bytes (error 1059, `Identifier name '...' is too long`, beyond), which an ASCII database name never reaches (measured on MySQL 8.4 and MariaDB 11.6). The lock of `DatabaseLogging_CheckCreate` on MySQL cuts the database name to 48 characters (`CONCAT('raymigrator_log_', LEFT(DATABASE(), 48))`) and stays within 64. See [Concurrency Control](../02-core-concepts/concurrency-control.md#database-enforcement) and [Troubleshooting](../appendix/troubleshooting.md#mysql-database-name-too-long-for-the-schema-lock)
 
 ### SQLite Template Pattern
 
@@ -612,6 +616,8 @@ END;
 - **Existence check**: `sqlite_master` table with `type='table'`
 - **Idempotent DDL**: `CREATE TABLE IF NOT EXISTS`
 - **Conditional DML**: master data via `INSERT ... SELECT ... FROM (VALUES ...) WHERE` gated on `_rc_state`, `INSERT OR REPLACE` for state
+- **Run lock**: `Repository_MigrationRun_Insert` runs the check for an open run, the insert of the run and its `MigrationRunMeta` row between `BEGIN IMMEDIATE` and `COMMIT`; the final `SELECT` and the `DROP` of `_rc_state` follow the `COMMIT`. `BEGIN IMMEDIATE` takes the write lock before the check reads `MigrationRun`, so a parallel start waits in the busy timeout and then finds the open run. Before 0.20.0 the statements committed one by one, and two starts at the same moment could both pass the check
+- **Id of a gated INSERT**: `last_insert_rowid()` returns the rowid of the last row any statement inserted on the connection, a row of `_rc_state` included, and an `INSERT ... SELECT ... WHERE` that inserts nothing leaves it unchanged. A template that needs the Id of a row it may not have inserted reads it in the statement directly after that INSERT, together with `changes()` (the rows that INSERT inserted): `CASE WHEN changes() > 0 THEN last_insert_rowid() END` (`Repository_MigrationRun_Insert`)
 - **WAL mode**: Set via `PRAGMA journal_mode=WAL` on connection validation
 
 ## Parameter Substitution
@@ -677,7 +683,7 @@ These engines retain PascalCase identifiers for repository tables and columns. S
 
 ### Reader SELECT aliases
 
-The three SELECT templates that feed `ExecuteReaderAsync` for PostgreSQL (`Repository_MigrationRecord_Select.sql`, `Repository_MigrationRun_Select.sql`, `Repository_MigrationRun_SelectOrphaned.sql`) emit `AS "PascalCase"` aliases on every output column. The equivalent MariaDB and MySQL templates emit `` AS `PascalCase` `` (backtick-quoted) aliases for the same 36 cross-engine reader keys. This keeps the C# consumers in `TemplateExecutor` and `MigrationService` cross-engine consistent — they continue to read `row["MigrationRunResultId"]` without per-engine branching. The aliases affect only the query result set, not storage.
+The four SELECT templates that feed `ExecuteReaderAsync` for PostgreSQL (`Repository_MigrationRecord_Select.sql`, `Repository_MigrationRecordHistory_Select.sql`, `Repository_MigrationRun_Select.sql`, `Repository_MigrationRun_SelectOrphaned.sql`) emit `AS "PascalCase"` aliases on every output column. The equivalent MariaDB and MySQL templates emit `` AS `PascalCase` `` (backtick-quoted) aliases for the same 38 cross-engine reader keys; the two record selects return the same 23 columns, `StartedAt` and `FinishedAt` included since 0.20.0. This keeps the C# consumers in `TemplateExecutor` and `MigrationService` cross-engine consistent — they continue to read `row["MigrationRunResultId"]` without per-engine branching. The aliases affect only the query result set, not storage.
 
 ### Why not enforce one style globally?
 
@@ -694,7 +700,7 @@ Third-party DAL plugin authors (starting from `Raycoon.RayMigrator.Database.Exam
 
 1. **Follow the engine's community convention** for repository-table identifiers. Examples: `UPPER_CASE` for Oracle, `snake_case` for Snowflake / BigQuery, PascalCase for any case-insensitive engine without a stronger convention.
 2. **Document the convention in the plugin's README.** A future reader of your templates should not need to reverse-engineer the decision.
-3. **Implement the bridge in the DAL, not the other way around.** The framework's C# consumers (`TemplateExecutor`, `MigrationService`) read repository rows via stable PascalCase keys (e.g., `row["MigrationRunResultId"]`). Your reader templates (`Repository_MigrationRecord_Select.sql`, `Repository_MigrationRun_Select.sql`, `Repository_MigrationRun_SelectOrphaned.sql`) are responsible for emitting `AS "PascalCase"` / `` AS `PascalCase` `` / `AS [PascalCase]` aliases so the C# layer stays engine-agnostic. Do not push engine-native casing up to the C# layer.
+3. **Implement the bridge in the DAL, not the other way around.** The framework's C# consumers (`TemplateExecutor`, `MigrationService`) read repository rows via stable PascalCase keys (e.g., `row["MigrationRunResultId"]`). Your reader templates (`Repository_MigrationRecord_Select.sql`, `Repository_MigrationRecordHistory_Select.sql`, `Repository_MigrationRun_Select.sql`, `Repository_MigrationRun_SelectOrphaned.sql`) are responsible for emitting `AS "PascalCase"` / `` AS `PascalCase` `` / `AS [PascalCase]` aliases so the C# layer stays engine-agnostic. Do not push engine-native casing up to the C# layer.
 
 ### Historical decision record
 

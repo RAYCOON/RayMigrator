@@ -26,7 +26,7 @@ public class UpdateHashExitCodeTests
     private static (RayMigratorService Wrapper, RecordingLogger Logger) CreateWrapper(HashUpdateResult result)
     {
         var migrationService = Substitute.For<IMigrationService>();
-        migrationService.UpdateHashAsync(Arg.Any<UpdateHashRequest>()).Returns(Task.FromResult(result));
+        migrationService.UpdateHashAsync(Arg.Any<UpdateHashRequest>(), Arg.Any<CancellationToken>()).Returns(Task.FromResult(result));
 
         var consoleOptions = new RayMigratorConsoleOptions
         {
@@ -50,7 +50,7 @@ public class UpdateHashExitCodeTests
             Success = true, ProductAlias = "P", UpdatedFiles = 1, UpdatedRecords = 2, NewFiles = 3, RemovedFiles = 0
         });
 
-        var exitCode = await wrapper.DoWorkAsync(null!);
+        var exitCode = await wrapper.DoWorkAsync(null!, new RunCancellation());
 
         exitCode.Should().Be(0);
         logger.Entries.Should().NotContain(e => e.Level == LogLevel.Error);
@@ -67,7 +67,7 @@ public class UpdateHashExitCodeTests
             Success = false, ErrorMessage = "repository unreachable", ProductAlias = "P"
         });
 
-        var exitCode = await wrapper.DoWorkAsync(null!);
+        var exitCode = await wrapper.DoWorkAsync(null!, new RunCancellation());
 
         exitCode.Should().Be(1);
         logger.Entries.Should().ContainSingle(e => e.Level == LogLevel.Error && e.Message.Contains("repository unreachable"));

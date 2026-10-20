@@ -8,6 +8,7 @@ using Raycoon.RayMigrator.Core.Configuration;
 using Raycoon.RayMigrator.Core.Configuration.Enums;
 using Raycoon.RayMigrator.Core.Configuration.Options;
 using Raycoon.RayMigrator.Core.Configuration.Validation;
+using Raycoon.RayMigrator.Core.Extensions;
 using Raycoon.RayMigrator.Core.Templates;
 using Raycoon.RayMigrator.Database;
 using Raycoon.RayMigrator.Database.Common;
@@ -17,8 +18,10 @@ using Raycoon.RayMigrator.Services;
 using Raycoon.RayMigrator.Services.Abstractions;
 using Raycoon.RayMigrator.Shared;
 using Raycoon.RayMigrator.Shared.Configuration;
+using Raycoon.RayMigrator.Shared.Constants;
 using Raycoon.RayMigrator.Shared.Exceptions;
 using Serilog;
+using Serilog.Core;
 using Serilog.Events;
 
 namespace Raycoon.RayMigrator.Tests.Engine.Infrastructure;
@@ -35,6 +38,7 @@ public sealed class EngineTestHost : IDisposable
     private RayMigratorOptions? _rayMigratorOptions;
     private global::Serilog.Core.Logger? _serilogLogger;
     private DatabaseLogWriter? _dbLogWriter;
+    private readonly LogObserverSink _logObserverSink = new();
 
     public IServiceProvider Services => _host!.Services;
     public IMigrationService MigrationService => _scope!.ServiceProvider.GetRequiredService<IMigrationService>();
@@ -42,9 +46,28 @@ public sealed class EngineTestHost : IDisposable
     public RayMigratorOptions RayMigratorOptions => _rayMigratorOptions!;
 
     /// <summary>
+    /// Receives every log event of the host that passes the Serilog minimum level of the scenario, on the thread that logs
+    /// it and before the logging call returns, so that a test can act at an exact point of a command that reports no
+    /// progress events (update-hash, fix).
+    /// </summary>
+    public Action<LogEvent>? LogObserver
+    {
+        get => _logObserverSink.Observer;
+        set => _logObserverSink.Observer = value;
+    }
+
+    /// <summary>Hands each event to <see cref="Observer"/>; Serilog calls a sink synchronously on the logging thread.</summary>
+    private sealed class LogObserverSink : ILogEventSink
+    {
+        public Action<LogEvent>? Observer { get; set; }
+
+        public void Emit(LogEvent logEvent) => Observer?.Invoke(logEvent);
+    }
+
+    /// <summary>
     /// Builds the host with full DI configuration analogous to Program.cs.
     /// </summary>
-    public void Build(
+    public async Task BuildAsync(
         string configFilePath,
         string productAlias,
         MigrationCommand command,
@@ -104,7 +127,8 @@ public sealed class EngineTestHost : IDisposable
         var serilogConfiguration = new LoggerConfiguration()
             .ReadFrom.Configuration(rayMigratorSection)
             .Enrich.FromLogContext()
-            .Enrich.With(new MigrationContextEnricher());
+            .Enrich.With(new MigrationContextEnricher())
+            .WriteTo.Sink(_logObserverSink);
 
         RayMigratorDatabaseSink? databaseSink = null;
         // Database logging is on unless the section says Enabled: false; without a section it goes into the repository.
@@ -209,7 +233,7 @@ public sealed class EngineTestHost : IDisposable
             string loggingDatabaseType = rayMigratorOptions.DatabaseLogging!.DatabaseType!;
             var templateCache = _host.Services.GetRequiredService<TemplateCache>();
             var templateExecutor = _host.Services.GetRequiredService<TemplateExecutor>();
-            dbLogWriter.InitDatabaseLogger(loggingDatabaseType, templateCache, templateExecutor);
+            await dbLogWriter.InitDatabaseLoggerAsync(loggingDatabaseType, templateCache, templateExecutor);
 
             if (databaseSink != null)
             {
@@ -265,6 +289,132 @@ public sealed class EngineTestHost : IDisposable
     /// Flushes the asynchronous DatabaseLogWriter queue so that tests can assert on MigrationLog rows.
     /// </summary>
     public void FlushDatabaseLog(TimeSpan? timeout = null) => _dbLogWriter?.Flush(timeout ?? TimeSpan.FromSeconds(30));
+
+    /// <summary>
+    /// Runs the initialization of the database log once more, as the next start of a host does: the host's
+    /// <see cref="DatabaseLogWriter"/> executes <c>DatabaseLogging_CheckCreate</c> against the log database again.
+    /// </summary>
+    /// <returns>True when the template created the log tables (result 1), false when they existed (result 0).</returns>
+    public Task<bool> InitDatabaseLoggerAsync()
+    {
+        var options = RayMigratorOptions;
+        if (!options.IsDatabaseLoggingEnabled())
+            throw new InvalidOperationException("The scenario has database logging switched off.");
+
+        return _dbLogWriter!.InitDatabaseLoggerAsync(
+            options.DatabaseLogging!.DatabaseType!,
+            Services.GetRequiredService<TemplateCache>(),
+            Services.GetRequiredService<TemplateExecutor>());
+    }
+
+    /// <summary>
+    /// Initializes the database log as the start of another host does: a <see cref="DatabaseLogWriter"/> of its own on a
+    /// DAL and a connection of its own executes <c>DatabaseLogging_CheckCreate</c> against the log database. The writer is
+    /// created first and runs the template once <paramref name="start"/> completes, so that several starts can begin at
+    /// the same moment; it is flushed afterwards, which ends the thread of its queue.
+    /// </summary>
+    /// <returns>True when the template created the log tables (result 1), false when they existed (result 0).</returns>
+    public async Task<bool> InitDatabaseLoggerWithNewWriterAsync(Task start)
+    {
+        var options = RayMigratorOptions;
+        if (!options.IsDatabaseLoggingEnabled())
+            throw new InvalidOperationException("The scenario has database logging switched off.");
+
+        string databaseType = options.DatabaseLogging!.DatabaseType!;
+        if (!DalFactory.TryGetDal(databaseType, options.DatabaseLogging.ConnectionString!, out IDal? dal))
+            throw new InvalidOperationException($"No DAL for the database type of the log [{databaseType}].");
+
+        var writer = new DatabaseLogWriter(options, dal);
+        try
+        {
+            await start;
+            return await writer.InitDatabaseLoggerAsync(
+                databaseType,
+                Services.GetRequiredService<TemplateCache>(),
+                Services.GetRequiredService<TemplateExecutor>());
+        }
+        finally
+        {
+            writer.Flush();
+        }
+    }
+
+    /// <summary>
+    /// Inserts a run as the start of another host does: <c>Repository_MigrationRun_Insert</c> runs on a DAL and a
+    /// connection of its own against the repository, with the product, the environment and the engine version that a
+    /// command of this host registered and the values of a migrate-up, as <c>RepositoryMigrationRunInsertAsync</c> binds
+    /// them. The DAL is created first and runs the template once <paramref name="start"/> completes, so that several
+    /// starts can begin at the same moment.
+    /// </summary>
+    /// <returns>The Id of the run the template inserted, or <see cref="TemplateResultCode.MigrationAlreadyRunning"/> (-2)
+    /// when an open run of the product and environment refused it.</returns>
+    public async Task<int> InsertMigrationRunWithNewDalAsync(Task start)
+    {
+        var repository = RayMigratorOptions.Repository!;
+        var state = MigrationContext.MigrationState;
+        if (state.ProductId < 1 || state.EnvironmentId < 1 || state.MigratorMetaId < 1)
+            throw new InvalidOperationException("No command of the host has registered the product, the environment and the engine version yet.");
+        if (!DalFactory.TryGetDal(repository.DatabaseType!, repository.ConnectionString!, out IDal? dal))
+            throw new InvalidOperationException($"No DAL for the database type of the repository [{repository.DatabaseType}].");
+
+        var parameters = new DalParameterList();
+        parameters.AddParameter(new DalParameter("ProductId", state.ProductId, typeof(int)));
+        parameters.AddParameter(new DalParameter("EnvironmentId", state.EnvironmentId, typeof(int)));
+        parameters.AddParameter(new DalParameter("MigrationRunModeId", (byte)MigrationRunMode.Migrate, typeof(byte)));
+        parameters.AddParameter(new DalParameter("MigratorMetaId", state.MigratorMetaId, typeof(int)));
+        parameters.AddParameter(new DalParameter("MigrationRunResultId", (byte)MigrationRunResult.Running, typeof(byte)));
+        parameters.AddParameter(new DalParameter("FromReleaseVersion", null, typeof(string)));
+        parameters.AddParameter(new DalParameter("ToReleaseVersion", null, typeof(string)));
+        parameters.AddParameter(new DalParameter("MigrationRunSettingsJson", "{}", typeof(string)));
+        parameters.AddParameter(new DalParameter("MigrationOperationId", (byte)MigrationOperation.MigrateUp, typeof(byte)));
+        parameters.AddParameter(new DalParameter("MigrationRunSourceId", null, typeof(byte)));
+        parameters.AddParameter(new DalParameter("InitiatedBy", null, typeof(string)));
+        parameters.AddParameter(new DalParameter("InitiatedBySubject", null, typeof(string)));
+        parameters.AddParameter(new DalParameter("Host", nameof(InsertMigrationRunWithNewDalAsync), typeof(string)));
+
+        var template = Services.GetRequiredService<TemplateCache>().GetRepositoryTemplate(TemplateType.Repository_MigrationRun_Insert, repository);
+        var executor = Services.GetRequiredService<TemplateExecutor>();
+
+        await start;
+        try
+        {
+            var response = await executor.ExecuteScalarWithNegativeResultCodeExceptionAsync(template, dal!, repository.GetDalSettings(), parameters);
+            return response.ResultCode;
+        }
+        catch (TemplateResultException ex) when (ex.ResultCode == TemplateResultCode.MigrationAlreadyRunning)
+        {
+            return ex.ResultCode;
+        }
+    }
+
+    /// <summary>
+    /// Registers a product or an environment as the first start of another host does: the CheckInsert template of
+    /// <paramref name="templateType"/> (<c>Repository_Product_CheckInsert</c> or <c>Repository_Environment_CheckInsert</c>)
+    /// runs on a DAL and a connection of its own against the repository with <paramref name="name"/> and its lowercase
+    /// form, as <c>TemplateExecutor</c> binds them. The DAL is created first and runs the template once
+    /// <paramref name="start"/> completes, so that several starts can begin at the same moment.
+    /// </summary>
+    /// <returns>The Id of the row of the name, which the template inserted or found.</returns>
+    public async Task<int> RegisterWithNewDalAsync(TemplateType templateType, string name, Task start)
+    {
+        if (templateType is not (TemplateType.Repository_Product_CheckInsert or TemplateType.Repository_Environment_CheckInsert))
+            throw new ArgumentOutOfRangeException(nameof(templateType), templateType, "Only a product or an environment is registered.");
+
+        var repository = RayMigratorOptions.Repository!;
+        if (!DalFactory.TryGetDal(repository.DatabaseType!, repository.ConnectionString!, out IDal? dal))
+            throw new InvalidOperationException($"No DAL for the database type of the repository [{repository.DatabaseType}].");
+
+        var parameters = new DalParameterList();
+        parameters.AddParameter(new DalParameter("Name", name, typeof(string)));
+        parameters.AddParameter(new DalParameter("NameLower", name.ToLowerInvariant(), typeof(string)));
+
+        var template = Services.GetRequiredService<TemplateCache>().GetRepositoryTemplate(templateType, repository);
+        var executor = Services.GetRequiredService<TemplateExecutor>();
+
+        await start;
+        var response = await executor.ExecuteScalarWithNegativeResultCodeExceptionAsync(template, dal!, repository.GetDalSettings(), parameters);
+        return response.ResultCode;
+    }
 
     public void Dispose()
     {

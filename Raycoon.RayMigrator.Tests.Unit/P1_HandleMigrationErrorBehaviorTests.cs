@@ -20,13 +20,13 @@ public class HandleMigrationErrorBehaviorTests
         ProductOptions productOptions,
         MigrationFileInfo file,
         int failedMigrationRecordId,
-        List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)> successRecords)
+        List<MigrationService.RunRecord> runRecords)
     {
         var method = typeof(MigrationService).GetMethod("HandleMigrationError",
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
         method.Should().NotBeNull("HandleMigrationError should exist");
 
-        var task = (Task)method!.Invoke(service, new object[] { productOptions, file, failedMigrationRecordId, successRecords, MigrationRunMode.Migrate })!;
+        var task = (Task)method!.Invoke(service, new object[] { productOptions, file, failedMigrationRecordId, runRecords, MigrationRunMode.Migrate, TestContext.Current.CancellationToken })!;
         await task;
     }
 
@@ -44,9 +44,9 @@ public class HandleMigrationErrorBehaviorTests
             MigrationErrorActionOverride = null
         };
 
-        var successRecords = new List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)>();
+        var runRecords = new List<MigrationService.RunRecord>();
 
-        await InvokeHandleMigrationError(service, productOptions, file, 42, successRecords);
+        await InvokeHandleMigrationError(service, productOptions, file, 42, runRecords);
 
         logger.Entries.Should().Contain(e =>
             e.Message.Contains("Terminate") && e.Message.Contains("No rollback"));
@@ -66,12 +66,12 @@ public class HandleMigrationErrorBehaviorTests
             MigrationErrorActionOverride = null
         };
 
-        var successRecords = new List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)>
+        var runRecords = new List<MigrationService.RunRecord>
         {
-            (new MigrationFileInfo { Filename = "05_Init.sql", ReleaseVersion = "Release 1.0", TargetGroupAlias = "Backend" }, 1, "T1")
+            new(new MigrationFileInfo { Filename = "05_Init.sql", ReleaseVersion = "Release 1.0", TargetGroupAlias = "Backend" }, 1, "T1", MigrationStatus.Migrated, 0)
         };
 
-        await InvokeHandleMigrationError(service, productOptions, file, 42, successRecords);
+        await InvokeHandleMigrationError(service, productOptions, file, 42, runRecords);
 
         logger.Entries.Should().NotContain(e =>
             e.Message.Contains("Rolling back"));
@@ -91,9 +91,9 @@ public class HandleMigrationErrorBehaviorTests
             MigrationErrorActionOverride = MigrationErrorAction.Terminate
         };
 
-        var successRecords = new List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)>();
+        var runRecords = new List<MigrationService.RunRecord>();
 
-        await InvokeHandleMigrationError(service, productOptions, file, 42, successRecords);
+        await InvokeHandleMigrationError(service, productOptions, file, 42, runRecords);
 
         logger.Entries.Should().Contain(e =>
             e.Message.Contains("Terminate") && e.Message.Contains("No rollback"));
@@ -115,9 +115,9 @@ public class HandleMigrationErrorBehaviorTests
             MigrationErrorActionOverride = null
         };
 
-        var successRecords = new List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)>();
+        var runRecords = new List<MigrationService.RunRecord>();
 
-        await InvokeHandleMigrationError(service, productOptions, file, 42, successRecords);
+        await InvokeHandleMigrationError(service, productOptions, file, 42, runRecords);
 
         logger.Entries.Should().Contain(e =>
             e.Message.Contains("Ignore") && e.Message.Contains("10_Test.sql"));
@@ -137,9 +137,9 @@ public class HandleMigrationErrorBehaviorTests
             MigrationErrorActionOverride = MigrationErrorAction.Ignore
         };
 
-        var successRecords = new List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)>();
+        var runRecords = new List<MigrationService.RunRecord>();
 
-        await InvokeHandleMigrationError(service, productOptions, file, 42, successRecords);
+        await InvokeHandleMigrationError(service, productOptions, file, 42, runRecords);
 
         logger.Entries.Should().Contain(e =>
             e.Message.Contains("Ignore") && e.Message.Contains("20_Data.sql"));
@@ -161,9 +161,9 @@ public class HandleMigrationErrorBehaviorTests
             MigrationErrorActionOverride = (MigrationErrorAction)99
         };
 
-        var successRecords = new List<(MigrationFileInfo File, int MigrationRecordId, string TargetAlias)>();
+        var runRecords = new List<MigrationService.RunRecord>();
 
-        await InvokeHandleMigrationError(service, productOptions, file, 42, successRecords);
+        await InvokeHandleMigrationError(service, productOptions, file, 42, runRecords);
 
         logger.Entries.Should().Contain(e =>
             e.Message.Contains("Unknown") && e.LogLevel == LogLevel.Warning);

@@ -24,6 +24,14 @@ public static class DalFactory
     private static readonly ConcurrentDictionary<string, IDal> DalInstances = new();
 
     /// <summary>
+    /// The assemblies whose types did not load during the discovery, keyed by their path, each with the messages of its
+    /// loader exceptions. A DAL built against an earlier version of the engine does not load (it overrides members that
+    /// <see cref="DalBase"/> no longer has and lacks those it has now), and the message for an unknown database type
+    /// names these failures instead of leaving the DAL silently unknown.
+    /// </summary>
+    private static readonly ConcurrentDictionary<string, string> LoadFailures = new(StringComparer.Ordinal);
+
+    /// <summary>
     /// Static constructor to initialize the DAL type mapping via DependencyContext (built-in DALs)
     /// and filesystem scanning (external DAL plugins).
     /// </summary>
@@ -84,31 +92,73 @@ public static class DalFactory
     internal static IReadOnlyDictionary<string, Type> RegisteredDalTypes => DalTypeMapping;
 
     /// <summary>
-    /// Scans an assembly for types implementing IDal with a [DatabaseType] attribute.
+    /// Scans an assembly for types implementing IDal with a [DatabaseType] attribute. An assembly whose types do not load
+    /// is skipped, and its loader exceptions are kept for the message of an unknown database type.
     /// </summary>
     internal static void ScanAssemblyForDals(Assembly assembly)
     {
-        IEnumerable<Type> dalTypes;
+        List<Type> dalTypes;
         try
         {
             dalTypes = assembly.GetTypes()
                 .Where(t => t.IsClass
                             && !t.IsAbstract
-                            && typeof(IDal).IsAssignableFrom(t));
+                            && typeof(IDal).IsAssignableFrom(t))
+                .ToList();
         }
-        catch (ReflectionTypeLoadException)
+        catch (ReflectionTypeLoadException ex)
         {
-            return; // Assembly has unresolvable type dependencies
+            // Assembly has unresolvable type dependencies
+            RecordLoadFailure(assembly, ex.LoaderExceptions);
+            return;
         }
 
         foreach (var type in dalTypes)
         {
-            var attr = type.GetCustomAttribute<DatabaseTypeAttribute>();
+            DatabaseTypeAttribute? attr;
+            try
+            {
+                attr = type.GetCustomAttribute<DatabaseTypeAttribute>();
+            }
+            catch (TypeLoadException ex)
+            {
+                RecordLoadFailure(assembly, [ex]);
+                continue;
+            }
+
             if (attr != null)
             {
                 DalTypeMapping.TryAdd(attr.DatabaseType, type);
             }
         }
+    }
+
+    private static void RecordLoadFailure(Assembly assembly, IEnumerable<Exception?> loaderExceptions)
+    {
+        string source = string.IsNullOrEmpty(assembly.Location) ? assembly.FullName ?? "unnamed assembly" : assembly.Location;
+        var messages = loaderExceptions
+            .Where(e => e != null)
+            .Select(e => e!.Message)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        LoadFailures[source] = messages.Count > 0 ? string.Join(" ", messages) : "its types did not load";
+    }
+
+    /// <summary>
+    /// The message for a database type no DAL was found for. It names the assemblies whose types did not load and why,
+    /// because a DAL among them is the likely one: a DAL built against an earlier version of the engine must be rebuilt.
+    /// </summary>
+    private static string UnknownDalMessage(string databaseType)
+    {
+        string message = $"Cannot create specific DataAccessLayer. Unknown DataAccessLayer for DatabaseType [{databaseType}].";
+        if (LoadFailures.IsEmpty)
+            return message;
+
+        string failures = string.Join(" ", LoadFailures
+            .OrderBy(f => f.Key, StringComparer.Ordinal)
+            .Select(f => $"[{f.Key}]: {f.Value}"));
+        return $"{message} The types of {LoadFailures.Count} assembly(ies) did not load, so a DataAccessLayer in them is unknown: " +
+               $"{failures} A DataAccessLayer built against an earlier version of RayMigrator must be rebuilt against this version.";
     }
 
     /// <summary>
@@ -141,7 +191,7 @@ public static class DalFactory
         }
 
         // Unknown DatabaseType
-        throw new ConfigurationValidationException($"Cannot create specific DataAccessLayer. Unknown DataAccessLayer for DatabaseType [{databaseType}].");
+        throw new ConfigurationValidationException(UnknownDalMessage(databaseType));
     }
 
     /// <summary>

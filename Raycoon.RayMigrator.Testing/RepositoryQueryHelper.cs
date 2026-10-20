@@ -466,8 +466,8 @@ public class RepositoryQueryHelper
     }
 
     /// <summary>
-    /// Inserts a fake MigrationRun record with MigrationRunResultId=10 (Running) and FinishedAt=NULL.
-    /// Used to simulate a running migration for guard tests.
+    /// Inserts a fake MigrationRun record with MigrationRunResultId=10 (Running) and FinishedAt=NULL, together with its
+    /// MigrationRunMeta row, as every run of the engine has one. Used to simulate a running migration for guard tests.
     /// </summary>
     public void InsertRunningMigrationRun(int productId, string environment = "Docker")
     {
@@ -479,7 +479,7 @@ public class RepositoryQueryHelper
         string timestampSql = _databaseType switch
         {
             "SqlServer" => "SYSUTCDATETIME()",
-            "PostgreSQL" => "(NOW() AT TIME ZONE 'UTC')",
+            "PostgreSQL" => "NOW()",
             "MariaDb" or "MySql" => "UTC_TIMESTAMP()",
             "Sqlite" => "datetime('now')",
             _ => throw new NotSupportedException($"Unsupported database type: {_databaseType}")
@@ -504,12 +504,13 @@ public class RepositoryQueryHelper
             _ => throw new NotSupportedException($"Unsupported database type: {_databaseType}")
         };
 
-        dal!.ExecuteScalarAsync(sql, QuerySettings, null).GetAwaiter().GetResult();
+        dal!.ExecuteScalarAsync($"{sql}; {MigrationRunMetaInsertSql()}", QuerySettings, null).GetAwaiter().GetResult();
     }
 
     /// <summary>
     /// Inserts a fake MigrationRun record with MigrationRunResultId=10 (Running) and a StartedAt
-    /// timestamp in the past, simulating an orphaned migration run that crashed without completing.
+    /// timestamp in the past, simulating an orphaned migration run that crashed without completing,
+    /// together with its MigrationRunMeta row, as every run of the engine has one.
     /// </summary>
     public void InsertOrphanedMigrationRun(int productId, int minutesOld, string environment = "Docker", int? heartbeatMinutesOld = null)
     {
@@ -519,8 +520,9 @@ public class RepositoryQueryHelper
     }
 
     /// <summary>
-    /// Inserts an open MigrationRun (Running) with exact UTC timestamps, for tests that probe the heartbeat age
-    /// arithmetic of an engine at a minute boundary. Second precision: SQLite stores <c>YYYY-MM-DD HH:MM:SS</c>.
+    /// Inserts an open MigrationRun (Running) with exact UTC timestamps and its MigrationRunMeta row, for tests that
+    /// probe the heartbeat age arithmetic of an engine at a minute boundary. Second precision: SQLite stores
+    /// <c>YYYY-MM-DD HH:MM:SS</c>.
     /// </summary>
     public void InsertOpenMigrationRun(int productId, DateTime startedAtUtc, DateTime? lastHeartbeatAtUtc, string environment = "Docker")
     {
@@ -554,7 +556,84 @@ public class RepositoryQueryHelper
             _ => throw new NotSupportedException($"Unsupported database type: {_databaseType}")
         };
 
-        dal!.ExecuteScalarAsync(sql, QuerySettings, null).GetAwaiter().GetResult();
+        dal!.ExecuteScalarAsync($"{sql}; {MigrationRunMetaInsertSql()}", QuerySettings, null).GetAwaiter().GetResult();
+    }
+
+    /// <summary>
+    /// The statement that writes the MigrationRunMeta row of the run the statement before it inserted, in the same
+    /// batch and session: the engine writes a run and its MigrationRunMeta row together, so a fake run leaves the same
+    /// footprint. The settings snapshot is an empty JSON object.
+    /// </summary>
+    private string MigrationRunMetaInsertSql()
+    {
+        string runId = _databaseType switch
+        {
+            "SqlServer" => "SCOPE_IDENTITY()",
+            "PostgreSQL" => "lastval()",
+            "MariaDb" or "MySql" => "LAST_INSERT_ID()",
+            "Sqlite" => "last_insert_rowid()",
+            _ => throw new NotSupportedException($"Unsupported database type: {_databaseType}")
+        };
+
+        return $"INSERT INTO {GetQualifiedTableName("MigrationRunMeta")} " +
+               $"({QuoteColumn("MigrationRunId")}, {QuoteColumn("MigrationRunSettingsJson")}) VALUES ({runId}, '{{}}')";
+    }
+
+    /// <summary>
+    /// Sets the MigrationRecord of <paramref name="filename"/> on <paramref name="targetAlias"/> to the state that a process
+    /// leaves when it ends abruptly in the middle of the file or of its rollback: the status
+    /// <paramref name="migrationStatusId"/> (Pending 10 or Executing 20), the up and rollback counters where given, the run
+    /// where given (null keeps a value), and the end the engine leaves: a file in progress has none (FinishedAt and
+    /// DurationInMs NULL), a rollback in progress (FileDownHash set) keeps the end and the duration of the last terminal
+    /// status of the record. The commands of the engine never leave this state behind; tests of the orphan repair, which
+    /// settles the open records of such a run, write it here.
+    /// </summary>
+    public void SetMigrationRecordState(string filename, string targetAlias, int migrationStatusId,
+        int? fileUpBlocksMigrated = null, int? fileDownBlocksMigrated = null, int? migrationRunId = null)
+    {
+        if (!DalFactory.TryGetDal(_databaseType, _repositoryConnectionString, out IDal? dal))
+            throw new InvalidOperationException($"Could not create DAL for {_databaseType}");
+
+        string fileInProgress = $"{QuoteColumn("FileDownHash")} IS NULL";
+        var assignments = new List<string>
+        {
+            $"{QuoteColumn("MigrationStatusId")} = {migrationStatusId}",
+            $"{QuoteColumn("FinishedAt")} = CASE WHEN {fileInProgress} THEN NULL ELSE {QuoteColumn("FinishedAt")} END",
+            $"{QuoteColumn("DurationInMs")} = CASE WHEN {fileInProgress} THEN NULL ELSE {QuoteColumn("DurationInMs")} END"
+        };
+        if (fileUpBlocksMigrated.HasValue)
+            assignments.Add($"{QuoteColumn("FileUpBlocksMigrated")} = {fileUpBlocksMigrated.Value}");
+        if (fileDownBlocksMigrated.HasValue)
+            assignments.Add($"{QuoteColumn("FileDownBlocksMigrated")} = {fileDownBlocksMigrated.Value}");
+        if (migrationRunId.HasValue)
+            assignments.Add($"{QuoteColumn("MigrationRunId")} = {migrationRunId.Value}");
+
+        string sql = $"UPDATE {GetQualifiedTableName("MigrationRecord")} SET {string.Join(", ", assignments)} " +
+                     $"WHERE {QuoteColumn("Filename")} = '{EscapeSql(filename)}' AND {QuoteColumn("TargetAlias")} = '{EscapeSql(targetAlias)}'";
+        dal!.ExecuteNonQuery(sql, QuerySettings, null);
+    }
+
+    /// <summary>
+    /// The end of the MigrationRecord of <paramref name="filename"/>: FinishedAt as the database renders it as text, and
+    /// DurationInMs; each null when the column is NULL, both null when the file has no record.
+    /// </summary>
+    public (string? FinishedAt, long? DurationInMs) GetMigrationRecordEnd(string filename)
+    {
+        string table = GetQualifiedTableName("MigrationRecord");
+        string cols = BuildConcatExpression(["FinishedAt", "DurationInMs"]);
+        string where = $"WHERE {QuoteColumn("Filename")} = '{EscapeSql(filename)}'";
+        string sql = _databaseType switch
+        {
+            "SqlServer" => $"SELECT TOP 1 {cols} FROM {table} {where}",
+            _ => $"SELECT {cols} FROM {table} {where} LIMIT 1"
+        };
+
+        string? result = QueryScalarString(sql);
+        if (result == null)
+            return (null, null);
+
+        string[] parts = result.Split('|');
+        return (string.IsNullOrEmpty(parts[0]) ? null : parts[0], string.IsNullOrEmpty(parts[1]) ? null : long.Parse(parts[1]));
     }
 
     /// <summary>A UTC timestamp literal with second precision, in the dialect of the engine (the MySQL session runs in UTC).</summary>
@@ -571,11 +650,14 @@ public class RepositoryQueryHelper
         };
     }
 
-    /// <summary>A UTC timestamp <paramref name="minutesAgo"/> minutes in the past, in the dialect of the engine.</summary>
+    /// <summary>
+    /// A UTC timestamp <paramref name="minutesAgo"/> minutes in the past, in the dialect of the engine. On PostgreSQL the
+    /// instant itself, which a TIMESTAMPTZ column stores right in a session of any time zone.
+    /// </summary>
     private string MinutesAgoSql(int minutesAgo) => _databaseType switch
     {
         "SqlServer" => $"DATEADD(MINUTE, -{minutesAgo}, SYSUTCDATETIME())",
-        "PostgreSQL" => $"(NOW() AT TIME ZONE 'UTC') - INTERVAL '{minutesAgo} minutes'",
+        "PostgreSQL" => $"NOW() - INTERVAL '{minutesAgo} minutes'",
         "MariaDb" or "MySql" => $"UTC_TIMESTAMP() - INTERVAL {minutesAgo} MINUTE",
         "Sqlite" => $"datetime('now', '-{minutesAgo} minutes')",
         _ => throw new NotSupportedException($"Unsupported database type: {_databaseType}")
@@ -635,7 +717,7 @@ public class RepositoryQueryHelper
         string timestampSql = _databaseType switch
         {
             "SqlServer" => "SYSUTCDATETIME()",
-            "PostgreSQL" => "(NOW() AT TIME ZONE 'UTC')",
+            "PostgreSQL" => "NOW()",
             "MariaDb" or "MySql" => "UTC_TIMESTAMP()",
             "Sqlite" => "datetime('now')",
             _ => throw new NotSupportedException($"Unsupported database type: {_databaseType}")
@@ -939,6 +1021,97 @@ public class RepositoryQueryHelper
 
         string? result = QueryScalarString(sql);
         return result != null ? ParseMigrationRecord(result) : null;
+    }
+
+    /// <summary>
+    /// The terminal transitions of the records of <paramref name="filename"/> in history order (MigrationRecordHistory by
+    /// id): for each row the status it recorded and the operation that caused it. Empty when the file has no history row.
+    /// </summary>
+    public IReadOnlyList<(int MigrationStatusId, int MigrationOperationId)> GetMigrationHistoryStatuses(string filename)
+    {
+        string table = GetQualifiedTableName("MigrationRecordHistory");
+        string status = QuoteColumn("MigrationStatusId");
+        string operation = QuoteColumn("MigrationOperationId");
+        string id = QuoteColumn("Id");
+        string where = $"WHERE {QuoteColumn("Filename")} = '{EscapeSql(filename)}'";
+
+        string sql = _databaseType switch
+        {
+            "SqlServer" => $"SELECT STRING_AGG(CONCAT({status}, ':', {operation}), '|') WITHIN GROUP (ORDER BY {id}) FROM {table} {where}",
+            "PostgreSQL" => $"SELECT string_agg({status}::text || ':' || {operation}::text, '|' ORDER BY {id}) FROM {table} {where}",
+            "MariaDb" or "MySql" => $"SELECT GROUP_CONCAT(CONCAT({status}, ':', {operation}) ORDER BY {id} SEPARATOR '|') FROM {table} {where}",
+            "Sqlite" => $"SELECT group_concat(entry, '|') FROM (SELECT {status} || ':' || {operation} AS entry FROM {table} {where} ORDER BY {id})",
+            _ => throw new NotSupportedException($"Unsupported database type: {_databaseType}")
+        };
+
+        string? result = QueryScalarString(sql);
+        if (string.IsNullOrEmpty(result))
+            return [];
+
+        return result.Split('|')
+            .Select(entry => entry.Split(':'))
+            .Select(parts => (int.Parse(parts[0]), int.Parse(parts[1])))
+            .ToList();
+    }
+
+    /// <summary>
+    /// The columns of the repository index <paramref name="indexName"/> in key order, as the database names them, or an
+    /// empty list when the index does not exist. The name is the full name the templates give the index, prefix included.
+    /// </summary>
+    public IReadOnlyList<string> GetIndexColumns(string indexName)
+    {
+        string name = EscapeSql(indexName);
+        string schema = EscapeSql(_schemaName);
+        string sql = _databaseType switch
+        {
+            "SqlServer" =>
+                "SELECT STRING_AGG(c.name, '|') WITHIN GROUP (ORDER BY ic.key_ordinal) FROM sys.indexes i " +
+                "JOIN sys.index_columns ic ON ic.object_id = i.object_id AND ic.index_id = i.index_id " +
+                "JOIN sys.columns c ON c.object_id = ic.object_id AND c.column_id = ic.column_id " +
+                "JOIN sys.tables t ON t.object_id = i.object_id JOIN sys.schemas s ON s.schema_id = t.schema_id " +
+                $"WHERE s.name = '{schema}' AND i.name = '{name}'",
+            "PostgreSQL" =>
+                "SELECT string_agg(a.attname, '|' ORDER BY k.ord) FROM pg_class ix " +
+                "JOIN pg_namespace n ON n.oid = ix.relnamespace JOIN pg_index i ON i.indexrelid = ix.oid " +
+                "CROSS JOIN LATERAL unnest(i.indkey) WITH ORDINALITY AS k(attnum, ord) " +
+                "JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = k.attnum " +
+                $"WHERE n.nspname = '{schema}' AND ix.relname = '{name}'",
+            "MariaDb" or "MySql" =>
+                "SELECT GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX SEPARATOR '|') FROM information_schema.STATISTICS " +
+                $"WHERE TABLE_SCHEMA = DATABASE() AND INDEX_NAME = '{name}'",
+            "Sqlite" => $"SELECT group_concat(name, '|') FROM (SELECT name FROM pragma_index_info('{name}') ORDER BY seqno)",
+            _ => throw new NotSupportedException($"Unsupported database type: {_databaseType}")
+        };
+
+        string? result = QueryScalarString(sql);
+        return string.IsNullOrEmpty(result) ? [] : result.Split('|');
+    }
+
+    /// <summary>The name of row <paramref name="id"/> of the lookup table <paramref name="tableName"/>, or null when there is none.</summary>
+    public string? GetLookupName(string tableName, int id)
+        => QueryScalarString($"SELECT {QuoteColumn("Name")} FROM {GetQualifiedTableName(tableName)} WHERE {QuoteColumn("Id")} = {id}");
+
+    /// <summary>
+    /// The messages of the MigrationLog entries at <paramref name="logLevelId"/> in the order they were written, each with
+    /// the exception text the database sink appends to the message of an event that carries one. Empty when there is no
+    /// such entry or no log table.
+    /// </summary>
+    public IReadOnlyList<string> GetLogMessages(int logLevelId)
+    {
+        if (!DalFactory.TryGetDal(_databaseType, _repositoryConnectionString, out IDal? dal))
+            return [];
+
+        string sql = $"SELECT {QuoteColumn("Message")} FROM {GetQualifiedTableName("MigrationLog")} " +
+                     $"WHERE {QuoteColumn("LogLevelId")} = {logLevelId} ORDER BY {QuoteColumn("Id")}";
+        try
+        {
+            var rows = dal!.ExecuteReaderAsync(sql, QuerySettings, null).GetAwaiter().GetResult();
+            return rows.Select(row => Convert.ToString(row.Values.FirstOrDefault()) ?? string.Empty).ToList();
+        }
+        catch
+        {
+            return [];
+        }
     }
 
     /// <summary>

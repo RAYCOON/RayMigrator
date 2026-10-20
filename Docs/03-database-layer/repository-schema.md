@@ -5,6 +5,8 @@ The repository database stores migration tracking data. This schema is created a
 > **Breaking change (2026-10-13):** The repository schema is versioned. `Repository_CheckCreate` creates only the new `RepositorySchemaVersion` table and reports the version found; the numbered steps `Repository_Upgrade_{n}` create the schema (step 1 = the 11 tables below with their master data) and the engine applies every missing step on the next command. `Repository_MigratorMeta_CheckInsert` registers the engine version. Repositories created by 0.16.0 or earlier have no schema version and are refused with `RepositorySchemaException`: drop their tables once and let this version create them again. The table count checks and their codes `-10` and `-11` are gone. From this version on a schema change keeps the data.
 >
 > **Schema version 2 (2026-10-13):** `MigrationRun` records what a run does and who started it where: `MigrationOperationId`, `MigrationRunSourceId` (new lookup table `MigrationRunSource`: Cli = 10, Ci = 20, Studio = 30), `InitiatedBy`, `InitiatedBySubject`, `Host`, `ErrorCode`, `ErrorMessage` and `LastHeartbeatAt`. All eight columns are nullable; `Repository_Upgrade_2` adds them to a repository of version 1 and keeps its rows.
+>
+> **Schema version 3 (2026-10-16):** `Repository_Upgrade_3` adds the run result `Cancelled` (70) to the `MigrationRunResult` lookup and four indexes for the readers of the repository: runs per product, environment and start, history rows per run and per time, records per product and environment (see [Indexes](#indexes)). The step keeps the rows of version 2; engines before 0.20.0 refuse a repository of version 3.
 
 > **Breaking change (2026-04-16):** A new `Environment` repository table was added (table count: 10 → 11). Existing repositories must be dropped and recreated.
 >
@@ -126,7 +128,7 @@ erDiagram
 
     MigrationRecordHistory {
         int Id PK
-        int MigrationRecordId FK
+        int MigrationRecordId
         int ProductId FK
         int EnvironmentId FK
         int MigrationRunId FK
@@ -184,7 +186,7 @@ erDiagram
 
 ## Tables Overview
 
-`Repository_CheckCreate` creates the `RepositorySchemaVersion` table; the schema steps `Repository_Upgrade_{n}` create the **12 repository tables** (5 lookup + 7 data): step 1 the 11 tables of the first schema, step 2 the `MigrationRunSource` lookup and the run detail columns of `MigrationRun` (ADR-024).
+`Repository_CheckCreate` creates the `RepositorySchemaVersion` table; the schema steps `Repository_Upgrade_{n}` create the **12 repository tables** (5 lookup + 7 data): step 1 the 11 tables of the first schema, step 2 the `MigrationRunSource` lookup and the run detail columns of `MigrationRun`, step 3 the run result `Cancelled` and four indexes (ADR-024).
 
 | Table | Purpose | Status |
 |-------|---------|--------|
@@ -195,10 +197,10 @@ erDiagram
 | `MigrationRun` | Migration run sessions | Created |
 | `MigrationRunMeta` | Run metadata (JSON settings) | Created |
 | `MigrationRecord` | Individual migration records | Created |
-| `MigrationRecordHistory` | Migration archive (records from previous runs) | Created |
+| `MigrationRecordHistory` | Terminal state transitions of the records (Failed, NotMigrated, Migrated), read by the `info` run history; old rows go only on a host's request ([Retention](#retention)) | Created |
 | `MigrationRunMode` | Lookup: Validate/Simulate/Migrate | Created |
 | `MigrationOperation` | Lookup: Rollback/MigrateDown/MigrateUp | Created |
-| `MigrationRunResult` | Lookup: Running/PartialSuccess/Recovered/Error/Ok (used by MigrationRun) | Created |
+| `MigrationRunResult` | Lookup: Running/PartialSuccess/Cancelled/Recovered/Error/Ok (used by MigrationRun; `Cancelled` since schema version 3) | Created |
 | `MigrationRunSource` | Lookup: Cli/Ci/Studio (where a run was started; schema version 2) | Created by `Repository_Upgrade_2` |
 | `MigrationEvent`, `MigrationLog` | The structured run log; in the repository by default (see [Logging schema](logging-schema.md)) | Created by `DatabaseLogging_CheckCreate` |
 | `MigrationStatus` | Lookup: Pending/Executing/Failed/NotMigrated/Migrated | Created |
@@ -237,7 +239,7 @@ Registered products for migration tracking. Populated automatically via `Reposit
 | `NameLower` | NVARCHAR(100) | Product alias in lowercase (unique index) |
 | `CreatedAt` | DATETIME2(3) | Registration timestamp |
 
-The `NameLower` column carries a unique index (`uix_Product_NameLower`) to prevent duplicate product registrations regardless of casing. The `Id` is stored in `MigrationState.ProductId` after registration.
+The `NameLower` column carries a unique index (`uix_Product_NameLower`) to prevent duplicate product registrations regardless of casing. Two first starts of a new product at the same moment register it once: SQL Server looks the name up with `UPDLOCK, HOLDLOCK` in a transaction, so the second start waits and finds the row, PostgreSQL and SQLite insert with `ON CONFLICT … DO NOTHING` and MySQL and MariaDB with `ON DUPLICATE KEY UPDATE`, so the second start keeps the row of the first instead of failing on the index; each reads the `Id` from the table, so both get the same one. The `Id` is stored in `MigrationState.ProductId` after registration.
 
 ### Environment
 
@@ -250,7 +252,7 @@ Registered deployment environments for migration tracking. Populated automatical
 | `NameLower` | NVARCHAR(100) | Environment name in lowercase (unique index) |
 | `CreatedAt` | DATETIME2(3) | Registration timestamp |
 
-The `NameLower` column carries a unique index (`uix_Environment_NameLower`) to prevent duplicate environment registrations regardless of casing. The `Id` is stored in `MigrationState.EnvironmentId` after registration.
+The `NameLower` column carries a unique index (`uix_Environment_NameLower`) to prevent duplicate environment registrations regardless of casing. Two first starts in a new environment at the same moment register it once, the same way as a product. The `Id` is stored in `MigrationState.EnvironmentId` after registration.
 
 ### MigrationRun
 
@@ -274,8 +276,8 @@ Migration execution sessions.
 | `InitiatedBy` | NVARCHAR(200) NULL | Display name of the person or service account that started the run (the OS user for the CLI) |
 | `InitiatedBySubject` | NVARCHAR(200) NULL | Stable identifier of the initiator, for example the subject claim of an identity provider (Studio) |
 | `Host` | NVARCHAR(200) NULL | The machine the run executed on (the machine name unless the host names another) |
-| `ErrorCode` | NVARCHAR(100) NULL | Engine error code of the failure that decided a result other than Ok |
-| `ErrorMessage` | NVARCHAR(MAX) NULL | Message of that failure, cut to 4000 characters |
+| `ErrorCode` | NVARCHAR(100) NULL | Engine error code of the failure that decided a result other than Ok, also when a cancel stopped the error recovery of a failed migrate-up; `1004` for a cancelled run, `1005` when the rollback of a cancelled migrate-up did not complete, `1006` for a run that the orphan repair closed (`TemplateResultCode`) |
+| `ErrorMessage` | NVARCHAR(MAX) NULL | Message of that failure, cut to 4000 characters; for a cancelled run `Cancelled on request (<action>): <outcome>` with the reason the host gave; for a run that the orphan repair closed `Closed as orphaned by the repair: the run ended without finishing; last heartbeat <yyyy-MM-dd HH:mm:ss> UTC` (`LastHeartbeatAt`, or `StartedAt` without one) |
 | `LastHeartbeatAt` | DATETIME2(3) NULL | When the run last reported that it was alive: the start at insert, refreshed by `Repository_MigrationRun_Heartbeat` every `Repository.HeartbeatIntervalInSeconds`; an open run whose heartbeat is older than `Repository.OrphanedRunThresholdInMinutes` is orphaned |
 
 The run row is the only place these details live: the records of a run say nothing about who started it, and the `info` run history reads the operation from the row instead of deriving it from the records.
@@ -311,19 +313,23 @@ Individual migration file records.
 | `FileUpHash` | VARCHAR(100) | SHA256 of up file |
 | `FileUpConfigHash` | VARCHAR(100) | SHA256 of config section |
 | `FileUpBlocksHash` | VARCHAR(100) | SHA256 of SQL blocks |
-| `FileUpBlocksMigrated` | INT | Blocks executed |
+| `FileUpBlocksMigrated` | INT | Leading blocks committed on the target (see below) |
 | `FileUpBlocksTotal` | INT | Total blocks in file |
 | `FileUpConfigJson` | NVARCHAR(MAX) | TOML config as JSON |
 | `MigrateDownFileExists` | BIT | Has rollback file |
 | `FileDownHash` | VARCHAR(100) | SHA256 of down file |
 | `FileDownConfigHash` | VARCHAR(100) | SHA256 of down config |
 | `FileDownBlocksHash` | VARCHAR(100) | SHA256 of down SQL |
-| `FileDownBlocksMigrated` | INT | Down blocks executed |
+| `FileDownBlocksMigrated` | INT | Leading rollback blocks that ran (see below) |
 | `FileDownBlocksTotal` | INT | Total down blocks |
 | `FileDownConfigJson` | NVARCHAR(MAX) | Down TOML as JSON |
 | `StartedAt` | DATETIME2(3) | Execution start |
 | `FinishedAt` | DATETIME2(3) | Execution end |
 | `DurationInMs` | BIGINT | Duration in milliseconds |
+
+The two block counters count the leading blocks that committed on the target at every moment of a run, so that a run that ends abruptly leaves a counter the next start can trust. A block that commits after a failed one (`MigrationErrorAction=Ignore`, `RollbackErrorAction=Ignore`) does not count: the record of such a file keeps the blocks before the first failed one also when the file ends or a cancel stops it, so the next migrate-up resumes at that block, and a `FileUpBlocksMigrated` equal to `FileUpBlocksTotal` always means that every block committed; a rollback that ran to its end with an ignored failure stores its block count in `FileDownBlocksMigrated` with `Failed`; a file that a CLI tool runs counts 0 until the tool has finished; a resumed file and a continued rollback carry the blocks of their earlier attempt from their start (the record insert of a new attempt resets `FileUpBlocksMigrated` to 0 and the `FileDown*` columns to NULL).
+
+`Repository_MigrationRecord_Select` and `Repository_MigrationRecordHistory_Select` return `StartedAt` and `FinishedAt` since 0.20.0 (`MigrationRecord.StartedAt`/`FinishedAt`, UTC); `TargetGroupStatus.LastMigrationDate` of the status is the latest `FinishedAt` of the Migrated records of a target group. A select without the two columns (an external DAL with the older templates) maps its records with null dates.
 
 ### MigrationRecordHistory
 
@@ -332,8 +338,10 @@ Audit table for MigrationRecord records. A history snapshot is written inline wh
 Same columns as `MigrationRecord`, plus:
 | Column | Type | Description |
 |--------|------|-------------|
-| `MigrationRecordId` | INT | Foreign key to MigrationRecord.Id of the source record |
+| `MigrationRecordId` | INT | `Id` of the source record in `MigrationRecord` (no foreign key, see [Foreign Keys](#foreign-keys)) |
 | `HistorizedAt` | DATETIME2(3) | UTC timestamp when the history record was written |
+
+The rows carry the run that caused each transition, so the `info` run history (`MigrationService.GetHistoryAsync`) counts what a run did from them; no decision of the engine reads the table (ADR-027). A host may delete old rows through `IRepositoryMaintenanceService` ([Retention](#retention)); a run whose rows are gone reports no migrations in that history.
 
 ## Lookup Tables
 
@@ -373,9 +381,12 @@ All five lookup tables (`MigrationOperation`, `MigrationRunResult`, `MigrationRu
 | 0 | Undefined | Invalid value; result has not been set |
 | 10 | Running | Migration process is currently running |
 | 50 | PartialSuccess | Migration(s) finished but at least one file was skipped or left Failed |
+| 70 | Cancelled | Migration(s) stopped on request before completion (schema version 3) |
 | 80 | Recovered | Migration(s) failed and the configured error recovery rolled back cleanly |
 | 90 | Error | Migration(s) stopped due to error(s) |
 | 100 | Ok | Migration(s) successfully executed |
+
+A run the host cancelled is `Cancelled` with the engine code `1004`, or `Error` with `1005` when the rollback its `MigrationCancelledAction` started did not complete cleanly; a migrate-up that failed at a file before the cancel stopped its error recovery stays `Error` with the code of the failure (see [Error handling: Cancellation](../02-core-concepts/error-handling.md#cancellation), ADR-028). A run that ended abruptly is closed by the orphan repair of a later start or `fix` (`Repository_MigrationRun_FixOrphaned`) as `Error` with the engine code `1006` and the message above; a code or a message the row has already stays (see [Migration State Machine: After a Hard Abort](../02-core-concepts/migration-state-machine.md#after-a-hard-abort)).
 
 ### MigrationStatus
 
@@ -423,7 +434,7 @@ The documentation above uses SQL Server types as the canonical reference. The ac
 
 ## Indexes
 
-The following indexes are created on all 5 database engines (shown using SQL Server / SQLite canonical names; PostgreSQL, MariaDB, and MySQL use the snake_case equivalents `uix_product_name_lower`, `uix_environment_name_lower`, `ix_migration_record_history_migration_record_id`):
+The following indexes are created on all 5 database engines (shown using SQL Server / SQLite canonical names; PostgreSQL, MariaDB, and MySQL use the snake_case equivalents `uix_product_name_lower`, `uix_environment_name_lower`, `ix_migration_record_history_migration_record_id`, `ix_migration_run_product_environment_started_at`, `ix_migration_record_history_migration_run_id`, `ix_migration_record_history_historized_at`, `ix_migration_record_product_environment`):
 
 ```sql
 -- Product: Unique constraint on lowercase name (case-insensitive deduplication)
@@ -434,7 +445,15 @@ CREATE UNIQUE INDEX uix_Environment_NameLower ON Environment (NameLower);
 
 -- MigrationRecordHistory: Fast lookup by MigrationRecordId
 CREATE INDEX ix_MigrationRecordHistory ON MigrationRecordHistory (MigrationRecordId);
+
+-- Schema version 3 (Repository_Upgrade_3): the filters of the readers and of the history cleanup
+CREATE INDEX ix_MigrationRun_Product_Environment_StartedAt ON MigrationRun (ProductId, EnvironmentId, StartedAt);
+CREATE INDEX ix_MigrationRecordHistory_MigrationRunId      ON MigrationRecordHistory (MigrationRunId);
+CREATE INDEX ix_MigrationRecordHistory_HistorizedAt        ON MigrationRecordHistory (HistorizedAt);
+CREATE INDEX ix_MigrationRecord_Product_Environment        ON MigrationRecord (ProductId, EnvironmentId);
 ```
+
+Step 3 creates each index only when it is missing: SQL Server looks it up in `sys.indexes`, PostgreSQL, MariaDB and SQLite use `CREATE INDEX IF NOT EXISTS`, MySQL, which has no such clause, looks it up in `information_schema` and runs the `CREATE INDEX` through a prepared statement. The log table has two indexes of its own, `ix_{TableBaseName}MigrationLog_MigrationRunId` and `ix_{TableBaseName}MigrationLog_CreatedAt`, which `DatabaseLogging_CheckCreate` creates outside the repository schema version (see [Logging Schema](logging-schema.md#indexes)).
 
 PostgreSQL does not auto-create indexes for FK columns (unlike MySQL/MariaDB InnoDB, which does). The following additional indexes are therefore created on PostgreSQL only (shown with snake_case names used by the PostgreSQL templates):
 
@@ -516,7 +535,7 @@ ALTER TABLE MigrationRun ADD CONSTRAINT fk_MigrationRun_MigrationRunSource
     FOREIGN KEY (MigrationRunSourceId) REFERENCES MigrationRunSource(Id);
 ```
 
-> **Note on MigrationLog:** The `MigrationLog` table also has an `EnvironmentId` column but carries **no FK** to the `Environment` table. This matches the existing precedent for `ProductId` in the logging schema — the logging database may be separate from the repository, so FK enforcement would require cross-database references. Pass `null` when `EnvironmentId` is zero or unknown.
+> **Note on MigrationLog:** The `MigrationLog` table also has an `EnvironmentId` column but carries **no FK** to the `Environment` table. This matches the existing precedent for `ProductId` in the logging schema — the logging database may be separate from the repository, so FK enforcement would require cross-database references. Pass `null` when `EnvironmentId` is zero or unknown. For the same reason the cleanup of the log reaches only a log table in the repository database under the schema and prefix of the repository ([Retention](#retention)).
 
 ## snake_case table names (PostgreSQL, MariaDB, MySQL)
 
@@ -564,14 +583,71 @@ The two logging tables follow the same convention: `MigrationEvent` → `migrati
 Since 0.17.0 the schema is versioned and upgraded in numbered steps (ADR-024):
 
 1. `Repository_CheckCreate` creates the schema (SQL Server, PostgreSQL) and the `RepositorySchemaVersion` table if they are missing and returns `'schemaVersion,unversionedTables,message'`: the highest applied version (`0` when none) and `1` when the `MigratorMeta` table exists.
-2. `RepositorySchemaExecutor` compares the version with the target version and executes every missing `Repository_Upgrade_{n}` in order. For a run, `TemplateExecutor.RepositoryCheckCreate` passes the target of the context (`MigrationContext.RepositorySchemaTargetVersion`: `RepositorySchema.CurrentVersion`, unless an engine test pins an older version). Each step creates its version on top of the one before, returns its own number and writes its row of `RepositorySchemaVersion`. Step 1 creates the 11 tables of this page with their master data, so a fresh repository runs every step from 1 and the steps are the single source of the schema.
+2. `RepositorySchemaExecutor.EnsureAsync` compares the version with the target version and executes every missing `Repository_Upgrade_{n}` in order. For a run, `TemplateExecutor.RepositoryCheckCreateAsync` passes the target of the context (`MigrationContext.RepositorySchemaTargetVersion`: `RepositorySchema.CurrentVersion`, unless an engine test pins an older version). Each step creates its version on top of the one before, returns its own number and writes its row of `RepositorySchemaVersion`. Step 1 creates the 11 tables of this page with their master data, so a fresh repository runs every step from 1 and the steps are the single source of the schema. The current version is 3.
 3. `Repository_MigratorMeta_CheckInsert` registers the engine version in `MigratorMeta` and returns the `MigratorMetaId` every run row references.
 
-A host that manages repositories runs the same steps without a product, an environment or a run: `IRepositorySchemaService.Ensure(RepositoryOptions)` (registered by `AddRayMigratorServices`) validates the repository options, executes the steps up to `RepositorySchema.CurrentVersion` through `RepositorySchemaExecutor` and returns the versions before and after and the `MigratorMetaId` (see [MigrationContext](../02-core-concepts/migration-context.md#creating-or-upgrading-a-repository-without-a-run)).
+A host that manages repositories runs the same steps without a product, an environment or a run: `IRepositorySchemaService.EnsureAsync(RepositoryOptions, CancellationToken)` (registered by `AddRayMigratorServices`) validates the repository options, executes the steps up to `RepositorySchema.CurrentVersion` through `RepositorySchemaExecutor` and returns the versions before and after and the `MigratorMetaId` (see [MigrationContext](../02-core-concepts/migration-context.md#creating-or-upgrading-a-repository-without-a-run)); the token reaches the DAL call of every step. `RepositorySchemaExecutor.CheckVersionAsync` runs only the first part: it reads the version through `Repository_CheckCreate`, applies no step and refuses the same two cases as `EnsureAsync`. `IRepositoryMaintenanceService` checks a repository with it before it cleans up ([Retention](#retention)).
 
-Every step is idempotent per engine: SQL Server runs it in one transaction with `sp_getapplock`, PostgreSQL in one `DO` block with `pg_advisory_xact_lock`, SQLite in one `BEGIN IMMEDIATE` transaction (`CREATE TABLE IF NOT EXISTS`, `INSERT OR IGNORE`), MySQL and MariaDB statement by statement (`CREATE TABLE IF NOT EXISTS`, `INSERT IGNORE`) under `GET_LOCK()`, because their DDL commits implicitly. `Repository_CheckCreate` takes the same lock (or waits in the SQLite busy timeout), so a check that runs while another process applies a step never sees the tables without their version row. A parallel start on an empty repository therefore creates it once. Both processes may still read version 0 before either applies a step; a step that fails on what the other process already did (SQLite has no `ADD COLUMN IF NOT EXISTS`) is accepted when a re-read of the version shows it applied, and the DAL rolls back the failed script's own `BEGIN IMMEDIATE` so that a pooled connection does not keep the write lock.
+Every step is idempotent per engine: SQL Server runs it in one transaction with `sp_getapplock`, PostgreSQL in one `DO` block with `pg_advisory_xact_lock`, SQLite in one `BEGIN IMMEDIATE` transaction (`CREATE TABLE IF NOT EXISTS`, `INSERT OR IGNORE`), MySQL and MariaDB statement by statement (`CREATE TABLE IF NOT EXISTS`, `INSERT IGNORE`) under `GET_LOCK()`, because their DDL commits implicitly. A step that fails, times out or is cancelled between its `GET_LOCK()` and its `RELEASE_LOCK()` leaves no lock behind: the DAL releases the locks of the session (`DO RELEASE_ALL_LOCKS()`) before the connection goes back to the pool, where the lock would hold back every other host until the pool reused or pruned the connection (up to 180 seconds). `Repository_CheckCreate` takes the same lock (or waits in the SQLite busy timeout), so a check that runs while another process applies a step never sees the tables without their version row. A parallel start on an empty repository therefore creates it once. Both processes may still read version 0 before either applies a step; a step that fails on what the other process already did (SQLite has no `ADD COLUMN IF NOT EXISTS`) is accepted when a re-read of the version shows it applied, and the DAL rolls back the failed script's own `BEGIN IMMEDIATE` so that a pooled connection does not keep the write lock.
 
-Two cases are refused with `RepositorySchemaException` before anything is written: a repository with `MigratorMeta` but no schema version was created by a RayMigrator before 0.17.0 and must be recreated once; a repository whose version is higher than the engine supports needs a newer RayMigrator. A later schema version ships as a new `Repository_Upgrade_{n}` template in every DAL plus a bump of `RepositorySchema.CurrentVersion`; existing step templates never change again.
+Two cases are refused with `RepositorySchemaException` before a schema step runs or a row is written (`Repository_CheckCreate` may have created the empty version table): a repository with `MigratorMeta` but no schema version was created by a RayMigrator before 0.17.0 and must be recreated once; a repository whose version is higher than the engine supports needs a newer RayMigrator. A later schema version ships as a new `Repository_Upgrade_{n}` template in every DAL plus a bump of `RepositorySchema.CurrentVersion`. An existing step changes only as ADR-024 allows: before 1.0 a correction that does not alter the data of a repository that already has the step (0.18.0 put the table prefix into the key names), after 1.0 never.
+
+## Retention
+
+`MigrationRecordHistory` and `MigrationLog` grow with every run, and no decision of the engine reads them (ADR-027, see [Architecture decisions](../arc42/09-Architecture-Decisions.md#adr-027-the-engine-deletes-log-and-history-rows-on-a-hosts-request-and-never-reads-them-for-a-decision)): every command decides on `MigrationRecord`, and only the run history of `info` reads `MigrationRecordHistory`. A host that applies a retention policy (RayMigrator Studio) deletes their old rows through `IRepositoryMaintenanceService` (`Raycoon.RayMigrator.Services.Abstractions`, implemented by `RepositoryMaintenanceService`, registered by `AddRayMigratorServices` as a singleton next to `IRepositorySchemaService`; it needs the host's `TemplateCache`), from the repository options alone, without a product, an environment or a migration context. The engine itself never deletes these rows, and the CLI has no command for it.
+
+```csharp
+Task<RetentionResult> CleanUpAsync(RepositoryOptions repository, RetentionRequest request, CancellationToken cancellationToken = default);
+
+public sealed record RetentionRequest(
+    DateTime? HistoryCutoffUtc,                           // history rows historized before it; null leaves the history alone
+    DateTime? LogCutoffUtc,                               // log rows created before it; null leaves the log alone
+    int BatchSize = RetentionRequest.DefaultBatchSize,    // 2000
+    TimeSpan? TimeBudget = null,                          // null: RetentionRequest.DefaultTimeBudget (60 seconds)
+    bool DryRun = false);
+
+public sealed record RetentionResult(long HistoryRows, long LogRows, int Batches, bool Completed, bool LogSkipped, string? Message);
+```
+
+| Topic | Behaviour |
+|-------|-----------|
+| Request | At least one cutoff is set; both are `DateTimeKind.Utc` and count to the whole second, so a row is never deleted unless it is older. `BatchSize` is at least 1; `TimeBudget` is not negative, `Timeout.InfiniteTimeSpan` means no limit. A request that breaks these rules is an `ArgumentException` before the database is touched. |
+| Options | Validated like those of `IRepositorySchemaService` (placeholders, data annotations with their defaults, database type, RULE_4_2 to RULE_4_5, schema name); both services share that code. The templates and the check of the schema version run with the command timeout of the repository (`DbCommandTimeoutInSeconds`) but without its retries (`DbCommandMaxRetries`): a statement that timed out, and on SQLite one that reports BUSY after its busy timeout (Microsoft.Data.Sqlite sets it to the command timeout), would wait the whole command timeout again on every retry, and the default of 100 retries turned a budget of a minute into hours. The next batch and the next call are the retry. |
+| Schema version | Read through `RepositorySchemaExecutor.CheckVersionAsync`, that is through `Repository_CheckCreate` as every command reads it, which creates the empty `RepositorySchemaVersion` table (on SQL Server and PostgreSQL also the schema) when it is missing. A database without a repository, a repository without a schema version and one newer than the engine are refused with `RepositorySchemaException`. An older repository is cleaned as it is and not upgraded, because the templates read only columns of schema version 1 and an upgrade would lock out the engines that still use it; without the indexes of version 3 a warning says that every history batch reads the whole table. |
+| Order and batches | The history first, then the log. A batch is one statement that deletes at most `BatchSize` rows, the oldest first, and commits on its own; the cleanup of a table ends when a batch deletes fewer rows than `BatchSize`. Before it deletes from the log, the service asks `DatabaseLogging_Count` with `@ExistsOnly` = 1 whether the log table is there (`RepositoryMaintenanceExecutor.LogTableExistsAsync`), which counts nothing, so a large log is not read whole before its first batch. The rows deleted so far stay deleted when the cleanup stops early, and a later call continues. `Batches` counts the batches that deleted rows. |
+| Time budget | Checked before every batch once a batch has deleted rows, so a call always deletes one batch when there is one, also with a budget of zero. When it runs out, the result is `Completed = false` with a message to run the cleanup again. The budget does not stop a batch in progress: a batch that starts in time may take up to the command timeout, once, since it is not retried. |
+| Failure | An error after a batch deleted rows ends the call with `Completed = false`, the rows deleted so far and the error in `Message`, with the messages of its inner exceptions (the provider's report among them), and is logged as a warning with the exception: those rows are gone, and the host must learn of them. An error before a batch deleted rows throws, as nothing changed. |
+| Cancellation | The token is checked before every batch and reaches the batch in progress: SQL Server, PostgreSQL, MySQL and MariaDB abort the statement, which rolls back whole; SQLite completes it. A cancel while the cleanup deletes returns the rows deleted so far with `Completed = false`; on SQL Server, MySQL and MariaDB a cancel between the `DELETE` of a batch and its count leaves that batch uncounted, so the counts are then a lower bound. A cancel during the checks of the options and the schema version, and in a dry run, throws `OperationCanceledException`; after those checks, the check of the log table between history and log included, the call returns the rows deleted so far with `Completed = false`, possibly none. |
+| Dry run | Counts in full the rows each named table would lose (`DatabaseLogging_Count` with `@ExistsOnly` = 0) and deletes nothing; `Batches` is 0 and the result is always complete. |
+| Open runs | Every batch spares the rows of a run that is still open (`MigrationRun.FinishedAt IS NULL`), so a running or orphaned run keeps its history and its log until a later start or `fix` closes it. A log row without a run (`MigrationRunId` null: update-hash, fix and the early pipeline events log without one) falls by its age. |
+| Log location | The log is cleaned only where it shares the repository database and the schema and prefix of the repository, its default home. A log of its own elsewhere is left alone and reported as `LogSkipped = true`. |
+| Kept tables | `MigrationRecord`, `MigrationRun` and `MigrationRunMeta` are never deleted, so status, pending migrations and every decision of the engine stay as they were. The `info` run history reports no migrations for a run whose history rows are gone. |
+| Parallel cleanups | Serialising the cleanups of a repository is the host's business. Two at once delete only rows that match; a batch whose rows the other one deleted first deletes fewer, which may end that cleanup as completed while the other one deletes the rest. |
+| Shared log table | The guard reads the open runs of this repository only. When another repository writes into the same log table (same database, schema and prefix), its rows fall by their age even while its run is open. |
+
+### Retention templates
+
+`RepositoryMaintenanceExecutor` (`Raycoon.RayMigrator.Infrastructure`) runs four templates per DAL without a migration context, with the command timeout of the repository and without its retries. The repository settings open no transaction, so a batch is one statement in autocommit, applied whole or not at all. `@CutoffUtc` is UTC text `yyyy-MM-dd HH:mm:ss`, `@BatchSize` the most rows of one batch, and `@ExistsOnly` (`1` or `0`) tells `DatabaseLogging_Count` whether to report the existence of the log table alone. The log templates run with the schema and prefix of the `Repository` section, not of `DatabaseLogging`, and join its `MigrationRun`.
+
+| Template | Result |
+|----------|--------|
+| `Repository_MigrationRecordHistory_Delete` | Deletes one batch of the history rows historized before the cutoff; `'n,message'` with the rows deleted |
+| `Repository_MigrationRecordHistory_Count` | `'n,message'` with the rows the delete would take |
+| `DatabaseLogging_Delete` | Deletes one batch of the log rows created before the cutoff; `'n,message'` |
+| `DatabaseLogging_Count` | `'n,1,message'`, or `'0,0,message'` when the repository database has no log table under the schema and prefix of the repository; with `@ExistsOnly` = 1 it counts nothing and returns `'0,1,message'` when the table is there (`LogTableExistsAsync`, before the cleanup deletes from the log), with `0` it counts (`CountLogAsync`, the dry run) |
+
+A count may exceed the `int` range of the result contract and is read as a `long`. One batch per engine:
+
+| Engine | Batch |
+|--------|-------|
+| SQL Server | `DELETE` through a CTE with `TOP (@BatchSize)` in the order of the clustered key, with `OPTION (LOOP JOIN)`. Ordered by the time column, SQL Server read every matching row for each batch, so that a cleanup grew with the square of its rows; in key order with nested loops a batch stops after its own rows (1,000,000 log rows took 51 instead of 170 seconds). |
+| PostgreSQL | A data-modifying CTE deletes the ids of a `LIMIT` subquery ordered by the time column and counts them in the same statement. |
+| MySQL, MariaDB | `DELETE … ORDER BY … LIMIT`; the cutoff text is read in the session time zone, which the DAL sets to UTC. |
+| SQLite | Deletes the rowids of a `LIMIT` subquery, because `DELETE … LIMIT` needs a build with `SQLITE_ENABLE_UPDATE_DELETE_LIMIT`. SQLite resolves the tables of a statement when it prepares it, so `DatabaseLogging_Count` creates an empty log table for the count when the table is missing, inside a transaction that it rolls back. |
+
+The default batch size of 2,000 keeps SQL Server from escalating a batch to a table lock, which would hold back the log writes of running hosts for the length of the batch: SQL Server escalates a statement at 5,000 locks on one index, and a delete takes a key lock per row and a page lock per page it touches in every index. Measured with the indexes of schema version 3, history batches of 4,800 rows and log batches of 5,000 rows escalated, while 2,000 rows take at most 4,000 locks per index even with one row per page.
+
+Every DAL ships the four templates; when a DAL folder under `DataAccessLayers/` lacks one, the `TemplateCache` constructor throws and no command starts, whatever database it uses (see [External DAL development](../09-extending/external-dal-development.md#required-templates)).
 
 ## Schema Configuration
 
@@ -593,3 +669,4 @@ Schema and table prefix are configurable:
 - [Logging Schema](logging-schema.md) - Logging tables
 - [Template System](template-system.md) - How schema is created
 - [Migration State Machine](../02-core-concepts/migration-state-machine.md)
+- [Architecture decisions](../arc42/09-Architecture-Decisions.md) - ADR-024 (schema steps), ADR-025 (read model), ADR-027 (retention)

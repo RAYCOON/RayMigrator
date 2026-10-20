@@ -6,7 +6,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_MigrationRecord_Select"
 DatabaseType   = "Sqlite"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-04-18.1"
+Version        = "2026-10-16.1"
 
 [Description]
 Function = """
@@ -37,12 +37,13 @@ MigrationRunModeId = "INTEGER | REQUIRED | Run mode (typically 100=Migrate)"
 #   ReleaseVersion, TargetGroupAlias, TargetAlias, Filename, FileOrderId,
 #   FileUpHash, FileUpConfigHash, FileUpBlocksHash, FileUpBlocksMigrated, FileUpBlocksTotal,
 #   MigrateDownFileExists, FileDownHash, FileDownConfigHash, FileDownBlocksHash,
-#   FileDownBlocksMigrated, FileDownBlocksTotal
+#   FileDownBlocksMigrated, FileDownBlocksTotal, StartedAt, FinishedAt
 
 [ModificationNotes]
 Note1 = "This template returns a result set - NOT the standard 'code,message' format"
 Note2 = "Column order is critical - code depends on positional binding"
 Note3 = "Used for hash validation and determining migration state"
+Note4 = "StartedAt and FinishedAt are UTC; info reports the latest FinishedAt of the Migrated records of a target group (TargetGroupStatus.LastMigrationDate)"
 ================================================================================
 */
 
@@ -68,6 +69,8 @@ SELECT
     ,"FileDownBlocksHash"
     ,"FileDownBlocksMigrated"
     ,"FileDownBlocksTotal"
+    ,"StartedAt"
+    ,"FinishedAt"
 FROM
     "{CFG:TableBaseName}MigrationRecord"
 WHERE

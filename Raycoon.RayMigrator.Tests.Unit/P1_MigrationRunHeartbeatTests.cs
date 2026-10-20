@@ -24,7 +24,7 @@ public class MigrationRunHeartbeatTests
         int beats = 0;
         var logger = new CapturingLogger<MigrationRunHeartbeat>();
 
-        await using (var heartbeat = new MigrationRunHeartbeat(7, TimeSpan.FromMilliseconds(40), () => { Interlocked.Increment(ref beats); return true; }, logger))
+        await using (var heartbeat = new MigrationRunHeartbeat(7, TimeSpan.FromMilliseconds(40), () => { Interlocked.Increment(ref beats); return Task.FromResult(true); }, logger))
         {
             await Task.Delay(400, TestContext.Current.CancellationToken);
             heartbeat.Beats.Should().BeGreaterThan(2);
@@ -37,6 +37,29 @@ public class MigrationRunHeartbeatTests
     }
 
     [Fact]
+    public async Task Heartbeat_AsynchronousBeat_IsAwaitedBeforeItCounts()
+    {
+        // Arrange
+        int completed = 0;
+        var logger = new CapturingLogger<MigrationRunHeartbeat>();
+        var heartbeat = new MigrationRunHeartbeat(7, TimeSpan.FromMilliseconds(40), async () =>
+        {
+            await Task.Delay(5, TestContext.Current.CancellationToken);
+            Interlocked.Increment(ref completed);
+            return true;
+        }, logger);
+
+        // Act
+        await Task.Delay(400, TestContext.Current.CancellationToken);
+        await heartbeat.DisposeAsync();
+
+        // Assert
+        heartbeat.Beats.Should().BeGreaterThan(2, because: "a beat counts once the repository call it awaits has completed");
+        heartbeat.Beats.Should().Be(completed, because: "the stop waits for the beat in progress");
+        logger.Entries.Should().BeEmpty(because: "no beat failed");
+    }
+
+    [Fact]
     public async Task Heartbeat_FailingBeat_IsLoggedAndTheLoopContinues()
     {
         int calls = 0;
@@ -46,7 +69,7 @@ public class MigrationRunHeartbeatTests
         {
             if (Interlocked.Increment(ref calls) == 1)
                 throw new InvalidOperationException("repository away");
-            return true;
+            return Task.FromResult(true);
         }, logger);
         await Task.Delay(400, TestContext.Current.CancellationToken);
 
@@ -58,7 +81,7 @@ public class MigrationRunHeartbeatTests
     [Fact]
     public async Task Heartbeat_BeatOnAClosedRun_DoesNotCount()
     {
-        await using var heartbeat = new MigrationRunHeartbeat(7, TimeSpan.FromMilliseconds(40), () => false, new CapturingLogger<MigrationRunHeartbeat>());
+        await using var heartbeat = new MigrationRunHeartbeat(7, TimeSpan.FromMilliseconds(40), () => Task.FromResult(false), new CapturingLogger<MigrationRunHeartbeat>());
         await Task.Delay(200, TestContext.Current.CancellationToken);
 
         heartbeat.Beats.Should().Be(0);
@@ -69,7 +92,7 @@ public class MigrationRunHeartbeatTests
     {
         var logger = new CapturingLogger<MigrationRunHeartbeat>();
         var release = new ManualResetEventSlim(false);
-        var heartbeat = new MigrationRunHeartbeat(7, TimeSpan.FromMilliseconds(20), () => { release.Wait(); return true; }, logger, stopTimeout: TimeSpan.FromMilliseconds(200));
+        var heartbeat = new MigrationRunHeartbeat(7, TimeSpan.FromMilliseconds(20), () => { release.Wait(); return Task.FromResult(true); }, logger, stopTimeout: TimeSpan.FromMilliseconds(200));
         await Task.Delay(100, TestContext.Current.CancellationToken); // the first beat is now blocked inside the repository call
 
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
@@ -90,7 +113,7 @@ public class MigrationRunHeartbeatTests
     [Fact]
     public void Heartbeat_NonPositiveInterval_Throws()
     {
-        var act = () => new MigrationRunHeartbeat(7, TimeSpan.Zero, () => true, new CapturingLogger<MigrationRunHeartbeat>());
+        var act = () => new MigrationRunHeartbeat(7, TimeSpan.Zero, () => Task.FromResult(true), new CapturingLogger<MigrationRunHeartbeat>());
 
         act.Should().Throw<ArgumentOutOfRangeException>();
     }

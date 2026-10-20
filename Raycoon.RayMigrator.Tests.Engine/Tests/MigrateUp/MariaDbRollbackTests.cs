@@ -1,4 +1,5 @@
 using Raycoon.RayMigrator.Core.Configuration.Enums;
+using Raycoon.RayMigrator.Core.Progress;
 using Raycoon.RayMigrator.Tests.Engine.Fixtures;
 using Raycoon.RayMigrator.Tests.Engine.Infrastructure;
 
@@ -332,5 +333,56 @@ public class MariaDbRollbackTests : MariaDbTestBase
             ("02_CreateTableH.sql", MigrationStatus.NotMigrated),
             ("03_SeedDataD.sql", MigrationStatus.NotMigrated)
         );
+    }
+
+    /// <summary>
+    /// #67 Error in R3/F3 with Rollback and RequireRollbackFile=true; the rollback file of R2/F1 disappears during the run,
+    /// after the discovery checked it. The error recovery rolls back R3 and R2/F3+F2 and aborts at R2/F1, which keeps its
+    /// status Migrated: nothing of its rollback ran, and migrate-down rolls it back once the file is there.
+    /// R1=Migrated, R2/F1=Migrated, R2/F2+F3=NotMigrated, R3=NotMigrated, R4=NoRecord.
+    /// </summary>
+    [Fact]
+    public async Task MissingRollback_RequireTrue_DuringTheRecovery_KeepsTheStatus()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+
+        // Arrange: the rollback file of R2/F1 is deleted when R3/F3 starts, after the discovery found it
+        await using var ctx = await CreateScenario()
+            .InjectError("Release_3.0", "03_SeedDataC.sql")
+            .WithMigrationErrorAction(MigrationErrorAction.Rollback)
+            .WithRequireRollbackFile(true)
+            .BuildAsync();
+        string rollbackPath = Path.Combine(ctx.WorkDirectory, "Release_2.0", "Backend", "01_CreateTableC.rollback.sql");
+        ctx.UseProgressObserver(new ProbingProgressObserver(e =>
+        {
+            if (e is FileStartedEvent { FileName: "03_SeedDataC.sql", Operation: MigrationOperation.MigrateUp })
+            {
+                File.Delete(rollbackPath);
+            }
+        }));
+
+        // Act
+        await ctx.MigrateUpAsync();
+
+        // Assert
+        ctx.AssertSuccess(false);
+        ctx.AssertRunResult(MigrationRunResult.Error);
+        ctx.AssertFileStatuses(
+            // R1 Migrated (the chain stopped before R1)
+            ("01_CreateTableA.sql", MigrationStatus.Migrated),
+            ("02_CreateTableB.sql", MigrationStatus.Migrated),
+            ("03_SeedDataA.sql", MigrationStatus.Migrated),
+            // R2/F1 keeps Migrated (required rollback file missing, nothing of its rollback ran)
+            ("01_CreateTableC.sql", MigrationStatus.Migrated),
+            // R2/F2+F3 NotMigrated
+            ("02_CreateTableD.sql", MigrationStatus.NotMigrated),
+            ("03_SeedDataB.sql", MigrationStatus.NotMigrated),
+            // R3 NotMigrated
+            ("01_CreateTableE.sql", MigrationStatus.NotMigrated),
+            ("02_CreateTableF.sql", MigrationStatus.NotMigrated),
+            ("03_SeedDataC.sql", MigrationStatus.NotMigrated)
+        );
+        ctx.AssertTableExists("tablec", true);
+        // R4 has no records
     }
 }

@@ -22,7 +22,7 @@ Behaviour = """
 
 [ConfigPlaceholders]
 SchemaName    = "Not used for SQLite (no schema support)"
-TableBaseName = "Table name prefix from Logging configuration (e.g., '' or 'Log_')"
+TableBaseName = "Table name prefix from Logging configuration (e.g., '' or 'log_')"
 
 [Parameters]
 LogLevelId       = "INTEGER | REQUIRED | Log level: 0=Trace, 1=Debug, 2=Info, 3=Warning, 4=Error, 5=Critical"

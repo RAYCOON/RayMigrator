@@ -24,7 +24,7 @@ Behaviour = """
 
 [ConfigPlaceholders]
 SchemaName    = "Database schema from Repository configuration (e.g., 'ray')"
-TableBaseName = "Table name prefix from Repository configuration (e.g., '' or 'RM_')"
+TableBaseName = "Table name prefix from Repository configuration (e.g., '' or 'rm_')"
 
 [Parameters]
 # none

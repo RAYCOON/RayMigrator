@@ -6,9 +6,9 @@ RayMigrator supports both file/console logging (Serilog) and optional database l
 
 Structured logging of every run into a database, so that RayMigrator Studio and operators can read what a run did next to its repository rows.
 
-Database logging is **on by default and goes into the repository**: without a `DatabaseLogging` section, or with one that leaves values out, the missing values come from `Repository` (database type, connection string, schema, table prefix) and `MinimumLevel` is `Information`. The log tables `MigrationLog` and `MigrationEvent` are created in the repository schema on the first run. `"DatabaseLogging": { "Enabled": false }` switches database logging off. A section with its own `DatabaseType` that differs from the repository's describes a separate log database and must name its own `ConnectionString`.
+Database logging is **on by default and goes into the repository**: without a `DatabaseLogging` section, or with one that leaves values out, the missing values come from `Repository` (database type, connection string, schema, table prefix) and `MinimumLevel` is `Information`. The log tables `MigrationLog` and `MigrationEvent` are created in the repository schema on the first run, `MigrationLog` with an index on `MigrationRunId` and one on `CreatedAt` ([Logging Schema: Indexes](../03-database-layer/logging-schema.md#indexes)). `"DatabaseLogging": { "Enabled": false }` switches database logging off. A section with its own `DatabaseType` that differs from the repository's describes a separate log database and must name its own `ConnectionString`.
 
-> **Command restriction**: The DatabaseLogging sink (DB sink) only writes log entries for commands that change state: `migrate-up` / `migrate-down` in `Migrate` mode, `update-hash`, `baseline` and `fix` in `Migrate` mode. For `info`, `validate-hash`, `fix` in `Simulate` mode and `migrate-up` / `migrate-down` in `Validate` or `Simulate` mode the sink is silent and no log entries are written (`CommandProfile.WritesDatabaseLog`, #6); the log tables themselves are created by `DatabaseLogging_CheckCreate` in every run mode as soon as database logging is enabled, which it is by default, so even `info` on a fresh repository creates `MigrationLog` and `MigrationEvent`. Console and file logging (Serilog) always writes for all commands.
+> **Command restriction**: The DatabaseLogging sink (DB sink) only writes log entries for commands that change state: `migrate-up` / `migrate-down` in `Migrate` mode, `update-hash`, `baseline` and `fix` in `Migrate` mode. For `info`, `validate-hash`, `fix` in `Simulate` mode and `migrate-up` / `migrate-down` in `Validate` or `Simulate` mode the sink is silent and no log entries are written (`CommandProfile.WritesDatabaseLog`, #6); the log tables themselves are created by `DatabaseLogging_CheckCreate` in every run mode as soon as database logging is enabled, which it is by default, so even `info` on a fresh repository creates `MigrationLog` and `MigrationEvent`. For the same reason the first command after an update to 0.20.0, in any run mode, `Validate` included, adds the two indexes to a log table an older engine created; that start needs the right to create indexes on the log table once and, on a large log, a longer `DbCommandTimeoutInSeconds`, because a timeout of that start is not retried (see [Logging Schema: Indexes](../03-database-layer/logging-schema.md#indexes)). Console and file logging (Serilog) always writes for all commands.
 
 ### Properties
 
@@ -20,7 +20,7 @@ Database logging is **on by default and goes into the repository**: without a `D
 | `SchemaName` | string | Conditional | `Repository.SchemaName` | Schema for logging tables (SqlServer, PostgreSQL; ignored for MariaDb, MySql, SQLite) |
 | `TableBaseName` | string | No | `Repository.TableBaseName` | Table prefix; at most 16 bytes in UTF-8 (16 ASCII characters) (`RULE_4_4`) |
 | `MinimumLevel` | string | No | Information | Minimum log level |
-| `DbCommandTimeoutInSeconds` | int | No | 20 | Command timeout |
+| `DbCommandTimeoutInSeconds` | int | No | 20 | Command timeout of the log writes and of the initialization; it also bounds the index build of the first start after the update to 0.20.0 and the wait of a parallel start for the initialization lock. A timeout of the initialization is not retried and ends the start with a message that names this option: raise it for the first start on a large log |
 
 > **SQLite**: the log rows are written on their own connection while a migration runs. When the repository file is also a target, every target block holds the file's write lock and the log writer waits in the busy timeout; give the repository its own file (as for the heartbeat, see [Repository options](repository-options.md)).
 
@@ -98,6 +98,8 @@ A fully written section:
 }
 ```
 
+A log database of its own gets the two indexes at its next start as well, because the log tables are not part of the repository schema version. The cleanup of old rows through `IRepositoryMaintenanceService` does not reach it: it cleans only a log in the repository database under the schema and prefix of the repository and reports any other as `LogSkipped` ([Retention](../03-database-layer/repository-schema.md#retention)), so a separate log database needs a retention of its own. The same holds for the variant below, a log in a schema of its own.
+
 ### Same Database as Repository, Other Schema
 
 The default puts the log tables into the repository schema. To keep them in the repository database but in a schema of their own, name only the schema:
@@ -124,7 +126,7 @@ Database logging uses a multi-component pipeline:
    - `Environment`, `MigrationRunId`, `TargetGroupAlias`, `TargetAlias`, `MigrationFilename`, `MigrationFileId`, `MigrationBlockId` (for Serilog console/file output)
    - `RunModeId`, `ProductId`, `EnvironmentId`, `MigrationRecordId`, `ReleaseVersion`, `FileName`, `FileOrderId`, `FileBlockId` (additional properties for the database sink)
 
-3. **`DatabaseLogWriter`** -- A service that enqueues log entries for asynchronous writing via `DatabaseLoggerQueue`. It validates the minimum log level and converts Serilog log events into DAL parameter lists for SQL template execution.
+3. **`DatabaseLogWriter`** -- A service that enqueues log entries for asynchronous writing via `DatabaseLoggerQueue`. It validates the minimum log level and converts Serilog log events into DAL parameter lists for SQL template execution. Its `InitDatabaseLoggerAsync` runs `DatabaseLogging_CheckCreate` at the start: it retries a transient failure up to three times, as every log write, but not a timeout (`DalBase.IsTimeout`), which ends the initialization with a message that names the index build and `DatabaseLogging.DbCommandTimeoutInSeconds`.
 
 4. **`DatabaseLoggerQueue`** -- A `BlockingCollection<Action>` background queue that processes log writes on a background thread (via `Task.Factory.StartNew` with `LongRunning`). Errors during database writes are caught and written to `Console.Error.WriteLine` to avoid cascading failures.
 
@@ -382,7 +384,7 @@ At the `Verbose` (Trace) log level, the full resolved configuration is logged. W
 
 1. **Production**: Use `Warning` or `Error` for `MinimumLevel.Default`; use per-sink `restrictedToMinimumLevel` for file sinks that need more detail
 2. **Development**: Use `Debug` level
-3. **Database logging**: The repository is the default home of the log; move it to a separate database when log growth or retention must not touch the repository
+3. **Database logging**: The repository is the default home of the log, where `IRepositoryMaintenanceService` deletes old rows for a host such as RayMigrator Studio; move it to a separate database or schema only when log growth must not touch the repository, and give it a retention of its own there
 4. **File logging**: Enable rolling with retention limit (`retainedFileCountLimit`)
 5. **Sensitive data**: Never enable `--reveal-sensitive-data` in production
 6. **Output templates**: Use `{Level:u4}` for consistent 4-character level names (INFO, DBUG, WARN, EROR, FATL); use enricher properties like `{MigrationRunId}` in file sinks for correlation

@@ -24,7 +24,7 @@ public class ParameterRoundTripTests : PostgreSqlTestBase
 
         var dal = new DalPostgreSql(Fixture.EngineConfig.ConnectionString);
 
-        var result = await dal.ExecuteScalarAsync("SELECT CAST(@Value AS TEXT)", ParameterRoundTripValues.Settings, ParameterRoundTripValues.Parameters());
+        var result = await dal.ExecuteScalarAsync("SELECT CAST(@Value AS TEXT)", ParameterRoundTripValues.Settings, ParameterRoundTripValues.Parameters(), cancellationToken: TestContext.Current.CancellationToken);
 
         result.Should().Be(ParameterRoundTripValues.HostileString);
     }
@@ -36,7 +36,7 @@ public class ParameterRoundTripTests : PostgreSqlTestBase
 
         var dal = new DalPostgreSql(Fixture.EngineConfig.ConnectionString);
 
-        var result = await dal.ExecuteScalarAsync("DO $$ BEGIN RAISE NOTICE '%', @Value; END $$;", ParameterRoundTripValues.Settings, ParameterRoundTripValues.Parameters());
+        var result = await dal.ExecuteScalarAsync("DO $$ BEGIN RAISE NOTICE '%', @Value; END $$;", ParameterRoundTripValues.Settings, ParameterRoundTripValues.Parameters(), cancellationToken: TestContext.Current.CancellationToken);
 
         result.Should().Be(ParameterRoundTripValues.HostileString);
     }
@@ -48,7 +48,7 @@ public class ParameterRoundTripTests : PostgreSqlTestBase
 
         var dal = new DalPostgreSql(Fixture.EngineConfig.ConnectionString);
 
-        var result = await dal.ExecuteScalarAsync("SELECT CAST(@Null AS TEXT)", ParameterRoundTripValues.Settings, ParameterRoundTripValues.Parameters());
+        var result = await dal.ExecuteScalarAsync("SELECT CAST(@Null AS TEXT)", ParameterRoundTripValues.Settings, ParameterRoundTripValues.Parameters(), cancellationToken: TestContext.Current.CancellationToken);
 
         (result == null || result is DBNull).Should().BeTrue();
     }

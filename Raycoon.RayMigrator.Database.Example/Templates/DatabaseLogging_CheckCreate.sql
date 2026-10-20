@@ -1,6 +1,15 @@
 -- TODO: Implement for your database engine
--- Purpose: Creates the database logging table if it doesn't exist
+-- Purpose: Creates the database logging tables if they don't exist, and the indexes
+--          ix_{CFG:TableBaseName}MigrationLog_MigrationRunId (MigrationRunId) and
+--          ix_{CFG:TableBaseName}MigrationLog_CreatedAt (CreatedAt) when they are missing. The indexes stand
+--          outside the creation branch, so a log table that already exists gets them too. Must be idempotent,
+--          must not run DDL when the tables and both indexes exist, and must stay safe when two hosts start at once.
+--          Without a lock around the check for the tables, two first starts can both find no log table: insert the
+--          MigrationEvent catalogue idempotently then (MariaDB: INSERT ... ON DUPLICATE KEY UPDATE, SQLite:
+--          INSERT OR IGNORE), so that the second start keeps the rows of the first instead of failing on the key.
 -- See the corresponding template in Database.SqlServer or Database.PostgreSQL for reference.
+-- Returns: 'code,message' where code is 1 when the tables were created and 0 when they existed, also when
+--          only the indexes were added.
 --
 -- Parameters used in this template:
 -- {CFG:SchemaName} - The repository schema name

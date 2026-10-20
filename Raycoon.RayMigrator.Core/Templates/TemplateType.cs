@@ -10,15 +10,22 @@ public enum TemplateType
     DatabaseLogging_CheckCreate,
     DatabaseLogging_Insert,
 
+    // Retention of the log (ADR-027): run against the repository database under the schema and prefix of the
+    // repository and spare the rows of its open runs. Delete removes one batch of rows older than a cutoff, Count counts
+    // the same rows and reports whether the log table is there; IRepositoryMaintenanceService runs them
+    DatabaseLogging_Delete,
+    DatabaseLogging_Count,
+
     Repository_CheckCreate,
     Repository_Drop,
 
     // Schema steps (ADR-024): Repository_Upgrade_{n} creates schema version n on top of version n - 1, step 1 the
     // tables of a fresh repository. One member per version up to RepositorySchema.CurrentVersion; applied in order by
-    // RepositorySchemaExecutor (for a run through TemplateExecutor.RepositoryCheckCreate, for a host through
+    // RepositorySchemaExecutor (for a run through TemplateExecutor.RepositoryCheckCreateAsync, for a host through
     // IRepositorySchemaService), which then registers the engine version through MigratorMeta_CheckInsert
     Repository_Upgrade_1,
     Repository_Upgrade_2,
+    Repository_Upgrade_3,
     Repository_MigratorMeta_CheckInsert,
 
     Repository_MigrationRun_Insert,
@@ -39,6 +46,11 @@ public enum TemplateType
     // Terminal state transitions per run (MigrationRecordHistory): the info run history is built from it, because
     // migrate-down and error-recovery rollbacks change records that belong to another run (#13)
     Repository_MigrationRecordHistory_Select,
+
+    // Retention of the history (ADR-027): Delete removes one batch of rows historized before a cutoff, sparing the rows
+    // of an open run, Count counts the same rows; IRepositoryMaintenanceService runs them
+    Repository_MigrationRecordHistory_Delete,
+    Repository_MigrationRecordHistory_Count,
 
     // Read-only lookups (no insert): used by run modes / commands that must not write to the repository (#7)
     Repository_Product_Select,

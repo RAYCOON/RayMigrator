@@ -2,6 +2,7 @@
 -- Purpose: Selects the terminal state transitions (MigrationRecordHistory rows) of a product's records,
 --          one row per transition with the MigrationRun that caused it (used by the info run history, #13)
 -- See the corresponding template in Database.SqlServer or Database.PostgreSQL for reference.
+-- Returns: the columns of Repository_MigrationRecord_Select under the same names, StartedAt and FinishedAt included.
 --
 -- Parameters used in this template:
 -- {CFG:SchemaName} - The repository schema name

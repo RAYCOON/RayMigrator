@@ -104,10 +104,10 @@ public class HeartbeatTests : PostgreSqlTestBase
         ctx.InsertOrphanedMigrationRun(minutesOld: 120, heartbeatMinutesOld: 0);
         int runId = ctx.GetMigrationRun(2)!.Id;
 
-        ctx.FixOrphanedRun(runId, thresholdMinutes: 2).Should().BeFalse("the heartbeat is younger than the threshold");
+        (await ctx.FixOrphanedRunAsync(runId, thresholdMinutes: 2)).Should().BeFalse("the heartbeat is younger than the threshold");
         ctx.GetLatestRunResultId().Should().Be((int)MigrationRunResult.Running, "an alive run stays open");
 
-        ctx.FixOrphanedRun(runId, thresholdMinutes: 0).Should().BeTrue("with threshold 0 every open run counts as orphaned");
+        (await ctx.FixOrphanedRunAsync(runId, thresholdMinutes: 0)).Should().BeTrue("with threshold 0 every open run counts as orphaned");
         ctx.GetLatestRunResultId().Should().Be((int)MigrationRunResult.Error);
     }
 

@@ -4,7 +4,7 @@ namespace Raycoon.RayMigrator.Core.Templates;
 /// The version of the repository schema this engine creates and expects (ADR-024). The schema grows in numbered
 /// steps: <c>Repository_Upgrade_{n}</c> creates version <c>n</c> on top of version <c>n - 1</c>, step 1 creates
 /// the tables of a fresh repository. <c>Repository_CheckCreate</c> reports the version a repository has, and
-/// <c>TemplateExecutor.RepositoryCheckCreate</c> applies every missing step up to the target version of the run,
+/// <c>TemplateExecutor.RepositoryCheckCreateAsync</c> applies every missing step up to the target version of the run,
 /// which is <see cref="CurrentVersion"/> unless a test pins an older one.
 /// </summary>
 public static class RepositorySchema
@@ -13,7 +13,7 @@ public static class RepositorySchema
     /// The newest schema version this engine knows. Every DAL ships <c>Repository_Upgrade_1</c> to
     /// <c>Repository_Upgrade_{CurrentVersion}</c>.
     /// </summary>
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
 
     /// <summary>
     /// The template that creates schema version <paramref name="version"/> on top of the version before it.

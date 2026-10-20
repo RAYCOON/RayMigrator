@@ -193,6 +193,10 @@ The command updates these repository fields for each matching `Migration` record
 
 Only records with `MigrationStatusId = Migrated` are considered. Other statuses (e.g., `NotMigrated`, `Failed`, `Pending`) are ignored.
 
+## Cancelling
+
+The first Ctrl+C or SIGTERM stops update-hash before its next record. Every record update that started completes, and the records it did not reach keep their hashes; run update-hash again for them. The result reports what it updated so far with the engine code `1004` (`Cancelled`), and the process exits with `130`. A file counts in the updated files once its first record is updated, so a cancel between the records of a file that migrated on several targets names it. See [Global Options: Cancelling a Run](global-options.md#cancelling-a-run).
+
 ## Exit Codes
 
 → See [Global Options — Exit Codes](global-options.md#exit-codes) for the complete exit code table.

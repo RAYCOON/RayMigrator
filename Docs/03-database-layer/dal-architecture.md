@@ -53,11 +53,11 @@ public interface IDal
     string DatabaseType { get; }
     DalSpecificProperties DalSpecificProperties { get; }
 
-    Task ExecuteNonQueryAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null);
-    void ExecuteNonQuery(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null);
-    Task<object?> ExecuteScalarAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null);
-    Task<List<Dictionary<string, object?>>> ExecuteReaderAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null);
-    Task<bool> IsConnectionValid(string connectionString, IDalSettings dalSettings);
+    Task ExecuteNonQueryAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null, CancellationToken cancellationToken = default);
+    void ExecuteNonQuery(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null);   // no token: the database log writer calls it from its own thread
+    Task<object?> ExecuteScalarAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null, CancellationToken cancellationToken = default);
+    Task<List<Dictionary<string, object?>>> ExecuteReaderAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null, CancellationToken cancellationToken = default);
+    Task<bool> IsConnectionValidAsync(string connectionString, IDalSettings dalSettings, CancellationToken cancellationToken = default);
     void CheckConnectionStringOrValidateConnection(bool validateConnection);
     bool TryGetDbTypeForType(Type type, out DbType dbType);
     bool TryGetDbSpecificSqlParameter<T>(DalParameterList dalParameterList, out List<T>? sqlParameterList) where T : class, IDbDataParameter, new();
@@ -65,10 +65,12 @@ public interface IDal
     // Shared-connection methods: caller controls the connection and transaction lifecycle.
     // Used for atomic execution where repository updates and target SQL blocks share one transaction.
     DbConnection CreateConnection();
-    Task ExecuteNonQueryAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList = null);
-    Task<object?> ExecuteScalarAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList = null);
+    Task ExecuteNonQueryAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList = null, CancellationToken cancellationToken = default);
+    Task<object?> ExecuteScalarAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList = null, CancellationToken cancellationToken = default);
 }
 ```
+
+A call that fails after its token was cancelled throws an `OperationCanceledException` that carries that token, whatever the provider reported, and starts no further retry (see [Cancellation](#cancellation)).
 
 ## Database-Specific Settings
 
@@ -111,14 +113,19 @@ Raycoon.RayMigrator.Database.SqlServer/        <- Separate project
 ├── DalSqlServer.cs
 ├── Templates/
 │   ├── DatabaseLogging_CheckCreate.sql
+│   ├── DatabaseLogging_Count.sql
+│   ├── DatabaseLogging_Delete.sql
 │   ├── DatabaseLogging_Insert.sql
 │   ├── Repository_CheckCreate.sql
 │   ├── Repository_Upgrade_1.sql
 │   ├── Repository_Upgrade_2.sql
+│   ├── Repository_Upgrade_3.sql
 │   ├── Repository_MigratorMeta_CheckInsert.sql
 │   ├── Repository_Drop.sql
 │   ├── Repository_Environment_CheckInsert.sql
 │   ├── Repository_Environment_Select.sql
+│   ├── Repository_MigrationRecordHistory_Count.sql
+│   ├── Repository_MigrationRecordHistory_Delete.sql
 │   ├── Repository_MigrationRecordHistory_Select.sql
 │   ├── Repository_MigrationRecord_FixOrphaned.sql
 │   ├── Repository_MigrationRecord_GetInterrupted.sql
@@ -139,27 +146,27 @@ Raycoon.RayMigrator.Database.SqlServer/        <- Separate project
 
 Raycoon.RayMigrator.Database.PostgreSQL/       <- Separate project
 ├── DalPostgreSql.cs
-├── Templates/ (same 25 templates, PostgreSQL syntax)
+├── Templates/ (same 30 templates, PostgreSQL syntax)
 └── Raycoon.RayMigrator.Database.PostgreSQL.csproj
 
 Raycoon.RayMigrator.Database.MariaDb/          <- Separate project
 ├── DalMariaDb.cs
-├── Templates/ (same 25 templates, MariaDB syntax)
+├── Templates/ (same 30 templates, MariaDB syntax)
 └── Raycoon.RayMigrator.Database.MariaDb.csproj
 
 Raycoon.RayMigrator.Database.MySql/            <- Separate project
 ├── DalMySql.cs
-├── Templates/ (same 25 templates, MySQL syntax)
+├── Templates/ (same 30 templates, MySQL syntax)
 └── Raycoon.RayMigrator.Database.MySql.csproj
 
 Raycoon.RayMigrator.Database.Sqlite/           <- Separate project
 ├── DalSqlite.cs
-├── Templates/ (same 25 templates, SQLite syntax)
+├── Templates/ (same 30 templates, SQLite syntax)
 └── Raycoon.RayMigrator.Database.Sqlite.csproj
 
 Raycoon.RayMigrator.Database.Example/          <- Skeleton template for external DAL development
 ├── DalExample.cs
-├── Templates/ (26 placeholder templates: 25 required by the engine + Repository_MigrationRecordHistory_Archive.sql)
+├── Templates/ (30 placeholder templates, one per required template)
 └── Raycoon.RayMigrator.Database.Example.csproj
 ```
 
@@ -171,19 +178,19 @@ bin/Debug/{TargetFramework}/   (e.g., net10.0, net9.0, or net8.0)
 ├── DataAccessLayers/
 │   ├── SqlServer/
 │   │   ├── Raycoon.RayMigrator.Database.SqlServer.dll
-│   │   └── *.sql (25 template files)
+│   │   └── *.sql (30 template files)
 │   ├── PostgreSQL/
 │   │   ├── Raycoon.RayMigrator.Database.PostgreSQL.dll
-│   │   └── *.sql (25 template files)
+│   │   └── *.sql (30 template files)
 │   ├── MariaDb/
 │   │   ├── Raycoon.RayMigrator.Database.MariaDb.dll
-│   │   └── *.sql (25 template files)
+│   │   └── *.sql (30 template files)
 │   ├── MySql/
 │   │   ├── Raycoon.RayMigrator.Database.MySql.dll
-│   │   └── *.sql (25 template files)
+│   │   └── *.sql (30 template files)
 │   └── Sqlite/
 │       ├── Raycoon.RayMigrator.Database.Sqlite.dll
-│       └── *.sql (25 template files)
+│       └── *.sql (30 template files)
 ```
 
 ## DatabaseType Attribute
@@ -260,7 +267,7 @@ Directory.GetFiles(subDir, "*.sql");
 
 **Location**: `Raycoon.RayMigrator.Database.Common/DalBase.cs`
 
-`DalBase` provides a base implementation for all DAL classes, implementing `IDal`. It declares abstract members that each database-specific DAL must override and provides default implementations for common functionality such as parameter conversion and type mapping.
+`DalBase` provides a base implementation for all DAL classes, implementing `IDal`. It implements the asynchronous `IDal` members itself on top of protected `…CoreAsync` members that each DAL overrides, so that a cancelled call ends the same way in every DAL, declares the other abstract members, and provides default implementations for common functionality such as parameter conversion and type mapping.
 
 ```csharp
 public abstract class DalBase : IDal
@@ -268,17 +275,26 @@ public abstract class DalBase : IDal
     public abstract string DatabaseType { get; }
     public abstract DalSpecificProperties DalSpecificProperties { get; }
 
-    public abstract Task ExecuteNonQueryAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null);
+    // IDal members implemented by DalBase: each calls its …CoreAsync member and turns whatever it throws after the
+    // cancellation into an OperationCanceledException carrying the caller's token
+    public Task ExecuteNonQueryAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null, CancellationToken cancellationToken = default);
+    public Task<object?> ExecuteScalarAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null, CancellationToken cancellationToken = default);
+    public Task<List<Dictionary<string, object?>>> ExecuteReaderAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null, CancellationToken cancellationToken = default);
+    public Task<bool> IsConnectionValidAsync(string connectionString, IDalSettings dalSettings, CancellationToken cancellationToken = default);
+
+    // What a DAL overrides: the work behind the members above
+    protected abstract Task ExecuteNonQueryCoreAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList, CancellationToken cancellationToken);
+    protected abstract Task<object?> ExecuteScalarCoreAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList, CancellationToken cancellationToken);
+    protected abstract Task<List<Dictionary<string, object?>>> ExecuteReaderCoreAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList, CancellationToken cancellationToken);
+    protected abstract Task<bool> IsConnectionValidCoreAsync(string connectionString, IDalSettings dalSettings, CancellationToken cancellationToken);
     public abstract void ExecuteNonQuery(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null);
-    public abstract Task<object?> ExecuteScalarAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null);
-    public abstract Task<List<Dictionary<string, object?>>> ExecuteReaderAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null);
-    public abstract Task<bool> IsConnectionValid(string connectionString, IDalSettings dalSettings);
     public abstract void CheckConnectionStringOrValidateConnection(bool validateConnection);
 
-    // Shared-connection abstracts: each DAL must implement using its own connection/command types.
+    // Shared-connection members: DalBase implements the two IDal members over these abstracts, which each DAL
+    // implements with its own connection/command types
     public abstract DbConnection CreateConnection();
-    public abstract Task ExecuteNonQueryAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList = null);
-    public abstract Task<object?> ExecuteScalarAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList = null);
+    protected abstract Task ExecuteNonQueryCoreAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList, CancellationToken cancellationToken);
+    protected abstract Task<object?> ExecuteScalarCoreAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList, CancellationToken cancellationToken);
 
     // Transient error detection: each DAL overrides DefaultTransientErrorCodes with its built-in list and
     // classifies the provider's error code through IsTransientCode in its IsTransient override. The effective
@@ -291,11 +307,18 @@ public abstract class DalBase : IDal
     protected (bool isTransient, string? errorCode) IsTransientCode(string? code) { ... }
     public virtual (bool isTransient, string? errorCode) IsTransient(Exception ex) { ... }
 
-    // Retry helpers: delegate to RetryHelper using this DAL's IsTransient method
+    // Command timeout detection (since 0.20.0): the base recognises a TimeoutException in the chain of inner
+    // exceptions, as Npgsql reports a timeout; the SQL Server DAL adds SqlClient error -2, the MySQL and MariaDB DALs
+    // the CommandTimeoutExpired of MySqlConnector. A cancellation is never a timeout. The initialization of the
+    // database log retries a transient failure of DatabaseLogging_CheckCreate, but not a timeout.
+    public virtual bool IsTimeout(Exception ex) { ... }
+
+    // Retry helpers: delegate to RetryHelper using this DAL's IsTransient method; the asynchronous ones take the
+    // token, wait for a retry with it and start no attempt after the cancellation
     protected async Task<T> ExecuteWithRetryAsync<T>(
-        Func<Task<T>> operation, IDalSettings dalSettings, string? operationDescription = null) { ... }
+        Func<Task<T>> operation, IDalSettings dalSettings, string? operationDescription = null, CancellationToken cancellationToken = default) { ... }
     protected async Task ExecuteWithRetryAsync(
-        Func<Task> operation, IDalSettings dalSettings, string? operationDescription = null) { ... }
+        Func<Task> operation, IDalSettings dalSettings, string? operationDescription = null, CancellationToken cancellationToken = default) { ... }
     protected void ExecuteWithRetry(
         Action operation, IDalSettings dalSettings, string? operationDescription = null) { ... }
 
@@ -312,6 +335,18 @@ public abstract class DalBase : IDal
     protected virtual object ConvertToDbValue(object? value) { ... }
 }
 ```
+
+### Cancellation
+
+Every asynchronous `IDal` member takes the caller's `CancellationToken` (since 0.20.0; `IsConnectionValid` became `IsConnectionValidAsync`). The contract, which `DalBase` enforces for every DAL:
+
+- **One exception.** A call that fails after the token was cancelled throws an `OperationCanceledException` that carries the caller's token, with the provider's exception as inner exception. Providers report a cancel in their own way: SqlClient reports a cancelled command as a `SqlException` and a cancelled open as a `TaskCanceledException` without the token, Npgsql and MySqlConnector throw an `OperationCanceledException`. Unless the provider reported a cancellation itself, the message names the provider's message (`The operation on the [MySql] database was cancelled: <message of the provider>`), so that a database error that met the cancel stays readable where the cancel is reported.
+- **No retry.** `DalBase.IsTransient` never counts a cancellation as transient, whatever its inner exception reports, and `RetryHelper.ExecuteWithRetryAsync` waits for a retry with the token and neither classifies nor retries a failure after the cancellation.
+- **Where the token goes.** The shipped DALs pass it to opening the connection and to the command, not to commit and rollback: a commit that has started must complete, or the caller cannot tell whether it happened. SQL Server, PostgreSQL and MariaDB abort the statement in progress; MySQL ends the statement in progress through `KILL QUERY` on a connection of its own and runs the further statements of the same batch; the `KILL QUERY` of MySQL and MariaDB ends a `SLEEP()` early without an error, and the batch runs on; Microsoft.Data.Sqlite can neither interrupt a statement nor skip the statements left in a batch, so the SQLite DAL observes the token before a batch starts (a read also between its rows).
+- **Session locks.** When a call on a connection of its own fails, times out or is cancelled, `DalMySql` and `DalMariaDb` release the `GET_LOCK()` locks of its session (`DO RELEASE_ALL_LOCKS()`, best effort, without the token, with a command timeout of 5 seconds) before the connection goes back to the pool. A template takes and releases its lock itself, but one that stopped between its `GET_LOCK()` and its `RELEASE_LOCK()` left the lock on the pooled session, and every other host waited for it until the pool handed the connection out again or pruned it as idle (up to 180 seconds). The templates of every version had that gap; a cancel makes it routine. The shared-connection calls leave the release to the caller, whose connection it is.
+- **Synchronous call.** `ExecuteNonQuery`, which the background thread of the database log writer calls, takes no token.
+
+How the engine uses the token, at the next block boundary of a run, is described in [Error handling: Cancellation](../02-core-concepts/error-handling.md#cancellation) (ADR-028).
 
 ### SQL Server Example
 
@@ -355,7 +390,7 @@ public class DalSqlServer : DalBase, IDal
         return base.IsTransient(ex);
     }
 
-    // ... ExecuteNonQueryAsync, ExecuteScalarAsync, IsConnectionValid, etc.
+    // ... ExecuteNonQueryCoreAsync, ExecuteScalarCoreAsync, ExecuteReaderCoreAsync, IsConnectionValidCoreAsync, etc.
 }
 ```
 
@@ -373,7 +408,7 @@ The factory uses **DependencyContext-based discovery** for built-in DALs (works 
 4. **Type mapping**: Each discovered class is mapped by its `DatabaseType` attribute value (e.g., `"SqlServer"`, `"PostgreSQL"`, `"MariaDb"`, `"MySql"`, `"Sqlite"`). Duplicates are skipped (`TryAdd`).
 5. **Instance caching**: DAL instances are cached in a `ConcurrentDictionary` keyed by `"{databaseType}_{connectionString}"`, so the same connection reuses the same DAL instance.
 6. **Instance creation**: Instances are created via `Activator.CreateInstance(dalType, connectionString)`, passing the connection string to the constructor.
-7. **Error handling**: `TryGetDal` throws a `ConfigurationValidationException` if the requested `databaseType` has no registered DAL type mapping.
+7. **Error handling**: `TryGetDal` throws a `ConfigurationValidationException` if the requested `databaseType` has no registered DAL type mapping. An assembly whose types do not load (the `ReflectionTypeLoadException` of the scan, or the `TypeLoadException` of one type) is skipped, and its loader exceptions are kept: the message for an unknown database type then names those assemblies with their loader exceptions and says that a DataAccessLayer built against an earlier version of RayMigrator must be rebuilt against this version. A DAL built against 0.19.0 or earlier does not load in 0.20.0, because it overrides members that `DalBase` no longer has and lacks those it has now; before 0.20.0 such a failure was swallowed, and the message named only the unknown type.
 
 ```csharp
 public static class DalFactory
@@ -437,7 +472,7 @@ To add a new database provider at runtime:
 
 1. Build your DAL project (must reference `Database.Common` and `Shared`)
 2. Copy the output DLL to `DataAccessLayers/{YourDatabaseType}/`
-3. Copy your 25 SQL templates to `DataAccessLayers/{YourDatabaseType}/` (same directory as the DLL)
+3. Copy your 30 SQL templates to `DataAccessLayers/{YourDatabaseType}/` (same directory as the DLL)
 4. RayMigrator will auto-discover and register the DAL on next startup via Mode 1 (filesystem scanning)
 
 See [External DAL Development](../09-extending/external-dal-development.md) for a complete guide.

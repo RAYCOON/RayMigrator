@@ -1,6 +1,9 @@
 -- TODO: Implement for your database engine
--- Purpose: Selects migration records for a product
+-- Purpose: Selects the migration records of a product and environment
 -- See the corresponding template in Database.SqlServer or Database.PostgreSQL for reference.
+-- Returns: one row per record with the columns of the reference implementation under their PascalCase names,
+--          StartedAt and FinishedAt (UTC) included; without these two the records map with null dates, and info
+--          reports no LastMigrationDate for a target group.
 --
 -- Parameters used in this template:
 -- {CFG:SchemaName} - The repository schema name

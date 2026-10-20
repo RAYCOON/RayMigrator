@@ -437,9 +437,12 @@ public class ProductOptions
 
     /// <summary>
     /// Comma-separated list of TargetGroup aliases defining the execution order.
-    /// When specified, all TargetGroup aliases must be listed exactly once.
-    /// Only applicable when the product has more than one TargetGroup.
-    /// Applies to MigrateUp and Baseline commands only.
+    /// When specified, all TargetGroup aliases must be listed exactly once, with their exact spelling.
+    /// Only applicable when the product has more than one TargetGroup: on a product with one TargetGroup an order that
+    /// names exactly its alias is ignored with a warning, any other order is an error.
+    /// The order applies to MigrateUp and Baseline, and Info lists the pending migrations in it; MigrateDown,
+    /// ValidateHash, UpdateHash and Fix do not use it. The validation at startup checks the setting for every command, so
+    /// an order with an error stops these commands as well.
     /// </summary>
     public string? TargetGroupMigrationOrder { get; set; }
 
@@ -639,7 +642,8 @@ public class CliToolOptions
     #endregion SuccessExitCodes
 
     /// <summary>
-    /// Maximum time in seconds to wait for the CLI tool to complete. Default: 120.
+    /// Maximum time in seconds for the CLI tool to complete, counted from its start; in Stdin mode it covers the write of
+    /// the migration file to the standard input of the tool as well. Default: 120.
     /// </summary>
     [RayRangeInt(1, int.MaxValue, 120)]
     public int? CliToolTimeoutInSeconds { get; set; }

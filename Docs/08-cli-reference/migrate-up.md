@@ -5,7 +5,7 @@ Executes database migrations in forward (up) direction.
 ## Synopsis
 
 ```bash
-raymigrator migrate-up --product <ProductAlias> --environment <Environment> [--run-mode <mode>] [--stop-rollback-on-missing-rollback-file <bool>] [options]
+raymigrator migrate-up --product <ProductAlias> --environment <Environment> [--run-mode <mode>] [--stop-rollback-on-missing-rollback-file <bool>] [--cancelled-action <action>] [options]
 ```
 
 ## Description
@@ -29,6 +29,7 @@ The `migrate-up` command executes all pending migration files against configured
 | `--allow-out-of-order` | `-ooo` | `false` | Allow execution of migrations that precede already-executed files |
 | `--stop-rollback-on-missing-rollback-file` | `-sromrf` | `null` (uses configuration value) | Override whether the error-recovery rollback chain stops when a rollback file is missing. Only applies when `RequireRollbackFile=false`. |
 | `--target-group-migration-order` | `-tgmo` | (config/migsettings order) | Comma-separated list of TargetGroup aliases defining execution order for this run |
+| `--cancelled-action` | `-ca` | `terminate` | What the run does after Ctrl+C or SIGTERM stopped it: `terminate`, `rollback-file`, `rollback-run` or `rollback-release` |
 | `--startup-info` | `-si` | `true` | Show application info at startup |
 | `--reveal-sensitive-data` | `-rsd` | `false` | Log sensitive data (passwords) |
 | `--config-dir` | `-cd` | (current directory) | Override directory where RayMigrator searches for configuration files |
@@ -37,7 +38,7 @@ The `migrate-up` command executes all pending migration files against configured
 
 | Mode | Description |
 |------|-------------|
-| `Validate` | Validates configuration and all migration files without any database connections |
+| `Validate` | Validates configuration and all migration files without connecting to the targets or reading the repository; with database logging on (the default) the start initializes the log database, which once after the update to 0.20.0 creates the two indexes of `MigrationLog` |
 | `Simulate` | Validates and processes everything, reads repository records, but does not write repository records or execute SQL on targets |
 | `Migrate` | Validates, then performs actual migrations against target databases |
 
@@ -68,11 +69,24 @@ raymigrator migrate-up -p MyProduct -env Production -rm migrate -sromrf false
 |-----------|-------|---------|-------------|
 | `--target-group-migration-order` | `-tgmo` | (config/migsettings order) | Comma-separated list of all TargetGroup aliases. Sets the execution order for this run; overrides product-level appsettings and release-level migsettings values. |
 
-The value is a single string with alias names separated by commas. Whitespace around each alias is trimmed. All TargetGroup aliases of the product must be listed. The option is only meaningful when the product has more than one TargetGroup, and matching is case-sensitive.
+The value is a single string with alias names separated by commas. Whitespace around each alias is trimmed. All TargetGroup aliases of the product must be listed. The option is only meaningful when the product has more than one TargetGroup, and matching is case-sensitive. On a product with one TargetGroup, a value that names exactly its alias is ignored with a warning, and any other value is rejected.
 
 ```bash
 # Execute Frontend before Backend for this run
 raymigrator migrate-up -p MyProduct -env Production -rm migrate -tgmo "Frontend, Backend"
+```
+
+### --cancelled-action Parameter
+
+| Parameter | Short | Default | Description |
+|-----------|-------|---------|-------------|
+| `--cancelled-action` | `-ca` | `terminate` | What the run does after the first Ctrl+C or SIGTERM stopped it at the next block boundary |
+
+The first Ctrl+C or SIGTERM stops the run at the next block boundary, records it as `Cancelled` and ends the process with exit code `130`. With `terminate` the interrupted file stays `Failed` with its committed blocks, and the next migrate-up resumes it; `rollback-file`, `rollback-run` and `rollback-release` then roll back like the `MigrationErrorAction` values `RollbackErrorOnly`, `Rollback` and `RollbackRelease`; when that rollback does not complete cleanly, the run is `Error` (engine code `1005`) and the exit code is `1`. A run that had already failed at a file and was rolling back with its `MigrationErrorAction` stops that error recovery at the next rollback block, ignores `--cancelled-action` and stays `Error` with the code of the failure, exit code `1`; migrate-down completes the rollback. A second Ctrl+C or SIGTERM ends the process at once and leaves the run open for the orphan repair of a later start or `fix`, which keeps the committed blocks of the interrupted file for the next migrate-up. See [Global Options — Cancelling a Run](global-options.md#cancelling-a-run).
+
+```bash
+# Roll back the interrupted file when the run is cancelled
+raymigrator migrate-up -p MyProduct -env Production -rm migrate -ca rollback-file
 ```
 
 ## Environment Variable Support
@@ -149,7 +163,8 @@ flowchart TD
     J --> J2[Filter by Target Release + Target Groups]
     H2 -->|Validate| J2b[Filter by Target Release + Target Groups]
     J2 --> J3[Detect Out-of-Order Migrations]
-    J3 --> L[Phase 3: Release → TargetGroup → Target Execution]
+    J3 --> J4[Refuse a File Whose Rollback Stopped in the Middle]
+    J4 --> L[Phase 3: Release → TargetGroup → Target Execution]
     J2b --> L
     L --> L2{Run Mode?}
     L2 -->|Validate| L3[Log what would be executed - no DB connections]
@@ -164,6 +179,8 @@ flowchart TD
     P --> S
     R --> S
 ```
+
+Before the first file, migrate-up refuses to run, and no file runs, when files of releases older than what a target has migrated are pending without `--allow-out-of-order`, or when a file it would run has a record whose rollback stopped in the middle: `Failed`, or `Executing` in a run that has ended, with k of its n rollback blocks, as a cancelled migrate-down or error recovery, a failed rollback block after the first or the orphan repair of a run that ended abruptly in the middle of the rollback leaves it. That message names release, file, target and `k of n rollback blocks`. Complete the rollback with migrate-down, which continues it at block k + 1, then run migrate-up (see [Error Handling: A Rollback That Stopped in the Middle](../02-core-concepts/error-handling.md#a-rollback-that-stopped-in-the-middle)).
 
 ## Migration Processing
 
@@ -194,12 +211,14 @@ Error behavior depends on the `MigrationErrorAction` configuration (set at produ
 | Action | Behavior |
 |--------|----------|
 | `Terminate` | Stop immediately on error, no rollback performed |
-| `Rollback` | Rollback all migrations in current run (failed + all previously successful) |
+| `Rollback` | Rollback all migrations in current run (failed + every file the run migrated or left `Failed` under `Ignore`, newest first) |
 | `RollbackErrorOnly` | Rollback only the failed migration file |
-| `RollbackRelease` | Rollback the current run's migrations of the failed release only (earlier releases remain intact) |
-| `Ignore` | Mark failed file as `Failed`, skip remaining targets for this file, continue with next file |
+| `RollbackRelease` | Rollback the current run's migrations of the failed release only, those left `Failed` under `Ignore` included (earlier releases remain intact) |
+| `Ignore` | Mark failed file as `Failed`, skip remaining targets for this file, continue with next file; a later `Rollback` or `RollbackRelease` of the run, or a cancel with a rollback action, rolls the file back with the others |
 
 For all actions except `Ignore`, an error aborts the entire migration run. The `Ignore` action allows the run to continue with subsequent files.
+
+A cancel by Ctrl+C or SIGTERM is not an error: `--cancelled-action` decides what the run does then (see [Cancelling a Run](global-options.md#cancelling-a-run)).
 
 ## Exit Codes
 

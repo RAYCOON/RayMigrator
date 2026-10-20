@@ -1,8 +1,24 @@
 -- TODO: Implement for your database engine
--- Purpose: Fixes orphaned migration records (sets status to Unclear)
+-- Purpose: Settles the open migration records (Pending 10, Executing 20) of an orphaned migration run, which a run that
+-- ended abruptly left behind. The run itself is closed before (Repository_MigrationRun_FixOrphaned).
 -- See the corresponding template in Database.SqlServer or Database.PostgreSQL for reference.
+--
+-- Rule for @MigrationStatusId = 0 (the auto-fix of a later start, and fix without --last-migration-status), per record,
+-- the first matching line wins:
+--   FileDownHash set and FileDownBlocksMigrated >= FileDownBlocksTotal > 0  -> 50 (NotMigrated): the rollback had completed
+--   FileDownHash set otherwise                                              -> 30 (Failed): migrate-down continues a rollback
+--                                                                              with progress, migrate-up refuses it until then
+--   FileUpBlocksMigrated > 0 and >= FileUpBlocksTotal                       -> 100 (Migrated): every block had committed
+--   FileUpBlocksMigrated > 0                                                -> 30 (Failed): migrate-up resumes after them
+--   otherwise                                                               -> 50 (NotMigrated)
+-- @MigrationStatusId = 30, 50 or 100 sets that status on every open record of the run.
+-- Every record the template changes gets FinishedAt (the UTC time of the repair) where it is NULL and keeps DurationInMs:
+-- a file that was running gets the time of the repair without a duration, a record whose rollback was running keeps the
+-- end and the duration of its last terminal status. The block counters stay as they are, and no history row is written.
+-- Return 'n,message' with the number of records.
 --
 -- Parameters used in this template:
 -- {CFG:SchemaName} - The repository schema name
 -- {CFG:TableBaseName} - The table name prefix
--- @ParameterName - SQL parameters (see reference implementations)
+-- @MigrationRunId - The orphaned migration run
+-- @MigrationStatusId - 0 for the rule above, else the status to set

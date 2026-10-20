@@ -20,7 +20,7 @@ public class DatabaseLogWriter
     private readonly LogLevel _minimumLogLevel;
     private readonly DatabaseLoggerQueue _databaseLoggerQueue;
 
-    // Initialized from method-call InitDatabaseLogger()
+    // Initialized from method-call InitDatabaseLoggerAsync()
     private Template? _templateLoggingInsert;
     private volatile bool _isDatabaseLoggingInitialized;
 
@@ -116,7 +116,8 @@ public class DatabaseLogWriter
     }
 
     /// <summary>
-    /// Writes a log entry to the database via DAL.
+    /// Writes a log entry to the database via DAL. Runs on the queue's own thread, outside any async flow, so it calls
+    /// the synchronous <see cref="IDal.ExecuteNonQuery"/>.
     /// </summary>
     private void WriteToDatabase(
         LogLevel logLevel,
@@ -166,18 +167,64 @@ public class DatabaseLogWriter
     /// <summary>
     /// Initializes database logging by creating the required schema and loading templates.
     /// </summary>
+    /// <param name="loggingDatabaseType">The database type of the log tables.</param>
+    /// <param name="templateCache">The templates of the logging database type.</param>
+    /// <param name="templateExecutor">Runs <c>DatabaseLogging_CheckCreate</c>.</param>
+    /// <param name="cancellationToken">Reaches the DAL call that creates the log tables.</param>
     /// <returns>True if the logging infrastructure was newly created, false if it already existed.</returns>
-    public bool InitDatabaseLogger(string loggingDatabaseType, TemplateCache templateCache, TemplateExecutor templateExecutor)
+    public async Task<bool> InitDatabaseLoggerAsync(
+        string loggingDatabaseType,
+        TemplateCache templateCache,
+        TemplateExecutor templateExecutor,
+        CancellationToken cancellationToken = default)
     {
         var templateLoggingCheckCreate = templateCache.GetTemplate(loggingDatabaseType, TemplateType.DatabaseLogging_CheckCreate, _options.DatabaseLogging);
         _templateLoggingInsert = templateCache.GetTemplate(loggingDatabaseType, TemplateType.DatabaseLogging_Insert, _options.DatabaseLogging);
 
         // Create DB logging-infrastructure if needed
-        TemplateResponse templateResponseCheckPrerequisites = templateExecutor.ExecuteScalarWithNegativeResultCodeException(templateLoggingCheckCreate, _dal!, _dalSettings!, null);
+        TemplateResponse templateResponseCheckPrerequisites = await CheckCreateAsync(templateLoggingCheckCreate, templateExecutor, cancellationToken);
 
         _isDatabaseLoggingInitialized = true;
 
         bool hasCreatedRepository = templateResponseCheckPrerequisites.ResultCode == 1;
         return hasCreatedRepository;
+    }
+
+    /// <summary>
+    /// Runs <c>DatabaseLogging_CheckCreate</c>, which since 0.20.0 also builds the two indexes of the log table over the
+    /// rows already there. A transient failure is retried as a log write is, a timeout is not: the attempt was rolled
+    /// back whole, so a retry would build the index from the start again, hold back the log writes of other hosts once
+    /// more and time out again. A timeout ends the initialization with a message that names the index build and the
+    /// command timeout to raise for the first start on a large log.
+    /// </summary>
+    private async Task<TemplateResponse> CheckCreateAsync(Template template, TemplateExecutor templateExecutor, CancellationToken cancellationToken)
+    {
+        var dal = _dal!;
+        var dalBase = dal as DalBase;
+        var settings = new DalSettings
+        {
+            UseTransaction = _dalSettings!.UseTransaction,
+            DbCommandTimeoutInSeconds = _dalSettings.DbCommandTimeoutInSeconds,
+            MaxRetries = 0
+        };
+
+        try
+        {
+            return await RetryHelper.ExecuteWithRetryAsync(
+                () => templateExecutor.ExecuteScalarWithNegativeResultCodeExceptionAsync(template, dal, settings, null, cancellationToken: cancellationToken),
+                _dalSettings.MaxRetries,
+                _dalSettings.RetryDelayMs,
+                ex => dalBase == null || dalBase.IsTimeout(ex) ? (false, null) : dalBase.IsTransient(ex),
+                operationDescription: TemplateType.DatabaseLogging_CheckCreate.ToString(),
+                cancellationToken: cancellationToken);
+        }
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested && dalBase != null && dalBase.IsTimeout(ex))
+        {
+            throw new TemplateExecutionException(
+                $"Template [{template}] ran into the command timeout of the database log ({settings.DbCommandTimeoutInSeconds} s). " +
+                "Since 0.20.0 it creates the indexes of the log table on MigrationRunId and CreatedAt over the rows already there, " +
+                "which a large log may need longer for: raise DatabaseLogging.DbCommandTimeoutInSeconds for the first start after the update.",
+                ex);
+        }
     }
 }

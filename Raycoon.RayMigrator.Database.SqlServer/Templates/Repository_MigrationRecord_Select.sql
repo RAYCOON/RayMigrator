@@ -6,7 +6,7 @@ RayMigrator SQL Template
 TemplateType   = "Repository_MigrationRecord_Select"
 DatabaseType   = "SqlServer"
 Author         = "RAYCOON.com GmbH (https://raycoon.com)"
-Version        = "2026-04-18.1"
+Version        = "2026-10-16.1"
 
 [Description]
 Function = """
@@ -24,7 +24,7 @@ Behaviour = """
 [ConfigPlaceholders]
 # Replaced when loading the template (compile-time)
 SchemaName    = "Database schema from Repository configuration (e.g., 'ray')"
-TableBaseName = "Table name prefix from Repository configuration (e.g., '' or 'RM_')"
+TableBaseName = "Table name prefix from Repository configuration (e.g., '' or 'rm_')"
 
 [Parameters]
 # SQL parameters bound at runtime
@@ -39,13 +39,14 @@ MigrationRunModeId = "TINYINT | REQUIRED | Run mode (typically 100=Migrate for a
 #   ReleaseVersion, TargetGroupAlias, TargetAlias, Filename, FileOrderId,
 #   FileUpHash, FileUpConfigHash, FileUpBlocksHash, FileUpBlocksMigrated, FileUpBlocksTotal,
 #   MigrateDownFileExists, FileDownHash, FileDownConfigHash, FileDownBlocksHash,
-#   FileDownBlocksMigrated, FileDownBlocksTotal
+#   FileDownBlocksMigrated, FileDownBlocksTotal, StartedAt, FinishedAt
 
 [ModificationNotes]
 Note1 = "This template returns a result set - NOT the standard 'code,message' format"
 Note2 = "Column order is critical - code depends on positional binding"
-Note3 = "Commented columns (MigrationRunModeId, Environment, ConfigJson, timestamps) are available but not currently used"
+Note3 = "Commented columns (MigrationRunModeId, Environment, ConfigJson, DurationInMs) are available but not currently used"
 Note4 = "Used for hash validation and determining migration state"
+Note5 = "StartedAt and FinishedAt are UTC; info reports the latest FinishedAt of the Migrated records of a target group (TargetGroupStatus.LastMigrationDate)"
 ================================================================================
 */
 
@@ -80,8 +81,8 @@ BEGIN TRY
         ,[FileDownBlocksMigrated]
         ,[FileDownBlocksTotal]
 --         ,[FileDownConfigJson]
---         ,[StartedAt]
---         ,[FinishedAt]
+        ,[StartedAt]
+        ,[FinishedAt]
 --         ,[DurationInMs]
     FROM
         [{CFG:SchemaName}].[{CFG:TableBaseName}MigrationRecord]

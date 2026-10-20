@@ -73,7 +73,7 @@ The CLI entry point that handles user interaction.
 - Parse command-line arguments via `CommandLineConfiguration` (System.CommandLine)
 - Resolve the environment from the `--environment` argument, cross-checked against `DOTNET_ENVIRONMENT`, via `EnvironmentResolver`
 - Dispatch to `RunDirectMode()` using `JsonOptionsSource` (constructed with the `--config-dir` value, defaulting to the current working directory)
-- `RunDirectMode()` delegates to `DirectModePipeline.ExecuteAsync()`
+- `RunDirectMode()` delegates to `DirectModePipeline.ExecuteAsync()` with the one `RunCancellation` of the process
 - Convert service results to exit codes
 
 **Project References:**
@@ -89,6 +89,7 @@ The execution pipeline of the CLI, handling the complete lifecycle after the opt
 - `DirectModePipeline` - Execution pipeline of the CLI: Serilog creation, DI host build, DatabaseLogWriter init, DAL properties, connection validation, `RayMigratorService` execution, and shutdown
 - `JsonOptionsSource` - `IOptionsSource` implementation that loads configuration from JSON files (appsettings.json hierarchy); accepts an optional `configDir` parameter (from `--config-dir` global option) that overrides the base path used to locate configuration files
 - `RayMigratorService` - Bridge between CLI commands and `IMigrationService`
+- `ConsoleCancellation` - Lets the first Ctrl+C or SIGTERM cancel the `RunCancellation` of the process with the `--cancelled-action` of the command while it runs
 - `SerilogFactory` - Creates Serilog logger (with optional database sink) from `IConfigurationSection`
 
 **Responsibilities:**
@@ -97,7 +98,7 @@ The execution pipeline of the CLI, handling the complete lifecycle after the opt
 - Register options, services, TemplateCache, TemplateExecutor, and MigrationContext
 - Validate product alias, connections, and schema names
 - Initialize `DalSpecificPropertiesDictionary`
-- Execute the requested migration command via `RayMigratorService`
+- Execute the requested migration command via `RayMigratorService`, cancellable by Ctrl+C and SIGTERM (exit code 130)
 - Manage application shutdown
 
 **Project References:**
@@ -110,9 +111,10 @@ Business logic orchestration using request/response patterns.
 **Key Components:**
 - `MigrationService` - Implements `IMigrationService`
 - `RepositorySchemaService` - Implements `IRepositorySchemaService`: creates or upgrades a repository from its `RepositoryOptions` alone, without a run (for hosts such as RayMigrator Studio)
+- `RepositoryMaintenanceService` - Implements `IRepositoryMaintenanceService`: deletes old `MigrationRecordHistory` and `MigrationLog` rows of a repository from its `RepositoryOptions` alone, for hosts that apply a retention policy (ADR-027)
 - `ICliToolExecutor` / `CliToolExecutor` - Executes external CLI tools (sqlcmd, psql, mysql, mariadb, sqlite3) as an alternative to DAL-based SQL execution
 - `CliToolExecutionRequest` / `CliToolExecutionResult` - Request/result models for CLI tool execution
-- Request DTOs: `MigrateUpRequest`, `MigrateDownRequest`, `ValidateHashRequest`, `UpdateHashRequest`, `BaselineRequest`, `FixIssuesRequest`
+- Request DTOs: `MigrateUpRequest`, `MigrateDownRequest`, `ValidateHashRequest`, `UpdateHashRequest`, `BaselineRequest`, `FixIssuesRequest`; `RunCancellation`, the handle a host cancels one run with
 - Response DTOs: `OperationResult` (abstract base), `MigrationOperationResult`, `ValidationResult`, `HashUpdateResult`, `BaselineResult`, `FixIssuesResult`
 
 **Responsibilities:**
@@ -136,10 +138,10 @@ The domain model layer containing configuration, state, and core abstractions.
 - `RayMigratorHostMode` - Enum distinguishing CLI mode (`Cli`) from API mode (`Api`) for DI registration
 - Configuration Options classes (`RayMigratorOptions` hierarchy, `CliToolOptions`, `ExitCodeMatcher`)
 - `TemplateExecutor` and `RepositorySchemaExecutor` (namespace `Raycoon.RayMigrator.Core`) and `TemplateCache` (namespace `Raycoon.RayMigrator.Core.Templates`), all physically in Infrastructure project
-- Enumerations (`MigrationCommand`, `MigrationErrorAction`, `RollbackErrorAction`, `TargetMigrationOrder`, `HashValidationScope`, `MigrationRunMode`, `MigrationRunSource`, `MigrationOperation`, `MigrationRunResult`, `MigrationStatus`, `FixScope`, `CliToolInputMode`)
+- Enumerations (`MigrationCommand`, `MigrationErrorAction`, `MigrationCancelledAction`, `RollbackErrorAction`, `TargetMigrationOrder`, `HashValidationScope`, `MigrationRunMode`, `MigrationRunSource`, `MigrationOperation`, `MigrationRunResult`, `MigrationStatus`, `FixScope`, `CliToolInputMode`)
 - Configuration sources (`IOptionsSource` interface and `OptionsSourceResult` in `Core/Configuration/Sources/`)
 - `MigrationEvent` class (static `EventId` constants for structured logging)
-- `TemplateType` enum (in `Core/Templates/`, defining all 25 SQL template types + Undefined); companion `Template` and `TemplateResponse` classes
+- `TemplateType` enum (in `Core/Templates/`, defining all 30 SQL template types + Undefined); companion `Template` and `TemplateResponse` classes
 - Domain models: `MigrationFileInfo`, `MigrationRecord`, `InterruptedMigrationInfo`, `MigrationStateSnapshot`
 - `CultureDependentSorting` - Culture-aware file sorting helper
 - `EnvironmentResolver` - Resolves the target environment from the `--environment` argument and cross-checks it against `DOTNET_ENVIRONMENT`
@@ -170,7 +172,7 @@ Cross-cutting concerns shared across layers, primarily logging.
 - Database logging infrastructure (Serilog integration)
 - Log context enrichment with migration state
 
-> **Note**: Several files physically reside in the Infrastructure project directory but declare themselves in `Raycoon.RayMigrator.Core` namespaces: `TemplateExecutor`, `RepositorySchemaExecutor` and `RepositorySchemaOutcome` (`Raycoon.RayMigrator.Core`), `TemplateCache` (`Raycoon.RayMigrator.Core.Templates`), `ConnectionValidator` (`Raycoon.RayMigrator.Core.Configuration.Validation`), and `RepositoryExtensions` (`Raycoon.RayMigrator.Core.Extensions`). They are referenced via Core namespaces.
+> **Note**: Several files physically reside in the Infrastructure project directory but declare themselves in `Raycoon.RayMigrator.Core` namespaces: `TemplateExecutor`, `RepositorySchemaExecutor`, `RepositorySchemaOutcome` and `RepositoryMaintenanceExecutor` (`Raycoon.RayMigrator.Core`), `TemplateCache` (`Raycoon.RayMigrator.Core.Templates`), `ConnectionValidator` (`Raycoon.RayMigrator.Core.Configuration.Validation`), and `RepositoryExtensions` (`Raycoon.RayMigrator.Core.Extensions`). They are referenced via Core namespaces.
 
 **Project References:**
 - Core, Database, Shared
@@ -213,7 +215,7 @@ Common types used across all layers. Has no project references.
 - Configuration file hierarchy and merge code (`Configuration/`: `ConfigFileRole`, `ConfigurationFileChain`, `ConfigurationJsonMerger`, `ConfigurationJsonDiff`, `AliasComparer`)
 - Help texts of the configuration (`Configuration/Help/`: `ConfigurationHelp`, `JsonPathRegistry`, `FieldHelp`, `SectionHelp`, `JsonPathInfo` and the `.resx` files in English and German), read by the Config Wizard and RayMigrator Studio
 
-> **Note**: Enumerations (`MigrationCommand`, `MigrationErrorAction`, `RollbackErrorAction`, `TargetMigrationOrder`, `MigrationRunMode`, `MigrationRunSource`, `MigrationOperation`, `MigrationRunResult`, `MigrationStatus`, `HashValidationScope`, `FixScope`, `CliToolInputMode`) reside in the **Core** layer (`Raycoon.RayMigrator.Core/Configuration/Enums/`), not the Shared layer; the `MigrationEvent` class (static `EventId` constants) lives in `Raycoon.RayMigrator.Core/Logging/` and the `CommandProfile` record struct in `Raycoon.RayMigrator.Core/Configuration/` (#19). The `TemplateType` enum resides in `Raycoon.RayMigrator.Core/Templates/`. Request/Response DTOs reside in `Services.Abstractions`.
+> **Note**: Enumerations (`MigrationCommand`, `MigrationErrorAction`, `MigrationCancelledAction`, `RollbackErrorAction`, `TargetMigrationOrder`, `MigrationRunMode`, `MigrationRunSource`, `MigrationOperation`, `MigrationRunResult`, `MigrationStatus`, `HashValidationScope`, `FixScope`, `CliToolInputMode`) reside in the **Core** layer (`Raycoon.RayMigrator.Core/Configuration/Enums/`), not the Shared layer; the `MigrationEvent` class (static `EventId` constants) lives in `Raycoon.RayMigrator.Core/Logging/` and the `CommandProfile` record struct in `Raycoon.RayMigrator.Core/Configuration/` (#19). The `TemplateType` enum resides in `Raycoon.RayMigrator.Core/Templates/`. Request/Response DTOs reside in `Services.Abstractions`.
 
 ## Dependency Flow
 

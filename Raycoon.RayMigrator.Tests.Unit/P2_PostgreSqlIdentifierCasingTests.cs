@@ -25,6 +25,7 @@ public class PostgreSqlIdentifierCasingTests
         "Repository_CheckCreate.sql",
         "Repository_Upgrade_1.sql",
         "Repository_Upgrade_2.sql",
+        "Repository_Upgrade_3.sql",
         "Repository_MigratorMeta_CheckInsert.sql",
         "Repository_Drop.sql",
         "Repository_Environment_CheckInsert.sql",
@@ -35,6 +36,8 @@ public class PostgreSqlIdentifierCasingTests
         "Repository_MigrationRecord_UpdateRollback.sql",
         "Repository_MigrationRecord_Select.sql",
         "Repository_MigrationRecordHistory_Select.sql",
+        "Repository_MigrationRecordHistory_Delete.sql",
+        "Repository_MigrationRecordHistory_Count.sql",
         "Repository_MigrationRecord_GetInterrupted.sql",
         "Repository_MigrationRecord_FixOrphaned.sql",
         "Repository_MigrationRun_Insert.sql",
@@ -44,7 +47,9 @@ public class PostgreSqlIdentifierCasingTests
         "Repository_MigrationRun_FixOrphaned.sql",
         "Repository_MigrationRun_Heartbeat.sql",
         "DatabaseLogging_CheckCreate.sql",
-        "DatabaseLogging_Insert.sql"
+        "DatabaseLogging_Insert.sql",
+        "DatabaseLogging_Delete.sql",
+        "DatabaseLogging_Count.sql"
     ];
 
     // -------------------------------------------------------------------------
@@ -66,6 +71,7 @@ public class PostgreSqlIdentifierCasingTests
     [InlineData("Repository_CheckCreate.sql")]
     [InlineData("Repository_Upgrade_1.sql")]
     [InlineData("Repository_Upgrade_2.sql")]
+    [InlineData("Repository_Upgrade_3.sql")]
     [InlineData("Repository_MigratorMeta_CheckInsert.sql")]
     [InlineData("Repository_Drop.sql")]
     [InlineData("Repository_Environment_CheckInsert.sql")]
@@ -88,6 +94,10 @@ public class PostgreSqlIdentifierCasingTests
     [InlineData("Repository_MigrationRun_Heartbeat.sql")]
     [InlineData("DatabaseLogging_CheckCreate.sql")]
     [InlineData("DatabaseLogging_Insert.sql")]
+    [InlineData("Repository_MigrationRecordHistory_Delete.sql")]
+    [InlineData("Repository_MigrationRecordHistory_Count.sql")]
+    [InlineData("DatabaseLogging_Delete.sql")]
+    [InlineData("DatabaseLogging_Count.sql")]
     public void PgTemplate_HasNoStrayQuotedPascalCaseIdentifiers(string templateFile)
     {
         var raw = ReadTemplate("PostgreSQL", templateFile);
@@ -118,18 +128,45 @@ public class PostgreSqlIdentifierCasingTests
     }
 
     /// <summary>
-    /// Confirms the count of PG templates: exactly 18. If a new template is added without
+    /// Confirms the count of PG templates: exactly 30. If a new template is added without
     /// updating this test class the count assertion fails, prompting a review.
     /// </summary>
     [Fact]
-    public void PgTemplates_TotalCount_IsTwentyFive()
+    public void PgTemplates_TotalCount_IsThirty()
     {
         var templatesDir = GetTemplatesDir("PostgreSQL");
         var actualFiles = Directory.GetFiles(templatesDir, "*.sql");
 
-        actualFiles.Should().HaveCount(25,
-            "the PostgreSQL Templates directory must contain exactly 25 .sql files after DAL-017 (+2 read-only Select templates, #7; +1 history Select template, #13; +3 schema version templates, ADR-024; +1 heartbeat template); " +
+        actualFiles.Should().HaveCount(30,
+            "the PostgreSQL Templates directory must contain exactly 30 .sql files after DAL-017 (+2 read-only Select templates, #7; +1 history Select template, #13; +4 schema version templates, ADR-024; +1 heartbeat template; +4 retention templates, ADR-027); " +
             "if you added a new template, also add it to P2_PostgreSqlIdentifierCasingTests");
+    }
+
+    /// <summary>
+    /// Every index and constraint name of the schema templates is lower case after its prefix. The guard above only
+    /// finds quoted PascalCase: an unquoted PascalCase name passes it and PostgreSQL folds it to lower case, so the
+    /// lookup of DatabaseLogging_CheckCreate in pg_indexes, which compares the name as written, would not find the
+    /// index, and every later start would try to create it again and fail.
+    /// </summary>
+    [Theory]
+    [InlineData("Repository_CheckCreate.sql")]
+    [InlineData("Repository_Upgrade_1.sql")]
+    [InlineData("Repository_Upgrade_2.sql")]
+    [InlineData("Repository_Upgrade_3.sql")]
+    [InlineData("DatabaseLogging_CheckCreate.sql")]
+    public void PgTemplate_IndexAndConstraintNames_AreLowerCase(string templateFile)
+    {
+        // Arrange: the SQL without the TOML header and the line comments
+        string sql = Regex.Replace(ReadTemplate("PostgreSQL", templateFile), @"/\*.*?\*/", string.Empty, RegexOptions.Singleline);
+        sql = Regex.Replace(sql, @"--[^\r\n]*", string.Empty);
+
+        // Act
+        var names = Regex.Matches(sql, @"\b(?:pk|fk|ix|uix)_\{CFG:TableBaseName\}(?<rest>\w+)").ToList();
+
+        // Assert
+        names.Should().NotBeEmpty(because: $"{templateFile} names at least one index or constraint");
+        names.Where(m => m.Groups["rest"].Value.Any(char.IsUpper)).Select(m => m.Value).Should().BeEmpty(
+            because: $"{templateFile} must write every index and constraint name in snake_case (DAL-017)");
     }
 
     // -------------------------------------------------------------------------
@@ -137,21 +174,36 @@ public class PostgreSqlIdentifierCasingTests
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// Repository_MigrationRecord_Select.sql must expose exactly 21 PascalCase output aliases
+    /// Repository_MigrationRecord_Select.sql must expose exactly 23 PascalCase output aliases
     /// (one per column consumed by TemplateExecutor.RepositoryMigrationSelect and the
-    /// cross-engine row["PascalCaseKey"] reader contract).
+    /// cross-engine row["PascalCaseKey"] reader contract: 21 plus StartedAt and FinishedAt of 0.20.0).
     /// </summary>
     [Fact]
-    public void MigrationSelect_Has21PascalCaseAliases()
+    public void MigrationSelect_Has23PascalCaseAliases()
     {
         var content = ReadTemplate("PostgreSQL", "Repository_MigrationRecord_Select.sql");
 
         var aliasPattern = new Regex(@"\bAS\s+""[A-Z][a-zA-Z]+""");
         var count = aliasPattern.Matches(content).Count;
 
-        count.Should().Be(21,
-            "Repository_MigrationRecord_Select.sql must have exactly 21 AS \"PascalCase\" aliases to satisfy " +
+        count.Should().Be(23,
+            "Repository_MigrationRecord_Select.sql must have exactly 23 AS \"PascalCase\" aliases to satisfy " +
             "the cross-engine row[\"PascalCase\"] reader contract (DAL-017 Strategy B)");
+    }
+
+    /// <summary>
+    /// Repository_MigrationRecordHistory_Select.sql returns the columns of Repository_MigrationRecord_Select under the
+    /// same names and in the same order: TemplateExecutor.MapMigrationRecord maps the rows of both.
+    /// </summary>
+    [Fact]
+    public void MigrationRecordHistorySelect_HasTheAliasesOfTheRecordSelect()
+    {
+        var aliasPattern = new Regex(@"\bAS\s+""([A-Z][a-zA-Z]+)""");
+
+        var record = aliasPattern.Matches(ReadTemplate("PostgreSQL", "Repository_MigrationRecord_Select.sql")).Select(m => m.Groups[1].Value);
+        var history = aliasPattern.Matches(ReadTemplate("PostgreSQL", "Repository_MigrationRecordHistory_Select.sql")).Select(m => m.Groups[1].Value);
+
+        history.Should().Equal(record, "both selects feed the same reader contract");
     }
 
     /// <summary>

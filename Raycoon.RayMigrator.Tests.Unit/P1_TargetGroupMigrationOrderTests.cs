@@ -3,6 +3,7 @@ using Raycoon.RayMigrator.Core.Configuration.Options;
 using Raycoon.RayMigrator.Core.Models;
 using Raycoon.RayMigrator.Services;
 using Raycoon.RayMigrator.Shared.Exceptions;
+using Raycoon.RayMigrator.Tests.Unit.Helpers;
 
 namespace Raycoon.RayMigrator.Tests.Unit;
 
@@ -121,7 +122,7 @@ public class TargetGroupMigrationOrderTests
         };
         var order = new[] { "Frontend", "Backend" };
 
-        var result = MigrationService.ValidateAndReorderTargetGroups(order, targetGroups, "test");
+        var result = MigrationService.ValidateAndReorderTargetGroups(order, targetGroups, "test", out _);
 
         result.Should().HaveCount(2);
         result[0].Alias.Should().Be("Frontend");
@@ -138,7 +139,7 @@ public class TargetGroupMigrationOrderTests
         };
         var order = new[] { "Beta", "Alpha" };
 
-        var result = MigrationService.ValidateAndReorderTargetGroups(order, targetGroups, "test");
+        var result = MigrationService.ValidateAndReorderTargetGroups(order, targetGroups, "test", out _);
 
         result.Should().HaveCount(2);
         result[0].Alias.Should().Be("Beta");
@@ -156,7 +157,7 @@ public class TargetGroupMigrationOrderTests
         };
         var order = new[] { "Gamma", "Alpha", "Beta" };
 
-        var result = MigrationService.ValidateAndReorderTargetGroups(order, targetGroups, "test");
+        var result = MigrationService.ValidateAndReorderTargetGroups(order, targetGroups, "test", out _);
 
         result.Should().HaveCount(3);
         result[0].Alias.Should().Be("Gamma");
@@ -165,18 +166,71 @@ public class TargetGroupMigrationOrderTests
     }
 
     [Fact]
-    public void ValidateAndReorder_SingleTargetGroup_ThrowsConfigurationValidationException()
+    public void ValidateAndReorder_SingleTargetGroupExactAlias_ReturnsTheGroupAndNamesItAsIgnored()
     {
+        // Arrange
         var targetGroups = new List<TargetGroupOptions>
         {
             CreateTargetGroup("Backend"),
         };
         var order = new[] { "Backend" };
 
-        var act = () => MigrationService.ValidateAndReorderTargetGroups(order, targetGroups, "test");
+        // Act
+        var result = MigrationService.ValidateAndReorderTargetGroups(order, targetGroups, "test", out var ignoredTargetGroup);
 
-        act.Should().Throw<ConfigurationValidationException>()
-            .WithMessage("*only 1 TargetGroup*");
+        // Assert
+        result.Should().ContainSingle(because: "an order that names the only TargetGroup exactly has nothing to sort")
+            .Which.Should().BeSameAs(targetGroups[0]);
+        ignoredTargetGroup.Should().Be("Backend",
+            because: "the caller logs that the order of its source is ignored, with the TargetGroup as a property of the message");
+    }
+
+    [Theory]
+    [InlineData(true, true, "--target-group-migration-order")]
+    [InlineData(false, true, "migsettings of release Release 2.0")]
+    [InlineData(false, false, "product setting")]
+    public void ResolveTargetGroupMigrationOrder_EachSource_NamesWhereTheOrderComesFrom(bool fromCli, bool fromMigSettings, string expectedSource)
+    {
+        // Arrange: the product orders its groups, and the migsettings of the release and the CLI override it in this order
+        var service = TestFactories.CreateUninitializedMigrationService();
+        var product = new ProductOptions { Alias = "P", TargetGroupMigrationOrder = "Backend,Frontend" };
+        string releaseDirectory = Path.Combine("root", "Release 2.0");
+        var migSettings = new Dictionary<string, MigrationService.MigSettingsEntry>(StringComparer.OrdinalIgnoreCase);
+        if (fromMigSettings)
+        {
+            migSettings[releaseDirectory] = new MigrationService.MigSettingsEntry { TargetGroupMigrationOrder = ["Frontend", "Backend"] };
+        }
+
+        // Act
+        var order = service.ResolveTargetGroupMigrationOrder(
+            releaseDirectory, product, migSettings, fromCli ? ["Frontend", "Backend"] : null, out string source);
+
+        // Assert
+        order.Should().NotBeNull();
+        source.Should().Be(expectedSource, because: "the messages about an order name where it comes from, not the command that reads it");
+    }
+
+    [Theory]
+    [InlineData("backend")]
+    [InlineData("Frontend")]
+    [InlineData("Backend,Backend")]
+    [InlineData("Backend,Frontend")]
+    public void ValidateAndReorder_SingleTargetGroupOtherOrder_ThrowsConfigurationValidationException(string commaSeparatedOrder)
+    {
+        // Arrange: a case-only match, another alias, a duplicate and more than one alias
+        var targetGroups = new List<TargetGroupOptions>
+        {
+            CreateTargetGroup("Backend"),
+        };
+        var order = commaSeparatedOrder.Split(',');
+
+        // Act
+        var act = () => MigrationService.ValidateAndReorderTargetGroups(order, targetGroups, "test", out _);
+
+        // Assert
+        act.Should().Throw<ConfigurationValidationException>(
+                because: "only an order that names the alias of the only TargetGroup exactly is ignored")
+            .WithMessage("*is not allowed when product has only 1 TargetGroup(s).");
     }
 
     [Fact]
@@ -189,7 +243,7 @@ public class TargetGroupMigrationOrderTests
         };
         var order = new[] { "Frontend" }; // only 1 of 2 specified
 
-        var act = () => MigrationService.ValidateAndReorderTargetGroups(order, targetGroups, "test");
+        var act = () => MigrationService.ValidateAndReorderTargetGroups(order, targetGroups, "test", out _);
 
         act.Should().Throw<ConfigurationValidationException>()
             .WithMessage("*1 aliases*")
@@ -206,7 +260,7 @@ public class TargetGroupMigrationOrderTests
         };
         var order = new[] { "Backend", "Frontend", "Extra" }; // 3 for 2 TGs
 
-        var act = () => MigrationService.ValidateAndReorderTargetGroups(order, targetGroups, "test");
+        var act = () => MigrationService.ValidateAndReorderTargetGroups(order, targetGroups, "test", out _);
 
         act.Should().Throw<ConfigurationValidationException>()
             .WithMessage("*3 aliases*")
@@ -223,7 +277,7 @@ public class TargetGroupMigrationOrderTests
         };
         var order = new[] { "Backend", "Unknown" };
 
-        var act = () => MigrationService.ValidateAndReorderTargetGroups(order, targetGroups, "test");
+        var act = () => MigrationService.ValidateAndReorderTargetGroups(order, targetGroups, "test", out _);
 
         var ex = act.Should().Throw<ConfigurationValidationException>().Which;
         ex.Message.Should().Contain("Unknown");
@@ -241,7 +295,7 @@ public class TargetGroupMigrationOrderTests
         };
         var order = new[] { "backend", "Frontend" }; // lowercase "backend" vs "Backend"
 
-        var act = () => MigrationService.ValidateAndReorderTargetGroups(order, targetGroups, "test");
+        var act = () => MigrationService.ValidateAndReorderTargetGroups(order, targetGroups, "test", out _);
 
         var ex = act.Should().Throw<ConfigurationValidationException>().Which;
         ex.Message.Should().Contain("backend");
@@ -259,7 +313,7 @@ public class TargetGroupMigrationOrderTests
         };
         var order = new[] { "Frontend", "Frontend" };
 
-        var act = () => MigrationService.ValidateAndReorderTargetGroups(order, targetGroups, "test");
+        var act = () => MigrationService.ValidateAndReorderTargetGroups(order, targetGroups, "test", out _);
 
         act.Should().Throw<ConfigurationValidationException>()
             .WithMessage("*duplicate alias 'Frontend'*");
@@ -275,7 +329,7 @@ public class TargetGroupMigrationOrderTests
         };
         var order = new[] { "FrontEnd", "BackEnd" };
 
-        var result = MigrationService.ValidateAndReorderTargetGroups(order, targetGroups, "test");
+        var result = MigrationService.ValidateAndReorderTargetGroups(order, targetGroups, "test", out _);
 
         result.Should().HaveCount(2);
         result[0].Alias.Should().Be("FrontEnd");
@@ -292,7 +346,7 @@ public class TargetGroupMigrationOrderTests
         };
         var order = Array.Empty<string>();
 
-        var act = () => MigrationService.ValidateAndReorderTargetGroups(order, targetGroups, "test");
+        var act = () => MigrationService.ValidateAndReorderTargetGroups(order, targetGroups, "test", out _);
 
         act.Should().Throw<ConfigurationValidationException>()
             .WithMessage("*0 aliases*")
@@ -439,6 +493,28 @@ public class TargetGroupMigrationOrderTests
         // Release 1.1: Frontend before Backend
         order[2].Should().Be((4, "Frontend", "T1"));
         order[3].Should().Be((3, "Backend", "T1"));
+    }
+
+    [Fact]
+    public void GetFullExecutionOrder_SingleTargetGroupOrder_IsIgnored()
+    {
+        // Arrange: the order names the alias of the only TargetGroup
+        var files = new List<MigrationFileInfo>
+        {
+            CreateFile(1, "Release 1.0", "Backend"),
+            CreateFile(2, "Release 1.1", "Backend"),
+        };
+        var targetGroups = new List<TargetGroupOptions>
+        {
+            CreateTargetGroup("Backend"),
+        };
+
+        // Act
+        var order = MigrationService.GetFullExecutionOrder(files, targetGroups, ["Backend"]);
+
+        // Assert
+        order.Should().Equal(MigrationService.GetFullExecutionOrder(files, targetGroups),
+            because: "an order of the only TargetGroup changes nothing");
     }
 
     #endregion GetFullExecutionOrder Integration

@@ -61,6 +61,32 @@ public static class TemplateResultCode
     /// <summary>Configuration validation error.</summary>
     public const int ConfigurationValidationFailed = 1003;
 
+    /// <summary>
+    /// The host cancelled the run and the engine stopped it: the run of a migrate-up, migrate-down or baseline is
+    /// <c>MigrationRunResult.Cancelled</c>, its <c>MigrationCancelledAction</c> completed. Also the <c>ErrorCode</c> of an
+    /// update-hash or fix that stopped early. The read commands (validate-hash, status, history) throw an
+    /// <c>OperationCanceledException</c> instead, and the repository maintenance service reports a stopped cleanup with
+    /// <c>RetentionResult.Completed = false</c> and no code.
+    /// </summary>
+    public const int Cancelled = 1004;
+
+    /// <summary>
+    /// The host cancelled a migrate-up and the rollback its <c>MigrationCancelledAction</c> started did not complete
+    /// cleanly: it reported a failure or a warning (a failed rollback block, a missing rollback file, rollback errors that
+    /// RollbackErrorAction=Ignore skipped). The run is <c>MigrationRunResult.Error</c>.
+    /// </summary>
+    public const int CancelledRollbackIncomplete = 1005;
+
+    /// <summary>
+    /// The orphan repair closed the run: a later start (the auto-fix of a migrate-up, migrate-down or baseline) or
+    /// <c>fix</c> found it open with a stale heartbeat, because the process ended without finishing it (a crash, a kill,
+    /// a second Ctrl+C or SIGTERM). <c>Repository_MigrationRun_FixOrphaned</c> writes it into <c>MigrationRun.ErrorCode</c>
+    /// of the run it closes as <c>MigrationRunResult.Error</c>, with a message that names the last heartbeat; a code or a
+    /// message the row has already stays. It is no result code of a template, and it is never the <c>ErrorCode</c> of a
+    /// command's result; the run history reports it with the run it closed.
+    /// </summary>
+    public const int OrphanedRunClosed = 1006;
+
     // ===== Known Code Registry =====
 
     private static readonly HashSet<int> KnownNegativeCodes =

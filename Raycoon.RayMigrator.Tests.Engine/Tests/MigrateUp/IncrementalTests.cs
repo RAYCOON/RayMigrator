@@ -192,7 +192,7 @@ public class IncrementalTests : PostgreSqlTestBase
             ("01_CreateTableA.sql", MigrationStatus.Migrated),
             ("02_CreateTableB.sql", MigrationStatus.Migrated),
             ("03_SeedDataA.sql", MigrationStatus.Migrated),
-            // R2: Rolled back (was in Run 2's successfullyMigratedRecords)
+            // R2: Rolled back (records Run 2 wrote)
             ("01_CreateTableC.sql", MigrationStatus.NotMigrated),
             ("02_CreateTableD.sql", MigrationStatus.NotMigrated),
             ("03_SeedDataB.sql", MigrationStatus.NotMigrated),

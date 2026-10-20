@@ -1,8 +1,10 @@
 using AwesomeAssertions;
+using NSubstitute;
 using Raycoon.RayMigrator.Core.Configuration.Enums;
 using Raycoon.RayMigrator.Core.Configuration.Options;
 using Raycoon.RayMigrator.Core.Templates;
 using Raycoon.RayMigrator.Services.Abstractions;
+using Raycoon.RayMigrator.Shared.Constants;
 // Note: CLI parsing tests would require System.CommandLine dependency in test project
 // These are covered by integration tests and manual testing instead
 
@@ -23,7 +25,7 @@ public class FixIssuesRequestModelTests
         request.Scope.Should().Be(FixScope.OrphanedRuns);
         request.OlderThanMinutes.Should().Be(2, "the default is the orphan threshold of the repository options");
         request.RunMode.Should().Be(MigrationRunMode.Migrate);
-        request.AssumedMigrationStatus.Should().Be(MigrationStatus.NotMigrated);
+        request.AssumedMigrationStatus.Should().BeNull("without a status every open record keeps its progress");
         request.ShowInfo.Should().BeTrue();
         request.RevealSensitiveData.Should().BeFalse();
     }
@@ -255,13 +257,44 @@ public class FixCommandSqlTemplateStructureTests
     [InlineData("PostgreSQL")]
     [InlineData("MariaDb")]
     [InlineData("MySql")]
+    [InlineData("Sqlite")]
+    public void FixOrphanedRun_Template_RecordsWhyTheRepairClosedTheRun(string engine)
+    {
+        var content = File.ReadAllText(GetTemplatePath(engine, "Repository_MigrationRun_FixOrphaned.sql"));
+        string body = content.Substring(content.IndexOf("*/", StringComparison.Ordinal) + 2);
+
+        body.Should().MatchRegex($@"(?i)error_?code\W*\s*=\s*COALESCE\(\W*error_?code\W*\s*,\s*'{TemplateResultCode.OrphanedRunClosed}'\)",
+            $"{engine} FixOrphanedRun should write the engine code of the repair and keep a code the run has");
+        body.Should().MatchRegex(@"(?i)error_?message\W*\s*=\s*COALESCE\(\W*error_?message\W*\s*,",
+            $"{engine} FixOrphanedRun should keep a message the run has");
+        body.Should().Contain("'Closed as orphaned by the repair: the run ended without finishing; last heartbeat '",
+            $"{engine} FixOrphanedRun should say why it closed the run");
+    }
+
+    [Theory]
+    [InlineData("SqlServer")]
+    [InlineData("PostgreSQL")]
+    [InlineData("MariaDb")]
+    [InlineData("MySql")]
+    [InlineData("Sqlite")]
     public void FixOrphanedMigration_TemplateExists_AndContainsExpectedContent(string engine)
     {
         var templatePath = GetTemplatePath(engine, "Repository_MigrationRecord_FixOrphaned.sql");
         var content = File.ReadAllText(templatePath);
+        string body = content.Substring(content.IndexOf("*/", StringComparison.Ordinal) + 2);
 
         content.Should().Contain("MigrationStatusId", $"{engine} FixOrphanedMigration should update MigrationStatusId");
         content.Should().Contain("MigrationRunId", $"{engine} FixOrphanedMigration should filter by MigrationRunId");
+        body.Should().MatchRegex(@"(?i)WHEN\s+@MigrationStatusId\s*<>\s*0\s+THEN\s+@MigrationStatusId",
+            $"{engine} FixOrphanedMigration should set an explicit status and decide per record for 0");
+        body.Should().MatchRegex(@"(?i)file_?down_?blocks_?migrated",
+            $"{engine} FixOrphanedMigration should read the rollback progress of a record");
+        body.Should().MatchRegex(@"(?i)file_?up_?blocks_?migrated\W+\s*>=\s*\W*file_?up_?blocks_?total",
+            $"{engine} FixOrphanedMigration should finish a record whose every block committed");
+        body.Should().MatchRegex(@"(?i)finished_?at\W*\s*=\s*COALESCE\(",
+            $"{engine} FixOrphanedMigration should end a record it settles where it has no end");
+        body.Should().NotMatchRegex(@"(?i)duration_?in_?ms\W*\s*=",
+            $"{engine} FixOrphanedMigration should leave DurationInMs empty");
     }
 
     [Theory]
@@ -341,6 +374,47 @@ public class FixCommandSqlTemplateStructureTests
     }
 
     #endregion
+}
+
+/// <summary>
+/// P2: the CLI wrapper hands the status of <c>--last-migration-status</c> to the engine as it is: none without the option,
+/// so that every open record keeps its progress, or the status the operator chose.
+/// </summary>
+public class FixAssumedStatusPassThroughTests
+{
+    [Theory]
+    [InlineData(null)]
+    [InlineData(MigrationStatus.Migrated)]
+    [InlineData(MigrationStatus.NotMigrated)]
+    public async Task DoWorkAsync_Fix_PassesTheStatusOfTheOptionThrough(MigrationStatus? assumed)
+    {
+        // Arrange
+        var service = NSubstitute.Substitute.For<IMigrationService>();
+        FixIssuesRequest? received = null;
+        service.FixIssuesAsync(NSubstitute.Arg.Do<FixIssuesRequest>(r => received = r), NSubstitute.Arg.Any<CancellationToken>())
+            .Returns(new FixIssuesResult { Success = true, ProductAlias = "P", Environment = "Dev" });
+        var options = new RayMigratorConsoleOptions
+        {
+            Command = MigrationCommand.FixIssues,
+            Product = "P",
+            Environment = "Dev",
+            RunMode = MigrationRunMode.Migrate,
+            ShowStartupInfo = false,
+            RevealSensitiveData = false,
+            FixAssumedMigrationStatus = assumed
+        };
+        var wrapper = new Raycoon.RayMigrator.Pipeline.RayMigratorService(
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<Raycoon.RayMigrator.Pipeline.RayMigratorService>.Instance, options, service);
+        using var cancellation = new RunCancellation();
+
+        // Act
+        int exitCode = await wrapper.DoWorkAsync(null!, cancellation);
+
+        // Assert
+        exitCode.Should().Be(0);
+        received.Should().NotBeNull();
+        received!.AssumedMigrationStatus.Should().Be(assumed, "the engine applies its progress rule when no status is given");
+    }
 }
 
 /// <summary>

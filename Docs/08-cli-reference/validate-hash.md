@@ -161,6 +161,7 @@ Output is via structured Serilog logging. The exact format depends on the config
 |------|---------|
 | 0 | All migrated files are valid (no modified or missing files). "New" (not yet migrated) files do not affect the exit code. |
 | 1 | One or more files have a hash mismatch (`Modified`) or are missing from disk (`Missing`), or an unexpected error occurred. |
+| 130 | Ctrl+C or SIGTERM interrupted the validation; nothing was written. |
 
 For the complete exit code table across all commands, see [Global Options -- Exit Codes](global-options.md#exit-codes).
 

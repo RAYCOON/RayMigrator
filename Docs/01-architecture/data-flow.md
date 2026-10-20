@@ -18,44 +18,46 @@ sequenceDiagram
     User->>CLI: raymigrator migrate-up -p X -env Y
 
     CLI->>CLI: Parse arguments
-    CLI->>Bridge: ExecuteMigrateUpAsync()
+    CLI->>Bridge: ExecuteMigrateUpAsync(cancellation)
 
-    Bridge->>Bridge: Create MigrateUpRequest
-    Bridge->>Svc: MigrateUpAsync(request)
+    Bridge->>Bridge: Create MigrateUpRequest (Cancellation = RunCancellation of the process)
+    Bridge->>Svc: MigrateUpAsync(request, cancellation.Token)
 
     Note over Svc: Phase 1 - Initialization
     Svc->>Ctx: Validate request, set MigrationRunResult=Running,<br/>MigrationOperation=MigrateUp
-    Svc->>Tmpl: RepositoryCheckCreate()
+    Svc->>Tmpl: RepositoryCheckCreateAsync()
     Tmpl->>Repo: Schema steps via RepositorySchemaExecutor:<br/>Repository_CheckCreate, missing Repository_Upgrade_n,<br/>Repository_MigratorMeta_CheckInsert
     Repo-->>Tmpl: MigratorMetaId
 
-    Svc->>Tmpl: RepositoryProductCheckInsert()
+    Svc->>Tmpl: RepositoryProductCheckInsertAsync()
     Tmpl->>Repo: Ensure product exists
     Repo-->>Tmpl: ProductId
 
-    Svc->>Tmpl: RepositoryEnvironmentCheckInsert()
+    Svc->>Tmpl: RepositoryEnvironmentCheckInsertAsync()
     Tmpl->>Repo: Ensure environment exists
     Repo-->>Tmpl: EnvironmentId
 
-    Svc->>Tmpl: RepositoryMigrationGetInterrupted()
+    Svc->>Tmpl: RepositoryMigrationGetInterruptedAsync(token)
     Tmpl->>Repo: Check for interrupted migrations
 
     Svc->>Svc: BuildMigrationRunSettingsJson()
-    Svc->>Tmpl: RepositoryMigrationRunInsert(settingsJson)
+    Svc->>Tmpl: RepositoryMigrationRunInsertAsync(settingsJson)
     Tmpl->>Repo: Create migration run with settings snapshot
     Repo-->>Tmpl: MigrationRunId
 
     Note over Svc: Phase 2 - File Discovery & Preparation
     Svc->>Svc: DiscoverAndPrepareMigrationFiles()
-    Svc->>Tmpl: RepositoryMigrationSelect()
+    Svc->>Tmpl: RepositoryMigrationSelectAsync(token)
     Tmpl->>Repo: Query existing records
     Svc->>Svc: FilterAlreadyMigratedFiles()
     Svc->>Svc: FilterByTargetRelease()
     Svc->>Svc: ValidateTargetGroupAliases()
     Svc->>Svc: FilterByTargetGroups()
     Svc->>Svc: DetectOutOfOrderFiles()
+    Svc->>Svc: FindIncompleteRollbacks()
+    Note over Svc: refuses the run when a file it would run<br/>stopped in the middle of its rollback
 
-    Note over Svc: Phase 3 - Execute Migrations
+    Note over Svc: Phase 3 - Execute Migrations<br/>(a cancel stops at the checkpoint before the next file, target or block)
     loop For each Release
         Svc->>Svc: ResolveTargetGroupMigrationOrder()<br/>(CLI > migsettings > appsettings > config array order)
         loop For each TargetGroup (in resolved order)
@@ -64,17 +66,17 @@ sequenceDiagram
             else TargetMigrationOrder = TargetByTarget
                 Svc->>Svc: ExecuteTargetGroupTargetByTarget()<br/>(Target → File loop)
             end
-            Svc->>Tmpl: RepositoryMigrationInsert()
-            Svc->>Target: Execute SQL blocks
+            Svc->>Tmpl: RepositoryMigrationInsertAsync()
+            Svc->>Target: Execute SQL blocks (with the token of the run)
             Target-->>Svc: Result
-            Svc->>Tmpl: RepositoryMigrationUpdate()
+            Svc->>Tmpl: RepositoryMigrationUpdateAsync()
         end
     end
 
     Note over Svc: Phase 5 - Finalization
-    Svc->>Tmpl: RepositoryMigrationRunUpdate(Ok/Error)
+    Svc->>Tmpl: RepositoryMigrationRunUpdateAsync(Ok/PartialSuccess/Recovered/Error/Cancelled)
     Svc-->>Bridge: MigrationOperationResult
-    Bridge-->>CLI: Exit code (0/1)
+    Bridge-->>CLI: Exit code (0/1/130)
     CLI-->>User: Console output
 ```
 
@@ -136,7 +138,7 @@ sequenceDiagram
 
     Note over Cache: All templates loaded at startup<br/>{ENV:*} already replaced during init
 
-    Svc->>Exec: RepositoryProductCheckInsert()
+    Svc->>Exec: RepositoryProductCheckInsertAsync()
 
     Exec->>Cache: GetRepositoryTemplate(templateType, repositoryOptions)
     Note over Cache: Replace {CFG:*} via<br/>reflection-based property matching
@@ -150,7 +152,7 @@ sequenceDiagram
     Exec-->>Svc: TemplateResponse (ResultCode, ResultMessage)
 ```
 
-The schema steps behind `RepositoryCheckCreate()` take the same path inside `RepositorySchemaExecutor`, which executes through the static `TemplateExecutor.ExecuteScalar` and needs no migration context; `IRepositorySchemaService` runs them for a host without a run.
+The schema steps behind `RepositoryCheckCreateAsync()` take the same path inside `RepositorySchemaExecutor`, which executes through the static `TemplateExecutor.ExecuteScalarAsync` and needs no migration context; `IRepositorySchemaService` runs them for a host without a run. The retention templates take that path as well: `IRepositoryMaintenanceService` runs them through `RepositoryMaintenanceExecutor` with the repository options alone ([Retention](../03-database-layer/repository-schema.md#retention)).
 
 ## Migration File Discovery Flow
 
@@ -227,6 +229,8 @@ flowchart TD
     F --> I[Return error result]
 ```
 
+A cancelled migrate-up takes the same rollback chains with its `MigrationCancelledAction` (`RollbackFile`, `RollbackRun` and `RollbackRelease` like `RollbackErrorOnly`, `Rollback` and `RollbackRelease`; `Terminate` rolls nothing back) and records `Cancelled`, or `Error` when that rollback did not complete cleanly. See [Cancellation](../02-core-concepts/error-handling.md#cancellation).
+
 ## Request/Response Pattern
 
 ### MigrateUpRequest
@@ -286,43 +290,47 @@ flowchart TD
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Pending: RepositoryMigrationInsert()
+    [*] --> Pending: RepositoryMigrationInsertAsync()
 
-    Pending --> Executing: First SQL block or CLI tool starts - RepositoryMigrationUpdate(Executing)
-    Executing --> Executing: Next block - RepositoryMigrationUpdate(Executing, blocksMigrated)
-    Executing --> Migrated: All blocks executed - RepositoryMigrationUpdate(Migrated)
-    Executing --> Failed: Block error or exception - RepositoryMigrationUpdate(Failed)
+    Pending --> Executing: First SQL block or CLI tool starts - RepositoryMigrationUpdateAsync(Executing)
+    Executing --> Executing: Next block - RepositoryMigrationUpdateAsync(Executing, blocksMigrated)
+    Executing --> Migrated: All blocks executed - RepositoryMigrationUpdateAsync(Migrated)
+    Executing --> Failed: Block error, exception or cancel - RepositoryMigrationUpdateAsync(Failed)
 
-    Migrated --> Executing: Rollback starts (migrate-down or error recovery) - RepositoryMigrationUpdateRollback(Executing)
-    Failed --> Executing: Rollback of the failed file (error recovery or migrate-down) - RepositoryMigrationUpdateRollback(Executing)
-    Executing --> NotMigrated: All rollback blocks executed - RepositoryMigrationUpdateRollback(NotMigrated)
-    Executing --> Failed: Rollback block error - RepositoryMigrationUpdateRollback(Failed)
+    Migrated --> Executing: Rollback starts (migrate-down, error recovery or cancel action) - RepositoryMigrationUpdateRollbackAsync(Executing)
+    Failed --> Executing: Rollback of the failed file (error recovery, cancel action or migrate-down) - RepositoryMigrationUpdateRollbackAsync(Executing)
+    Executing --> NotMigrated: All rollback blocks executed - RepositoryMigrationUpdateRollbackAsync(NotMigrated)
+    Executing --> Failed: Rollback block error, or a cancel before the next rollback block - RepositoryMigrationUpdateRollbackAsync(Failed)
 
-    Executing --> Migrated: Interrupted record with all blocks done - TryFinalizeCompletedMigration()
-    Pending --> NotMigrated: fix (orphaned run) - RepositoryMigrationRecordFixOrphaned(assumed status)
-    Executing --> NotMigrated: fix (orphaned run) - RepositoryMigrationRecordFixOrphaned(assumed status)
+    Executing --> Migrated: Interrupted record with all blocks done - TryFinalizeCompletedMigrationAsync()
+    Pending --> NotMigrated: Orphan repair, no block committed - RepositoryMigrationRecordFixOrphanedAsync(null)
+    Executing --> Failed: Orphan repair, some but not every block committed, or a rollback was running that had not run every rollback block - RepositoryMigrationRecordFixOrphanedAsync(null)
+    Executing --> Migrated: Orphan repair, every block committed - RepositoryMigrationRecordFixOrphanedAsync(null)
+    Executing --> NotMigrated: Orphan repair, no block committed and no rollback running, or every rollback block ran - RepositoryMigrationRecordFixOrphanedAsync(null)
 ```
 
-`fix` writes the `--assumed-status` (`NotMigrated` or `Migrated`) to every `Pending`/`Executing` record of an orphaned run; the auto-fix in `RepositoryMigrationRunInsertWithAutoFix()` always uses `NotMigrated`. `Undefined` (0) is never persisted.
+The orphan repair (the auto-fix in `RepositoryMigrationRunInsertWithAutoFix()`, and `fix` without `--last-migration-status`) settles every `Pending`/`Executing` record of an orphaned run by the progress of its file: `Failed` with its committed blocks when some but not all committed, `Migrated` when every block committed, `NotMigrated` without progress; a rollback that was running ends `Failed` with its rollback blocks, or `NotMigrated` when every rollback block ran. `fix --last-migration-status` writes `NotMigrated` or `Migrated` to every such record instead. The repair sets `FinishedAt` to its time where it is empty and leaves `DurationInMs` as it is (empty for a file that was running; a record whose rollback was running keeps the end and the duration of its last terminal status). `Undefined` (0) is never persisted; it is the value the repair template receives for its rule. A cancelled file keeps the blocks that committed before the cancel (on the atomic path only those of an earlier attempt, normally none), so the next migrate-up resumes it like a failed file; under `MigrationErrorAction=Ignore` these are the blocks before the first failed one, as at the end of such a file.
 
 ### MigrationRunResult (per run)
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Running: RepositoryMigrationRunInsert()
+    [*] --> Running: RepositoryMigrationRunInsertAsync()
 
     Running --> Ok: All files migrated / rolled back, or nothing to do
     Running --> PartialSuccess: migrate-up continued past a Failed file (MigrationErrorAction=Ignore), or migrate-down skipped a missing rollback file / ignored a failed rollback block
+    Running --> Cancelled: the run was cancelled and stopped at the next block or file boundary, and the rollback of its MigrationCancelledAction (if any) completed cleanly
     Running --> Recovered: migrate-up failed and the error-recovery rollback (Rollback / RollbackRelease / RollbackErrorOnly) completed without failure or warning
-    Running --> Error: migrate-up aborted (Terminate, or recovery not clean), migrate-down rollback failed, unhandled exception, or fix closes an orphaned run
+    Running --> Error: migrate-up aborted (Terminate, or recovery not clean, also when a cancel stopped it), the rollback of a cancelled migrate-up did not complete cleanly, migrate-down rollback failed, unhandled exception, or fix closes an orphaned run
 
     Ok --> [*]
     PartialSuccess --> [*]
+    Cancelled --> [*]
     Recovered --> [*]
     Error --> [*]
 ```
 
-Every terminal value is written by `RepositoryMigrationRunUpdate()`; `fix` and the auto-fix close an orphaned run with `RepositoryMigrationRunFixOrphaned()` (result `Error`). See [Migration State Machine](../02-core-concepts/migration-state-machine.md) for the per-command flows.
+Every terminal value is written by `RepositoryMigrationRunUpdateAsync()`; `fix` and the auto-fix close an orphaned run with `RepositoryMigrationRunFixOrphanedAsync()` (result `Error`). A process that dies, or that a second Ctrl+C or SIGTERM ends at once, leaves its run `Running` until such a repair. See [Migration State Machine](../02-core-concepts/migration-state-machine.md) for the per-command flows.
 
 ## Related Documentation
 

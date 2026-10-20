@@ -135,9 +135,9 @@ public class RunAlwaysTests : PostgreSqlTestBase
     }
 
     /// <summary>
-    /// #58 Same as #57 but with Rollback. Run 2 only has R1/F3 in its
-    /// successfullyMigratedRecords (nothing else new), so rollback scope is empty/R1/F3 only.
-    /// R1/F3 = NotMigrated. Other files = Migrated from Run 1. Run 2 = Error.
+    /// #58 Same as #57 but with Rollback. Run 2 writes no other record before R1/F3 fails
+    /// (nothing else new), so the rollback scope is R1/F3 only.
+    /// R1/F3 = NotMigrated. Other files = Migrated from Run 1. Run 2 = Recovered.
     /// </summary>
     [Fact]
     public async Task RunAlways_FailsOnRerun_Rollback()
@@ -176,7 +176,7 @@ public class RunAlwaysTests : PostgreSqlTestBase
         ctx.AssertSuccess(false);
         ctx.AssertRunCount(2);
 
-        // Run 1 Ok, Run 2 Error
+        // Run 1 Ok, Run 2 Recovered
         ctx.AssertMigrationRun(1, new MigrationRunExpectation { MigrationRunResultId = (int)MigrationRunResult.Ok });
         ctx.AssertMigrationRun(2, new MigrationRunExpectation { MigrationRunResultId = (int)MigrationRunResult.Recovered });
 
@@ -248,5 +248,67 @@ public class RunAlwaysTests : PostgreSqlTestBase
         ctx.AssertRowCount("tablec", 3);
         ctx.AssertRowCount("tablee", 3);
         ctx.AssertRowCount("tableg", 3);
+    }
+
+    /// <summary>
+    /// #62 A RunAlways file that failed after a committed block runs again from its first block: the next migrate-up
+    /// starts it with ResumeFromBlock 0 and runs block 1 a second time (<see cref="RunAlwaysContract"/>).
+    /// </summary>
+    [Fact]
+    public async Task RunAlways_FailedAfterACommittedBlock_NextRunStartsAtBlockOne()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        Assert.SkipWhen(Fixture.EngineConfig.ConnectionString2 is null, "Second connection string not configured");
+
+        await RunAlwaysContract.VerifyFailedAttemptRunsInFullAsync(CreateScenario(), Fixture.EngineConfig);
+    }
+
+    /// <summary>#63 The same in TargetByTarget order, the other file loop of migrate-up.</summary>
+    [Fact]
+    public async Task RunAlways_FailedAfterACommittedBlockInTargetByTargetOrder_NextRunStartsAtBlockOne()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        Assert.SkipWhen(Fixture.EngineConfig.ConnectionString2 is null, "Second connection string not configured");
+
+        await RunAlwaysContract.VerifyFailedAttemptRunsInFullAsync(
+            CreateScenario(), Fixture.EngineConfig, TargetMigrationOrder.TargetByTarget);
+    }
+
+    /// <summary>#64 A RunAlways file cancelled with Terminate after its first block runs again from its first block.</summary>
+    [Fact]
+    public async Task RunAlways_CancelledAfterBlockOne_NextRunStartsAtBlockOne()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        Assert.SkipWhen(Fixture.EngineConfig.ConnectionString2 is null, "Second connection string not configured");
+
+        await RunAlwaysContract.VerifyCancelledAttemptRunsInFullAsync(CreateScenario(), Fixture.EngineConfig);
+    }
+
+    /// <summary>
+    /// #65 On the atomic shared connection a RunAlways file is neither resumed after the committed blocks of an earlier
+    /// attempt nor finalized from a record that committed every block; it runs in full.
+    /// </summary>
+    [Theory]
+    [InlineData(MigrationStatus.Failed, 1)]
+    [InlineData(MigrationStatus.Executing, 3)]
+    public async Task RunAlways_EarlierAttemptOnTheSharedConnection_RunsInFull(MigrationStatus status, int committedBlocks)
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+
+        await RunAlwaysContract.VerifyEarlierAttemptOnTheSharedConnectionRunsInFullAsync(
+            CreateScenario(), Fixture.EngineConfig, status, committedBlocks);
+    }
+
+    /// <summary>
+    /// #66 The orphan repair settles the open record of a RunAlways file by its progress (Failed with block 1), info lists
+    /// the file RunAlways, and the next migrate-up runs it in full.
+    /// </summary>
+    [Fact]
+    public async Task RunAlways_OpenRecordOfAnOrphanedRun_RunsInFullAfterTheRepair()
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+        Assert.SkipWhen(Fixture.EngineConfig.ConnectionString2 is null, "Second connection string not configured");
+
+        await RunAlwaysContract.VerifyOrphanedRecordRunsInFullAsync(CreateScenario(), Fixture.EngineConfig);
     }
 }

@@ -94,12 +94,12 @@ public class MySqlIgnoreTests : MySqlTestBase
 
     /// <summary>
     /// #26 Per-file Ignore combined with product-level Rollback.
-    /// R2/F2 has per-file MigrationErrorAction=Ignore, R3/F2 triggers product-level Rollback.
-    /// R2/F2 is Ignored (Failed but not in rollback chain). R3/F2 error triggers rollback of all
-    /// files EXCEPT R2/F2 (which was not in successfullyMigratedRecords).
+    /// R2/F2 has per-file MigrationErrorAction=Ignore and ends Failed; R3/F2 triggers the product-level Rollback, whose
+    /// chain rolls back the failed file and then every file the run ran, newest first: R2/F2, which the run left Failed
+    /// under Ignore, as well as the files it migrated.
     /// </summary>
     [Fact]
-    public async Task IgnoredFile_NotInRollbackChain()
+    public async Task IgnoredFile_RolledBackWithTheRun()
     {
         Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
 
@@ -121,9 +121,9 @@ public class MySqlIgnoreTests : MySqlTestBase
             ("01_CreateTableA.sql", MigrationStatus.NotMigrated),
             ("02_CreateTableB.sql", MigrationStatus.NotMigrated),
             ("03_SeedDataA.sql", MigrationStatus.NotMigrated),
-            // R2/F1 rolled back, R2/F2 stays Failed (not in rollback chain), R2/F3 rolled back
+            // R2 rolled back, R2/F2 included (the run left it Failed under Ignore)
             ("01_CreateTableC.sql", MigrationStatus.NotMigrated),
-            ("02_CreateTableD.sql", MigrationStatus.Failed),
+            ("02_CreateTableD.sql", MigrationStatus.NotMigrated),
             ("03_SeedDataB.sql", MigrationStatus.NotMigrated),
             // R3/F1 rolled back, R3/F2 rolled back (the error file)
             ("01_CreateTableE.sql", MigrationStatus.NotMigrated),

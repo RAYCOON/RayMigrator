@@ -1,0 +1,11 @@
+-- TODO: Implement for your database engine
+-- Purpose: Deletes one batch of MigrationLog rows created before @CutoffUtc, the oldest first, in the repository
+--          database under the schema and prefix of the repository; spares the rows of every open run of the
+--          repository, a row without a run falls by its age. Keep the batch one DELETE statement (ADR-027).
+-- See the corresponding template in Database.SqlServer or Database.PostgreSQL for reference.
+-- Returns: 'n,message' with n = the rows deleted
+--
+-- Parameters used in this template:
+-- {CFG:SchemaName} - The repository schema name (of the Repository section, also for the log templates)
+-- {CFG:TableBaseName} - The table name prefix (of the Repository section, also for the log templates)
+-- @CutoffUtc (UTC text yyyy-MM-dd HH:mm:ss), @BatchSize - SQL parameters (see reference implementations)

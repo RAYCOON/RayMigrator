@@ -15,10 +15,13 @@ public interface IRepositorySchemaService
     /// missing steps, a current one stays as it is. The documented defaults are written into the null command settings
     /// of <paramref name="repository"/>; a null <c>TableBaseName</c> becomes the empty prefix.
     /// </summary>
+    /// <param name="repository">The repository: database type, connection string, schema, prefix and command settings.</param>
+    /// <param name="cancellationToken">Reaches the DAL call of every schema step; a cancellation ends the call with an
+    /// <see cref="OperationCanceledException"/>.</param>
     /// <exception cref="Raycoon.RayMigrator.Shared.Exceptions.ConfigurationValidationException">The options are incomplete
     /// or invalid, the database type is unknown or has no templates, or the schema name is missing where the engine needs one.</exception>
     /// <exception cref="Raycoon.RayMigrator.Shared.Exceptions.RepositorySchemaException">The repository has tables but no
     /// schema version (created before 0.17.0), or a schema version newer than this engine supports.</exception>
     /// <exception cref="Raycoon.RayMigrator.Shared.Exceptions.TemplateExecutionException">A step failed on the database.</exception>
-    RepositorySchemaResult Ensure(RepositoryOptions repository);
+    Task<RepositorySchemaResult> EnsureAsync(RepositoryOptions repository, CancellationToken cancellationToken = default);
 }

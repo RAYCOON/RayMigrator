@@ -15,10 +15,10 @@ public class MariaDbRepositorySchemaServiceTests : MariaDbTestBase
     public MariaDbRepositorySchemaServiceTests(MariaDbFixture fixture) : base(fixture) { }
 
     [Fact]
-    public void Ensure_CreatesTheRepositoryOnceAndFindsItAgain()
+    public async Task Ensure_CreatesTheRepositoryOnceAndFindsItAgain()
     {
         Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
 
-        RepositorySchemaServiceContract.VerifyEnsure(Fixture.EngineConfig);
+        await RepositorySchemaServiceContract.VerifyEnsureAsync(Fixture.EngineConfig);
     }
 }

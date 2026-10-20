@@ -300,6 +300,84 @@ public class ResumeFromBlockTests
             e.Message.Contains("block 3/5"));
     }
 
+    [Theory]
+    [InlineData(MigrationStatus.Failed)]
+    [InlineData(MigrationStatus.Executing)]
+    public void RunAlwaysFileWithPartialBlocks_ReturnsZero(MigrationStatus status)
+    {
+        // Arrange: an earlier attempt of the RunAlways file committed 2 of its 5 blocks, and the file did not change
+        var file = TestFactories.CreateMigrationFile(blocksHash: "hash_abc", runAlways: true);
+        var records = new List<MigrationRecord>
+        {
+            TestFactories.CreateMigrationRecord(
+                id: 1,
+                status: status,
+                blocksHash: "hash_abc",
+                fileUpBlocksMigrated: 2,
+                fileUpBlocksTotal: 5)
+        };
+
+        // Act
+        var (result, logger) = InvokeFindResumableBlockWithLogger(file, "MainDB", records);
+
+        // Assert
+        result.Should().Be(0, because: "migrate-up runs a RunAlways file in full from its first block");
+        logger.Entries.Should().NotContain(e => e.LogLevel >= LogLevel.Information,
+            because: "running a RunAlways file in full is its rule, neither a resume nor a hash mismatch");
+        logger.Entries.Should().Contain(e =>
+            e.LogLevel == LogLevel.Debug &&
+            e.Message.Contains("RunAlways") &&
+            e.Message.Contains("2 block(s)"),
+            because: "the Debug log says that the committed blocks of the earlier attempt run again");
+    }
+
+    [Fact]
+    public void RunAlwaysFileWithoutPartialBlocks_LogsNothing()
+    {
+        // Arrange
+        var file = TestFactories.CreateMigrationFile(blocksHash: "hash_abc", runAlways: true);
+        var records = new List<MigrationRecord>
+        {
+            TestFactories.CreateMigrationRecord(
+                id: 1,
+                status: MigrationStatus.Migrated,
+                blocksHash: "hash_abc",
+                fileUpBlocksMigrated: 5,
+                fileUpBlocksTotal: 5)
+        };
+
+        // Act
+        var (result, logger) = InvokeFindResumableBlockWithLogger(file, "MainDB", records);
+
+        // Assert
+        result.Should().Be(0);
+        logger.Entries.Should().BeEmpty(because: "there is no earlier attempt whose committed blocks run again");
+    }
+
+    [Fact]
+    public void ResumableBlockOf_RunAlwaysFileWithPartialBlocks_HasNoPartialRecord()
+    {
+        // Arrange
+        var file = TestFactories.CreateMigrationFile(blocksHash: "hash_abc", runAlways: true);
+        var records = new List<MigrationRecord>
+        {
+            TestFactories.CreateMigrationRecord(
+                id: 1,
+                status: MigrationStatus.Failed,
+                blocksHash: "hash_abc",
+                fileUpBlocksMigrated: 2,
+                fileUpBlocksTotal: 5)
+        };
+
+        // Act
+        var result = MigrationService.ResumableBlockOf(file, "MainDB", records, out var partialRecord);
+
+        // Assert
+        result.Should().Be(0);
+        partialRecord.Should().BeNull(
+            because: "the status reads the resume point from the same helper as migrate-up, and a RunAlways file has none");
+    }
+
     [Fact]
     public void NotMigratedStatus_ReturnsZero()
     {

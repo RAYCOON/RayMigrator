@@ -128,6 +128,10 @@ public class DalSqlServer : DalBase, IDal
         return base.IsTransient(ex);
     }
 
+    /// <inheritdoc />
+    /// <remarks>SqlClient reports a command timeout as a <see cref="SqlException"/> with error number -2.</remarks>
+    public override bool IsTimeout(Exception ex) => ex is SqlException { Number: -2 } || base.IsTimeout(ex);
+
     public override void CheckConnectionStringOrValidateConnection(bool validateConnection)
     {
         using (var connection = new SqlConnection(_connectionString))
@@ -140,14 +144,15 @@ public class DalSqlServer : DalBase, IDal
         }
     }
 
-    public override async Task ExecuteNonQueryAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null)
+    protected override async Task ExecuteNonQueryCoreAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList, CancellationToken cancellationToken)
     {
         await ExecuteWithRetryAsync(
             () => ClearPoolOnKilledSessionAsync(
-                () => ExecuteNonQueryAsyncInternal(sqlCode, dalSettings, dalParameterList)), dalSettings);
+                () => ExecuteNonQueryAsyncInternal(sqlCode, dalSettings, dalParameterList, cancellationToken)), dalSettings,
+            cancellationToken: cancellationToken);
     }
 
-    private async Task ExecuteNonQueryAsyncInternal(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null)
+    private async Task ExecuteNonQueryAsyncInternal(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList, CancellationToken cancellationToken)
     {
         List<SqlParameter>? sqlParameterList = null;
 
@@ -164,11 +169,11 @@ public class DalSqlServer : DalBase, IDal
 
         await using (var connection = new SqlConnection(_connectionString))
         {
-            await connection.OpenAsync();
+            await connection.OpenAsync(cancellationToken);
 
             if (dalSettings.UseTransaction)
             {
-                await using SqlTransaction transaction = (SqlTransaction)await connection.BeginTransactionAsync();
+                await using SqlTransaction transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
                 try
                 {
                     await using (var command = new SqlCommand(sqlCode, connection, transaction))
@@ -178,8 +183,9 @@ public class DalSqlServer : DalBase, IDal
                         {
                             command.Parameters.AddRange(sqlParameterList.ToArray());
                         }
-                        await command.ExecuteNonQueryAsync();
+                        await command.ExecuteNonQueryAsync(cancellationToken);
                     }
+                    // No token: a commit that has started must complete, or the caller cannot tell whether it happened.
                     await transaction.CommitAsync();
                 }
                 catch
@@ -197,7 +203,7 @@ public class DalSqlServer : DalBase, IDal
                     {
                         command.Parameters.AddRange(sqlParameterList.ToArray());
                     }
-                    await command.ExecuteNonQueryAsync();
+                    await command.ExecuteNonQueryAsync(cancellationToken);
                 }
             }
         }
@@ -266,14 +272,15 @@ public class DalSqlServer : DalBase, IDal
         }
     }
 
-    public override async Task<object?> ExecuteScalarAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null)
+    protected override async Task<object?> ExecuteScalarCoreAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList, CancellationToken cancellationToken)
     {
         return await ExecuteWithRetryAsync(
             () => ClearPoolOnKilledSessionAsync(
-                () => ExecuteScalarAsyncInternal(sqlCode, dalSettings, dalParameterList)), dalSettings);
+                () => ExecuteScalarAsyncInternal(sqlCode, dalSettings, dalParameterList, cancellationToken)), dalSettings,
+            cancellationToken: cancellationToken);
     }
 
-    private async Task<object?> ExecuteScalarAsyncInternal(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null)
+    private async Task<object?> ExecuteScalarAsyncInternal(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList, CancellationToken cancellationToken)
     {
         List<SqlParameter>? sqlParameterList = null;
 
@@ -290,11 +297,11 @@ public class DalSqlServer : DalBase, IDal
 
         await using (var connection = new SqlConnection(_connectionString))
         {
-            await connection.OpenAsync();
+            await connection.OpenAsync(cancellationToken);
 
             if (dalSettings.UseTransaction)
             {
-                using SqlTransaction transaction = (SqlTransaction)await connection.BeginTransactionAsync();
+                using SqlTransaction transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
                 try
                 {
                     await using (var command = new SqlCommand(sqlCode, connection, transaction))
@@ -304,7 +311,8 @@ public class DalSqlServer : DalBase, IDal
                         {
                             command.Parameters.AddRange(sqlParameterList.ToArray());
                         }
-                        var result = await command.ExecuteScalarAsync();
+                        var result = await command.ExecuteScalarAsync(cancellationToken);
+                        // No token: a commit that has started must complete, or the caller cannot tell whether it happened.
                         await transaction.CommitAsync();
                         return result;
                     }
@@ -324,21 +332,22 @@ public class DalSqlServer : DalBase, IDal
                     {
                         command.Parameters.AddRange(sqlParameterList.ToArray());
                     }
-                    var result = await command.ExecuteScalarAsync();
+                    var result = await command.ExecuteScalarAsync(cancellationToken);
                     return result;
                 }
             }
         }
     }
 
-    public override async Task<List<Dictionary<string, object?>>> ExecuteReaderAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null)
+    protected override async Task<List<Dictionary<string, object?>>> ExecuteReaderCoreAsync(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList, CancellationToken cancellationToken)
     {
         return await ExecuteWithRetryAsync(
             () => ClearPoolOnKilledSessionAsync(
-                () => ExecuteReaderAsyncInternal(sqlCode, dalSettings, dalParameterList)), dalSettings);
+                () => ExecuteReaderAsyncInternal(sqlCode, dalSettings, dalParameterList, cancellationToken)), dalSettings,
+            cancellationToken: cancellationToken);
     }
 
-    private async Task<List<Dictionary<string, object?>>> ExecuteReaderAsyncInternal(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList = null)
+    private async Task<List<Dictionary<string, object?>>> ExecuteReaderAsyncInternal(string sqlCode, IDalSettings dalSettings, DalParameterList? dalParameterList, CancellationToken cancellationToken)
     {
         List<SqlParameter>? sqlParameterList = null;
 
@@ -357,7 +366,7 @@ public class DalSqlServer : DalBase, IDal
 
         await using (var connection = new SqlConnection(_connectionString))
         {
-            await connection.OpenAsync();
+            await connection.OpenAsync(cancellationToken);
 
             await using (var command = new SqlCommand(sqlCode, connection))
             {
@@ -367,8 +376,8 @@ public class DalSqlServer : DalBase, IDal
                     command.Parameters.AddRange(sqlParameterList.ToArray());
                 }
 
-                await using var reader = await command.ExecuteReaderAsync();
-                while (await reader.ReadAsync())
+                await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+                while (await reader.ReadAsync(cancellationToken))
                 {
                     var row = new Dictionary<string, object?>();
                     for (int i = 0; i < reader.FieldCount; i++)
@@ -384,17 +393,17 @@ public class DalSqlServer : DalBase, IDal
         return results;
     }
 
-    public override async Task<bool> IsConnectionValid(string connectionString, IDalSettings dalSettings)
+    protected override async Task<bool> IsConnectionValidCoreAsync(string connectionString, IDalSettings dalSettings, CancellationToken cancellationToken)
     {
         try
         {
             using (var connection = new SqlConnection(connectionString))
             {
-                await connection.OpenAsync();
+                await connection.OpenAsync(cancellationToken);
                 return true;
             }
         }
-        catch
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
         {
             return false;
         }
@@ -405,7 +414,7 @@ public class DalSqlServer : DalBase, IDal
         return new SqlConnection(_connectionString);
     }
 
-    public override async Task ExecuteNonQueryAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList = null)
+    protected override async Task ExecuteNonQueryCoreAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList, CancellationToken cancellationToken)
     {
         List<SqlParameter>? sqlParameterList = null;
 
@@ -426,10 +435,10 @@ public class DalSqlServer : DalBase, IDal
         {
             command.Parameters.AddRange(sqlParameterList.ToArray());
         }
-        await command.ExecuteNonQueryAsync();
+        await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    public override async Task<object?> ExecuteScalarAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList = null)
+    protected override async Task<object?> ExecuteScalarCoreAsync(string sqlCode, DbConnection connection, DbTransaction transaction, int commandTimeoutInSeconds, DalParameterList? dalParameterList, CancellationToken cancellationToken)
     {
         List<SqlParameter>? sqlParameterList = null;
 
@@ -450,7 +459,7 @@ public class DalSqlServer : DalBase, IDal
         {
             command.Parameters.AddRange(sqlParameterList.ToArray());
         }
-        return await command.ExecuteScalarAsync();
+        return await command.ExecuteScalarAsync(cancellationToken);
     }
 
     // Override this method only if you need SQL Server-specific behavior

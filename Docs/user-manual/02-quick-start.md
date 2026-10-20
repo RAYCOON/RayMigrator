@@ -211,7 +211,7 @@ You should see output similar to:
 [INF] Migration run completed. Result: Ok
 ```
 
-> **Tip:** Run with `--run-mode simulate` first to preview what would be executed without making any changes, or use `--run-mode validate` to check files and configuration without connecting to any database:
+> **Tip:** Run with `--run-mode simulate` first to preview what would be executed without making any changes, or use `--run-mode validate` to check files and configuration without connecting to the targets or writing the repository:
 > ```bash
 > raymigrator migrate-up --product BookStore --environment Development --run-mode simulate
 > ```
@@ -248,6 +248,8 @@ ORDER BY TABLE_NAME;
 | TABLE_SCHEMA | TABLE_NAME              |
 |--------------|-------------------------|
 | ray          | Environment             |
+| ray          | MigrationEvent          |
+| ray          | MigrationLog            |
 | ray          | MigrationOperation      |
 | ray          | MigrationRecord         |
 | ray          | MigrationRecordHistory  |
@@ -255,11 +257,13 @@ ORDER BY TABLE_NAME;
 | ray          | MigrationRunMeta        |
 | ray          | MigrationRunMode        |
 | ray          | MigrationRunResult      |
+| ray          | MigrationRunSource      |
 | ray          | MigrationStatus         |
 | ray          | MigratorMeta            |
 | ray          | Product                 |
+| ray          | RepositorySchemaVersion |
 
-The `MigrationRun` table contains one record for the run you just executed. The `MigrationRecord` table contains one record for `001_CreateBooks.sql`, including its SHA-256 hash, status (`Migrated = 100`), and timestamps.
+The `MigrationRun` table contains one record for the run you just executed. The `MigrationRecord` table contains one record for `001_CreateBooks.sql`, including its SHA-256 hash, status (`Migrated = 100`), and timestamps. `MigrationEvent` and `MigrationLog` hold the database log, which RayMigrator writes into the repository unless you configure otherwise.
 
 ### Hash Integrity
 

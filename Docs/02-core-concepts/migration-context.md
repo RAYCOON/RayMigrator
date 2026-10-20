@@ -73,7 +73,12 @@ public class RayMigratorConsoleOptions
     public int? FixOlderThanMinutes { get; init; }
     public MigrationStatus? FixAssumedMigrationStatus { get; init; }
     public bool? StopRollbackOnMissingRollbackFile { get; init; }
+    public MigrationCancelledAction CancelledAction { get; init; } = MigrationCancelledAction.Terminate;  // --cancelled-action
     public string? ConfigDir { get; init; }
+    public MigrationRunSource? Source { get; init; }     // the run details of MigrationRun (schema version 2)
+    public string? InitiatedBy { get; init; }
+    public string? InitiatedBySubject { get; init; }
+    public string? Host { get; init; }
 }
 ```
 
@@ -185,27 +190,40 @@ A host (RayMigrator Studio, an integration test) runs one operation per context.
 2. Open the masking scope for the async flow of the run: `using var scope = SensitiveDataMasker.BeginScope(revealSensitiveData);`. Without an active scope or global initialization the masker is off and the MigrationRun settings snapshot stores connection strings unmasked.
 3. `factory.Create(options, consoleOptions)`. It reduces a copy of the options to the product of the run and throws for a blank or unknown alias before anything is prepared; the caller's options keep every product. The returned context carries the copy and is current for the calling async flow; set `context.ProgressObserver` before the operation if the host wants progress events.
 4. `templateCache.ValidateConfigurationAgainstTemplateCache(context.RayMigratorOptions)` after the context exists, so that the check judges the repository and the target groups of this product only. Optionally `ConnectionValidator.ValidateTargetConnections(context, logger)`: it opens the connections the command's profile needs and fails fast with a clear message.
-5. Call the operation on a scoped `IMigrationService`. The request must agree with the context: `MigrateUpAsync`, `MigrateDownAsync` and `BaselineAsync` refuse a request whose run mode, target release or environment differs from the console options of the context (#6, #17).
+5. Call the operation on a scoped `IMigrationService`. The request must agree with the context: `MigrateUpAsync`, `MigrateDownAsync` and `BaselineAsync` refuse a request whose run mode, target release or environment differs from the console options of the context (#6, #17). Every method takes a `CancellationToken`; a host that lets the user choose what a cancelled migrate-up does passes a `RunCancellation` in the request of migrate-up, migrate-down or baseline and calls `Cancel(action, reason)` on it. The run stops at the next block boundary and returns its result (see [Error Handling: Cancellation](error-handling.md#cancellation)).
 6. Dispose the scope. The next run gets a fresh scope, a fresh context and a fresh `TemplateExecutor` (it caches the repository of the first context it sees, so it is registered as scoped).
 
-Per process, not per run: one `TemplateCache` (`new TemplateCache(revealSensitiveData, logger)`; the check against it runs per run on the context's options, step 4), the `DatabaseLogWriter` and its Serilog sink when database logging is wanted, and the Serilog logger with `MigrationContextEnricher`, which reads `MigrationLoggingContext.Current` and stamps every event with run, release, target group, target, file and block.
+Per process, not per run: one `TemplateCache` (`new TemplateCache(revealSensitiveData, logger)`; the check against it runs per run on the context's options, step 4), the `DatabaseLogWriter` and its Serilog sink when database logging is wanted (initialized once per log database with `await InitDatabaseLoggerAsync(...)`, which runs `DatabaseLogging_CheckCreate` and adds the `MigrationLog` indexes to a log table that lacks them), and the Serilog logger with `MigrationContextEnricher`, which reads `MigrationLoggingContext.Current` and stamps every event with run, release, target group, target, file and block.
 
 #### Creating or upgrading a repository without a run
 
 A host that manages repositories (RayMigrator Studio registers them before any product runs against them) creates or upgrades a repository through `IRepositorySchemaService` (`Raycoon.RayMigrator.Services.Abstractions`, registered by `AddRayMigratorServices`, implemented by `RepositorySchemaService`):
 
 ```csharp
-RepositorySchemaResult result = schemaService.Ensure(new RepositoryOptions
+RepositorySchemaResult result = await schemaService.EnsureAsync(new RepositoryOptions
 {
     DatabaseType = "PostgreSQL",
     ConnectionString = connectionString,
     SchemaName = "ray",
     TableBaseName = ""
-});
+}, cancellationToken);
 // result.Created, result.Upgraded, result.VersionBefore, result.VersionAfter, result.MigratorMetaId
 ```
 
-`Ensure` needs no product, no environment and no context. It validates the options the way the context factory validates the repository of a run (the data annotations write the documented defaults into null command settings, the database type must have a DAL and templates, the schema name is checked against the DAL capabilities), masks the secrets of the options for the log, and runs the schema steps of ADR-024 through `RepositorySchemaExecutor`: `Repository_CheckCreate`, every missing `Repository_Upgrade_{n}` up to `RepositorySchema.CurrentVersion`, `Repository_MigratorMeta_CheckInsert`. A repository with tables but no schema version or with a newer version is refused with `RepositorySchemaException` before anything is written. The service depends on the host's `TemplateCache`, so register the cache before resolving it.
+`EnsureAsync` needs no product, no environment and no context; its token reaches the DAL call of every schema step. It validates the options the way the context factory validates the repository of a run (the data annotations write the documented defaults into null command settings, the database type must have a DAL and templates, the schema name is checked against the DAL capabilities), masks the secrets of the options for the log, and runs the schema steps of ADR-024 through `RepositorySchemaExecutor`: `Repository_CheckCreate`, every missing `Repository_Upgrade_{n}` up to `RepositorySchema.CurrentVersion`, `Repository_MigratorMeta_CheckInsert`. A repository with tables but no schema version or with a newer version is refused with `RepositorySchemaException` before a schema step runs or a row is written (`Repository_CheckCreate` may have created the empty version table). The service depends on the host's `TemplateCache`, so register the cache before resolving it.
+
+#### Cleaning up old history and log rows
+
+A host that applies a retention policy deletes old rows of `MigrationRecordHistory` and `MigrationLog` through `IRepositoryMaintenanceService` (registered next to the schema service, implemented by `RepositoryMaintenanceService`), again from the repository options alone:
+
+```csharp
+RetentionResult cleanup = await maintenanceService.CleanUpAsync(repositoryOptions,
+    new RetentionRequest(HistoryCutoffUtc: DateTime.UtcNow.AddDays(-180), LogCutoffUtc: DateTime.UtcNow.AddDays(-30)),
+    cancellationToken);
+// cleanup.HistoryRows, cleanup.LogRows, cleanup.Batches, cleanup.Completed, cleanup.LogSkipped, cleanup.Message
+```
+
+It validates the options like `EnsureAsync`, refuses a database without a repository, a repository without a schema version and a newer one with `RepositorySchemaException`, cleans an older one without upgrading it, deletes in batches within a time budget and never touches the rows of a run that is still open. The engine reads neither table for a decision ([ADR-027](../arc42/09-Architecture-Decisions.md#adr-027-the-engine-deletes-log-and-history-rows-on-a-hosts-request-and-never-reads-them-for-a-decision)); see [Repository Schema: Retention](../03-database-layer/repository-schema.md#retention) for the rules.
 
 Process-global state a host shares between runs: `SensitiveDataMasker` (per-flow scopes isolate runs; `Initialize` sets the global mode the CLI uses), `MigrationLoggingContext` and `AsyncLocalMigrationContextAccessor` (both `AsyncLocal`, isolated per async flow), `DalFactory` (type map and DAL instances per database type and connection string, safe to share). The repository lock allows one run per product and environment; runs of different combinations may execute in parallel in separate scopes and async flows. `DirectModePipeline` stays CLI-only: it replaces the static `Log.Logger`, writes to the console and returns an exit code.
 
@@ -244,7 +262,7 @@ sequenceDiagram
     Factory-->>Host: ctx
     Host->>Host: ctx.ProgressObserver = observer
 
-    Host->>Svc: MigrateUpAsync(request)
+    Host->>Svc: MigrateUpAsync(request, cancellationToken)
     Svc->>Accessor: _ctxAccessor.Current (reads the context of this async flow)
     Svc->>Observer: OnRunStarted, OnFileStarted, OnBlockCompleted, OnFileCompleted, ...
     Svc-->>Host: MigrationOperationResult (MigrationRunId, per-file results)
@@ -299,8 +317,9 @@ sequenceDiagram
 | `Undefined` (0) | Invalid value -- ResultId has not been set properly |
 | `Running` (10) | Migration process is currently running |
 | `PartialSuccess` (50) | The run finished, but at least one file was skipped or left `Failed`: a migrate-up that continued past a failure with `MigrationErrorAction.Ignore`, or a migrate-down that skipped a missing rollback file or ignored a failed rollback block (`RollbackErrorAction.Ignore`). CLI exit code unchanged (1 for migrate-up, 0 for migrate-down) (#18) |
+| `Cancelled` (70) | The host or the CLI cancelled the run and it stopped at the next block or file boundary: a migrate-up whose `MigrationCancelledAction` completed, or a migrate-down or baseline that stopped. A cancelled migrate-up whose rollback did not complete cleanly is `Error`, and so is a migrate-up that failed at a file before the cancel stopped its error recovery, with the code of the failure. CLI exit code 130 |
 | `Recovered` (80) | A migrate-up failed and the configured error recovery (`Rollback`, `RollbackRelease` or `RollbackErrorOnly`) completed without a failure or warning: every record the recovery touched is `NotMigrated` again. Terminate, Ignore, a rollback failure, a skipped or missing rollback file and a stopped chain are persisted as `Error`. CLI exit code stays 1 (#18) |
-| `Error` (90) | Migration(s) stopped due to error(s): aborted without recovery, or the error recovery did not complete cleanly |
+| `Error` (90) | Migration(s) stopped due to error(s): aborted without recovery, or the error recovery did not complete cleanly, also when a cancel stopped it |
 | `Ok` (100) | Migration(s) successfully executed and finished |
 
 ### MigrationStatus

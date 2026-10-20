@@ -34,7 +34,7 @@ public class MySqlSessionTimezoneTests : MySqlTestBase
         DalFactory.TryGetDal("MySql", Fixture.EngineConfig.ConnectionString, out IDal? dal)
             .Should().BeTrue("the MySql DAL must be discoverable by DalFactory");
 
-        var result = await dal!.ExecuteScalarAsync("SELECT @@session.time_zone", Settings);
+        var result = await dal!.ExecuteScalarAsync("SELECT @@session.time_zone", Settings, cancellationToken: TestContext.Current.CancellationToken);
 
         result.Should().NotBeNull("SELECT @@session.time_zone must return a non-null value");
         result!.ToString().Should().Be("+00:00",
@@ -51,10 +51,10 @@ public class MySqlSessionTimezoneTests : MySqlTestBase
 
         const string tableName = "_dal014_tz_test";
 
-        await dal!.ExecuteNonQueryAsync($"DROP TABLE IF EXISTS `{tableName}`;", Settings);
+        await dal!.ExecuteNonQueryAsync($"DROP TABLE IF EXISTS `{tableName}`;", Settings, cancellationToken: TestContext.Current.CancellationToken);
         await dal.ExecuteNonQueryAsync(
             $"CREATE TABLE `{tableName}` (`Id` INT NOT NULL AUTO_INCREMENT, `Ts` TIMESTAMP(3) NOT NULL, PRIMARY KEY (`Id`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;",
-            Settings);
+            Settings, cancellationToken: TestContext.Current.CancellationToken);
 
         try
         {
@@ -63,11 +63,11 @@ public class MySqlSessionTimezoneTests : MySqlTestBase
 
             await dal.ExecuteNonQueryAsync(
                 $"INSERT INTO `{tableName}` (`Ts`) VALUES ('{writtenText}');",
-                Settings);
+                Settings, cancellationToken: TestContext.Current.CancellationToken);
 
             var obj = await dal.ExecuteScalarAsync(
                 $"SELECT `Ts` FROM `{tableName}` ORDER BY `Id` DESC LIMIT 1;",
-                Settings);
+                Settings, cancellationToken: TestContext.Current.CancellationToken);
 
             obj.Should().NotBeNull("the inserted TIMESTAMP row must be readable");
             var read = Convert.ToDateTime(obj!);
@@ -78,7 +78,7 @@ public class MySqlSessionTimezoneTests : MySqlTestBase
         }
         finally
         {
-            await dal.ExecuteNonQueryAsync($"DROP TABLE IF EXISTS `{tableName}`;", Settings);
+            await dal.ExecuteNonQueryAsync($"DROP TABLE IF EXISTS `{tableName}`;", Settings, cancellationToken: TestContext.Current.CancellationToken);
         }
     }
 }
@@ -104,7 +104,7 @@ public class MariaDbSessionTimezoneTests : MariaDbTestBase
         DalFactory.TryGetDal("MariaDb", Fixture.EngineConfig.ConnectionString, out IDal? dal)
             .Should().BeTrue("the MariaDb DAL must be discoverable by DalFactory");
 
-        var result = await dal!.ExecuteScalarAsync("SELECT @@session.time_zone", Settings);
+        var result = await dal!.ExecuteScalarAsync("SELECT @@session.time_zone", Settings, cancellationToken: TestContext.Current.CancellationToken);
 
         result.Should().NotBeNull("SELECT @@session.time_zone must return a non-null value");
         result!.ToString().Should().Be("+00:00",
@@ -121,10 +121,10 @@ public class MariaDbSessionTimezoneTests : MariaDbTestBase
 
         const string tableName = "_dal014_tz_test";
 
-        await dal!.ExecuteNonQueryAsync($"DROP TABLE IF EXISTS `{tableName}`;", Settings);
+        await dal!.ExecuteNonQueryAsync($"DROP TABLE IF EXISTS `{tableName}`;", Settings, cancellationToken: TestContext.Current.CancellationToken);
         await dal.ExecuteNonQueryAsync(
             $"CREATE TABLE `{tableName}` (`Id` INT NOT NULL AUTO_INCREMENT, `Ts` TIMESTAMP(3) NOT NULL, PRIMARY KEY (`Id`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;",
-            Settings);
+            Settings, cancellationToken: TestContext.Current.CancellationToken);
 
         try
         {
@@ -133,11 +133,11 @@ public class MariaDbSessionTimezoneTests : MariaDbTestBase
 
             await dal.ExecuteNonQueryAsync(
                 $"INSERT INTO `{tableName}` (`Ts`) VALUES ('{writtenText}');",
-                Settings);
+                Settings, cancellationToken: TestContext.Current.CancellationToken);
 
             var obj = await dal.ExecuteScalarAsync(
                 $"SELECT `Ts` FROM `{tableName}` ORDER BY `Id` DESC LIMIT 1;",
-                Settings);
+                Settings, cancellationToken: TestContext.Current.CancellationToken);
 
             obj.Should().NotBeNull("the inserted TIMESTAMP row must be readable");
             var read = Convert.ToDateTime(obj!);
@@ -148,7 +148,7 @@ public class MariaDbSessionTimezoneTests : MariaDbTestBase
         }
         finally
         {
-            await dal.ExecuteNonQueryAsync($"DROP TABLE IF EXISTS `{tableName}`;", Settings);
+            await dal.ExecuteNonQueryAsync($"DROP TABLE IF EXISTS `{tableName}`;", Settings, cancellationToken: TestContext.Current.CancellationToken);
         }
     }
 }

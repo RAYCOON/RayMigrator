@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using AwesomeAssertions;
 
 namespace Raycoon.RayMigrator.Tests.Unit;
@@ -99,7 +100,63 @@ public class SqlTemplateStructureTests
 
     #endregion
 
+    #region Product and Environment registration under parallel first starts
+
+    [Theory]
+    [InlineData("Repository_Product_CheckInsert.sql")]
+    [InlineData("Repository_Environment_CheckInsert.sql")]
+    public void SqlServer_CheckInsert_LocksTheNameInATransaction(string templateFile)
+    {
+        var sql = StripComments(File.ReadAllText(GetTemplatePath("SqlServer", templateFile)));
+
+        sql.Should().Contain("BEGIN TRANSACTION", $"{templateFile} should look the name up and insert it in one transaction");
+        sql.Should().Contain("WITH (UPDLOCK, ROWLOCK, HOLDLOCK)",
+            $"{templateFile} should lock the name also while it has no row, so that a parallel first start waits instead of failing on the unique index");
+        sql.Should().Contain("COMMIT TRANSACTION", $"{templateFile} should commit the transaction");
+    }
+
+    [Theory]
+    [InlineData("Repository_Product_CheckInsert.sql")]
+    [InlineData("Repository_Environment_CheckInsert.sql")]
+    public void PostgreSql_CheckInsert_ToleratesAParallelFirstRegistration(string templateFile)
+    {
+        var sql = StripComments(File.ReadAllText(GetTemplatePath("PostgreSQL", templateFile)));
+
+        sql.Should().Contain("ON CONFLICT (name_lower) DO NOTHING",
+            $"{templateFile} should keep the row of a parallel first start instead of failing on the unique index");
+    }
+
+    [Theory]
+    [InlineData("MariaDb", "Repository_Product_CheckInsert.sql")]
+    [InlineData("MariaDb", "Repository_Environment_CheckInsert.sql")]
+    [InlineData("MySql", "Repository_Product_CheckInsert.sql")]
+    [InlineData("MySql", "Repository_Environment_CheckInsert.sql")]
+    public void MariaDbMySql_CheckInsert_ToleratesAParallelFirstRegistration(string engine, string templateFile)
+    {
+        var sql = StripComments(File.ReadAllText(GetTemplatePath(engine, templateFile)));
+
+        sql.Should().Contain("ON DUPLICATE KEY UPDATE",
+            $"{engine} {templateFile} should keep the row of a parallel first start instead of failing on the duplicate key");
+        sql.Should().NotContain("INSERT IGNORE", $"{engine} {templateFile} should not turn errors of the strict mode into warnings");
+    }
+
+    [Theory]
+    [InlineData("Repository_Product_CheckInsert.sql")]
+    [InlineData("Repository_Environment_CheckInsert.sql")]
+    public void Sqlite_CheckInsert_ToleratesAParallelFirstRegistration(string templateFile)
+    {
+        var sql = StripComments(File.ReadAllText(GetTemplatePath("Sqlite", templateFile)));
+
+        sql.Should().Contain("ON CONFLICT (\"NameLower\") DO NOTHING",
+            $"{templateFile} should keep the row of a parallel first start instead of failing on the unique index");
+    }
+
+    #endregion
+
     #region Helper Methods
+
+    /// <summary>The SQL of a template without its block comments and its line comments.</summary>
+    private static string StripComments(string sql) => Regex.Replace(sql, @"/\*.*?\*/|--[^\n]*", string.Empty, RegexOptions.Singleline);
 
     /// <summary>
     /// Gets the path to a SQL template file relative to the Database project output.

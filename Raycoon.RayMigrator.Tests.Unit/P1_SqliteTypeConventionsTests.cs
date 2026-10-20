@@ -215,6 +215,7 @@ public class SqliteTypeConventionsTests
         new object[] { "Repository_CheckCreate.sql" },
         new object[] { "Repository_Upgrade_1.sql" },
         new object[] { "Repository_Upgrade_2.sql" },
+        new object[] { "Repository_Upgrade_3.sql" },
         new object[] { "Repository_MigratorMeta_CheckInsert.sql" },
         new object[] { "Repository_Environment_CheckInsert.sql" },
         new object[] { "Repository_MigrationRecord_FixOrphaned.sql" },
@@ -227,6 +228,9 @@ public class SqliteTypeConventionsTests
         new object[] { "Repository_MigrationRun_Insert.sql" },
         new object[] { "Repository_MigrationRun_Update.sql" },
         new object[] { "Repository_Product_CheckInsert.sql" },
+        new object[] { "Repository_MigrationRecordHistory_Delete.sql" },
+        new object[] { "DatabaseLogging_Delete.sql" },
+        new object[] { "DatabaseLogging_Count.sql" },
     };
 
     public static IEnumerable<object[]> SingleStatementTemplates => new[]
@@ -240,6 +244,7 @@ public class SqliteTypeConventionsTests
         new object[] { "Repository_MigrationRun_SelectOrphaned.sql" },
         new object[] { "Repository_Product_Select.sql" },
         new object[] { "Repository_Environment_Select.sql" },
+        new object[] { "Repository_MigrationRecordHistory_Count.sql" },
     };
 
     [Theory]
@@ -249,9 +254,9 @@ public class SqliteTypeConventionsTests
         var content = ReadTemplate("Sqlite", templateFile);
 
         content.Should().Contain(TransactionMarker,
-            $"'{templateFile}' is a multi-statement template and must carry the DAL-024 transaction requirement comment " +
-            "to warn operators that manual sqlite3 CLI execution requires BEGIN TRANSACTION/COMMIT; " +
-            "see .implement/03-templates.md for the classification rationale");
+            $"'{templateFile}' is a multi-statement template and must carry the DAL-024 transaction requirement comment, " +
+            "which says that the engine runs it without a transaction of the driver, so that every statement commits on " +
+            "its own unless the template opens BEGIN IMMEDIATE ... COMMIT itself");
     }
 
     [Theory]
