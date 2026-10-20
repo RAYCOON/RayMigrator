@@ -442,7 +442,7 @@ contact (`Repository_CheckCreate` and the schema steps) and keeps the DDL rights
 the account of the log needs the right to create indexes once, for the start that adds the `MigrationLog` indexes; otherwise DML
 suffices, `DELETE` on history and log only for a host's retention. `SECURITY.md` asks operators to restrict database accounts to
 what the migrations need and to keep a verified backup; vulnerabilities are reported privately (GitHub private reporting or
-`raymigrator@raycoon.com`), acknowledged within five business days and fixed in the latest 0.19.x only.
+`raymigrator@raycoon.com`), acknowledged within five business days and fixed in the latest 0.20.x only.
 Authoritative pages: [Security policy](https://github.com/RAYCOON/RayMigrator/blob/main/SECURITY.md), [Environment variables](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/06-configuration-reference/environment-variables.md), [CLI tools options](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/06-configuration-reference/cli-tools-options.md).
 
 ## 8.7 Development Concepts

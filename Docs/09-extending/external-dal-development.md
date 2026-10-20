@@ -66,9 +66,9 @@ Then reference them in your external project:
 
 ```xml
 <ItemGroup>
-    <!-- Version = RayMigratorVersion in Directory.Build.props of the release you build against (0.20.0 on develop; 0.19.0 is the latest published package) -->
-    <PackageReference Include="Raycoon.RayMigrator.Database.Common" Version="0.19.0" />
-    <PackageReference Include="Raycoon.RayMigrator.Shared" Version="0.19.0" />
+    <!-- Version = RayMigratorVersion in Directory.Build.props of the release you build against (0.21.0 on develop; 0.20.0 is the latest published package) -->
+    <PackageReference Include="Raycoon.RayMigrator.Database.Common" Version="0.20.0" />
+    <PackageReference Include="Raycoon.RayMigrator.Shared" Version="0.20.0" />
     <PackageReference Include="YourDb.AdoNetDriver" Version="..." />
 </ItemGroup>
 ```

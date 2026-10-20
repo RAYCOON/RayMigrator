@@ -3,7 +3,7 @@
 ## Supported versions
 
 RayMigrator is pre-1.0. Security fixes are provided for the **latest
-released 0.19.x version only**; older versions do not receive patches.
+released 0.20.x version only**; older versions do not receive patches.
 Each release lists its dependency updates and any security-relevant
 changes in [CHANGELOG.md](CHANGELOG.md).
 

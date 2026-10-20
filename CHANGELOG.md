@@ -7,6 +7,8 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ## [Unreleased]
 
+## [0.20.0] — 2026-10-20
+
 ### Added
 
 - A host can cancel a run and choose what the run does when it stops. The
