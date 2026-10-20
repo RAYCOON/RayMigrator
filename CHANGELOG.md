@@ -754,6 +754,22 @@ RayMigrator follows Semantic Versioning where applicable.
   token, and its output is read without the token, so a cancel that arrives
   after the tool got the whole file and
   exited keeps its result.
+- A CLI tool in `Stdin` mode no longer hangs a run when it writes output
+  while it reads the migration file, and `CliToolTimeoutInSeconds` now also
+  covers the write of the file to the standard input of the tool.
+  `CliToolExecutor` wrote the whole file before it started to read the
+  output of the tool and before the timeout began: a tool that writes
+  output as it reads stopped reading once its output pipe was full, so the
+  write of a file larger than the pipe buffers never ended, and a tool that
+  does not read its standard input held the run until it ended on its own.
+  The timeout applied to neither, and a rollback file, which runs its tool
+  without the cancellation token, could hang migrate-down, the error
+  recovery of a `MigrationErrorAction` and the rollback of a
+  `MigrationCancelledAction` until the process was ended. The executor now
+  reads the output from the start and ends the write at the timeout as it
+  ends the wait for the exit: it kills the tool and throws
+  `CliToolTimeoutException`. Every version with CLI tools in `Stdin` mode
+  has the fault.
 - `TargetGroupStatus.LastMigrationDate` is set: the `FinishedAt` (UTC) of the
   Migrated record of the target group that finished last, null when none has
   an end. It was never set before.

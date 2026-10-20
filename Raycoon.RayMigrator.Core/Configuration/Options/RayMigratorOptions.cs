@@ -642,7 +642,8 @@ public class CliToolOptions
     #endregion SuccessExitCodes
 
     /// <summary>
-    /// Maximum time in seconds to wait for the CLI tool to complete. Default: 120.
+    /// Maximum time in seconds for the CLI tool to complete, counted from its start; in Stdin mode it covers the write of
+    /// the migration file to the standard input of the tool as well. Default: 120.
     /// </summary>
     [RayRangeInt(1, int.MaxValue, 120)]
     public int? CliToolTimeoutInSeconds { get; set; }

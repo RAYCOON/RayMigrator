@@ -286,7 +286,10 @@ public class CliToolExecutorTests : IDisposable
 
     // ── Input the tool does not read ─────────────────────────────────────────
 
-    /// <summary>More input than a pipe buffer holds, so that the write cannot complete before a tool that reads nothing exits.</summary>
+    /// <summary>
+    /// More input than the input and the output pipe of a tool hold together, so that the write cannot complete before a tool
+    /// that reads nothing exits, and a tool that writes what it reads fills its output pipe long before the end.
+    /// </summary>
     private static string LargerThanAPipe()
         => string.Concat(Enumerable.Repeat("SELECT 1; -- a line of input that no pipe buffer holds all of\n", 40000));
 
@@ -324,6 +327,59 @@ public class CliToolExecutorTests : IDisposable
         var thrown = await act.Should().ThrowAsync<CliToolExecutionException>(
             because: "a tool that did not get the whole file cannot have run it, whatever its exit code says");
         thrown.Which.Message.Should().Contain("exited with code 0 before it read all of 'test.sql'");
+    }
+
+    // ── Full pipes and the timeout ───────────────────────────────────────────
+
+    [Fact]
+    public async Task StdinMode_ToolEchoesMoreThanItsPipesHold_SucceedsWithinTheTimeout()
+    {
+        if (!OperatingSystem.IsMacOS() && !OperatingSystem.IsLinux()) return;
+
+        // Arrange: cat writes what it reads to its output, so it stops reading once its output pipe is full unless the output
+        // is read while the input is written; the caller gives up after ten seconds, so that a write that never ends fails
+        // the test instead of hanging it
+        string content = LargerThanAPipe();
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        cts.CancelAfter(TimeSpan.FromSeconds(10));
+        var request = CreateRequest(
+            executablePath: "/bin/cat",
+            inputMode: CliToolInputMode.Stdin,
+            fileContent: content,
+            timeoutInSeconds: 5);
+
+        // Act
+        var result = await _executor.ExecuteAsync(request, cts.Token);
+
+        // Assert
+        result.Success.Should().BeTrue(because: "the output of the tool is read while its input is written");
+        result.StandardOutput.Should().HaveLength(content.Length, because: "the tool wrote all of its input to its output");
+    }
+
+    [Fact]
+    public async Task StdinMode_ToolDoesNotReadItsInput_IsKilledAtTheTimeout()
+    {
+        if (!OperatingSystem.IsMacOS() && !OperatingSystem.IsLinux()) return;
+
+        // Arrange: the tool writes its pid and sleeps without reading its input, so the write of the file cannot complete;
+        // the caller gives up after ten seconds
+        string pidFile = Path.Combine(Path.GetTempPath(), $"raycli_timeout_{Guid.NewGuid():N}.pid");
+        _tempFiles.Add(pidFile);
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        cts.CancelAfter(TimeSpan.FromSeconds(10));
+        var request = CreateRequest(
+            executablePath: "/bin/bash",
+            arguments: $"-c \"echo $$ > {pidFile}; exec sleep 30\"",
+            inputMode: CliToolInputMode.Stdin,
+            fileContent: LargerThanAPipe(),
+            timeoutInSeconds: 1);
+
+        // Act
+        var act = () => _executor.ExecuteAsync(request, cts.Token);
+
+        // Assert
+        await act.Should().ThrowAsync<CliToolTimeoutException>(because: "the timeout covers the write of the input as well");
+        (await HasExitedAsync(await ReadPidAsync(pidFile))).Should().BeTrue(because: "the timeout kills the tool");
     }
 
     // ── Cancellation ─────────────────────────────────────────────────────────

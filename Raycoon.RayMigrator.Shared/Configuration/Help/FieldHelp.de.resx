@@ -284,7 +284,7 @@ Offener Bereich nach oben: "10.." -- trifft auf 10, 11, 12, ... zu.
 Offener Bereich nach unten: "..-1" -- trifft auf ..., -3, -2, -1 zu.
 Kombiniert: ["0", "100..110"] -- trifft auf 0 und 100 bis 110 zu.</value></data>
   <data name="CliTool_Timeout_Title" xml:space="preserve"><value>CLI-Werkzeug - Timeout</value></data>
-  <data name="CliTool_Timeout_Description" xml:space="preserve"><value>Maximale Wartezeit in Sekunden für die Ausführung des CLI-Werkzeugs. Standard: 120.</value></data>
+  <data name="CliTool_Timeout_Description" xml:space="preserve"><value>Maximale Zeit in Sekunden für die Ausführung des CLI-Werkzeugs, gezählt ab seinem Start; im Stdin-Modus umfasst sie auch das Schreiben der Migrationsdatei in die Standardeingabe des Werkzeugs. Standard: 120.</value></data>
   <data name="CliTool_Timeout_DefaultValue" xml:space="preserve"><value>120</value></data>
 
   <!-- Serilog -->

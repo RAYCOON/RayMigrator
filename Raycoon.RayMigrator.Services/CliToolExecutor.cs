@@ -41,7 +41,8 @@ public class CliToolExecutionResult
 public interface ICliToolExecutor
 {
     /// <summary>
-    /// Runs the tool for one migration file and waits for it within the timeout of the request.
+    /// Runs the tool for one migration file and waits for it within the timeout of the request, which counts from the start
+    /// of the tool and covers the write of the file to its standard input in Stdin mode.
     /// </summary>
     /// <param name="request">The tool, its arguments and the file.</param>
     /// <param name="cancellationToken">
@@ -57,7 +58,9 @@ public interface ICliToolExecutor
     /// The tool could not be started, or it ended with a success code in Stdin mode before it read the whole file and the
     /// caller did not cancel.
     /// </exception>
-    /// <exception cref="CliToolTimeoutException">The tool ran longer than the timeout and was killed.</exception>
+    /// <exception cref="CliToolTimeoutException">
+    /// The tool ran longer than the timeout, also one that did not read the file from its standard input, and was killed.
+    /// </exception>
     /// <exception cref="OperationCanceledException">
     /// The caller cancelled: the tool was killed, or it failed after the cancel (Ctrl+C reaches the whole process group on
     /// Linux and macOS, so the tool gets the signal as well), or it ended after the cancel before it got the whole file in
@@ -151,8 +154,12 @@ public class CliToolExecutor : ICliToolExecutor
 
         try
         {
-            Task<string>? stdoutTask = null;
-            Task<string>? stderrTask = null;
+            // Read stdout and stderr from the start, before the input is written and before the wait for the exit: a tool
+            // that writes output while it reads its input stops reading once its output pipe is full, and the write of the
+            // input would then wait for it forever. The reads take no token: the pipes close when the tool exits or is
+            // killed, and a cancel that arrives after the tool finished must not discard what it did.
+            var stdoutTask = process.StandardOutput.ReadToEndAsync();
+            var stderrTask = process.StandardError.ReadToEndAsync();
 
             // Whether the tool did not get the whole file on its standard input: true in Stdin mode until the write of the file
             // completed, so that a write the cancel cut off leaves the input incomplete like a write that met a closed pipe
@@ -160,21 +167,16 @@ public class CliToolExecutor : ICliToolExecutor
 
             try
             {
+                // The timeout covers the write of the input as well: a tool that does not read its input ends at the
+                // timeout like a tool that does not exit
+                using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                timeoutCts.CancelAfter(TimeSpan.FromSeconds(request.TimeoutInSeconds));
+
                 // If Stdin mode: write file content and close stdin
                 if (request.InputMode == CliToolInputMode.Stdin && request.FileContent != null)
                 {
-                    inputIncomplete = !await WriteInputAsync(process, request, cancellationToken);
+                    inputIncomplete = !await WriteInputAsync(process, request, timeoutCts.Token);
                 }
-
-                // Read stdout and stderr BEFORE WaitForExitAsync to prevent deadlocks. The reads take no token: the
-                // pipes close when the tool exits or is killed, and a cancel that arrives after the tool finished must
-                // not discard what it did.
-                stdoutTask = process.StandardOutput.ReadToEndAsync();
-                stderrTask = process.StandardError.ReadToEndAsync();
-
-                // Wait for process with timeout
-                using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                timeoutCts.CancelAfter(TimeSpan.FromSeconds(request.TimeoutInSeconds));
 
                 await _waitForExitAsync(process, timeoutCts.Token);
             }
@@ -202,14 +204,15 @@ public class CliToolExecutor : ICliToolExecutor
                         $"CLI tool '{request.ExecutablePath}' was cancelled while executing '{request.Filename}'.", cancellationToken);
                 }
 
-                // The tool exited before the cancel took effect, which overtook its exit event: the exit code decides below
+                // The tool exited before the cancel took effect, which overtook its exit event: the exit code and whether the
+                // tool got the whole file decide below
                 _logger.LogDebug("CLI tool {ExecutablePath} exited before the cancel took effect for {Filename}",
                     request.ExecutablePath, request.Filename);
             }
 
-            // The pipes are closed once the tool exited, so reads that had not started yet end at once
-            var stdout = await (stdoutTask ?? process.StandardOutput.ReadToEndAsync());
-            var stderr = await (stderrTask ?? process.StandardError.ReadToEndAsync());
+            // The pipes close once the tool exited, so the reads end
+            var stdout = await stdoutTask;
+            var stderr = await stderrTask;
             stopwatch.Stop();
 
             // Log output
@@ -297,13 +300,16 @@ public class CliToolExecutor : ICliToolExecutor
     /// <summary>
     /// Writes the file to the standard input of the tool and closes it. Returns false when the tool closed its input
     /// before it read the whole file, because it exited or does not read its input: the write meets a broken pipe and
-    /// fails with an <see cref="IOException"/>, and the exit code of the tool decides.
+    /// fails with an <see cref="IOException"/>, and the exit code of the tool decides. The timeout or the cancel of
+    /// <paramref name="cancellationToken"/> ends the wait for the write with an <see cref="OperationCanceledException"/>,
+    /// also where the write does not observe the token (the pipes to a tool are synchronous on Windows): the kill that
+    /// follows breaks the pipe, which ends the write.
     /// </summary>
     private async Task<bool> WriteInputAsync(Process process, CliToolExecutionRequest request, CancellationToken cancellationToken)
     {
         try
         {
-            await process.StandardInput.WriteAsync(request.FileContent.AsMemory(), cancellationToken);
+            await process.StandardInput.WriteAsync(request.FileContent.AsMemory(), cancellationToken).WaitAsync(cancellationToken);
             process.StandardInput.Close();
             return true;
         }

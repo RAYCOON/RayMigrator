@@ -1179,8 +1179,9 @@ public class CliToolExecutionResult
 
 `CliToolExecutor` implements this interface using `System.Diagnostics.Process`. It:
 - Starts the external process with redirected stdout, stderr, and optionally stdin
+- Reads stdout and stderr from the start of the tool, so that a tool that writes output while it reads its input cannot block the write of the input
 - Writes file content to stdin when `InputMode = Stdin`
-- Enforces a configurable timeout (`CliToolTimeoutInSeconds`, default 120s); kills the process tree on timeout
+- Enforces a configurable timeout (`CliToolTimeoutInSeconds`, default 120s) from the start of the tool, which covers the write of the input as well, so that a tool that does not read its input ends at the timeout too; kills the process tree on timeout
 - Kills the process tree as well when the caller cancels, and then throws `OperationCanceledException`; a tool is not started when the token is already cancelled, the write to its standard input observes the token, and its output is read without the token, so a cancel that arrives after the tool got the whole file and exited keeps its result
 - Evaluates the exit code against the `ExitCodeMatcher` whitelist (built from `SuccessExitCodes`, default `["0"]`). Any exit code not matched is treated as failure. In `Stdin` mode a tool that exits before it read the whole file is judged by its exit code as well, and a success code then throws `CliToolExecutionException`, because the tool cannot have run the whole file.
 - Arguments are not logged (may contain passwords from `CliToolParameters`); only the executable path and filename are logged

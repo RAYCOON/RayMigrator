@@ -919,6 +919,7 @@ ADO.NET pools physical connections. Every pooled session was authenticated befor
 
 **Symptoms:**
 - `CliToolTimeoutException`: "CLI tool 'psql' timed out after 120 seconds"
+- A tool in `Stdin` mode that does not read its standard input ends at the timeout as well, because the timeout covers the write of the migration file to the tool: check that its `ArgumentTemplate` makes it read the SQL from its standard input
 
 **Solutions:**
 

@@ -284,7 +284,7 @@ Open-ended up: "10.." -- matches 10, 11, 12, ...
 Open-ended down: "..-1" -- matches ..., -3, -2, -1.
 Combined: ["0", "100..110"] -- matches 0 and 100 through 110.</value></data>
   <data name="CliTool_Timeout_Title" xml:space="preserve"><value>CLI Tool - Timeout</value></data>
-  <data name="CliTool_Timeout_Description" xml:space="preserve"><value>Maximum time in seconds to wait for the CLI tool to complete. Default: 120.</value></data>
+  <data name="CliTool_Timeout_Description" xml:space="preserve"><value>Maximum time in seconds for the CLI tool to complete, counted from its start; in Stdin mode it covers the write of the migration file to the standard input of the tool as well. Default: 120.</value></data>
   <data name="CliTool_Timeout_DefaultValue" xml:space="preserve"><value>120</value></data>
 
   <!-- Serilog -->
