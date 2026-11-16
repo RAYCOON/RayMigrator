@@ -71,12 +71,6 @@ public static class DefaultsPromoter
             (tgDefaults, val) => tgDefaults.HashValidationScope = val,
             results);
 
-        TryPromoteTargetGroupStringOverride(model, "UseCliToolAlias (TargetGroup)",
-            tg => tg.UseCliToolAlias,
-            (_, _) => { }, // TargetGroupDefaults doesn't have UseCliToolAlias directly
-            results,
-            clearOnly: true);
-
         // TargetGroup-level bool overrides
         TryPromoteTargetGroupBoolOverride(model, "StopRollbackOnMissingRollbackFile (TargetGroup)",
             tg => tg.StopRollbackOnMissingRollbackFile,
@@ -502,8 +496,7 @@ public static class DefaultsPromoter
         string propertyName,
         Func<TargetGroupModel, OverridableValue<string>> getOverride,
         Action<TargetGroupDefaultsModel, string> setDefault,
-        List<PromotionResult> results,
-        bool clearOnly = false)
+        List<PromotionResult> results)
     {
         var allTgs = model.Products.SelectMany(p => p.TargetGroups).ToList();
         if (allTgs.Count == 0)
@@ -523,8 +516,7 @@ public static class DefaultsPromoter
 
         string promotedValue = distinctValues[0];
 
-        if (!clearOnly)
-            setDefault(model.ProductDefaults.TargetGroupDefaults, promotedValue);
+        setDefault(model.ProductDefaults.TargetGroupDefaults, promotedValue);
 
         foreach (var tg in allTgs)
         {

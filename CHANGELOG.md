@@ -27,6 +27,9 @@ RayMigrator follows Semantic Versioning where applicable.
   replacement, and their values were not registered for masking, so a
   password from an environment variable appeared in plain text at Trace
   level, in the log file and in the database log table.
+- The Overview promotion of the Config Wizard no longer deletes a
+  `UseCliToolAlias` that every target group sets. It cleared the target
+  groups without setting a default in its place.
 
 ## [0.20.0] — 2026-10-20
 

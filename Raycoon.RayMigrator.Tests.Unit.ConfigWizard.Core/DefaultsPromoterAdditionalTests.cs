@@ -7,6 +7,24 @@ namespace Raycoon.RayMigrator.Tests.Unit.ConfigWizard.Core;
 /// </summary>
 public class DefaultsPromoterAdditionalTests
 {
+    // ── UseCliToolAlias at target-group level ─────────────────────────────
+
+    [Fact]
+    public void Promote_UseCliToolAlias_AllTargetGroupsSame_KeepsThem()
+    {
+        // TargetGroupDefaults has no UseCliToolAlias, so clearing the target groups would drop the tool
+        var model = TestModelFactory.CreateValidModel();
+        var groups = model.Products.SelectMany(p => p.TargetGroups).ToList();
+        groups.Should().NotBeEmpty();
+        foreach (var tg in groups)
+            tg.UseCliToolAlias = new OverridableValue<string> { IsOverridden = true, Value = "sqlcmd" };
+
+        var results = DefaultsPromoter.Promote(model);
+
+        results.Should().NotContain(r => r.PropertyName.StartsWith("UseCliToolAlias (TargetGroup)"));
+        groups.Should().AllSatisfy(tg => tg.UseCliToolAlias.Value.Should().Be("sqlcmd"));
+    }
+
     // ── UseCliToolAlias at product level ──────────────────────────────────
 
     [Fact]
