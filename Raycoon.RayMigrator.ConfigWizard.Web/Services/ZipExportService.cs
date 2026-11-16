@@ -73,11 +73,11 @@ public class ZipExportService
 
         var envDiffs = new Dictionary<string, string>();
         foreach (var (env, model) in state.EnvironmentModels)
-            envDiffs[env] = ConfigurationSerializer.ToJson(model, state.BaseModel);
+            envDiffs[env] = ConfigurationSerializer.ToLayerJson(model, state.BaseModel);
 
         var productDiffs = new Dictionary<string, string>();
         foreach (var (product, model) in state.ProductModels)
-            productDiffs[product] = ConfigurationSerializer.ToJson(model, state.BaseModel);
+            productDiffs[product] = ConfigurationSerializer.ToLayerJson(model, state.BaseModel);
 
         var peDiffs = new Dictionary<string, string>();
         foreach (var (key, model) in state.ProductEnvironmentModels)

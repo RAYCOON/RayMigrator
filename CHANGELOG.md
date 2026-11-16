@@ -27,6 +27,19 @@ RayMigrator follows Semantic Versioning where applicable.
   replacement, and their values were not registered for masking, so a
   password from an environment variable appeared in plain text at Trace
   level, in the log file and in the database log table.
+- The Config Wizard no longer writes its own defaults into the environment
+  and product files it exports. An imported `appsettings.Production.json`
+  that set only the repository connection string came back with
+  `DatabaseType: SqlServer`, `SchemaName: ray` and the default product
+  options, which overrode the values of `appsettings.json`. A layer file now
+  keeps only the keys its imported file declares, plus the repository
+  connection string the wizard sets.
+- The Config Wizard keeps the keys it does not read in the `Repository`,
+  `DatabaseLogging`, `ProductDefaults` and `Serilog` sections of an imported
+  file, such as `DatabaseLogging:Enabled`, the heartbeat and orphan options,
+  and Serilog `Using`, `Enrich` and `Properties`. An object-valued Serilog
+  sink argument such as a formatter is written as an object again instead
+  of a JSON string.
 - The Overview promotion of the Config Wizard no longer deletes a
   `UseCliToolAlias` that every target group sets. It cleared the target
   groups without setting a default in its place.

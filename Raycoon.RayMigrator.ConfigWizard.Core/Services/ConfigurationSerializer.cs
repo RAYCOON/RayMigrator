@@ -100,10 +100,25 @@ public static class ConfigurationSerializer
     /// are included (diff-based serialization for environment/product-environment files).
     /// </summary>
     public static string ToJson(ConfigurationModel model, ConfigurationModel? baseModel = null, bool indented = true)
+        => ToJson(model, baseModel, indented, layer: false);
+
+    /// <summary>
+    /// Serializes an environment or product layer as its differences from <paramref name="baseModel"/>, keeping in
+    /// the Repository, DatabaseLogging, ProductDefaults and Serilog sections only the keys the layer declares: those
+    /// of its imported file, and the repository connection string the wizard sets. The model fills every key the
+    /// layer leaves out with a default of its own, which would otherwise override the value of the base.
+    /// </summary>
+    public static string ToLayerJson(ConfigurationModel model, ConfigurationModel baseModel, bool indented = true)
+        => ToJson(model, baseModel, indented, layer: true);
+
+    private static string ToJson(ConfigurationModel model, ConfigurationModel? baseModel, bool indented, bool layer)
     {
         var rayNode = baseModel != null
             ? BuildRayMigratorNodeDiff(model, baseModel)
             : BuildRayMigratorNode(model);
+
+        if (layer)
+            KeepDeclaredKeys(rayNode, model.PreservedDocument?["RayMigrator"] as JsonObject);
 
         JsonObject root;
 
@@ -114,6 +129,8 @@ public static class ConfigurationSerializer
 
             if (root["RayMigrator"] is JsonObject preservedRay)
             {
+                KeepUnreadKeys(preservedRay, rayNode, model);
+
                 // Known keys managed by the wizard
                 var managedKeys = new[] { "Repository", "DatabaseLogging", "ProductDefaults", "Products", "Serilog", "CliTools" };
 
@@ -141,6 +158,130 @@ public static class ConfigurationSerializer
         var options = new JsonSerializerOptions { WriteIndented = indented };
         return root.ToJsonString(options);
     }
+
+    /// <summary>
+    /// The keys <see cref="LoadFromJson"/> reads in the sections whose keys the wizard writes one by one, by section
+    /// path. Every other key of such a section in an imported file is kept as it was (<see cref="KeepUnreadKeys"/>).
+    /// </summary>
+    private static readonly Dictionary<string, HashSet<string>> ReadKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Repository"] = Keys("DatabaseType", "ConnectionString", "SchemaName", "TableBaseName",
+            "DbCommandTimeoutInSeconds", "DbCommandMaxRetries", "DbCommandWaitTimeInMsBeforeRetry"),
+        ["DatabaseLogging"] = Keys("DatabaseType", "ConnectionString", "SchemaName", "TableBaseName", "MinimumLevel",
+            "DbCommandTimeoutInSeconds"),
+        ["ProductDefaults"] = Keys("MigrationErrorAction", "RollbackErrorAction", "MigrationFilesExtension",
+            "MigrationRollbackFilesPreExtension", "MigrationFilesEncoding", "RequireRollbackFile",
+            "StopRollbackOnMissingRollbackFile", "UseCliToolAlias", "TargetGroupDefaults"),
+        ["ProductDefaults:TargetGroupDefaults"] = Keys("TargetMigrationOrder", "HashValidationScope",
+            "StopRollbackOnMissingRollbackFile", "TargetDefaults"),
+        ["ProductDefaults:TargetGroupDefaults:TargetDefaults"] = Keys("DbCommandTimeoutInSeconds", "DbCommandMaxRetries",
+            "DbCommandWaitTimeInMsBeforeRetry"),
+        ["Serilog"] = Keys("MinimumLevel", "WriteTo"),
+    };
+
+    private static HashSet<string> Keys(params string[] keys) => new(keys, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Copies the keys of the preserved Repository, DatabaseLogging, ProductDefaults and Serilog sections that the wizard
+    /// does not read into the sections built from the model, which replace the preserved ones: engine options the
+    /// model has no field for, Serilog Using, Enrich and Properties. A section the model dropped stays dropped.
+    /// </summary>
+    private static void KeepUnreadKeys(JsonObject preservedRay, JsonObject rayNode, ConfigurationModel model)
+    {
+        foreach (var section in new[] { "Repository", "DatabaseLogging", "ProductDefaults", "Serilog" })
+        {
+            if (section == "DatabaseLogging" && model.DatabaseLogging == null)
+                continue;
+            if (Find(preservedRay, section) is not JsonObject preserved)
+                continue;
+
+            var built = rayNode[section] as JsonObject ?? new JsonObject();
+            KeepUnreadKeys(preserved, built, section);
+            if (built.Count > 0)
+                rayNode[section] = built;
+        }
+    }
+
+    private static void KeepUnreadKeys(JsonObject preserved, JsonObject built, string path)
+    {
+        var read = ReadKeys[path];
+        foreach (var (key, value) in preserved)
+        {
+            if (!read.Contains(key))
+            {
+                if (Find(built, key) == null)
+                    built[key] = value?.DeepClone();
+            }
+            else if (value is JsonObject preservedChild && ReadKeys.ContainsKey($"{path}:{key}"))
+            {
+                var builtChild = Find(built, key) as JsonObject ?? new JsonObject();
+                KeepUnreadKeys(preservedChild, builtChild, $"{path}:{key}");
+                if (builtChild.Count > 0 && builtChild.Parent == null)
+                    built[key] = builtChild;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Removes from the Repository, DatabaseLogging, ProductDefaults and Serilog sections of a layer's diff every key
+    /// its file does not declare, except the repository connection string, the one value the wizard writes into a layer.
+    /// </summary>
+    private static void KeepDeclaredKeys(JsonObject rayNode, JsonObject? declaredRay)
+    {
+        foreach (var section in new[] { "Repository", "DatabaseLogging", "ProductDefaults", "Serilog" })
+        {
+            if (rayNode[section] is not JsonObject diff)
+                continue;
+
+            string? connectionString = section == "Repository" ? diff["ConnectionString"]?.GetValue<string>() : null;
+            KeepDeclared(diff, declaredRay == null ? null : Find(declaredRay, section));
+            if (connectionString != null)
+                diff["ConnectionString"] = connectionString;
+
+            if (diff.Count == 0)
+                rayNode.Remove(section);
+        }
+    }
+
+    private static void KeepDeclared(JsonObject diff, JsonNode? declared)
+    {
+        foreach (var (key, value) in diff.ToList())
+        {
+            var declaredValue = declared is JsonObject declaredObject ? Find(declaredObject, key) : null;
+            if (declaredValue == null)
+                diff.Remove(key);
+            else if (value is JsonObject diffChild && declaredValue is JsonObject)
+            {
+                KeepDeclared(diffChild, declaredValue);
+                if (diffChild.Count == 0)
+                    diff.Remove(key);
+            }
+        }
+    }
+
+    /// <summary>
+    /// The JSON of a Serilog sink argument, which the model keeps as text: an object or array (a formatter, for
+    /// example) is written as JSON again, every other value as a string, which .NET configuration reads the same as a
+    /// number or boolean.
+    /// </summary>
+    private static JsonNode? SinkArgNode(string value)
+    {
+        var trimmed = value.TrimStart();
+        if (trimmed.StartsWith('{') || trimmed.StartsWith('['))
+        {
+            try
+            {
+                if (JsonNode.Parse(value) is { } node and (JsonObject or JsonArray))
+                    return node;
+            }
+            catch (JsonException) { /* plain text such as an output template */ }
+        }
+        return JsonValue.Create(value);
+    }
+
+    // .NET configuration keys are case-insensitive
+    private static JsonNode? Find(JsonObject obj, string key)
+        => obj.FirstOrDefault(kvp => string.Equals(kvp.Key, key, StringComparison.OrdinalIgnoreCase)).Value;
 
     private static ProductDefaultsModel ParseProductDefaults(JsonNode node)
     {
@@ -334,7 +475,7 @@ public static class ConfigurationSerializer
                         if (kvp.Value is JsonValue jv && jv.TryGetValue<string>(out var str))
                             sink.Args[kvp.Key] = str;
                         else
-                            sink.Args[kvp.Key] = kvp.Value?.ToString() ?? "";
+                            sink.Args[kvp.Key] = kvp.Value?.ToJsonString() ?? "";
                     }
                 }
 
@@ -510,7 +651,7 @@ public static class ConfigurationSerializer
                 var argsObj = new JsonObject();
                 foreach (var kvp in sink.Args)
                 {
-                    argsObj[kvp.Key] = kvp.Value;
+                    argsObj[kvp.Key] = SinkArgNode(kvp.Value);
                 }
                 sinkObj["Args"] = argsObj;
             }
@@ -1098,7 +1239,7 @@ public static class ConfigurationSerializer
                 {
                     var argsObj = new JsonObject();
                     foreach (var kvp in sink.Args)
-                        argsObj[kvp.Key] = kvp.Value;
+                        argsObj[kvp.Key] = SinkArgNode(kvp.Value);
                     sinkObj["Args"] = argsObj;
                 }
                 writeToArr.Add(sinkObj);

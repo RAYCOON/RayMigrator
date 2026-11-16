@@ -218,8 +218,9 @@ public class ZipExportServiceTests
         // One product and no environment: a single combination, so everything it needs is in the base file (#23 Part B).
         var (service, js) = CreateService();
         var state = BuildMinimalState();
-        var productModel = new ConfigurationModel { FilePath = "appsettings.OrderService.json" };
-        productModel.Repository.DatabaseType = "PostgreSQL";
+        // A product layer carries the keys of its file only (ToLayerJson)
+        var productModel = ConfigurationSerializer.LoadFromJson("""{ "RayMigrator": { "Repository": { "DatabaseType": "PostgreSQL" } } }""",
+            "appsettings.OrderService.json");
         state.ProductModels["OrderService"] = productModel;
 
         await service.ExportAsync(state);
@@ -593,10 +594,11 @@ public class ZipExportServiceTests
         var state = BuildMinimalState();
         state.BaseModel.Repository.ConnectionString = "{ENV:BASE_CONN}";
         state.BaseModel.Repository.SchemaName = "ray";
-        var envDev = new ConfigurationModel();
-        envDev.Repository.ConnectionString = "{ENV:DEV_CONN}";
-        envDev.Repository.SchemaName = "dev_schema";
-        envDev.ProductDefaults.MigrationErrorAction = "Rollback";
+        // An environment layer carries the keys of its file only (ToLayerJson)
+        var envDev = ConfigurationSerializer.LoadFromJson("""
+            { "RayMigrator": { "Repository": { "ConnectionString": "{ENV:DEV_CONN}", "SchemaName": "dev_schema" },
+                               "ProductDefaults": { "MigrationErrorAction": "Rollback" } } }
+            """);
         state.EnvironmentModels["Development"] = envDev;
         var pe = new ConfigurationModel();
         pe.Repository.ConnectionString = "{ENV:PE_CONN}";
