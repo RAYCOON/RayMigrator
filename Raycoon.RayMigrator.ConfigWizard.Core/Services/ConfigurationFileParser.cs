@@ -28,7 +28,7 @@ public static class ConfigurationFileParser
                 state.BaseModel = ConfigurationSerializer.LoadFromJson(baseFile.Value, baseFile.Key);
                 state.BaseModel.FileRole = ConfigFileRole.Base;
             }
-            catch (Exception) { /* Skip if base file can't be parsed */ }
+            catch (Exception ex) { state.SkippedFiles[baseFile.Key] = ex.Message; }
         }
 
         var knownProducts = state.BaseModel.Products
@@ -53,7 +53,7 @@ public static class ConfigurationFileParser
                 envModel.FileRole = ConfigFileRole.Environment;
                 state.EnvironmentModels[file.environment!] = envModel;
             }
-            catch (Exception) { /* Skip files that can't be parsed */ }
+            catch (Exception ex) { state.SkippedFiles[file.fileName] = ex.Message; }
         }
 
         // Parse product files
@@ -65,7 +65,7 @@ public static class ConfigurationFileParser
                 prodModel.FileRole = ConfigFileRole.Product;
                 state.ProductModels[file.product!] = prodModel;
             }
-            catch (Exception) { /* Skip files that can't be parsed */ }
+            catch (Exception ex) { state.SkippedFiles[file.fileName] = ex.Message; }
         }
 
         // Parse product+environment files
@@ -78,7 +78,7 @@ public static class ConfigurationFileParser
                 peModel.FileRole = ConfigFileRole.ProductEnvironment;
                 state.ProductEnvironmentModels[key] = peModel;
             }
-            catch (Exception) { /* Skip files that can't be parsed */ }
+            catch (Exception ex) { state.SkippedFiles[file.fileName] = ex.Message; }
         }
 
         // Reverse-engineer WizardSetupAnswers

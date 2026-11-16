@@ -53,6 +53,11 @@ RayMigrator follows Semantic Versioning where applicable.
   `TargetDefaults` section. The engine reads the alias of the target only,
   so such a configuration ran its migrations through ADO.NET instead of the
   CLI tool, without a warning.
+- The Config Wizard reads numbers and booleans written as strings (`"30"`,
+  `"false"`), as .NET configuration does, and names every uploaded file it
+  cannot load, with the reason, instead of skipping it silently. A file with
+  an `{ENV:...}` placeholder in a number field, for example, was dropped,
+  and the wizard went on with defaults in its place.
 
 ## [0.20.0] — 2026-10-20
 

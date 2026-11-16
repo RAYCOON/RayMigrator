@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Raycoon.RayMigrator.ConfigWizard.Core.Models;
@@ -33,9 +34,9 @@ public static class ConfigurationSerializer
                 ConnectionString = repoNode["ConnectionString"]?.GetValue<string>() ?? "",
                 SchemaName = repoNode["SchemaName"]?.GetValue<string>() ?? "ray",
                 TableBaseName = repoNode["TableBaseName"]?.GetValue<string>() ?? "",
-                DbCommandTimeoutInSeconds = repoNode["DbCommandTimeoutInSeconds"]?.GetValue<int>() ?? 60,
-                DbCommandMaxRetries = repoNode["DbCommandMaxRetries"]?.GetValue<int>() ?? 100,
-                DbCommandWaitTimeInMsBeforeRetry = repoNode["DbCommandWaitTimeInMsBeforeRetry"]?.GetValue<int>() ?? 250,
+                DbCommandTimeoutInSeconds = ReadInt(repoNode, "DbCommandTimeoutInSeconds", 60),
+                DbCommandMaxRetries = ReadInt(repoNode, "DbCommandMaxRetries", 100),
+                DbCommandWaitTimeInMsBeforeRetry = ReadInt(repoNode, "DbCommandWaitTimeInMsBeforeRetry", 250),
             };
         }
 
@@ -50,7 +51,7 @@ public static class ConfigurationSerializer
                 SchemaName = dbLogNode["SchemaName"]?.GetValue<string>() ?? "ray",
                 TableBaseName = dbLogNode["TableBaseName"]?.GetValue<string>() ?? "",
                 MinimumLevel = dbLogNode["MinimumLevel"]?.GetValue<string>() ?? "Information",
-                DbCommandTimeoutInSeconds = dbLogNode["DbCommandTimeoutInSeconds"]?.GetValue<int>() ?? 20,
+                DbCommandTimeoutInSeconds = ReadInt(dbLogNode, "DbCommandTimeoutInSeconds", 20),
             };
         }
 
@@ -279,6 +280,32 @@ public static class ConfigurationSerializer
         return JsonValue.Create(value);
     }
 
+    /// <summary>
+    /// Reads a whole number the way .NET configuration does, from a number or a string such as "30". A value the
+    /// wizard cannot hold, such as an <c>{ENV:...}</c> placeholder, fails the file with a message naming the key
+    /// instead of being replaced by a default.
+    /// </summary>
+    private static int ReadInt(JsonNode node, string key, int fallback)
+    {
+        if (node[key] is not { } value)
+            return fallback;
+        if (value is JsonValue v && (v.TryGetValue<int>(out var number)
+            || v.TryGetValue<string>(out var text) && int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out number)))
+            return number;
+        throw new FormatException($"{value.GetPath()}: {value.ToJsonString()} is not a whole number the wizard can edit.");
+    }
+
+    /// <summary>Reads a boolean the way .NET configuration does, from true/false or the strings "true"/"false".</summary>
+    private static bool ReadBool(JsonNode node, string key, bool fallback)
+    {
+        if (node[key] is not { } value)
+            return fallback;
+        if (value is JsonValue v && (v.TryGetValue<bool>(out var flag)
+            || v.TryGetValue<string>(out var text) && bool.TryParse(text, out flag)))
+            return flag;
+        throw new FormatException($"{value.GetPath()}: {value.ToJsonString()} is not true or false.");
+    }
+
     // .NET configuration keys are case-insensitive
     private static JsonNode? Find(JsonObject obj, string key)
         => obj.FirstOrDefault(kvp => string.Equals(kvp.Key, key, StringComparison.OrdinalIgnoreCase)).Value;
@@ -292,8 +319,8 @@ public static class ConfigurationSerializer
             MigrationFilesExtension = node["MigrationFilesExtension"]?.GetValue<string>() ?? "sql",
             MigrationRollbackFilesPreExtension = node["MigrationRollbackFilesPreExtension"]?.GetValue<string>() ?? "rollback",
             MigrationFilesEncoding = node["MigrationFilesEncoding"]?.GetValue<string>() ?? "UTF-8",
-            RequireRollbackFile = node["RequireRollbackFile"]?.GetValue<bool>() ?? true,
-            StopRollbackOnMissingRollbackFile = node["StopRollbackOnMissingRollbackFile"]?.GetValue<bool>() ?? true,
+            RequireRollbackFile = ReadBool(node, "RequireRollbackFile", true),
+            StopRollbackOnMissingRollbackFile = ReadBool(node, "StopRollbackOnMissingRollbackFile", true),
             UseCliToolAlias = node["UseCliToolAlias"]?.GetValue<string>(),
         };
 
@@ -304,7 +331,7 @@ public static class ConfigurationSerializer
             {
                 TargetMigrationOrder = tgDefNode["TargetMigrationOrder"]?.GetValue<string>() ?? "TargetByTarget",
                 HashValidationScope = tgDefNode["HashValidationScope"]?.GetValue<string>() ?? "File",
-                StopRollbackOnMissingRollbackFile = tgDefNode["StopRollbackOnMissingRollbackFile"]?.GetValue<bool>() ?? true,
+                StopRollbackOnMissingRollbackFile = ReadBool(tgDefNode, "StopRollbackOnMissingRollbackFile", true),
             };
 
             var tdNode = tgDefNode["TargetDefaults"];
@@ -312,9 +339,9 @@ public static class ConfigurationSerializer
             {
                 model.TargetGroupDefaults.TargetDefaults = new TargetDefaultsModel
                 {
-                    DbCommandTimeoutInSeconds = tdNode["DbCommandTimeoutInSeconds"]?.GetValue<int>() ?? 20,
-                    DbCommandMaxRetries = tdNode["DbCommandMaxRetries"]?.GetValue<int>() ?? 0,
-                    DbCommandWaitTimeInMsBeforeRetry = tdNode["DbCommandWaitTimeInMsBeforeRetry"]?.GetValue<int>() ?? 250,
+                    DbCommandTimeoutInSeconds = ReadInt(tdNode, "DbCommandTimeoutInSeconds", 20),
+                    DbCommandMaxRetries = ReadInt(tdNode, "DbCommandMaxRetries", 0),
+                    DbCommandWaitTimeInMsBeforeRetry = ReadInt(tdNode, "DbCommandWaitTimeInMsBeforeRetry", 250),
                 };
             }
         }
@@ -414,7 +441,7 @@ public static class ConfigurationSerializer
             ExecutablePath = node["ExecutablePath"]?.GetValue<string>() ?? "",
             ArgumentTemplate = node["ArgumentTemplate"]?.GetValue<string>() ?? "",
             InputMode = node["InputMode"]?.GetValue<string>() ?? "File",
-            CliToolTimeoutInSeconds = node["CliToolTimeoutInSeconds"]?.GetValue<int>() ?? 120,
+            CliToolTimeoutInSeconds = ReadInt(node, "CliToolTimeoutInSeconds", 120),
         };
 
         var successCodes = node["SuccessExitCodes"]?.AsArray();
@@ -703,7 +730,7 @@ public static class ConfigurationSerializer
         if (node != null)
         {
             target.IsOverridden = true;
-            target.Value = node.GetValue<bool>();
+            target.Value = ReadBool(parent, key, false);
         }
     }
 
@@ -713,7 +740,7 @@ public static class ConfigurationSerializer
         if (node != null)
         {
             target.IsOverridden = true;
-            target.Value = node.GetValue<int>();
+            target.Value = ReadInt(parent, key, 0);
         }
     }
 

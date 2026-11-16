@@ -742,4 +742,36 @@ public class ConfigurationFileParserAdditionalTests
         envRoundTripped.Should().Be(envOriginal,
             because: "example.env must be identical after a no-change roundtrip");
     }
+
+    // ── Values .NET configuration reads as text ───────────────────────
+
+    [Fact]
+    public void Parse_NumberAndBooleanAsText_AreRead()
+    {
+        var state = ConfigurationFileParser.Parse(new Dictionary<string, string>
+        {
+            ["appsettings.json"] = """
+                { "RayMigrator": { "Repository": { "ConnectionString": "x", "DbCommandTimeoutInSeconds": "90" },
+                                   "ProductDefaults": { "RequireRollbackFile": "false" } } }
+                """
+        });
+
+        state.SkippedFiles.Should().BeEmpty();
+        state.BaseModel.Repository.DbCommandTimeoutInSeconds.Should().Be(90);
+        state.BaseModel.ProductDefaults.RequireRollbackFile.Should().BeFalse();
+    }
+
+    [Fact]
+    public void Parse_PlaceholderInANumberField_ReportsTheFileInsteadOfSkippingItSilently()
+    {
+        var state = ConfigurationFileParser.Parse(new Dictionary<string, string>
+        {
+            ["appsettings.json"] = """{ "RayMigrator": { "Repository": { "ConnectionString": "x" } } }""",
+            ["appsettings.Production.json"] = """{ "RayMigrator": { "Repository": { "DbCommandTimeoutInSeconds": "{ENV:TIMEOUT}" } } }"""
+        });
+
+        state.EnvironmentModels.Should().NotContainKey("Production");
+        state.SkippedFiles.Should().ContainKey("appsettings.Production.json")
+            .WhoseValue.Should().Contain("DbCommandTimeoutInSeconds").And.Contain("{ENV:TIMEOUT}");
+    }
 }

@@ -76,8 +76,18 @@
                         @if (_uploadedFiles.Count > 0)
                         {
                             <MudText Typo="Typo.body2" Color="Color.Success">
-                                @_uploadedFiles.Count @L.Get("Upload.FilesLoaded")
+                                @(_uploadedFiles.Count - Wizard.State.SkippedFiles.Count) @L.Get("Upload.FilesLoaded")
                             </MudText>
+                            @if (Wizard.State.SkippedFiles.Count > 0)
+                            {
+                                <MudAlert Severity="Severity.Error" Dense="true">
+                                    <MudText Typo="Typo.body2">@L.Get("Upload.FilesSkipped")</MudText>
+                                    @foreach (var (fileName, reason) in Wizard.State.SkippedFiles)
+                                    {
+                                        <MudText Typo="Typo.body2"><b>@fileName</b>: @reason</MudText>
+                                    }
+                                </MudAlert>
+                            }
                             <MudStack Row="true" Spacing="2" Justify="Justify.Center">
                                 <MudButton Variant="Variant.Filled" Color="Color.Primary"
                                            OnClick="OnGoToOverview">

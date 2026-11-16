@@ -21,6 +21,9 @@ public class WizardState
     /// <summary>Tracks wizard completion per product+environment combination, keyed by "{Product}.{Env}".</summary>
     public Dictionary<string, ProductEnvironmentEntry> CombinationEntries { get; set; } = new();
 
+    /// <summary>Uploaded files the wizard could not load, keyed by file name, with the reason.</summary>
+    public Dictionary<string, string> SkippedFiles { get; set; } = new();
+
     /// <summary>The initial answers that seeded this state.</summary>
     public WizardSetupAnswers SetupAnswers { get; set; } = new();
 }

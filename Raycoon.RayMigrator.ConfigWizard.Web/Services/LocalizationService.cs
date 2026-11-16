@@ -305,6 +305,7 @@ public class LocalizationService
             ["Serilog.AddSink"] = "Add Sink",
 
             ["Upload.FilesLoaded"] = "file(s) loaded",
+            ["Upload.FilesSkipped"] = "These files could not be loaded and are not part of the configuration you edit and export:",
 
             ["Help.ValidValues"] = "Valid Values",
             ["Help.Default"] = "Default",
@@ -548,6 +549,7 @@ public class LocalizationService
             ["Serilog.AddSink"] = "Sink hinzufügen",
 
             ["Upload.FilesLoaded"] = "Datei(en) geladen",
+            ["Upload.FilesSkipped"] = "Diese Dateien konnten nicht geladen werden und fehlen in der Konfiguration, die Sie bearbeiten und exportieren:",
 
             ["Help.ValidValues"] = "Gültige Werte",
             ["Help.Default"] = "Standardwert",
