@@ -447,10 +447,9 @@ public class CommandLineConfiguration
             }
         });
 
-        var olderThanOption = new Option<int>("--older-than", "-ot")
+        var olderThanOption = new Option<int?>("--older-than", "-ot")
         {
-            Description = "Only fix runs whose last heartbeat (or start) is older than N minutes (0 = immediate)",
-            DefaultValueFactory = _ => 2
+            Description = "Only fix runs whose last heartbeat (or start) is older than N minutes (0 = immediate; default Repository.OrphanedRunThresholdInMinutes)"
         };
 
         // fix previews through --run-mode simulate like migrate-up / migrate-down; it has no switch of its own (#22).
@@ -705,7 +704,7 @@ public class CommandLineConfiguration
             var scopeString = parseResult.GetValue(command.Options.OfType<Option<string>>().First(o => o.Name == "--scope")) ?? "OrphanedRuns";
             var scope = ParseFixScope(scopeString);
 
-            var olderThan = parseResult.GetValue(command.Options.OfType<Option<int>>().First(o => o.Name == "--older-than"));
+            var olderThan = parseResult.GetValue(command.Options.OfType<Option<int?>>().First(o => o.Name == "--older-than"));
             var runModeString = parseResult.GetValue(command.Options.OfType<Option<string>>().First(o => o.Name == "--run-mode")) ?? "migrate";
             var runMode = ParseRunMode(runModeString);
             // Without the option the engine keeps the progress of every open record

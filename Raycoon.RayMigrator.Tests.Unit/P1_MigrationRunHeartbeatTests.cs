@@ -129,7 +129,7 @@ public class MigrationRunHeartbeatTests
     [Fact]
     public void FixIssuesRequest_OlderThan_DefaultsToTheOrphanThreshold()
     {
-        new FixIssuesRequest().OlderThanMinutes.Should().Be(2);
+        new FixIssuesRequest().OlderThanMinutes.Should().BeNull("the engine takes Repository.OrphanedRunThresholdInMinutes");
     }
 
     [Fact]
@@ -140,7 +140,7 @@ public class MigrationRunHeartbeatTests
         await parse.InvokeAsync(null, TestContext.Current.CancellationToken);
 
         config.ParsedOptions.Should().NotBeNull();
-        config.ParsedOptions!.FixOlderThanMinutes.Should().Be(2);
+        config.ParsedOptions!.FixOlderThanMinutes.Should().BeNull("the engine takes Repository.OrphanedRunThresholdInMinutes");
     }
 
     [Theory]

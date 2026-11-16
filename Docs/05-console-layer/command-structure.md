@@ -245,7 +245,7 @@ These options are defined on specific commands (not global).
 | `--stop-rollback-on-missing-rollback-file` | `-sromrf` | bool? | (config default: true) | migrate-up | CLI override: stop error-recovery rollback chain when a rollback file is missing |
 | `--cancelled-action` | `-ca` | string | terminate | migrate-up, migrate-down, baseline | What the run does after Ctrl+C or SIGTERM stopped it at the next block boundary: `terminate`, `rollback-file`, `rollback-run` or `rollback-release` (maps to `CancelledAction`); migrate-down and baseline accept it and ignore it |
 | `--scope` | `-s` | string | (varies) | validate-hash, fix | Validation or fix scope (validate-hash: `file`/`sqlblocks`/`disabled`; fix: `orphanedruns`/`all`) |
-| `--older-than` | `-ot` | int | 2 | Fix | Only fix runs whose last heartbeat (or start) is older than N minutes (0 = immediate) |
+| `--older-than` | `-ot` | int | `Repository.OrphanedRunThresholdInMinutes` | Fix | Only fix runs whose last heartbeat (or start) is older than N minutes (0 = immediate) |
 | `--last-migration-status` | `-lms` | string | — | Fix | Status for the open records of an orphaned run (`migrated` or `not-migrated`); without it each record keeps its progress |
 
 ### Command-Specific Options
@@ -283,7 +283,7 @@ These options are defined on specific commands (not global).
 
 **Fix**:
 - `--scope` (`-s`): string, default `"OrphanedRuns"` — Maps to `FixScope` enum (values: `OrphanedRuns`, `All`)
-- `--older-than` (`-ot`): int, default `2` — Only fix runs whose last heartbeat (or start) is older than N minutes (0 = immediate)
+- `--older-than` (`-ot`): int, default `Repository.OrphanedRunThresholdInMinutes` — Only fix runs whose last heartbeat (or start) is older than N minutes (0 = immediate)
 - `--run-mode`: string, default `migrate`. `simulate` lists what would be repaired without applying changes (#22)
 - `--last-migration-status` (`-lms`): string, no default — Status set on every open record of an orphaned run (`migrated` or `not-migrated`); without the option each record keeps its progress: `Failed` after committed blocks, `Migrated` when every block committed, `NotMigrated` without progress
 

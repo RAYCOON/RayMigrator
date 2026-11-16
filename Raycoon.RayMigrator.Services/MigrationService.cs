@@ -6937,6 +6937,9 @@ public class MigrationService : IMigrationService
             // default repair. All expands to every known repair (#16).
             repairs = RepairsFor(request.Scope);
 
+            // Without --older-than the age is the orphan threshold of the configuration, like the repair at start
+            int olderThanMinutes = request.OlderThanMinutes ?? OrphanedRunThresholdMinutes;
+
             // Simulate lists the orphaned runs without repairing them; the context must have been built for the
             // same run mode because the CommandProfile (no repository writes, no database log) reads it from there (#22).
             EnsureRequestRunModeMatchesContext(request.RunMode);
@@ -6976,11 +6979,11 @@ public class MigrationService : IMigrationService
 
             // --- Phase 3: Filter by OlderThanMinutes (the age of the last heartbeat, or of the start without one) ---
             filteredRuns = orphanedRuns
-                .Where(r => r.MinutesSinceHeartbeat >= request.OlderThanMinutes)
+                .Where(r => r.MinutesSinceHeartbeat >= olderThanMinutes)
                 .ToList();
 
             _logger.LogInformation("Found {Total} open run(s), {Filtered} whose last heartbeat is older than --older-than {Minutes} minutes",
-                orphanedRuns.Count, filteredRuns.Count, request.OlderThanMinutes);
+                orphanedRuns.Count, filteredRuns.Count, olderThanMinutes);
 
             // --- Phase 4: Log found orphans ---
             foreach (var run in filteredRuns)
@@ -7002,7 +7005,7 @@ public class MigrationService : IMigrationService
 
                     // Close the run first (mark as Error, set FinishedAt); a run whose heartbeat is younger than
                     // --older-than by now is alive and stays untouched, records included.
-                    bool closed = await _templateExecutor.RepositoryMigrationRunFixOrphanedAsync(run.MigrationRunId, request.OlderThanMinutes);
+                    bool closed = await _templateExecutor.RepositoryMigrationRunFixOrphanedAsync(run.MigrationRunId, olderThanMinutes);
                     if (!closed)
                     {
                         _logger.LogInformation("  MigrationRun {RunId} wrote a heartbeat meanwhile and is alive; not fixed", run.MigrationRunId);

@@ -193,7 +193,7 @@ Options when encountering this error:
 1. **Automatic**: `RepositoryMigrationRunInsertWithAutoFix` automatically cleans up orphaned runs whose last heartbeat is older than `Repository.OrphanedRunThresholdInMinutes` (default 2) and retries the insert. This happens transparently during `MigrateUpAsync`, `MigrateDownAsync`, and `BaselineAsync`.
 2. **Wait**: Allow the other process to complete
 3. **Investigate**: Check if the other process is actually running
-4. **Fix Command**: Use the Fix command to clean up orphaned runs manually (`--older-than` compares the age of the last heartbeat, default 2 minutes, `0` closes every open run):
+4. **Fix Command**: Use the Fix command to clean up orphaned runs manually (`--older-than` compares the age of the last heartbeat, default `Repository.OrphanedRunThresholdInMinutes`, `0` closes every open run):
    ```
    raymigrator fix --product <alias> --environment <env> --scope orphanedruns
    ```

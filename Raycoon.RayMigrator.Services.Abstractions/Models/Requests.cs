@@ -96,9 +96,10 @@ public class FixIssuesRequest
     public FixScope Scope { get; set; } = FixScope.OrphanedRuns;
     /// <summary>
     /// Minimum age of the last heartbeat (or of the start, for a run without one) in minutes for an open run to count
-    /// as orphaned; 0 repairs every open run. Default 2, the engine's <c>Repository.OrphanedRunThresholdInMinutes</c>.
+    /// as orphaned; 0 repairs every open run. Null takes <c>Repository.OrphanedRunThresholdInMinutes</c> of the run's
+    /// configuration (default 2).
     /// </summary>
-    public int OlderThanMinutes { get; set; } = 2;
+    public int? OlderThanMinutes { get; set; }
     /// <summary>
     /// Migrate repairs the orphaned runs, Simulate only lists them and writes nothing. Must equal the run mode the
     /// <c>MigrationContext</c> was built with (#17, #22).

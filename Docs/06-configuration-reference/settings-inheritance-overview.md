@@ -90,7 +90,7 @@ These settings exist only as command-line arguments and control execution behavi
 | `--cancelled-action` | `-ca` | string | `terminate` | migrate-up, migrate-down, baseline | What a run does when the first Ctrl+C or SIGTERM cancels it: `terminate`, `rollback-file`, `rollback-run` or `rollback-release`. Migrate-down and baseline accept it and ignore it. See [Error handling: Cancellation](../02-core-concepts/error-handling.md#cancellation). |
 | `--scope` | `-s` | string | *(none)* | validate-hash | Hash scope override: `File`, `SqlBlocks` or `Disabled`. If omitted, uses per-TargetGroup config. |
 | `--scope` | `-s` | string | `OrphanedRuns` | Fix | Fix scope: `OrphanedRuns` or `All` |
-| `--older-than` | `-ot` | int | `2` | Fix | Only fix runs whose last heartbeat (or start) is older than N minutes (0 = immediate) |
+| `--older-than` | `-ot` | int | `Repository.OrphanedRunThresholdInMinutes` | Fix | Only fix runs whose last heartbeat (or start) is older than N minutes (0 = immediate) |
 | `--last-migration-status` | `-lms` | string | — | Fix | Status for the open records of an orphaned run: `migrated` or `not-migrated`; without it each record keeps its progress |
 | `--startup-info` | `-si` | bool | `true` | Global | Show startup information |
 | `--reveal-sensitive-data` | `-rsd` | bool | `false` | Global | Include passwords in logs |

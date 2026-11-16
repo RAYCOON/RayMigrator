@@ -43,6 +43,11 @@ RayMigrator follows Semantic Versioning where applicable.
 - The Overview promotion of the Config Wizard no longer deletes a
   `UseCliToolAlias` that every target group sets. It cleared the target
   groups without setting a default in its place.
+- `fix` without `--older-than` uses `Repository.OrphanedRunThresholdInMinutes`
+  of the configuration, like the orphan repair at start. It always took 2
+  minutes, so a configured threshold of, say, 30 minutes let `fix` close a
+  run that was only paused between two heartbeats. `FixIssuesRequest.
+  OlderThanMinutes` is nullable now; null takes the configured threshold.
 
 ## [0.20.0] — 2026-10-20
 

@@ -45,7 +45,7 @@ This document provides a comprehensive overview of unit and engine test coverage
 | `--target-group-migration-order` | string? | null | Comma-separated group aliases for execution order |
 | `--cancelled-action` | string | `"terminate"` | What the run does when Ctrl+C or SIGTERM cancels it: `terminate`, `rollback-file`, `rollback-run` or `rollback-release` (case-insensitive); migrate-down and baseline accept the option and ignore it |
 | `--scope` | string | varies | validate-hash: `file`/`sqlblocks`/`disabled`; fix: `orphanedruns`/`all` |
-| `--older-than` | int | 2 | Minutes since the last heartbeat (or the start of a run without one) after which an open run counts as orphaned; 0 repairs every open run |
+| `--older-than` | int | `Repository.OrphanedRunThresholdInMinutes` | Minutes since the last heartbeat (or the start of a run without one) after which an open run counts as orphaned; 0 repairs every open run |
 | `--run-mode` | string | migrate | `simulate` previews the fix without applying changes |
 | `--last-migration-status` | string | none | Status to set on every open record of an orphaned run: `migrated` or `not-migrated`; without it each record keeps its progress |
 | `--startup-info` | bool | true | Show startup banner and configuration info |

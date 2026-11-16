@@ -255,7 +255,7 @@ public class ScenarioContext : IAsyncDisposable
     /// </summary>
     public async Task<FixIssuesResult> FixIssuesAsync(
         FixScope scope = FixScope.OrphanedRuns,
-        int olderThanMinutes = 0,
+        int? olderThanMinutes = 0,
         MigrationStatus? assumedMigrationStatus = null,
         CancellationToken? cancellationToken = null)
     {

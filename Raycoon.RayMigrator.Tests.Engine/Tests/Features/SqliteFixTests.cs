@@ -108,6 +108,31 @@ public class SqliteFixTests : SqliteTestBase
     }
 
     /// <summary>
+    /// F4b: without --older-than, fix measures the age against Repository.OrphanedRunThresholdInMinutes.
+    /// </summary>
+    [Theory]
+    [InlineData(60, 0)]
+    [InlineData(10, 1)]
+    public async Task Fix_WithoutOlderThan_UsesTheConfiguredThreshold(int thresholdMinutes, int expectedFound)
+    {
+        Assert.SkipUnless(Fixture.IsDatabaseAvailable, "Docker not available");
+
+        await using var ctx = await CreateScenario()
+            .WithRepositoryHeartbeat(30, thresholdMinutes)
+            .BuildAsync();
+
+        await ctx.MigrateUpAsync("Release_2.0");
+        ctx.AssertSuccess(true);
+
+        ctx.InsertOrphanedMigrationRun(30);
+
+        await ctx.RebuildForAsync(MigrationCommand.FixIssues, MigrationRunMode.Migrate);
+        var result = await ctx.FixIssuesAsync(olderThanMinutes: null);
+
+        result.OrphanedRunsFound.Should().Be(expectedFound);
+    }
+
+    /// <summary>
     /// F5: After fixing an orphaned run, MigrateUp should succeed again.
     /// </summary>
     [Fact]

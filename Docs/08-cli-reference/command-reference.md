@@ -451,7 +451,7 @@ raymigrator fix --product <alias> --environment <env> [--scope <scope>] [--older
 
 **--scope**: Validated case-insensitively. Only `"All"` and `"OrphanedRuns"` are accepted. Parsed via `ParseFixScope()` into `FixScope.All` or `FixScope.OrphanedRuns`; `All` runs every known repair (currently the orphaned-run repair) and the result lists the repairs that ran (#16).
 
-**--older-than**: Minimum age of the last heartbeat (or of the start, for a run that never wrote one) in minutes for an open MigrationRun to be considered orphaned; `0` repairs every open run. Default is 2 minutes, the `Repository.OrphanedRunThresholdInMinutes` default. A run whose heartbeat is younger is alive and left open even when the age is passed on the command line.
+**--older-than**: Minimum age of the last heartbeat (or of the start, for a run that never wrote one) in minutes for an open MigrationRun to be considered orphaned; `0` repairs every open run. Default is `Repository.OrphanedRunThresholdInMinutes` of the configuration (2 minutes unless configured). A run whose heartbeat is younger is alive and left open even when the age is passed on the command line.
 
 **--run-mode**: `migrate` repairs the orphaned runs; `simulate` lists the runs that would be repaired, writes nothing and leaves no DatabaseLogging rows. `validate` is rejected for `fix` (#22).
 

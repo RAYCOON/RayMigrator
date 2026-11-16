@@ -476,7 +476,7 @@ private async Task<int> ExecuteFixIssuesAsync(RunCancellation cancellation)
         ProductAlias = _consoleOptions.Product!,
         Environment = _consoleOptions.Environment!,
         Scope = _consoleOptions.FixScope ?? FixScope.OrphanedRuns,
-        OlderThanMinutes = _consoleOptions.FixOlderThanMinutes ?? 2,
+        OlderThanMinutes = _consoleOptions.FixOlderThanMinutes,   // null: the engine takes the orphan threshold
         RunMode = _consoleOptions.RunMode,
         AssumedMigrationStatus = _consoleOptions.FixAssumedMigrationStatus,   // null without --last-migration-status: the progress rule
         ShowInfo = _consoleOptions.ShowStartupInfo,
@@ -515,7 +515,7 @@ private async Task<int> ExecuteFixIssuesAsync(RunCancellation cancellation)
 }
 ```
 
-`--older-than` defaults to 2 minutes, the default of `Repository.OrphanedRunThresholdInMinutes`: a run counts as orphaned when its last heartbeat (or, without one, its start) is older.
+`--older-than` defaults to `Repository.OrphanedRunThresholdInMinutes` of the configuration (2 minutes unless configured): a run counts as orphaned when its last heartbeat (or, without one, its start) is older.
 
 ## Integration with CLI
 

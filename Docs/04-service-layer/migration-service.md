@@ -114,7 +114,7 @@ public class FixIssuesRequest
     public string ProductAlias { get; set; } = string.Empty;
     public string Environment { get; set; } = string.Empty;
     public FixScope Scope { get; set; } = FixScope.OrphanedRuns;
-    public int OlderThanMinutes { get; set; } = 2;   // minimum age of the last heartbeat (or of the start); 0 repairs every open run
+    public int? OlderThanMinutes { get; set; }       // minimum age of the last heartbeat (or of the start); 0 repairs every open run, null takes Repository.OrphanedRunThresholdInMinutes
     public MigrationRunMode RunMode { get; set; } = MigrationRunMode.Migrate; // Migrate repairs, Simulate lists only (#22)
     public MigrationStatus? AssumedMigrationStatus { get; set; }   // null (default): each open record keeps its progress; NotMigrated or Migrated: set on every open record
     public bool ShowInfo { get; set; } = true;

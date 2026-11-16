@@ -204,7 +204,7 @@ When an open run is detected and auto-fix does not apply (its last heartbeat is 
 
 1. **Wait**: The run may still be genuinely running
 2. **Investigate manually**: Check database state before proceeding
-3. **Fix command**: Use `raymigrator fix --product <alias> --environment <env> --scope orphanedruns` for manual cleanup (default threshold: 2 minutes since the last heartbeat, `--older-than 0` closes every open run)
+3. **Fix command**: Use `raymigrator fix --product <alias> --environment <env> --scope orphanedruns` for manual cleanup (default threshold: `Repository.OrphanedRunThresholdInMinutes`, 2 minutes since the last heartbeat unless configured, `--older-than 0` closes every open run)
 
 ## Exception Types
 
@@ -313,7 +313,7 @@ Repository retry is active. `RepositoryExtensions.GetDalSettings()` (in `Raycoon
 Both orphan age thresholds measure the age of the last heartbeat (or of the start, for a run without one):
 
 - **Auto-fix threshold**: `Repository.OrphanedRunThresholdInMinutes` (default 2, about four missed heartbeats at the default `Repository.HeartbeatIntervalInSeconds` of 30 seconds; an interval of `0` switches the heartbeat off, and such a run counts from its start). Used during automatic orphaned run cleanup on migration start.
-- **Fix command threshold**: the `--older-than` option (default 2). Used by the manual `fix` command.
+- **Fix command threshold**: the `--older-than` option (default `Repository.OrphanedRunThresholdInMinutes`). Used by the manual `fix` command.
 
 ## Best Practices
 

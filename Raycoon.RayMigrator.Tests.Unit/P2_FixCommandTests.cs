@@ -23,7 +23,7 @@ public class FixIssuesRequestModelTests
         request.ProductAlias.Should().BeEmpty();
         request.Environment.Should().BeEmpty();
         request.Scope.Should().Be(FixScope.OrphanedRuns);
-        request.OlderThanMinutes.Should().Be(2, "the default is the orphan threshold of the repository options");
+        request.OlderThanMinutes.Should().BeNull("null takes the orphan threshold of the run's configuration");
         request.RunMode.Should().Be(MigrationRunMode.Migrate);
         request.AssumedMigrationStatus.Should().BeNull("without a status every open record keeps its progress");
         request.ShowInfo.Should().BeTrue();

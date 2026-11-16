@@ -338,7 +338,7 @@ a running migrate-up, migrate-down or baseline refreshes `MigrationRun.LastHeart
 start, without one) is older than `Repository.OrphanedRunThresholdInMinutes` (2) as `Error` and retries once; `fix` refuses to
 close a run whose heartbeat is younger (`-31`). `RepositoryMigrationRunUpdateAsync` releases the lock by setting `FinishedAt`, also for
 a cancelled run; only a process that dies before that write, for example after a second Ctrl+C or SIGTERM, leaves the row open. The
-`fix` command (`FixScope` `All` 1 or `OrphanedRuns` 2, `--older-than` default 2, `--last-migration-status` without a default) lists or repairs orphans by heartbeat age with the
+`fix` command (`FixScope` `All` 1 or `OrphanedRuns` 2, `--older-than` default `Repository.OrphanedRunThresholdInMinutes`, `--last-migration-status` without a default) lists or repairs orphans by heartbeat age with the
 `Repository_MigrationRun_SelectOrphaned` and `*_FixOrphaned` templates. The repair settles the open records of a run by their progress: `Failed` with the committed
 blocks, `Migrated` when every block committed, `NotMigrated` without progress, a rollback likewise; `FinishedAt` is set where it is empty, `DurationInMs` stays as it is.
 Scenario: [Runtime View 6.7](06-Runtime-View.md#67-concurrency-exclusive-run-lock-and-orphaned-run-recovery-fix). Authoritative page: [Concurrency control](https://github.com/RAYCOON/RayMigrator/blob/main/Docs/02-core-concepts/concurrency-control.md).

@@ -421,7 +421,7 @@ public class RayMigratorService
             ProductAlias = _consoleOptions.Product!,
             Environment = _consoleOptions.Environment!,
             Scope = _consoleOptions.FixScope ?? FixScope.OrphanedRuns,
-            OlderThanMinutes = _consoleOptions.FixOlderThanMinutes ?? 2,
+            OlderThanMinutes = _consoleOptions.FixOlderThanMinutes,
             RunMode = _consoleOptions.RunMode,
             AssumedMigrationStatus = _consoleOptions.FixAssumedMigrationStatus,
             ShowInfo = _consoleOptions.ShowStartupInfo,
