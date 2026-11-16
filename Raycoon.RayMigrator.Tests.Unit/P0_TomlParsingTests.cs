@@ -81,6 +81,17 @@ public class ExtractTomlAndSqlTests
     }
 
     [Fact]
+    public void SqlInFrontOfToml_IsKept()
+    {
+        var input = "SET ANSI_NULLS ON\nGO\n/*\n[RayMigrator]\nRunAlways=true\n*/\nSELECT 1";
+
+        MigrationService.ExtractTomlAndSql(input, out var toml, out var sql);
+
+        toml.Should().Contain("RunAlways=true");
+        sql.Should().Be("SET ANSI_NULLS ON\nGO\n\nSELECT 1");
+    }
+
+    [Fact]
     public void MultipleCommentBlocks_OnlyFirstTomlMatched()
     {
         var input = "/*\n[RayMigrator]\nRunAlways=true\n*/\n/* other comment */\nSELECT 1";

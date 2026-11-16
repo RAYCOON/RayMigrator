@@ -7,6 +7,14 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ## [Unreleased]
 
+### Fixed
+
+- SQL in front of the `/* [RayMigrator] ... */` header of a migration file
+  runs again. The header was found anywhere in the file, and everything
+  before it was dropped without a warning, while the record still said
+  `Migrated`. Only the header comment is cut out now. The `FileUpHash` of
+  such a file stays the same; its blocks hash changes.
+
 ## [0.20.0] — 2026-10-20
 
 ### Added

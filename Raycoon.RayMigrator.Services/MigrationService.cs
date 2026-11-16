@@ -3604,7 +3604,8 @@ public class MigrationService : IMigrationService
         if (match.Success)
         {
             tomlContent = match.Groups[1].Value.Trim();
-            sqlContent = fileContent.Substring(match.Index + match.Length).Trim();
+            // SQL in front of the header still runs: only the header comment itself is cut out.
+            sqlContent = (fileContent[..match.Index] + fileContent[(match.Index + match.Length)..]).Trim();
         }
     }
 
