@@ -173,6 +173,9 @@ public class TemplateCache
 
         if (containsEnvironmentVariables)
         {
+            // The replaced content is logged at Trace level, so the values it now holds must be masked there
+            SensitiveDataMasker.RegisterSensitiveValues(variableReplacements.Select(r => r.VariableValue));
+
             try
             {
                 _logger.LogTrace("Template [{FileName}] raw content before ENV replacement:\n[{Content}]",

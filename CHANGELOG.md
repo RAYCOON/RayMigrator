@@ -22,6 +22,11 @@ RayMigrator follows Semantic Versioning where applicable.
   message that names the file. Repairing a failed block without changing
   the number of blocks still continues the rollback, and a rollback through
   a CLI tool runs the whole file and is not affected.
+- Values of `{ENV:...}` placeholders in migration SQL and in DAL templates
+  are masked in the log. The SQL blocks and templates are traced after the
+  replacement, and their values were not registered for masking, so a
+  password from an environment variable appeared in plain text at Trace
+  level, in the log file and in the database log table.
 
 ## [0.20.0] — 2026-10-20
 

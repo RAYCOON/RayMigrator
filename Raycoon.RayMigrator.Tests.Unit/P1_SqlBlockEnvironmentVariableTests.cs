@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Raycoon.RayMigrator.Core.Configuration;
 using Raycoon.RayMigrator.Services;
 using Raycoon.RayMigrator.Tests.Unit.Helpers;
 
@@ -42,6 +43,19 @@ public class SqlBlockEnvironmentVariableTests : IDisposable
         var result = _service.ReplaceEnvironmentVariablesInSqlBlock(sqlInput, "10_Create.sql", 1, 1);
 
         result.Should().Be("INSERT INTO Users (Name) VALUES ('admin_user')");
+    }
+
+    [Fact]
+    public void ReplacedValue_IsMaskedInLogs()
+    {
+        SetEnvVar($"{TestPrefix}APP_PW", "s3cr3t-pw");
+        string sqlInput = $"CREATE LOGIN app WITH PASSWORD = '{{ENV:{TestPrefix}APP_PW}}'";
+        using var scope = SensitiveDataMasker.BeginScope(revealSensitiveData: false);
+
+        var result = _service.ReplaceEnvironmentVariablesInSqlBlock(sqlInput, "10_Login.sql", 1, 1);
+
+        // The block is traced through Mask after the replacement: the value must not appear there
+        SensitiveDataMasker.Mask(result).Should().NotContain("s3cr3t-pw");
     }
 
     [Fact]

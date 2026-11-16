@@ -5912,6 +5912,9 @@ public class MigrationService : IMigrationService
         if (EnvironmentVariableReplacer.TryReplaceStringContainingEnvironmentVariableReferences(
                 sqlBlock, out var replacedBlock, out var replacements))
         {
+            // The block is logged after this at Trace level, so the values it now holds must be masked there
+            SensitiveDataMasker.RegisterSensitiveValues(replacements.Select(r => r.VariableValue));
+
             foreach (var replacement in replacements)
             {
                 if (replacement.VariableValue == null)
