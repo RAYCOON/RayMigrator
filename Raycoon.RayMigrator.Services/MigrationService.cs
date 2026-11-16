@@ -2734,6 +2734,19 @@ public class MigrationService : IMigrationService
                         $"Target '{record.TargetAlias}' not found in target group '{record.TargetGroupAlias}'");
                 }
 
+                // A CLI tool runs the whole rollback file, so a rollback through a tool continues no earlier attempt: it
+                // starts at the first rollback block, whatever rollback blocks the record kept, and it is one block, as
+                // a file that a tool runs on the way up, also where the file is split into blocks for other targets
+                string? rollbackCliAlias = ResolveUseCliToolAlias(rollbackFileInfo, targetOptions);
+
+                // A stopped rollback continues at block N+1, which a repaired block keeps but a split, merged or removed
+                // block shifts; then the record keeps its rollback blocks and the chain aborts, as for a failed block
+                if (rollbackCliAlias == null && RollbackBlocksChangedSinceStop(record, rollbackFileInfo.FileUpBlocksTotal))
+                {
+                    throw new MigrationExecutionException(
+                        $"Rollback file {rollbackFileInfo.Filename} has {rollbackFileInfo.FileUpBlocksTotal} blocks, but its stopped rollback ran {record.FileDownBlocksMigrated} of {record.FileDownBlocksTotal}; restore its blocks to continue the rollback.");
+                }
+
                 // Update migration record with rollback metadata (initial). A rollback that continues one that stopped in
                 // the middle keeps the rollback blocks that ran: the record counts them from the start, so a migrate-down
                 // that ends before the next block commits still leaves a rollback that migrate-down continues.
@@ -2750,10 +2763,6 @@ public class MigrationService : IMigrationService
                         rollbackFileInfo.FileUpConfigJson);
                 }
 
-                // A CLI tool runs the whole rollback file, so a rollback through a tool continues no earlier attempt: it
-                // starts at the first rollback block, whatever rollback blocks the record kept, and it is one block, as
-                // a file that a tool runs on the way up, also where the file is split into blocks for other targets
-                string? rollbackCliAlias = ResolveUseCliToolAlias(rollbackFileInfo, targetOptions);
                 ReportRollbackFileStarted(
                     rollbackCliAlias == null ? rollbackFileInfo.FileUpBlocksTotal : 1,
                     rollbackCliAlias == null ? record.FileDownBlocksMigrated ?? 0 : 0);
@@ -3065,6 +3074,15 @@ public class MigrationService : IMigrationService
 
         return result;
     }
+
+    /// <summary>
+    /// Whether the rollback file has another number of blocks than the one a stopped rollback of <paramref name="record"/>
+    /// ran blocks of, so that continuing at its next block would run the wrong SQL or none.
+    /// </summary>
+    internal static bool RollbackBlocksChangedSinceStop(MigrationRecord record, int currentBlocksTotal) =>
+        record.FileDownBlocksMigrated > 0
+        && record.FileDownBlocksTotal != null
+        && record.FileDownBlocksTotal != currentBlocksTotal;
 
     /// <summary>
     /// The closing line of a rollback chain that reached its end, in the messages of migrate-down: how many of its

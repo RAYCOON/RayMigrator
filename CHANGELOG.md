@@ -14,6 +14,14 @@ RayMigrator follows Semantic Versioning where applicable.
   before it was dropped without a warning, while the record still said
   `Migrated`. Only the header comment is cut out now. The `FileUpHash` of
   such a file stays the same; its blocks hash changes.
+- migrate-down no longer continues a stopped rollback when the rollback
+  file has another number of blocks than the one that ran. It continued at
+  the next block of the new file, which could run a block twice, skip one,
+  or run nothing and still set the record to `NotMigrated`. Such a record
+  now keeps its rollback blocks and the rollback chain aborts with a
+  message that names the file. Repairing a failed block without changing
+  the number of blocks still continues the rollback, and a rollback through
+  a CLI tool runs the whole file and is not affected.
 
 ## [0.20.0] — 2026-10-20
 

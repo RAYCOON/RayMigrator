@@ -103,4 +103,18 @@ public class IncompleteRollbackTests
             "has completed: [Release 1.0/10_Create.sql on target MainDB: 1 of 3 rollback blocks, migrate-down continues at block 2]. " +
             "Complete the rollback with migrate-down to a release before theirs, then run migrate-up.");
     }
+
+    [Theory]
+    [InlineData(1, 3, 2, true)]
+    [InlineData(1, 3, 4, true)]
+    [InlineData(1, 3, 3, false)]
+    [InlineData(0, 3, 2, false)]
+    public void RollbackBlocksChangedSinceStop_ComparesTheBlocksOfTheStoppedRollback(int blocksDone, int blocksThen, int blocksNow, bool expected)
+    {
+        // Arrange: a rollback stopped after some of its blocks; a repaired block keeps the count, a split, merged or removed one does not
+        var record = Record(MigrationStatus.Failed, blocksDone, blocksThen);
+
+        // Act / Assert
+        MigrationService.RollbackBlocksChangedSinceStop(record, blocksNow).Should().Be(expected);
+    }
 }
