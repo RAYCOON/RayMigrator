@@ -242,4 +242,43 @@ public class SchemaRuleTests
 
         report.Issues.Should().NotContain(i => i.Code == RuleIds.RULE_4_5);
     }
+
+    private static ValidationReport RunWithSchema(string databaseType, string schemaName) => RuleCatalog.RunAll(new ValidationInput
+    {
+        Repository = new RepositoryInput { DatabaseType = databaseType, ConnectionString = "Server=.;Database=x;", SchemaName = schemaName },
+        DatabaseLogging = new RepositoryInput { DatabaseType = databaseType, ConnectionString = "Server=.;Database=y;", SchemaName = schemaName },
+    });
+
+    [Theory]
+    [InlineData("SqlServer", "ray]x")]
+    [InlineData("SqlServer", "my schema")]
+    [InlineData("PostgreSQL", "ray-db")]
+    public void SchemaName_WithACharacterOutsideLettersDigitsAndUnderscore_IsError(string databaseType, string schemaName)
+    {
+        var report = RunWithSchema(databaseType, schemaName);
+
+        report.Issues.Should().Contain(i => i.Code == RuleIds.RULE_4_6 && i.Severity == ValidationSeverity.Error && i.Path == "Repository > SchemaName");
+        report.Issues.Should().Contain(i => i.Code == RuleIds.RULE_4_6 && i.Path == "DatabaseLogging > SchemaName");
+    }
+
+    [Fact]
+    public void SchemaName_WithUppercaseOnPostgreSql_IsError()
+    {
+        var report = RunWithSchema("PostgreSQL", "RayMig");
+
+        report.Issues.Should().Contain(i => i.Code == RuleIds.RULE_4_7 && i.Severity == ValidationSeverity.Error
+            && i.Path == "Repository > SchemaName" && i.Message.Contains("raymig"));
+    }
+
+    [Theory]
+    [InlineData("SqlServer", "RayMig")]
+    [InlineData("SqlServer", "dbo")]
+    [InlineData("PostgreSQL", "ray_2")]
+    [InlineData("MySql", "Any-Thing")]   // ignored by the engines without schemas
+    public void SchemaName_TheEngineCanUse_IsAccepted(string databaseType, string schemaName)
+    {
+        var report = RunWithSchema(databaseType, schemaName);
+
+        report.Issues.Should().NotContain(i => i.Code == RuleIds.RULE_4_6 || i.Code == RuleIds.RULE_4_7);
+    }
 }

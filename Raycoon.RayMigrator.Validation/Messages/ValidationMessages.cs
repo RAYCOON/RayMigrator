@@ -74,6 +74,10 @@ internal static class ValidationMessages
         "TableBaseName '{0}' must be lowercase for database type '{1}'. Unquoted PostgreSQL identifiers fold to lowercase, and MariaDB/MySQL repository identifiers are stored as lowercase.";
     public const string TableBaseNameInvalidCharacters =
         "TableBaseName '{0}' may contain ASCII letters, digits and underscores only. The prefix becomes part of unquoted identifiers on PostgreSQL, MySQL and MariaDB and of unbracketed names on SQL Server.";
+    public const string SchemaNameInvalidCharacters =
+        "SchemaName '{0}' may contain ASCII letters, digits and underscores only. The repository templates write it into their SQL without quotes on PostgreSQL and in brackets on SQL Server.";
+    public const string LowercaseSchemaNameRequired =
+        "SchemaName '{0}' must be lowercase for PostgreSQL, which folds unquoted identifiers to lowercase: the repository would be created in '{1}' and not found under '{0}' at the next start.";
     public const string TableBaseNameTooLong =
         "TableBaseName '{0}' has {1} bytes in UTF-8; at most {2} are allowed ({2} ASCII characters). The prefix is part of every index and constraint name of the repository, and the longest of them must fit the identifier limit of PostgreSQL, MySQL and MariaDB, which count bytes.";
 

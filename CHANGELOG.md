@@ -58,6 +58,12 @@ RayMigrator follows Semantic Versioning where applicable.
   cannot load, with the reason, instead of skipping it silently. A file with
   an `{ENV:...}` placeholder in a number field, for example, was dropped,
   and the wizard went on with defaults in its place.
+- New rules RULE_4_6 and RULE_4_7: `SchemaName` of `Repository` and
+  `DatabaseLogging` consists of ASCII letters, digits and underscores on
+  SQL Server and PostgreSQL, and is lowercase on PostgreSQL. A `]` broke
+  the SQL Server templates, and an uppercase name on PostgreSQL created the
+  repository in the lowercase schema and failed at the next start. A
+  configuration that breaks one of them now fails validation.
 
 ## [0.20.0] — 2026-10-20
 

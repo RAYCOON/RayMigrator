@@ -11,6 +11,8 @@ namespace Raycoon.RayMigrator.Validation.Rules;
 /// <item><see cref="RuleIds.RULE_4_3"/> — TableBaseName must be lowercase for PostgreSQL, MariaDB, MySQL (Error)</item>
 /// <item><see cref="RuleIds.RULE_4_4"/> — TableBaseName has at most <see cref="MaxTableBaseNameLength"/> bytes in UTF-8 (Error)</item>
 /// <item><see cref="RuleIds.RULE_4_5"/> — TableBaseName consists of ASCII letters, digits and underscores (Error)</item>
+/// <item><see cref="RuleIds.RULE_4_6"/> — SchemaName consists of ASCII letters, digits and underscores on SqlServer and PostgreSQL (Error)</item>
+/// <item><see cref="RuleIds.RULE_4_7"/> — SchemaName must be lowercase for PostgreSQL (Error)</item>
 /// </list>
 /// </summary>
 internal sealed class SchemaRule : IValidationRule
@@ -77,6 +79,25 @@ internal sealed class SchemaRule : IValidationRule
                 RuleIds.RULE_4_2,
                 $"{path} > SchemaName",
                 ValidationMessages.Format(ValidationMessages.SchemaMissingForSchemaDb, repo.DatabaseType));
+        }
+
+        // The schema engines write SchemaName into every template; the others ignore it (RULE_4_1)
+        if (SchemaRequiredDbTypes.Contains(repo.DatabaseType) && !string.IsNullOrWhiteSpace(repo.SchemaName))
+        {
+            if (!repo.SchemaName.All(IsIdentifierCharacter))
+            {
+                report.AddError(
+                    RuleIds.RULE_4_6,
+                    $"{path} > SchemaName",
+                    ValidationMessages.Format(ValidationMessages.SchemaNameInvalidCharacters, repo.SchemaName));
+            }
+            else if (string.Equals(repo.DatabaseType, "PostgreSQL", StringComparison.OrdinalIgnoreCase) && repo.SchemaName.Any(char.IsUpper))
+            {
+                report.AddError(
+                    RuleIds.RULE_4_7,
+                    $"{path} > SchemaName",
+                    ValidationMessages.Format(ValidationMessages.LowercaseSchemaNameRequired, repo.SchemaName, repo.SchemaName.ToLowerInvariant()));
+            }
         }
 
         if (LowercaseIdentifierDbTypes.Contains(repo.DatabaseType)
