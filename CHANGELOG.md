@@ -48,6 +48,11 @@ RayMigrator follows Semantic Versioning where applicable.
   minutes, so a configured threshold of, say, 30 minutes let `fix` close a
   run that was only paused between two heartbeats. `FixIssuesRequest.
   OlderThanMinutes` is nullable now; null takes the configured threshold.
+- A `UseCliToolAlias` on a product or target group reaches its targets also
+  when the configuration has no `ProductDefaults`, `TargetGroupDefaults` or
+  `TargetDefaults` section. The engine reads the alias of the target only,
+  so such a configuration ran its migrations through ADO.NET instead of the
+  CLI tool, without a warning.
 
 ## [0.20.0] — 2026-10-20
 

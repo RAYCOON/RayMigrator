@@ -165,9 +165,6 @@ public class ProductDefaultsPostConfigureOptions : IPostConfigureOptions<RayMigr
 
                         targetGroupOptions.StopRollbackOnMissingRollbackFile ??= options.ProductDefaults.TargetGroupDefaults.StopRollbackOnMissingRollbackFile;
 
-                        // UseCliToolAlias: Product → TargetGroup
-                        if (string.IsNullOrWhiteSpace(targetGroupOptions.UseCliToolAlias)) targetGroupOptions.UseCliToolAlias = productOptions.UseCliToolAlias;
-
                         // Check and copy Target-defaults
                         if (targetGroupOptions.Targets != null && options.ProductDefaults.TargetGroupDefaults.TargetDefaults != null)
                         {
@@ -176,12 +173,24 @@ public class ProductDefaultsPostConfigureOptions : IPostConfigureOptions<RayMigr
                                 target.DbCommandTimeoutInSeconds ??= options.ProductDefaults.TargetGroupDefaults.TargetDefaults.DbCommandTimeoutInSeconds;
                                 target.DbCommandMaxRetries ??= options.ProductDefaults.TargetGroupDefaults.TargetDefaults.DbCommandMaxRetries;
                                 target.DbCommandWaitTimeInMsBeforeRetry ??= options.ProductDefaults.TargetGroupDefaults.TargetDefaults.DbCommandWaitTimeInMsBeforeRetry;
-
-                                // UseCliToolAlias: TargetGroup → Target
-                                if (string.IsNullOrWhiteSpace(target.UseCliToolAlias)) target.UseCliToolAlias = targetGroupOptions.UseCliToolAlias;
                             }
                         }
                     }
+                }
+            }
+        }
+
+        // UseCliToolAlias: Product → TargetGroup → Target, also without a ProductDefaults, TargetGroupDefaults or
+        // TargetDefaults section; the engine reads the alias of the target only
+        foreach (var productOptions in options.Products ?? [])
+        {
+            foreach (var targetGroupOptions in productOptions.TargetGroups ?? [])
+            {
+                if (string.IsNullOrWhiteSpace(targetGroupOptions.UseCliToolAlias)) targetGroupOptions.UseCliToolAlias = productOptions.UseCliToolAlias;
+
+                foreach (var target in targetGroupOptions.Targets ?? [])
+                {
+                    if (string.IsNullOrWhiteSpace(target.UseCliToolAlias)) target.UseCliToolAlias = targetGroupOptions.UseCliToolAlias;
                 }
             }
         }

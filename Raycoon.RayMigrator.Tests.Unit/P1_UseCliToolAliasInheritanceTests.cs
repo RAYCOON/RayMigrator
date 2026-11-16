@@ -213,4 +213,24 @@ public class UseCliToolAliasInheritanceTests
 
         options.Products![0].TargetGroups![0].UseCliToolAlias.Should().Be("sqlcmd");
     }
+
+    [Theory]
+    [InlineData("NoProductDefaults")]
+    [InlineData("NoTargetGroupDefaults")]
+    [InlineData("NoTargetDefaults")]
+    public void UseCliToolAlias_CascadesFromProduct_ToTarget_WithoutDefaultsSections(string missing)
+    {
+        var options = BuildOptions(productAlias: "sqlcmd");
+        switch (missing)
+        {
+            case "NoProductDefaults": options.ProductDefaults = null; break;
+            case "NoTargetGroupDefaults": options.ProductDefaults!.TargetGroupDefaults = null; break;
+            default: options.ProductDefaults!.TargetGroupDefaults!.TargetDefaults = null; break;
+        }
+
+        ProductDefaultsPostConfigureOptions.MergeDefaults(options);
+
+        options.Products![0].TargetGroups![0].Targets![0].UseCliToolAlias.Should().Be("sqlcmd",
+            "the engine reads the alias of the target, whichever defaults section the configuration leaves out");
+    }
 }
