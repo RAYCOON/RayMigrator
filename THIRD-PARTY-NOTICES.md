@@ -93,7 +93,7 @@ SQLite itself is in the public domain — <https://www.sqlite.org/copyright.html
 - System.Configuration.ConfigurationManager 9.0.13
 - System.Diagnostics.EventLog 10.0.11
 - System.IdentityModel.Tokens.Jwt 8.16.0
-- System.Security.Cryptography.Pkcs 9.0.13
+- System.Security.Cryptography.Pkcs 9.0.21
 - System.Security.Cryptography.ProtectedData 9.0.13
 
 ---

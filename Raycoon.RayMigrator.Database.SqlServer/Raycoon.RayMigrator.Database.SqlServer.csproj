@@ -28,6 +28,8 @@
 
     <ItemGroup>
         <PackageReference Include="Microsoft.Data.SqlClient" />
+        <!-- Security pin, see Directory.Packages.props -->
+        <PackageReference Include="System.Security.Cryptography.Pkcs" />
     </ItemGroup>
 
     <!-- Templates als Content (transitiv propagiert + NuGet contentFiles) -->

@@ -65,6 +65,18 @@ RayMigrator follows Semantic Versioning where applicable.
   repository in the lowercase schema and failed at the next start. A
   configuration that breaks one of them now fails validation.
 
+### Security
+
+- Pinned `System.Security.Cryptography.Pkcs` to the patched release of each
+  line: 8.0.2 on `net8.0`, 9.0.21 on `net9.0` and `net10.0`.
+  `Microsoft.Data.SqlClient` 7.0.2 pulled in 8.0.1 and 9.0.13, which carry
+  the .NET denial-of-service advisories **CVE-2026-84008**
+  (GHSA-846f-f764-76mx, High) and **CVE-2026-70162**
+  (GHSA-2fmv-rv2c-59x7, Moderate). The pin is a direct dependency of
+  `Raycoon.RayMigrator.Database.SqlServer`, so hosts that consume the
+  package get the patched version as well. The build reports no NU1902 or
+  NU1903 warning any more.
+
 ## [0.20.0] — 2026-10-20
 
 ### Added
