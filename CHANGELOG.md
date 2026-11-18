@@ -26,7 +26,9 @@ RayMigrator follows Semantic Versioning where applicable.
   are masked in the log. The SQL blocks and templates are traced after the
   replacement, and their values were not registered for masking, so a
   password from an environment variable appeared in plain text at Trace
-  level, in the log file and in the database log table.
+  level, in the log file and in the database log table. The values of the
+  template placeholders are masked in every run that uses the template
+  cache, also when a host keeps one cache across runs.
 - The Config Wizard no longer writes its own defaults into the environment
   and product files it exports. An imported `appsettings.Production.json`
   that set only the repository connection string came back with

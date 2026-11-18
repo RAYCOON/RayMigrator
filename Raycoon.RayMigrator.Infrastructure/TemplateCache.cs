@@ -14,6 +14,9 @@ public class TemplateCache
 
     private Dictionary<string, Dictionary<TemplateType, Template>> _templateDictionary = null!;
 
+    // Values substituted for {ENV:...} at load time; registered with the masker of every run that takes a template
+    private readonly HashSet<string> _environmentValues = new(StringComparer.Ordinal);
+
     /// <summary>
     /// Loads the SQL templates of every DataAccessLayer found below the application base directory.
     /// The cache does not depend on a configuration: a host that runs several configurations in one
@@ -174,7 +177,13 @@ public class TemplateCache
         if (containsEnvironmentVariables)
         {
             // The replaced content is logged at Trace level, so the values it now holds must be masked there
-            SensitiveDataMasker.RegisterSensitiveValues(variableReplacements.Select(r => r.VariableValue));
+            foreach (var value in variableReplacements.Select(r => r.VariableValue))
+            {
+                if (!string.IsNullOrWhiteSpace(value))
+                    _environmentValues.Add(value);
+            }
+
+            SensitiveDataMasker.RegisterSensitiveValues(_environmentValues);
 
             try
             {
@@ -278,6 +287,18 @@ public class TemplateCache
         return _templateDictionary.Keys.ToList();
     }
 
+    /// <summary>
+    /// Looks up a cached template and registers the substituted {ENV:...} values with the masking scope
+    /// of the current run, since a host may share one cache across runs that each open their own scope.
+    /// </summary>
+    private Template TakeTemplate(string databaseType, TemplateType templateType)
+    {
+        if (_environmentValues is { Count: > 0 })
+            SensitiveDataMasker.RegisterSensitiveValues(_environmentValues);
+
+        return _templateDictionary[databaseType][templateType];
+    }
+
     #endregion PrivateMethods
 
     /// <summary>
@@ -289,7 +310,7 @@ public class TemplateCache
     /// <returns></returns>
     public Template GetTemplate<T>(string databaseType, TemplateType templateType, T propertyClass)
     {
-        var originalTemplate = _templateDictionary[databaseType][templateType];
+        var originalTemplate = TakeTemplate(databaseType, templateType);
         var newTemplate = new Template
         {
             TemplateType = originalTemplate.TemplateType,
@@ -316,7 +337,7 @@ public class TemplateCache
     /// <returns></returns>
     public Template GetRepositoryTemplate<T>(TemplateType templateType, T propertyClass) where T : RepositoryOptions
     {
-        var originalTemplate = _templateDictionary[propertyClass.DatabaseType!][templateType];
+        var originalTemplate = TakeTemplate(propertyClass.DatabaseType!, templateType);
         var newTemplate = new Template
         {
             TemplateType = originalTemplate.TemplateType,
@@ -344,7 +365,7 @@ public class TemplateCache
     /// <returns></returns>
     public string GetTemplateContent<T>(string databaseType, TemplateType templateType, T propertyClass)
     {
-        var originalContent = _templateDictionary[databaseType][templateType].Content;
+        var originalContent = TakeTemplate(databaseType, templateType).Content;
         return originalContent.ReplacePlaceholdersFromPropertyClass(propertyClass, ConfigurationConstants.ConfigurationVariableRegex, ConfigurationConstants.AllowedTemplateVariableNameReplacements);
     }
 }
