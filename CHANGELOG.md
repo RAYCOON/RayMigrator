@@ -7,6 +7,8 @@ RayMigrator follows Semantic Versioning where applicable.
 
 ## [Unreleased]
 
+## [0.21.0] — 2026-11-18
+
 ### Fixed
 
 - SQL in front of the `/* [RayMigrator] ... */` header of a migration file
