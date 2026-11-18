@@ -15,7 +15,11 @@ RayMigrator follows Semantic Versioning where applicable.
   runs again. The header was found anywhere in the file, and everything
   before it was dropped without a warning, while the record still said
   `Migrated`. Only the header comment is cut out now. The `FileUpHash` of
-  such a file stays the same; its blocks hash changes.
+  such a file stays the same; its blocks hash changes. On a target group
+  with `HashValidationScope` `SqlBlocks` a file migrated before counts as
+  changed: `info` lists it as pending (`HashMismatch`), the next migrate-up
+  runs it again from its first block, and validate-hash reports it. With
+  the scope `File` nothing changes.
 - migrate-down no longer continues a stopped rollback when the rollback
   file has another number of blocks than the one that ran. It continued at
   the next block of the new file, which could run a block twice, skip one,
